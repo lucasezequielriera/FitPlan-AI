@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0b1020;
+  --foreground: #e6f6ff;
+  --brand-start: #3b82f6; /* blue-500 */
+  --brand-mid: #10b981;   /* emerald-500 */
+  --brand-end: #06b6d4;   /* cyan-500 */
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: radial-gradient(1200px 600px at 80% -10%, color-mix(in oklab, var(--brand-start) 15%, transparent) 0%, transparent 60%),
+              radial-gradient(1000px 600px at -10% 20%, color-mix(in oklab, var(--brand-mid) 18%, transparent) 0%, transparent 60%),
+              linear-gradient(180deg, color-mix(in oklab, var(--brand-end) 6%, var(--background)) 0%, var(--background) 60%);
+  color: var(--foreground);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  min-height: 100dvh;
+}
+
+.glass {
+  background: color-mix(in oklab, var(--foreground) 3%, transparent);
+  backdrop-filter: blur(10px);
+  border: 1px solid color-mix(in oklab, var(--foreground) 12%, transparent);
+}
+
+/* Slider personalizado para días de actividad */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  border: 2px solid rgba(99, 102, 241, 0.8);
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  border: 2px solid rgba(99, 102, 241, 0.8);
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s;
+}
+
+input[type="range"]::-moz-range-thumb:hover {
+  transform: scale(1.1);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* Tooltip completamente opaco sin transparencia */
+.tooltip-opaque {
+  background-color: #991b1b !important;
+  background: #991b1b !important;
+  opacity: 1 !important;
+  z-index: 99999 !important;
+  mix-blend-mode: normal !important;
+}
