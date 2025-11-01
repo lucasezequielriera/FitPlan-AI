@@ -55,7 +55,7 @@ REGLAS CRÍTICAS:
    - Para MANTENER o RECOMPOSICIÓN: distribución equilibrada (ej: desayuno 25-28%, almuerzo 30-35%, snacks 10-12%, cena 25-30%)
    - Si intensidad es "intensa": ajustar distribución para optimizar resultados rápidos según el objetivo
    - Si intensidad es "leve": distribución más conservadora y sostenible
-   - La suma DEBE ser exactamente 100%
+   - La suma DEBE ser exactamente 100% 
 7. NO incluir "ingredientes" ni "pasos_preparacion" en las comidas (se consultan aparte)
 Datos: ${JSON.stringify({
       nombre: input.nombre,
