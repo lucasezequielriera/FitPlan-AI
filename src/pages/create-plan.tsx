@@ -169,6 +169,13 @@ export default function CreatePlan() {
   // Determinar si el objetivo es básico o premium
   const esObjetivoBasico = form.objetivo === "perder_grasa" || form.objetivo === "mantener" || form.objetivo === "ganar_masa";
 
+  // Asegurar que si no es premium, la intensidad sea leve
+  useEffect(() => {
+    if (userDataLoaded && !isPremium && form.intensidad !== "leve" && !esObjetivoBasico) {
+      setForm((prev) => ({ ...prev, intensidad: "leve" }));
+    }
+  }, [isPremium, userDataLoaded, esObjetivoBasico, form.intensidad]);
+
   function update<K extends keyof UserInput>(key: K, value: UserInput[K]) {
     setForm((p) => {
       const nuevo = { ...p, [key]: value };
@@ -179,6 +186,11 @@ export default function CreatePlan() {
           // Objetivos básicos siempre tienen intensidad leve
           nuevo.intensidad = "leve";
         }
+      }
+      // Si el usuario no es premium y selecciona moderada o intensa, resetear a leve
+      if (key === "intensidad" && !isPremium && (value === "moderada" || value === "intensa")) {
+        nuevo.intensidad = "leve";
+        alert("Las opciones Moderada e Intensa requieren plan Premium. Se ha configurado en Leve.");
       }
       return nuevo;
     });
@@ -535,6 +547,9 @@ export default function CreatePlan() {
                     {esObjetivoBasico && (
                       <span className="text-xs opacity-60 ml-1">(Fija en Leve para objetivos básicos)</span>
                     )}
+                    {!isPremium && !esObjetivoBasico && (
+                      <span className="text-xs opacity-60 ml-1">(Leve disponible. Actualiza a Premium para Moderada e Intensa)</span>
+                    )}
                   </span>
                   <select 
                     className={`rounded-xl bg-white/5 px-3 py-2 ${esObjetivoBasico ? 'opacity-60 cursor-not-allowed' : ''}`}
@@ -543,8 +558,8 @@ export default function CreatePlan() {
                     disabled={esObjetivoBasico}
                   >
                     <option value="leve">Leve</option>
-                    <option value="moderada">Moderada</option>
-                    <option value="intensa">Intensa</option>
+                    <option value="moderada" disabled={!isPremium}>Moderada{!isPremium ? " (Premium)" : ""}</option>
+                    <option value="intensa" disabled={!isPremium}>Intensa{!isPremium ? " (Premium)" : ""}</option>
                 </select>
               </label>
                 {intensidadDescripciones[form.intensidad] && (

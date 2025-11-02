@@ -121,6 +121,14 @@ export default function PlanPage() {
   
   // Determinar si el objetivo es básico o premium
   const esObjetivoBasico = user ? (user.objetivo === "perder_grasa" || user.objetivo === "mantener" || user.objetivo === "ganar_masa") : false;
+
+  // Asegurar que si no es premium, la intensidad sea leve (excepto para objetivos básicos que ya están en leve)
+  useEffect(() => {
+    if (user && !isPremium && !esObjetivoBasico && user.intensidad !== "leve") {
+      setUser({ ...user, intensidad: "leve" });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPremium, esObjetivoBasico]);
   
   // Comparar valores actuales con originales
   const hayCambios = user && valoresOriginales ? (
@@ -845,11 +853,18 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                     {esObjetivoBasico && (
                       <span className="text-[10px] opacity-50 ml-1">(Leve)</span>
                     )}
+                    {!isPremium && !esObjetivoBasico && (
+                      <span className="text-[10px] opacity-50 ml-1">(Premium)</span>
+                    )}
                   </span>
                   <select
                     value={user.intensidad}
                     onChange={(e) => {
                       const nuevaIntensidad = e.target.value as Intensidad;
+                      if (!isPremium && (nuevaIntensidad === "moderada" || nuevaIntensidad === "intensa")) {
+                        alert("Las opciones Moderada e Intensa requieren plan Premium.");
+                        return;
+                      }
                       setUser({ ...user, intensidad: nuevaIntensidad });
                     }}
                     className={`text-sm font-medium bg-transparent border-none outline-none capitalize appearance-none w-auto ${esObjetivoBasico ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
@@ -859,8 +874,8 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                     disabled={esObjetivoBasico}
                   >
                     <option value="leve">Leve</option>
-                    <option value="moderada">Moderada</option>
-                    <option value="intensa">Intensa</option>
+                    <option value="moderada" disabled={!isPremium}>Moderada{!isPremium ? " (Premium)" : ""}</option>
+                    <option value="intensa" disabled={!isPremium}>Intensa{!isPremium ? " (Premium)" : ""}</option>
                   </select>
                 </div>
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors w-fit">
@@ -1557,16 +1572,26 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                     {((datosEdicion.objetivo === "perder_grasa" || datosEdicion.objetivo === "mantener" || datosEdicion.objetivo === "ganar_masa") && (
                       <span className="text-xs opacity-60 ml-1">(Fija en Leve para objetivos básicos)</span>
                     ))}
+                    {!isPremium && !(datosEdicion.objetivo === "perder_grasa" || datosEdicion.objetivo === "mantener" || datosEdicion.objetivo === "ganar_masa") && (
+                      <span className="text-xs opacity-60 ml-1">(Leve disponible. Actualiza a Premium para Moderada e Intensa)</span>
+                    )}
                   </span>
                   <select
                     className={`rounded-xl bg-white/5 px-3 py-2 ${(datosEdicion.objetivo === "perder_grasa" || datosEdicion.objetivo === "mantener" || datosEdicion.objetivo === "ganar_masa") ? 'opacity-60 cursor-not-allowed' : ''}`}
                     value={datosEdicion.intensidad}
-                    onChange={(e) => setDatosEdicion({ ...datosEdicion, intensidad: e.target.value as Intensidad })}
+                    onChange={(e) => {
+                      const nuevaIntensidad = e.target.value as Intensidad;
+                      if (!isPremium && (nuevaIntensidad === "moderada" || nuevaIntensidad === "intensa")) {
+                        alert("Las opciones Moderada e Intensa requieren plan Premium.");
+                        return;
+                      }
+                      setDatosEdicion({ ...datosEdicion, intensidad: nuevaIntensidad });
+                    }}
                     disabled={(datosEdicion.objetivo === "perder_grasa" || datosEdicion.objetivo === "mantener" || datosEdicion.objetivo === "ganar_masa")}
                   >
                     <option value="leve">Leve</option>
-                    <option value="moderada">Moderada</option>
-                    <option value="intensa">Intensa</option>
+                    <option value="moderada" disabled={!isPremium}>Moderada{!isPremium ? " (Premium)" : ""}</option>
+                    <option value="intensa" disabled={!isPremium}>Intensa{!isPremium ? " (Premium)" : ""}</option>
                   </select>
                 </label>
                 <label className="flex flex-col gap-1">
