@@ -3,6 +3,7 @@ import { usePlanStore } from "@/store/planStore";
 import { useAuthStore } from "@/store/authStore";
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
+import { FaAppleAlt } from "react-icons/fa";
 import LoginModal from "./LoginModal";
 import { getDbSafe, getAuthSafe } from "@/lib/firebase";
 import { collection, query, where, getDocs, limit, doc, getDoc } from "firebase/firestore";
@@ -77,18 +78,7 @@ export default function Navbar() {
             onClick={() => router.push("/")}
           >
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="h-5 w-5 text-white"
-              >
-                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-              </svg>
+              <FaAppleAlt className="h-5 w-5 text-white" />
             </div>
             <div>
               <h1 className="text-lg font-semibold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">

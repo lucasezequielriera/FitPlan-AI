@@ -1,6 +1,7 @@
 import { useEffect, useCallback, useState } from "react";
 import { useRouter } from "next/router";
 import { motion } from "framer-motion";
+import { FaAppleAlt } from "react-icons/fa";
 import { useAuthStore } from "@/store/authStore";
 import { getDbSafe, getAuthSafe } from "@/lib/firebase";
 import { collection, query, where, getDocs, limit } from "firebase/firestore";
@@ -84,18 +85,7 @@ export default function Home() {
             className="mb-8"
           >
             <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-500 mb-6 shadow-lg shadow-blue-500/30">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="w-10 h-10 text-white"
-              >
-                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-              </svg>
+              <FaAppleAlt className="w-10 h-10 text-white" />
             </div>
             <h1 className="text-5xl md:text-6xl font-bold mb-4 bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-400 bg-clip-text text-transparent">
               FitPlan AI
