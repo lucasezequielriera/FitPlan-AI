@@ -7,6 +7,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  console.log("🔔 Webhook recibido de MercadoPago:", JSON.stringify(req.body, null, 2));
+
   // MercadoPago envía notificaciones cuando cambia el estado de un pago
   const { type, data } = req.body;
 
@@ -14,6 +16,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Verificar que es una notificación de pago
     if (type === "payment") {
       const paymentId = data.id;
+      
+      console.log(`💰 Procesando notificación de pago. ID: ${paymentId}`);
 
       // Obtener información del pago desde MercadoPago
       const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
@@ -40,18 +44,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       const payment = await paymentResponse.json();
 
+      console.log(`📊 Estado del pago ${paymentId}: ${payment.status}, detail: ${payment.status_detail}`);
+      console.log(`👤 External reference (userId): ${payment.external_reference}`);
+
       // Verificar que el pago fue aprobado
       if (payment.status === "approved" && payment.status_detail === "accredited") {
         const userId = payment.external_reference;
         
         if (!userId) {
-          console.error("No se encontró external_reference en el pago");
+          console.error("❌ No se encontró external_reference en el pago");
           return res.status(200).json({ received: true });
         }
 
         const db = getDbSafe();
         if (!db) {
-          console.error("Firestore no configurado");
+          console.error("❌ Firestore no configurado");
           return res.status(200).json({ received: true });
         }
 
@@ -74,9 +81,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           updatedAt: serverTimestamp(),
         };
         
-        await setDoc(userRef, premiumData, { merge: true });
-
-        console.log(`✅ Usuario ${userId} actualizado a premium. Pago ID: ${paymentId}, Monto: ${payment.transaction_amount} ${payment.currency_id || "ARS"}`);
+        try {
+          await setDoc(userRef, premiumData, { merge: true });
+          console.log(`✅ Usuario ${userId} actualizado a premium. Pago ID: ${paymentId}, Monto: ${payment.transaction_amount} ${payment.currency_id || "ARS"}`);
+        } catch (error) {
+          console.error(`❌ Error al actualizar usuario ${userId} a premium:`, error);
+        }
+      } else {
+        console.log(`⚠️ Pago ${paymentId} no está aprobado aún. Estado: ${payment.status}, Detail: ${payment.status_detail}`);
       }
     }
 

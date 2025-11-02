@@ -50,6 +50,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         pending: `${baseUrl}/payment/pending`,
       },
       statement_descriptor: "FitPlan AI Premium",
+      payment_methods: {
+        excluded_payment_types: [],
+        excluded_payment_methods: [],
+        installments: 1,
+        default_installments: 1,
+      },
+      binary_mode: false, // Permitir estados pendientes
     };
 
     // Agregar notification_url solo si no es localhost (para desarrollo local no funcionará)

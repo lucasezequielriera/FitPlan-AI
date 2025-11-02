@@ -135,12 +135,27 @@ export default function Dashboard() {
 
   const handleDeleteClick = (e: React.MouseEvent, plan: SavedPlan) => {
     e.stopPropagation(); // Evitar que se active el onClick del card
+    
+    // Prevenir eliminar el Plan Base solo si NO es premium
+    if (plan.isOldest && !isPremium) {
+      alert("El Plan Base no se puede eliminar. Es tu plan principal y debe permanecer en tu cuenta. Actualiza a Premium para tener control total sobre todos tus planes.");
+      return;
+    }
+    
     setPlanToDelete(plan);
     setDeleteModalOpen(true);
   };
 
   const handleConfirmDelete = async () => {
     if (!planToDelete) return;
+
+    // Validación de seguridad: no permitir eliminar el Plan Base solo si NO es premium
+    if (planToDelete.isOldest && !isPremium) {
+      alert("El Plan Base no se puede eliminar. Es tu plan principal y debe permanecer en tu cuenta. Actualiza a Premium para tener control total sobre todos tus planes.");
+      setDeleteModalOpen(false);
+      setPlanToDelete(null);
+      return;
+    }
 
     setDeleting(true);
     try {
@@ -371,12 +386,13 @@ export default function Dashboard() {
                           <line x1="6" y1="20" x2="6" y2="14" />
                         </svg>
                       </button>
-                      <button
-                        onClick={(e) => handleDeleteClick(e, plan)}
-                        className="p-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-400 hover:text-red-300 transition-colors"
-                        title="Eliminar plan"
-                        aria-label="Eliminar plan"
-                      >
+                      {(isPremium || !plan.isOldest) && (
+                        <button
+                          onClick={(e) => handleDeleteClick(e, plan)}
+                          className="p-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-400 hover:text-red-300 transition-colors"
+                          title={plan.isOldest && isPremium ? "Eliminar Plan Base (Premium)" : "Eliminar plan"}
+                          aria-label="Eliminar plan"
+                        >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
                           viewBox="0 0 24 24"
@@ -392,6 +408,7 @@ export default function Dashboard() {
                           <line x1="14" y1="11" x2="14" y2="17" />
                         </svg>
                       </button>
+                      )}
                     </div>
                     <div className="flex items-start justify-between mb-4 pr-20">
                       <div>

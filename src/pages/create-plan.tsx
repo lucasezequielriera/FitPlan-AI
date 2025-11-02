@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import { motion } from "framer-motion";
 import { usePlanStore } from "@/store/planStore";
@@ -552,14 +552,19 @@ export default function CreatePlan() {
                     )}
                   </span>
                   <select 
-                    className={`rounded-xl bg-white/5 px-3 py-2 ${esObjetivoBasico ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    className="rounded-xl bg-white/5 px-3 py-2 cursor-pointer"
                     value={form.intensidad} 
                     onChange={(e) => update("intensidad", e.target.value as UserInput["intensidad"])}
-                    disabled={esObjetivoBasico}
                   >
                     <option value="leve">Leve</option>
-                    <option value="moderada" disabled={!isPremium}>Moderada{!isPremium ? " (Premium)" : ""}</option>
-                    <option value="intensa" disabled={!isPremium}>Intensa{!isPremium ? " (Premium)" : ""}</option>
+                    <optgroup label={isPremium ? "🌟 PREMIUM (Activas)" : "🌟 PREMIUM (Desbloquea con suscripción)"}>
+                      <option value="moderada" disabled={!isPremium || esObjetivoBasico}>
+                        Moderada
+                      </option>
+                      <option value="intensa" disabled={!isPremium || esObjetivoBasico}>
+                        Intensa
+                      </option>
+                    </optgroup>
                 </select>
               </label>
                 {intensidadDescripciones[form.intensidad] && (

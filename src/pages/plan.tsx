@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { usePlanStore } from "@/store/planStore";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Goal, TipoDieta, Intensidad, UserInput } from "@/types/plan";
@@ -867,15 +867,20 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                       }
                       setUser({ ...user, intensidad: nuevaIntensidad });
                     }}
-                    className={`text-sm font-medium bg-transparent border-none outline-none capitalize appearance-none w-auto ${esObjetivoBasico ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+                    className="text-sm font-medium bg-transparent border-none outline-none capitalize appearance-none w-auto cursor-pointer"
                     style={{ 
                       minWidth: `${getIntensidadTexto(user.intensidad).length * 0.6}ch`
                     }}
-                    disabled={esObjetivoBasico}
                   >
                     <option value="leve">Leve</option>
-                    <option value="moderada" disabled={!isPremium}>Moderada{!isPremium ? " (Premium)" : ""}</option>
-                    <option value="intensa" disabled={!isPremium}>Intensa{!isPremium ? " (Premium)" : ""}</option>
+                    <optgroup label={isPremium ? "🌟 PREMIUM (Activas)" : "🌟 PREMIUM (Desbloquea con suscripción)"}>
+                      <option value="moderada" disabled={!isPremium || esObjetivoBasico}>
+                        Moderada
+                      </option>
+                      <option value="intensa" disabled={!isPremium || esObjetivoBasico}>
+                        Intensa
+                      </option>
+                    </optgroup>
                   </select>
                 </div>
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors w-fit">
@@ -1577,21 +1582,32 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                     )}
                   </span>
                   <select
-                    className={`rounded-xl bg-white/5 px-3 py-2 ${(datosEdicion.objetivo === "perder_grasa" || datosEdicion.objetivo === "mantener" || datosEdicion.objetivo === "ganar_masa") ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    className="rounded-xl bg-white/5 px-3 py-2 cursor-pointer"
                     value={datosEdicion.intensidad}
                     onChange={(e) => {
                       const nuevaIntensidad = e.target.value as Intensidad;
+                      const esObjBasico = datosEdicion.objetivo === "perder_grasa" || datosEdicion.objetivo === "mantener" || datosEdicion.objetivo === "ganar_masa";
+                      if (esObjBasico) {
+                        // Objetivos básicos siempre usan leve
+                        setDatosEdicion({ ...datosEdicion, intensidad: "leve" });
+                        return;
+                      }
                       if (!isPremium && (nuevaIntensidad === "moderada" || nuevaIntensidad === "intensa")) {
                         alert("Las opciones Moderada e Intensa requieren plan Premium.");
                         return;
                       }
                       setDatosEdicion({ ...datosEdicion, intensidad: nuevaIntensidad });
                     }}
-                    disabled={(datosEdicion.objetivo === "perder_grasa" || datosEdicion.objetivo === "mantener" || datosEdicion.objetivo === "ganar_masa")}
                   >
                     <option value="leve">Leve</option>
-                    <option value="moderada" disabled={!isPremium}>Moderada{!isPremium ? " (Premium)" : ""}</option>
-                    <option value="intensa" disabled={!isPremium}>Intensa{!isPremium ? " (Premium)" : ""}</option>
+                    <optgroup label={isPremium ? "🌟 PREMIUM (Activas)" : "🌟 PREMIUM (Desbloquea con suscripción)"}>
+                      <option value="moderada" disabled={!isPremium || (datosEdicion.objetivo === "perder_grasa" || datosEdicion.objetivo === "mantener" || datosEdicion.objetivo === "ganar_masa")}>
+                        Moderada
+                      </option>
+                      <option value="intensa" disabled={!isPremium || (datosEdicion.objetivo === "perder_grasa" || datosEdicion.objetivo === "mantener" || datosEdicion.objetivo === "ganar_masa")}>
+                        Intensa
+                      </option>
+                    </optgroup>
                   </select>
                 </label>
                 <label className="flex flex-col gap-1">
