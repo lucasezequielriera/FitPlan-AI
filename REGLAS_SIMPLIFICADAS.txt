@@ -1,29 +1,22 @@
+Copia y pega ESTAS reglas en Firebase Console:
+
+==========================================
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Función simplificada que verifica solo por email (más confiable)
-    function isAdmin() {
-      let adminDoc = get(/databases/$(database)/documents/usuarios/$(request.auth.uid));
-      return adminDoc.data.email != null 
-        && adminDoc.data.email.toLowerCase() == 'admin@fitplan-ai.com';
-    }
-    
     match /usuarios/{userId} {
-      // Usuarios pueden leer/escribir su propio perfil
+      // Los usuarios pueden leer/escribir su propio perfil
       allow read: if request.auth != null && request.auth.uid == userId;
       allow write: if request.auth != null && request.auth.uid == userId;
       
-      // Administrador puede leer/escribir TODOS los usuarios
-      allow read: if request.auth != null && isAdmin();
-      allow write: if request.auth != null && isAdmin();
-      
-      // Permitir actualización de campos premium desde el servidor
+      // Permitir que el servidor actualice campos premium (sin autenticación del usuario)
+      // Esto permite que el webhook de MercadoPago y fixPremiumUser funcionen
       allow update: if (
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['premium', 'premiumStatus', 'premiumSince', 'premiumPayment', 'updatedAt'])
         && request.resource.data.premium == true
       );
       
-      // Permitir crear documento si es el propio usuario
       allow create: if request.auth != null && request.auth.uid == userId;
     }
     
@@ -35,3 +28,13 @@ service cloud.firestore {
     }
   }
 }
+
+==========================================
+
+IMPORTANTE:
+1. Ve a Firebase Console > Firestore Database > Rules
+2. BORRA TODO el contenido actual
+3. PEGA estas reglas exactas
+4. Haz clic en "Publish"
+5. Espera 10-20 segundos para que se propaguen
+

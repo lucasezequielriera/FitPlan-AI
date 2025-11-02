@@ -1,0 +1,47 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Función helper para verificar si el usuario es administrador
+    // Verifica tanto por email (admin@fitplan-ai.com) como por nombre (administrador)
+    function isAdmin() {
+      // Verificar si el documento existe Y tiene email o nombre de administrador
+      return exists(/databases/$(database)/documents/usuarios/$(request.auth.uid))
+        && (
+          (get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.email != null
+           && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.email.toLowerCase() == 'admin@fitplan-ai.com')
+          || 
+          (get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.nombre != null
+           && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.nombre.toLowerCase() == 'administrador')
+        );
+    }
+    
+    match /usuarios/{userId} {
+      // Los usuarios pueden leer/escribir su propio perfil
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId;
+      
+      // El administrador puede leer/escribir TODOS los usuarios (no solo el suyo)
+      // IMPORTANTE: Esta regla permite que el admin lea cualquier documento en la colección usuarios
+      allow read: if request.auth != null && isAdmin();
+      allow write: if request.auth != null && isAdmin();
+      
+      // Permitir que el servidor actualice campos premium (sin autenticación del usuario)
+      // Esto permite que el webhook de MercadoPago y fixPremiumUser funcionen
+      allow update: if (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['premium', 'premiumStatus', 'premiumSince', 'premiumPayment', 'updatedAt'])
+        && request.resource.data.premium == true
+      );
+      
+      // Permitir crear documento si es el propio usuario
+      // Esto permite que cualquier usuario (incluyendo admin) cree su propio documento
+      allow create: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    match /planes/{planId} {
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow update: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+  }
+}

@@ -77,6 +77,48 @@ export default function CreatePlan() {
   useEffect(() => {
     if (!authLoading && !authUser) {
       router.push("/");
+      return;
+    }
+
+    // Verificar si es administrador y redirigir al panel de admin
+    const checkAdmin = async () => {
+      if (!authUser) return;
+
+      try {
+        const auth = getAuthSafe();
+        if (!auth?.currentUser) return;
+
+        // Verificar el email de Firebase Auth primero (disponible inmediatamente)
+        const authEmail = auth.currentUser.email?.toLowerCase() || "";
+        if (authEmail === "admin@fitplan-ai.com") {
+          router.push("/admin");
+          return;
+        }
+
+        // Si no es admin por email de Auth, verificar en Firestore
+        const db = getDbSafe();
+        if (!db) return;
+
+        const userRef = doc(db, "usuarios", auth.currentUser.uid);
+        const userDoc = await getDoc(userRef);
+        
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          const email = userData.email?.toLowerCase() || "";
+          const nombreLower = userData.nombre?.toLowerCase() || "";
+          const isAdmin = email === "admin@fitplan-ai.com" || nombreLower === "administrador";
+          
+          if (isAdmin) {
+            router.push("/admin");
+          }
+        }
+      } catch (error) {
+        console.error("Error al verificar admin:", error);
+      }
+    };
+
+    if (authUser) {
+      checkAdmin();
     }
   }, [authUser, authLoading, router]);
 

@@ -37,6 +37,11 @@ export default function PlanPage() {
   // Estado para modal de edición
   const [modalAbierto, setModalAbierto] = useState(false);
   const [datosEdicion, setDatosEdicion] = useState<UserInput | null>(null);
+  
+  // Estados temporales para inputs de texto (restricciones/preferencias/patologías)
+  const [preferenciasTexto, setPreferenciasTexto] = useState("");
+  const [restriccionesTexto, setRestriccionesTexto] = useState("");
+  const [patologiasTexto, setPatologiasTexto] = useState("");
   const [guardandoPDF, setGuardandoPDF] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
   
@@ -518,6 +523,9 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                   onClick={() => {
                     if (user) {
                       setDatosEdicion({ ...user });
+                    setPreferenciasTexto(user.preferencias?.join(", ") || "");
+                    setRestriccionesTexto(user.restricciones?.join(", ") || "");
+                    setPatologiasTexto(user.patologias?.join(", ") || "");
                       setModalAbierto(true);
                     }
                   }}
@@ -1546,101 +1554,6 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                   </select>
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-sm opacity-80">Objetivo</span>
-                  <select
-                    className="rounded-xl bg-white/5 px-3 py-2"
-                    value={datosEdicion.objetivo}
-                    onChange={(e) => {
-                      const nuevoObjetivo = e.target.value as Goal;
-                      const nuevoEsBasico = nuevoObjetivo === "perder_grasa" || nuevoObjetivo === "mantener" || nuevoObjetivo === "ganar_masa";
-                      const nuevaIntensidad = nuevoEsBasico ? "leve" : datosEdicion.intensidad;
-                      setDatosEdicion({ ...datosEdicion, objetivo: nuevoObjetivo, intensidad: nuevaIntensidad });
-                    }}
-                  >
-                    <optgroup key="modal-obj-basicos" label="Objetivos básicos - Para empezar">
-                      <option value="perder_grasa">Perder peso - Reducción simple de peso corporal</option>
-                      <option value="mantener">Mantener peso - Conservar tu peso actual</option>
-                      <option value="ganar_masa">Aumentar peso - Ganancia simple de peso</option>
-                    </optgroup>
-                    <optgroup key="modal-obj-premium" label={isPremium ? "🌟 PREMIUM - Objetivos avanzados (Activos)" : "🌟 PREMIUM - Objetivos avanzados (Desbloquea todo el potencial)"}>
-                      <option value="recomposicion" disabled={!isPremium}>🔥 Transformación Total - Quema grasa y construye músculo simultáneamente</option>
-                      <option value="definicion" disabled={!isPremium}>💎 Definición Extrema - Logra músculos marcados con bajo % de grasa corporal</option>
-                      <option value="volumen" disabled={!isPremium}>💪 Hipertrofia Máxima - Maximiza el crecimiento muscular con periodización avanzada</option>
-                      <option value="corte" disabled={!isPremium}>⚡ Corte Avanzado - Reducción de grasa preservando masa muscular (más preciso que perder peso)</option>
-                      <option value="mantenimiento_avanzado" disabled={!isPremium}>🎯 Mantenimiento Elite - Optimización avanzada para atletas experimentados</option>
-                    </optgroup>
-                  </select>
-                </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-sm opacity-80">
-                    Intensidad
-                    {((datosEdicion.objetivo === "perder_grasa" || datosEdicion.objetivo === "mantener" || datosEdicion.objetivo === "ganar_masa") && (
-                      <span className="text-xs opacity-60 ml-1">(Fija en Leve para objetivos básicos)</span>
-                    ))}
-                    {!isPremium && !(datosEdicion.objetivo === "perder_grasa" || datosEdicion.objetivo === "mantener" || datosEdicion.objetivo === "ganar_masa") && (
-                      <span className="text-xs opacity-60 ml-1">(Leve disponible. Actualiza a Premium para Moderada e Intensa)</span>
-                    )}
-                  </span>
-                  <select
-                    className="rounded-xl bg-white/5 px-3 py-2 cursor-pointer"
-                    value={datosEdicion.intensidad}
-                    onChange={(e) => {
-                      const nuevaIntensidad = e.target.value as Intensidad;
-                      const esObjBasico = datosEdicion.objetivo === "perder_grasa" || datosEdicion.objetivo === "mantener" || datosEdicion.objetivo === "ganar_masa";
-                      if (esObjBasico) {
-                        // Objetivos básicos siempre usan leve
-                        setDatosEdicion({ ...datosEdicion, intensidad: "leve" });
-                        return;
-                      }
-                      if (!isPremium && (nuevaIntensidad === "moderada" || nuevaIntensidad === "intensa")) {
-                        alert("Las opciones Moderada e Intensa requieren plan Premium.");
-                        return;
-                      }
-                      setDatosEdicion({ ...datosEdicion, intensidad: nuevaIntensidad });
-                    }}
-                  >
-                    <option value="leve">Leve</option>
-                    <optgroup label={isPremium ? "🌟 PREMIUM (Activas)" : "🌟 PREMIUM (Desbloquea con suscripción)"}>
-                      <option value="moderada" disabled={!isPremium || (datosEdicion.objetivo === "perder_grasa" || datosEdicion.objetivo === "mantener" || datosEdicion.objetivo === "ganar_masa")}>
-                        Moderada
-                      </option>
-                      <option value="intensa" disabled={!isPremium || (datosEdicion.objetivo === "perder_grasa" || datosEdicion.objetivo === "mantener" || datosEdicion.objetivo === "ganar_masa")}>
-                        Intensa
-                      </option>
-                    </optgroup>
-                  </select>
-                </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-sm opacity-80">Tipo de dieta (opcional)</span>
-                  <select
-                    className="rounded-xl bg-white/5 px-3 py-2"
-                    value={datosEdicion.tipoDieta || "estandar"}
-                    onChange={(e) => setDatosEdicion({ ...datosEdicion, tipoDieta: e.target.value === "estandar" ? undefined : (e.target.value as TipoDieta) })}
-                  >
-                    <optgroup key="modal-dietas-basicas" label="Dietas básicas">
-                      <option value="estandar">Estándar</option>
-                      <option value="mediterranea">Mediterránea</option>
-                      <option value="vegetariana">Vegetariana</option>
-                      <option value="vegana">Vegana</option>
-                      <option value="low_carb">Low Carb</option>
-                    </optgroup>
-                    <optgroup key="modal-dietas-premium" label={isPremium ? "🌟 PREMIUM (Activas)" : "🌟 PREMIUM"}>
-                      <option value="antiinflamatoria" disabled={!isPremium}>🔥 Antiinflamatoria</option>
-                      <option value="atkins" disabled={!isPremium}>⚡ Atkins</option>
-                      <option value="clinica_mayo" disabled={!isPremium}>🏥 Clínica Mayo</option>
-                      <option value="dash" disabled={!isPremium}>❤️ DASH</option>
-                      <option value="flexitariana" disabled={!isPremium}>🌱 Flexitariana</option>
-                      <option value="keto" disabled={!isPremium}>💪 Keto</option>
-                      <option value="mind" disabled={!isPremium}>🧠 MIND</option>
-                      <option value="menopausia" disabled={!isPremium}>🌸 Menopausia</option>
-                      <option value="paleo" disabled={!isPremium}>🏃 Paleo</option>
-                      <option value="pescatariana" disabled={!isPremium}>🐟 Pescatariana</option>
-                      <option value="sin_gluten" disabled={!isPremium}>🌾 Sin Gluten</option>
-                      <option value="tlc" disabled={!isPremium}>📊 TLC</option>
-                    </optgroup>
-                  </select>
-                </label>
-                <label className="flex flex-col gap-1">
                   <span className="text-sm opacity-80">Cintura (cm) (opcional)</span>
                   <input
                     type="number"
@@ -1678,6 +1591,48 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                     Perfil atlético
                   </span>
                 </label>
+                <label className="flex flex-col gap-1 md:col-span-2">
+                  <span className="text-sm opacity-80">Preferencias (separadas por comas)</span>
+                  <input
+                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
+                    value={preferenciasTexto}
+                    onChange={(e) => setPreferenciasTexto(e.target.value)}
+                    onBlur={(e) => {
+                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
+                      setDatosEdicion({ ...datosEdicion, preferencias: array });
+                    }}
+                    placeholder="ej: pollo, avena, salmón"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 md:col-span-2">
+                  <span className="text-sm opacity-80">Restricciones (separadas por comas)</span>
+                  <input
+                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
+                    value={restriccionesTexto}
+                    onChange={(e) => setRestriccionesTexto(e.target.value)}
+                    onBlur={(e) => {
+                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
+                      setDatosEdicion({ ...datosEdicion, restricciones: array });
+                    }}
+                    placeholder="ej: gluten, lácteos, cerdo"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 md:col-span-2">
+                  <span className="text-sm opacity-80">Patologías (separadas por comas)</span>
+                  <input
+                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
+                    value={patologiasTexto}
+                    onChange={(e) => setPatologiasTexto(e.target.value)}
+                    onBlur={(e) => {
+                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
+                      setDatosEdicion({ ...datosEdicion, patologias: array });
+                    }}
+                    placeholder="ej: hígado graso, intolerancia a la lactosa, diabetes tipo 2"
+                  />
+                  <p className="text-xs opacity-60 mt-1">
+                    Indica condiciones médicas relevantes para ajustar el plan nutricional
+                  </p>
+                </label>
     </div>
               
               <div className="flex gap-3 mt-6 justify-end">
@@ -1696,17 +1651,30 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                     setErrorRegeneracion(null);
                     
                     try {
+                      if (!user) {
+                        throw new Error("No hay datos de usuario disponibles");
+                      }
+                      
+                      // Procesar los arrays de preferencias, restricciones y patologías
+                      const preferenciasArray = preferenciasTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
+                      const restriccionesArray = restriccionesTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
+                      const patologiasArray = patologiasTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
+                      
                       const bmi = calculateBMI(datosEdicion.pesoKg, datosEdicion.alturaCm);
                       const nuevasSugerencias = sugerirEntrenamiento(
-                        datosEdicion.objetivo,
-                        datosEdicion.intensidad,
+                        user.objetivo, // Usar el objetivo original del usuario
+                        user.intensidad, // Usar la intensidad original del usuario
                         datosEdicion.edad,
                         bmi,
                         datosEdicion.atletico
                       );
                       
                       const userActualizado = {
-                        ...datosEdicion,
+                        ...user, // Mantener todos los datos originales (objetivo, intensidad, tipoDieta)
+                        ...datosEdicion, // Aplicar cambios de datos básicos
+                        preferencias: preferenciasArray,
+                        restricciones: restriccionesArray,
+                        patologias: patologiasArray,
                         diasGym: nuevasSugerencias.diasGym,
                         diasCardio: Math.ceil(nuevasSugerencias.minutosCaminata / (nuevasSugerencias.minutosCaminata > 45 ? 60 : nuevasSugerencias.minutosCaminata > 30 ? 45 : 30))
                       };

@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getDbSafe } from "@/lib/firebase";
-import { collection, doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { collection, doc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -65,10 +65,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // Actualizar el estado premium del usuario
         const userRef = doc(collection(db, "usuarios"), userId);
         
+        // Verificar que el documento existe antes de actualizar
+        const userDoc = await getDoc(userRef);
+        if (!userDoc.exists()) {
+          console.error(`❌ Usuario ${userId} no existe en la base de datos`);
+          return res.status(200).json({ received: true });
+        }
+
+        const wasPremium = userDoc.data()?.premium === true;
+        
         // Crear registro de pago premium bien estructurado
-        const premiumData = {
+        const premiumData: {
+          premium: boolean;
+          premiumStatus: string;
+          premiumPayment: {
+            paymentId: string | number;
+            amount: number;
+            currency: string;
+            date: ReturnType<typeof serverTimestamp>;
+            method: string;
+            status: string;
+          };
+          updatedAt: ReturnType<typeof serverTimestamp>;
+          premiumSince?: ReturnType<typeof serverTimestamp>;
+        } = {
           premium: true,
-          premiumSince: serverTimestamp(),
           premiumStatus: "active", // active, expired, cancelled
           premiumPayment: {
             paymentId: paymentId,
@@ -80,12 +101,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           },
           updatedAt: serverTimestamp(),
         };
+
+        // Solo agregar premiumSince si no era premium antes
+        if (!wasPremium) {
+          premiumData.premiumSince = serverTimestamp();
+        }
         
         try {
-          await setDoc(userRef, premiumData, { merge: true });
+          // Intentar actualizar primero
+          await updateDoc(userRef, premiumData);
           console.log(`✅ Usuario ${userId} actualizado a premium. Pago ID: ${paymentId}, Monto: ${payment.transaction_amount} ${payment.currency_id || "ARS"}`);
-        } catch (error) {
+        } catch (error: unknown) {
           console.error(`❌ Error al actualizar usuario ${userId} a premium:`, error);
+          const errorCode = error && typeof error === 'object' && 'code' in error ? error.code : 'unknown';
+          console.error(`Código del error:`, errorCode);
+          
+          // Si falla updateDoc (permisos o documento no existe), intentar con setDoc
+          if (errorCode === 'permission-denied' || errorCode === 'not-found') {
+            try {
+              const { setDoc } = await import("firebase/firestore");
+              await setDoc(userRef, premiumData, { merge: true });
+              console.log(`✅ Usuario ${userId} actualizado a premium usando setDoc como fallback`);
+            } catch (setError) {
+              console.error(`❌ Error crítico al actualizar con setDoc:`, setError);
+              // No lanzar error, solo loguear - el webhook debe responder 200
+            }
+          } else {
+            console.error(`❌ Error desconocido:`, error);
+          }
         }
       } else {
         console.log(`⚠️ Pago ${paymentId} no está aprobado aún. Estado: ${payment.status}, Detail: ${payment.status_detail}`);

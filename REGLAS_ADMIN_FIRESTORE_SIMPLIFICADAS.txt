@@ -1,11 +1,13 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Función simplificada que verifica solo por email (más confiable)
+    // Función helper simplificada para verificar si el usuario es administrador
     function isAdmin() {
-      let adminDoc = get(/databases/$(database)/documents/usuarios/$(request.auth.uid));
-      return adminDoc.data.email != null 
-        && adminDoc.data.email.toLowerCase() == 'admin@fitplan-ai.com';
+      let userDoc = get(/databases/$(database)/documents/usuarios/$(request.auth.uid));
+      let email = userDoc.data.email;
+      let nombre = userDoc.data.nombre;
+      return (email != null && email.toLowerCase() == 'admin@fitplan-ai.com')
+          || (nombre != null && nombre.toLowerCase() == 'administrador');
     }
     
     match /usuarios/{userId} {
@@ -13,7 +15,7 @@ service cloud.firestore {
       allow read: if request.auth != null && request.auth.uid == userId;
       allow write: if request.auth != null && request.auth.uid == userId;
       
-      // Administrador puede leer/escribir TODOS los usuarios
+      // Administrador puede leer/escribir todos los usuarios
       allow read: if request.auth != null && isAdmin();
       allow write: if request.auth != null && isAdmin();
       
@@ -35,3 +37,4 @@ service cloud.firestore {
     }
   }
 }
+

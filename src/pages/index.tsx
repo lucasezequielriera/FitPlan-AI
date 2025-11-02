@@ -23,6 +23,31 @@ export default function Home() {
         return;
       }
 
+      // Primero verificar si es administrador
+      // Verificar el email de Firebase Auth primero (disponible inmediatamente)
+      const authEmail = auth.currentUser.email?.toLowerCase() || "";
+      if (authEmail === "admin@fitplan-ai.com") {
+        router.push("/admin");
+        return;
+      }
+
+      // Si no es admin por email de Auth, verificar en Firestore
+      const { doc, getDoc } = await import("firebase/firestore");
+      const userRef = doc(db, "usuarios", auth.currentUser.uid);
+      const userDoc = await getDoc(userRef);
+      
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        const email = userData.email?.toLowerCase() || "";
+        const nombreLower = userData.nombre?.toLowerCase() || "";
+        const isAdmin = email === "admin@fitplan-ai.com" || nombreLower === "administrador";
+        
+        if (isAdmin) {
+          router.push("/admin");
+          return;
+        }
+      }
+
       // Verificar si tiene planes guardados
       const q = query(
         collection(db, "planes"),
