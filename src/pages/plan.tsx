@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { usePlanStore } from "@/store/planStore";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Goal, TipoDieta, Intensidad, UserInput } from "@/types/plan";
@@ -28,6 +28,8 @@ export default function PlanPage() {
   // Valores editables de entrenamiento
   const [diasGymEditado, setDiasGymEditado] = useState<number | null>(null);
   const [minutosCaminataEditado, setMinutosCaminataEditado] = useState<number | null>(null);
+  const [minutosGymEditado, setMinutosGymEditado] = useState<number | null>(null);
+  // Info modal para sueño/siesta se maneja con modalInfoAbierto ('sueno')
   const [horasSuenoEditado, setHorasSuenoEditado] = useState<number | null>(null);
   
   // Estados para regenerar plan
@@ -46,7 +48,7 @@ export default function PlanPage() {
   const [isPremium, setIsPremium] = useState(false);
   
   // Estado para modales de información (tooltips)
-  const [modalInfoAbierto, setModalInfoAbierto] = useState<'imc' | 'macros' | null>(null);
+  const [modalInfoAbierto, setModalInfoAbierto] = useState<'imc' | 'macros' | 'sueno' | 'dificultad' | null>(null);
   
   // Verificar estado premium del usuario
   useEffect(() => {
@@ -127,13 +129,7 @@ export default function PlanPage() {
   // Determinar si el objetivo es básico o premium
   const esObjetivoBasico = user ? (user.objetivo === "perder_grasa" || user.objetivo === "mantener" || user.objetivo === "ganar_masa") : false;
 
-  // Asegurar que si no es premium, la intensidad sea leve (excepto para objetivos básicos que ya están en leve)
-  useEffect(() => {
-    if (user && !isPremium && !esObjetivoBasico && user.intensidad !== "leve") {
-      setUser({ ...user, intensidad: "leve" });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPremium, esObjetivoBasico]);
+  // Mostrar siempre la intensidad guardada en el plan (no forzar 'leve' en la vista)
   
   // Comparar valores actuales con originales
   const hayCambios = user && valoresOriginales ? (
@@ -495,7 +491,8 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
   const hayDiferencias = sugerenciaEntrenamiento && (
     diasGymEditado !== null || 
     minutosCaminataEditado !== null || 
-    horasSuenoEditado !== null
+    horasSuenoEditado !== null ||
+    minutosGymEditado !== null
   );
   
   // Analizar pros y contras si hay cambios
@@ -506,7 +503,9 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
     sugerenciaEntrenamiento.minutosCaminata,
     minutosCaminataActual,
     sugerenciaEntrenamiento.horasSueno,
-    horasSuenoActual
+    horasSuenoActual,
+    Number((plan as any)?.minutos_sesion_gym) || 75,
+    minutosGymEditado !== null ? minutosGymEditado : (Number((plan as any)?.minutos_sesion_gym) || 75)
   ) : null;
   const bmiText =
     bmiCat === "bajo_peso"
@@ -997,6 +996,23 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                     </optgroup>
                   </select>
                 </div>
+                {plan?.dificultad && (
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors w-fit"
+                    style={{
+                      backgroundColor: 'rgba(255,255,255,0.05)',
+                      borderColor: plan.dificultad === 'dificil' ? 'rgba(248,113,113,0.4)' : plan.dificultad === 'media' ? 'rgba(250,204,21,0.4)' : 'rgba(52,211,153,0.4)'
+                    }}
+                  >
+                    <span className="text-xs opacity-70 whitespace-nowrap">Dificultad:</span>
+                    <span className="text-sm font-medium capitalize"
+                      style={{
+                        color: plan.dificultad === 'dificil' ? '#fecaca' : plan.dificultad === 'media' ? '#fde68a' : '#a7f3d0'
+                      }}
+                    >
+                      {plan.dificultad}
+                    </span>
+                  </div>
+                )}
                 {hayCambios && (
                   <button
                     onClick={regenerarPlan}
@@ -1149,6 +1165,44 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                     {fechaInicioPlan.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
                   </p>
                 </div>
+                {plan?.dificultad && (
+                  <div>
+                    <p className="text-xs opacity-70 mb-1 flex items-center gap-2">
+                      Dificultad del plan
+                      <button
+                        type="button"
+                        onClick={() => setModalInfoAbierto('dificultad')}
+                        className="inline-flex items-center cursor-pointer hover:opacity-100 transition-opacity"
+                        aria-label="¿Qué implica esta dificultad?"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="currentColor"
+                          className="h-4 w-4 opacity-90"
+                        >
+                          <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm1.971-6.279-.675.693A3.375 3.375 0 0 0 12.75 14.25h-1.5a4.875 4.875 0 0 1 1.425-3.45l.93-.936a1.875 1.875 0 1 0-3.195-1.326h-1.5a3.375 3.375 0 1 1 6.03 1.283Z" />
+                        </svg>
+                      </button>
+                    </p>
+                    <div
+                      className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md border"
+                      style={{
+                        backgroundColor: 'rgba(255,255,255,0.05)',
+                        borderColor: plan.dificultad === 'dificil' ? 'rgba(248,113,113,0.4)' : plan.dificultad === 'media' ? 'rgba(250,204,21,0.4)' : 'rgba(52,211,153,0.4)'
+                      }}
+                    >
+                      <span
+                        className="text-xs font-medium capitalize"
+                        style={{
+                          color: plan.dificultad === 'dificil' ? '#fecaca' : plan.dificultad === 'media' ? '#fde68a' : '#a7f3d0'
+                        }}
+                      >
+                        {plan.dificultad}
+                      </span>
+                    </div>
+                  </div>
+                )}
                 <div>
                   <p className="text-xs opacity-70 mb-1">Progreso:</p>
                   <div className="flex items-center gap-2">
@@ -1173,36 +1227,36 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
             <div className="rounded-xl border border-white/10 bg-black/30 p-4 md:w-1/4">
               <p className="text-sm font-medium opacity-70 mb-3">Información personal</p>
               <div className="space-y-3">
-                {user?.preferencias && user.preferencias.length > 0 && (
+                {user?.preferencias && user.preferencias.filter((s: string) => typeof s === 'string' && s.trim().length > 0).length > 0 && (
                   <div>
                     <p className="text-xs font-medium opacity-70 mb-1">Preferencias:</p>
                     <div className="flex flex-wrap gap-1">
-                      {user.preferencias.map((pref, idx) => (
-                        <span key={idx} className="inline-flex items-center rounded-full px-2 py-0.5 text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      {user.preferencias.filter((s: string) => typeof s === 'string' && s.trim().length > 0).map((pref: string, idx: number) => (
+                        <span key={`pref-${idx}-${pref}`} className="inline-flex items-center rounded-full px-2 py-0.5 text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                           {pref}
                         </span>
                       ))}
                     </div>
                   </div>
                 )}
-                {user?.restricciones && user.restricciones.length > 0 && (
+                {user?.restricciones && user.restricciones.filter((s: string) => typeof s === 'string' && s.trim().length > 0).length > 0 && (
                   <div>
                     <p className="text-xs font-medium opacity-70 mb-1">Restricciones:</p>
                     <div className="flex flex-wrap gap-1">
-                      {user.restricciones.map((restr, idx) => (
-                        <span key={idx} className="inline-flex items-center rounded-full px-2 py-0.5 text-xs bg-orange-500/20 text-orange-300 border border-orange-500/30">
+                      {user.restricciones.filter((s: string) => typeof s === 'string' && s.trim().length > 0).map((restr: string, idx: number) => (
+                        <span key={`restr-${idx}-${restr}`} className="inline-flex items-center rounded-full px-2 py-0.5 text-xs bg-orange-500/20 text-orange-300 border border-orange-500/30">
                           {restr}
                         </span>
                       ))}
                     </div>
                   </div>
                 )}
-                {user?.patologias && user.patologias.length > 0 && (
+                {user?.patologias && user.patologias.filter((s: string) => typeof s === 'string' && s.trim().length > 0).length > 0 && (
                   <div>
                     <p className="text-xs font-medium opacity-70 mb-1">Patologías:</p>
                     <div className="flex flex-wrap gap-1">
-                      {user.patologias.map((pat, idx) => (
-                        <span key={idx} className="inline-flex items-center rounded-full px-2 py-0.5 text-xs bg-red-500/20 text-red-300 border border-red-500/30">
+                      {user.patologias.filter((s: string) => typeof s === 'string' && s.trim().length > 0).map((pat: string, idx: number) => (
+                        <span key={`pat-${idx}-${pat}`} className="inline-flex items-center rounded-full px-2 py-0.5 text-xs bg-red-500/20 text-red-300 border border-red-500/30">
                           {pat}
                         </span>
                       ))}
@@ -1257,7 +1311,20 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm font-medium opacity-90">Días de gym:</p>
+                    <p className="text-sm font-medium opacity-90">
+                      Días de gym:
+                      <span className="ml-2 text-xs opacity-70">
+                        (≈ {(() => {
+                          const min = minutosGymEditado !== null ? minutosGymEditado : (Number((plan as any)?.minutos_sesion_gym) || 75);
+                          const total = Math.max(0, Math.round(min));
+                          const h = Math.floor(total / 60);
+                          const m = total % 60;
+                          const hStr = h > 0 ? `${h} h` : "0 h";
+                          const mStr = m > 0 ? ` ${m} min` : "";
+                          return `${hStr}${mStr} por día`;
+                        })()})
+                      </span>
+                    </p>
                     {sugerenciaEntrenamiento.diasGym !== diasGymActual && (
                       <span className="text-xs opacity-70">(sugerido: {sugerenciaEntrenamiento.diasGym})</span>
                     )}
@@ -1272,6 +1339,19 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                       className="text-2xl font-bold bg-transparent border-b-2 border-white/20 focus:border-white/50 outline-none w-16"
                     />
                     <span className="text-2xl font-bold">días por semana</span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-sm opacity-80 min-w-[130px]">Duración por sesión:</span>
+                    <input
+                      type="number"
+                      min="30"
+                      max="240"
+                      step="5"
+                      value={minutosGymEditado !== null ? minutosGymEditado : (Number((plan as any)?.minutos_sesion_gym) || 75)}
+                      onChange={(e) => setMinutosGymEditado(Number(e.target.value))}
+                      className="text-lg font-semibold bg-transparent border-b-2 border-white/20 focus:border-white/50 outline-none w-24"
+                    />
+                    <span className="text-sm font-medium">min</span>
                   </div>
                   <p className="text-xs opacity-75 mt-1">Entrenamiento de fuerza con pesas</p>
                 </div>
@@ -1298,7 +1378,24 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm font-medium opacity-90">Horas de sueño:</p>
+                    <p className="text-sm font-medium opacity-90 flex items-center gap-2">
+                      Horas de sueño:
+                      <button
+                        type="button"
+                        onClick={() => setModalInfoAbierto('sueno')}
+                        className="inline-flex items-center cursor-pointer hover:opacity-100 transition-opacity"
+                        aria-label="Info sueño y siesta"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="currentColor"
+                          className="h-4 w-4 opacity-90"
+                        >
+                          <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm1.971-6.279-.675.693A3.375 3.375 0 0 0 12.75 14.25h-1.5a4.875 4.875 0 0 1 1.425-3.45l.93-.936a1.875 1.875 0 1 0-3.195-1.326h-1.5a3.375 3.375 0 1 1 6.03 1.283Z" />
+                        </svg>
+                      </button>
+                    </p>
                     {sugerenciaEntrenamiento.horasSueno !== horasSuenoActual && (
                       <span className="text-xs opacity-70">(sugerido: {sugerenciaEntrenamiento.horasSueno})</span>
                     )}
@@ -1332,7 +1429,7 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                         <p className="text-sm font-medium text-emerald-400 mb-2">✅ Pros:</p>
                         <ul className="space-y-1">
                           {analisisCambios.pros.map((pro, idx) => (
-                            <li key={idx} className="text-xs opacity-90 flex items-start gap-2">
+                            <li key={`pro-${idx}-${pro}`} className="text-xs opacity-90 flex items-start gap-2">
                               <span className="text-emerald-400 mt-1">•</span>
                               <span>{pro}</span>
                             </li>
@@ -1345,7 +1442,7 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                         <p className="text-sm font-medium text-orange-400 mb-2">⚠️ Contras:</p>
                         <ul className="space-y-1">
                           {analisisCambios.contras.map((contra, idx) => (
-                            <li key={idx} className="text-xs opacity-90 flex items-start gap-2">
+                            <li key={`contra-${idx}-${contra}`} className="text-xs opacity-90 flex items-start gap-2">
                               <span className="text-orange-400 mt-1">•</span>
                               <span>{contra}</span>
                             </li>
@@ -1382,7 +1479,7 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
               
               <div className="space-y-2 mb-4">
                 {proyecciones.proyecciones.map((proyeccion, idx) => (
-                  <div key={idx} className="flex items-start gap-2 text-sm opacity-90">
+                  <div key={`proj-${idx}-${proyeccion}`} className="flex items-start gap-2 text-sm opacity-90">
                     <span className="text-emerald-400 mt-0.5">✓</span>
                     <span className="leading-relaxed">{proyeccion}</span>
                   </div>
@@ -1406,8 +1503,8 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
               {/* Columna izquierda: días */}
               <div className="rounded-xl border border-white/10 p-2 md:col-span-1 self-start">
                 <ul className="space-y-1">
-              {plan.plan_semanal.map((d) => (
-                    <li key={d.dia}>
+              {plan.plan_semanal.map((d, idx) => (
+                    <li key={`dia-${idx}-${d.dia || 'sin-dia'}`}>
                       <button
                         className={`w-full rounded-lg px-3 text-left text-sm flex items-center ${selectedDay === d.dia ? "bg-white/10" : "hover:bg-white/5"}`}
                         style={{ height: '2.5rem' }}
@@ -1452,7 +1549,7 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                           const isOpen = !!expandedKeys[k];
                           const d = details[k];
                           return (
-                            <div key={idx} className="rounded-lg bg-white/5 p-3 transition-colors hover:bg-white/10">
+                            <div key={`meal-${k}`} className="rounded-lg bg-white/5 p-3 transition-colors hover:bg-white/10">
                               <button
                                 className="w-full cursor-pointer rounded-md text-left"
                                 onClick={() => toggleExpanded(k)}
@@ -1482,10 +1579,10 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                                       <p className="text-sm font-medium opacity-90 mb-2">Otras opciones:</p>
                                       <div className="space-y-1">
                                         {primary.slice(1).map((o, i) => (
-                                          <p key={i} className="text-sm opacity-80">• {o}</p>
+                                          <p key={`prim-${i}-${o}`} className="text-sm opacity-80">• {o}</p>
                                         ))}
                                         {alt.map((o, i) => (
-                                          <p key={`alt-${i}`} className="text-sm opacity-80">• {o}</p>
+                                          <p key={`alt-${i}-${o}`} className="text-sm opacity-80">• {o}</p>
                                         ))}
                       </div>
                                     </div>
@@ -1495,7 +1592,7 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                                       <p className="text-sm font-medium">Ingredientes</p>
                                       <ul className="mt-1 list-disc pl-5 text-sm opacity-90">
                                         {(c.ingredientes ?? d?.ingredientes ?? []).map((ing, i) => (
-                                          <li key={i}>{ing}</li>
+                                          <li key={`ing-${i}-${ing}`}>{ing}</li>
                                         ))}
                                       </ul>
                   </div>
@@ -1505,7 +1602,7 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                                       <p className="text-sm font-medium">Pasos de preparación</p>
                                       <ol className="mt-1 list-decimal pl-5 text-sm opacity-90">
                                         {(c.pasos_preparacion ?? d?.pasos_preparacion ?? []).map((p, i) => (
-                                          <li key={i}>{p}</li>
+                                          <li key={`step-${i}-${p}`}>{p}</li>
                                         ))}
                                       </ol>
                                     </div>
@@ -1529,7 +1626,7 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
               <div className="rounded-xl border border-white/10 p-4">
                 <ul className="list-disc pl-5 text-sm opacity-90 columns-1 md:columns-2">
                   {plan.lista_compras.map((item, i) => (
-                    <li key={i}>{item}</li>
+                    <li key={`compras-${i}-${item}`}>{item}</li>
                   ))}
                 </ul>
               </div>
@@ -1541,7 +1638,7 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
               <h2 className="text-xl font-semibold mb-3">Progresión semanal</h2>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                 {plan.progresion_semanal.map((p, i) => (
-                  <div key={i} className="rounded-xl border border-white/10 p-4">
+                  <div key={`prog-${p.semana ?? i}-${i}`} className="rounded-xl border border-white/10 p-4">
                     <p className="text-sm opacity-70">Semana {p.semana}</p>
                     <p className="text-lg font-medium">Ajuste: {p.ajuste_calorias_pct}%</p>
                     {p.motivo ? <p className="mt-1 text-sm opacity-80">{p.motivo}</p> : null}
@@ -1703,6 +1800,20 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                   <p className="text-xs opacity-60 mt-1">
                     Indica condiciones médicas relevantes para ajustar el plan nutricional
                   </p>
+                </label>
+                <label className="flex items-start gap-3 md:col-span-2">
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-4 w-4"
+                    checked={!!(datosEdicion as any).preferirRutina}
+                    onChange={(e) => setDatosEdicion({ ...datosEdicion, preferirRutina: e.target.checked } as any)}
+                  />
+                  <span className="text-sm opacity-80">
+                    Mantener comidas rutinarias (poca variación entre días)
+                    <span className="block text-xs opacity-60 mt-0.5">
+                      Repetir comidas facilita el seguimiento (p. ej., papa en déficit o pasta en volumen). Podés cambiarlo cuando quieras.
+                    </span>
+                  </span>
                 </label>
     </div>
               
@@ -1892,6 +2003,7 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
         </motion.div>
           </motion.div>
         )}
+        </AnimatePresence>
 
         {/* Modal de carga - Regenerando plan */}
         <AnimatePresence>
@@ -1964,20 +2076,67 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                   </svg>
             </button>
                 <h3 className="text-lg font-semibold mb-4">
-                  {modalInfoAbierto === 'imc' ? '¿Qué es el IMC?' : '¿Qué son los macronutrientes?'}
+                  {modalInfoAbierto === 'imc' && '¿Qué es el IMC?'}
+                  {modalInfoAbierto === 'macros' && '¿Qué son los macronutrientes?'}
+                  {modalInfoAbierto === 'sueno' && '¿Cómo contar las horas de sueño?'}
+                  {modalInfoAbierto === 'dificultad' && '¿Qué implica la dificultad del plan?'}
                 </h3>
-                <div className="text-sm opacity-90 leading-relaxed">
-                  {modalInfoAbierto === 'imc' ? (
+                <div className="text-sm opacity-90 leading-relaxed space-y-2">
+                  {modalInfoAbierto === 'imc' && (
                     <p>El Índice de Masa Corporal (IMC) relaciona peso y altura. Es una guía general y no sustituye evaluación clínica.</p>
-                  ) : (
+                  )}
+                  {modalInfoAbierto === 'macros' && (
                     <p>Los macronutrientes son proteínas, grasas y carbohidratos. Tu plan reparte las calorías diarias entre ellos para apoyar tu objetivo.</p>
+                  )}
+                  {modalInfoAbierto === 'sueno' && (
+                    <>
+                      <p>Tu objetivo actual: <strong>{typeof horasSuenoActual === 'number' ? horasSuenoActual : (sugerenciaEntrenamiento?.horasSueno ?? 8)}</strong> h por noche.</p>
+                      <p className="opacity-90">Las siestas suman al total diario, pero ideal que sean cortas (20–30 min) y no muy tarde para no afectar el sueño nocturno.</p>
+                    </>
+                  )}
+                  {modalInfoAbierto === 'dificultad' && (
+                    (() => {
+                      const cambios = (plan as any)?.cambios_semanales;
+                      const fallback = {
+                        semana1: 'Adaptación: posible fatiga suave y cambios en el apetito. Enfocá en técnica y rutina.',
+                        semana2: 'Mejora de energía y rendimiento. Hambre más estable. El buen descanso acelera la adaptación.',
+                        semana3_4: 'Progreso visible: fuerza/resistencia mejoran; cintura y peso empiezan a reflejar el objetivo.',
+                        post_mes: 'Consolidación de hábitos y ajustes finos para seguir progresando.',
+                        fisiologia: [
+                          'Mejor sensibilidad a la insulina y control de glucosa',
+                          'Adaptaciones musculares (reclutamiento y eficiencia neuromuscular)',
+                          `${user?.objetivo === 'perder_grasa' || user?.objetivo === 'corte' ? 'Déficit calórico → reducción de grasa' : user?.objetivo === 'ganar_masa' || user?.objetivo === 'volumen' ? 'Superávit calórico → síntesis muscular' : 'Balance energético optimizado'}`,
+                          `Recuperación mejorada con ${typeof horasSuenoActual === 'number' ? horasSuenoActual : (sugerenciaEntrenamiento?.horasSueno ?? 8)} h de sueño`
+                        ]
+                      };
+                      return (
+                        <>
+                          <p>
+                            Tu plan está marcado como <strong className="capitalize">{(plan as any)?.dificultad || 'media'}</strong>
+                            {(plan as any)?.dificultad_detalle ? ` — ${(plan as any).dificultad_detalle}` : ''}.
+                          </p>
+                          <p className="mt-2 font-medium">¿Qué vas a sentir:</p>
+                          <ul className="list-disc pl-5 space-y-1">
+                            <li><strong>Semana 1:</strong> {cambios?.semana1 || fallback.semana1}</li>
+                            <li><strong>Semana 2:</strong> {cambios?.semana2 || fallback.semana2}</li>
+                            <li><strong>Semana 3-4:</strong> {cambios?.semana3_4 || fallback.semana3_4}</li>
+                            <li><strong>Después del mes:</strong> {cambios?.post_mes || fallback.post_mes}</li>
+                          </ul>
+                          <p className="mt-2 font-medium">¿Qué cambios pasan en tu cuerpo:</p>
+                          <ul className="list-disc pl-5 space-y-1">
+                            {(Array.isArray(cambios?.fisiologia) ? cambios.fisiologia : fallback.fisiologia).map((t: string, i: number) => (
+                              <li key={`fisio-${i}`}>{t}</li>
+                            ))}
+                          </ul>
+                        </>
+                      );
+                    })()
                   )}
           </div>
         </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
-      </AnimatePresence>
       </div>
     </div>
   );

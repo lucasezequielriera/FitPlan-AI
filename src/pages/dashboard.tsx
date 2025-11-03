@@ -439,25 +439,59 @@ export default function Dashboard() {
                           ? "Plan: Mantenimiento Avanzado"
                           : plan.plan?.user?.nombre || "Plan sin nombre"}
                       </h3>
-                      <p className="text-xs sm:text-sm opacity-70">
-                        Creación: {plan.createdAt?.toDate?.().toLocaleDateString("es-AR", {
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                        }) || "Fecha no disponible"}
+                      {plan.plan?.plan?.dificultad && (
+                        <div
+                          className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md border"
+                          style={{
+                            backgroundColor: 'rgba(255,255,255,0.05)',
+                            borderColor: plan.plan.plan.dificultad === 'dificil' ? 'rgba(248,113,113,0.4)' : plan.plan.plan.dificultad === 'media' ? 'rgba(250,204,21,0.4)' : 'rgba(52,211,153,0.4)'
+                          }}
+                        >
+                          <span className="text-[11px] opacity-70">Dificultad</span>
+                          <span
+                            className="text-xs font-medium capitalize"
+                            style={{
+                              color: plan.plan.plan.dificultad === 'dificil' ? '#fecaca' : plan.plan.plan.dificultad === 'media' ? '#fde68a' : '#a7f3d0'
+                            }}
+                          >
+                            {plan.plan.plan.dificultad}
+                          </span>
+                        </div>
+                      )}
+                      <p className="text-xs sm:text-sm opacity-70 mt-3 font-small">
+                        Creación: {(() => {
+                          const d = plan.createdAt?.toDate?.() || (plan.createdAt?.seconds ? new Date(plan.createdAt.seconds * 1000) : null);
+                          if (!d || isNaN(d.getTime())) return "Fecha no disponible";
+                          const dd = String(d.getDate()).padStart(2, '0');
+                          const mm = String(d.getMonth() + 1).padStart(2, '0');
+                          const yyyy = d.getFullYear();
+                          return `${dd}/${mm}/${yyyy}`;
+                        })()}
                       </p>
                     </div>
                     <div className="space-y-2 sm:space-y-2.5 mb-3 sm:mb-4">
                       <div className="flex items-center gap-2 text-xs sm:text-sm">
                         <span className="opacity-60 min-w-[55px] sm:min-w-[70px] flex-shrink-0">Objetivo:</span>
                         <span className="font-medium">
-                          {plan.plan?.user?.objetivo === "perder_grasa"
-                            ? "Perder grasa"
-                            : plan.plan?.user?.objetivo === "mantener"
-                            ? "Mantener peso"
-                            : plan.plan?.user?.objetivo === "ganar_masa"
-                            ? "Ganar masa"
-                            : plan.plan?.user?.objetivo || "N/A"}
+                          {(() => {
+                            const obj = plan.plan?.user?.objetivo as string | undefined;
+                            if (!obj) return "N/A";
+                            // Mapeos conocidos con capitalización adecuada
+                            const map: Record<string, string> = {
+                              perder_grasa: "Perder grasa",
+                              mantener: "Mantener peso",
+                              ganar_masa: "Ganar masa",
+                              recomposicion: "Recomposición",
+                              definicion: "Definición",
+                              volumen: "Volumen",
+                              corte: "Corte",
+                              mantenimiento_avanzado: "Mantenimiento avanzado",
+                            };
+                            if (map[obj]) return map[obj];
+                            // Fallback: reemplazar guiones bajos y capitalizar primera letra
+                            const pretty = obj.replace(/_/g, " ");
+                            return pretty.charAt(0).toUpperCase() + pretty.slice(1);
+                          })()}
                         </span>
                       </div>
                       {plan.plan?.user?.pesoKg && (

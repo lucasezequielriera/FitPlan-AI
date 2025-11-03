@@ -442,7 +442,9 @@ export function analizarCambiosEntrenamiento(
   minutosCaminataSugerido: number,
   minutosCaminataEditado: number,
   horasSuenoSugerido: number,
-  horasSuenoEditado: number
+  horasSuenoEditado: number,
+  minutosSesionGymSugerido?: number,
+  minutosSesionGymEditado?: number
 ): { pros: string[]; contras: string[] } {
   const pros: string[] = [];
   const contras: string[] = [];
@@ -541,6 +543,40 @@ export function analizarCambiosEntrenamiento(
       contras.push("Mayor riesgo de fatiga crónica y sobreentrenamiento");
       if (horasSuenoEditado < 6) {
         contras.push("Sueño insuficiente afecta gravemente la recuperación y el rendimiento");
+      }
+    }
+  }
+
+  // Análisis de minutos por sesión de gym
+  if (
+    typeof minutosSesionGymSugerido === 'number' &&
+    typeof minutosSesionGymEditado === 'number' &&
+    isFinite(minutosSesionGymSugerido) &&
+    isFinite(minutosSesionGymEditado) &&
+    minutosSesionGymEditado !== minutosSesionGymSugerido
+  ) {
+    const diff = minutosSesionGymEditado - minutosSesionGymSugerido;
+    if (diff > 0) {
+      pros.push("Sesiones más largas aumentan el estímulo de entrenamiento");
+      if (objetivo === "ganar_masa" || objetivo === "volumen") {
+        pros.push("Más volumen puede favorecer la hipertrofia si hay recuperación suficiente");
+      } else if (objetivo === "perder_grasa" || objetivo === "corte") {
+        pros.push("Mayor gasto calórico por sesión");
+      }
+      if (minutosSesionGymEditado >= 120) {
+        contras.push("Sesiones muy largas pueden reducir la intensidad efectiva");
+        contras.push("Mayor riesgo de fatiga y sobreentrenamiento");
+      }
+    } else {
+      // menor duración
+      pros.push("Sesiones más cortas facilitan mantener alta intensidad y adherencia");
+      if (objetivo === "ganar_masa" || objetivo === "volumen") {
+        contras.push("Menos volumen puede limitar la ganancia muscular");
+      } else if (objetivo === "perder_grasa" || objetivo === "corte") {
+        contras.push("Menor gasto calórico por sesión");
+      }
+      if (minutosSesionGymEditado < 45) {
+        contras.push("Duración muy baja puede ser insuficiente para tu objetivo");
       }
     }
   }

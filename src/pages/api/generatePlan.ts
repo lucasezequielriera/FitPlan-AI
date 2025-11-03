@@ -22,6 +22,16 @@ ESQUEMA OBLIGATORIO:
   "calorias_diarias": number,
   "macros": { "proteinas": "Ng", "grasas": "Ng", "carbohidratos": "Ng" },
   "distribucion_diaria_pct": { "desayuno": number, "almuerzo": number, "snacks": number, "cena": number },
+  "minutos_sesion_gym": number,
+  "dificultad": "facil" | "media" | "dificil",
+  "dificultad_detalle": string,
+  "cambios_semanales": {
+    "semana1": string,
+    "semana2": string,
+    "semana3_4": string,
+    "post_mes": string,
+    "fisiologia": string[]
+  },
   "plan_semanal": [
     {
       "dia": "Lunes",
@@ -57,6 +67,22 @@ REGLAS CRÍTICAS:
    - Si intensidad es "leve": distribución más conservadora y sostenible
    - La suma DEBE ser exactamente 100% 
 7. NO incluir "ingredientes" ni "pasos_preparacion" en las comidas (se consultan aparte)
+8. "minutos_sesion_gym" DEBE reflejar la duración típica por sesión según objetivo e intensidad:
+   - intensa: 75–90 min
+   - moderada: 60–75 min
+   - leve: 45–60 min
+   Ajustar según objetivo (volumen/ganancia tienden al rango alto; pérdida/definición, rango medio).
+9. DIFICULTAD (OBLIGATORIO): asignar "dificultad" global del plan como "facil" | "media" | "dificil" y un campo "dificultad_detalle" (1-2 frases) justificando según objetivo, intensidad, edad, IMC y perfil atlético. REGLAS:
+   - Si intensidad = "intensa" → dificultad = "dificil" salvo casos MUY excepcionales (atleta avanzado con IMC saludable y objetivo mantenimiento), donde puede ser "media" pero justificar explícitamente.
+   - Si intensidad = "moderada" → dificultad = "media" (subir a "dificil" si IMC ≥ 30 con objetivo de pérdida/definición/corte, o si el plan exige alto volumen más días de gym).
+   - Si intensidad = "leve" → dificultad = "facil" (subir a "media" si usuario atlético con objetivo de volumen/ganancia y alta frecuencia de gym).
+   - La descripción debe hacer NOTAR la intensidad elegida: para "intensa", menciona esfuerzo alto, fatiga inicial y necesidad de recuperación estricta.
+10. Agrega "cambios_semanales" con textos concisos y específicos al nivel de dificultad:
+    - semana1: qué sentirás la 1ª semana (adaptación, hambre/energía)
+    - semana2: qué cambia en la 2ª semana (rendimiento, estabilidad)
+    - semana3_4: señales de progreso hacia el final del mes
+    - post_mes: qué esperar después del primer mes
+    - fisiologia: 4-6 bullets sobre ajustes del cuerpo (insulina, hipertrofia, recuperación, etc.)
 Datos: ${JSON.stringify({
       nombre: input.nombre,
       sexo: input.sexo,
@@ -493,6 +519,48 @@ Ajusta las calorías, macros y selección de alimentos según la intensidad y ti
       parsedFinal.distribucion_diaria_pct = distribucionRecomendada;
     }
     
+    // Fallback/Corrección de dificultad si falta o es inconsistente
+    if (parsedFinal && typeof parsedFinal === "object") {
+      const out = parsedFinal as Record<string, unknown>;
+      const dificultad = (out.dificultad as string | undefined)?.toLowerCase();
+      const int = (input.intensidad || "moderada").toLowerCase();
+      const objetivo = String(input.objetivo || "").toLowerCase();
+      const bmi = input.alturaCm && input.pesoKg ? (input.pesoKg / Math.pow(input.alturaCm / 100, 2)) : undefined;
+      const atletico = Boolean(input.atletico);
+
+      const inferidaPorIntensidad = int === "intensa" ? "dificil" : int === "leve" ? "facil" : "media";
+
+      // Regla base por intensidad
+      let finalDiff = dificultad || inferidaPorIntensidad;
+
+      // Escalar por contexto
+      if (int === "intensa") {
+        finalDiff = "dificil";
+      } else if (int === "moderada") {
+        if (bmi && bmi >= 30 && (objetivo.includes("perder") || objetivo.includes("defin") || objetivo.includes("corte"))) {
+          finalDiff = "dificil";
+        } else {
+          finalDiff = "media";
+        }
+      } else if (int === "leve") {
+        // leve por defecto fácil; subir a media si atleta con volumen/ganancia
+        if (atletico && (objetivo.includes("ganar") || objetivo.includes("volumen"))) {
+          finalDiff = "media";
+        } else {
+          finalDiff = "facil";
+        }
+      }
+
+      out.dificultad = finalDiff;
+      if (typeof out.dificultad_detalle !== "string" || !out.dificultad_detalle) {
+        out.dificultad_detalle = finalDiff === "dificil"
+          ? "Plan exigente: alta carga de entrenamiento y disciplina nutricional."
+          : finalDiff === "media"
+          ? "Esfuerzo moderado con progresión sostenida."
+          : "Enfoque accesible y sostenible para construir hábitos.";
+      }
+    }
+
     return res.status(200).json(parsedFinal);
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);

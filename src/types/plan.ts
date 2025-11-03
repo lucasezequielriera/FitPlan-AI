@@ -21,6 +21,8 @@ export interface UserInput {
   restricciones?: string[];
   preferencias?: string[];
   patologias?: string[]; // Condiciones médicas relevantes para la nutrición
+  // Preferencia de variabilidad de comidas
+  preferirRutina?: boolean; // true = poca variación entre días (comidas rutinarias)
   duracionDias?: number; // Siempre 30 días (mensual), se establece automáticamente
   // Opcionales para estimaciones más precisas
   cinturaCm?: number;
@@ -57,6 +59,18 @@ export interface PlanAIResponse {
   plan_semanal: DiaPlan[];
   duracion_plan_dias: number;
   mensaje_motivacional: string;
+  minutos_sesion_gym?: number;
+  // Dificultad global del plan
+  dificultad?: "facil" | "media" | "dificil";
+  dificultad_detalle?: string;
+  // Cambios esperados por semana y fisiológicos
+  cambios_semanales?: {
+    semana1?: string;
+    semana2?: string;
+    semana3_4?: string;
+    post_mes?: string;
+    fisiologia?: string[];
+  };
   // Extras (opcionales) generados por IA
   lista_compras?: string[];
   progresion_semanal?: { semana: number; ajuste_calorias_pct: number; motivo?: string }[];

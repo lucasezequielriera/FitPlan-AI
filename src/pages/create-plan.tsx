@@ -136,6 +136,7 @@ export default function CreatePlan() {
     preferencias: [],
     patologias: [],
     duracionDias: 30, // Siempre 30 días (plan mensual)
+    preferirRutina: false,
     cinturaCm: undefined,
     cuelloCm: undefined,
     caderaCm: undefined,
@@ -168,10 +169,13 @@ export default function CreatePlan() {
             edad: userData.edad || prev.edad,
             alturaCm: userData.alturaCm || prev.alturaCm,
             sexo: userData.sexo || prev.sexo,
+            // Pre-cargar peso del perfil si existe
+            pesoKg: (typeof userData.peso === 'number' && userData.peso > 0) ? userData.peso : prev.pesoKg,
             cinturaCm: userData.cinturaCm ?? prev.cinturaCm,
             cuelloCm: userData.cuelloCm ?? prev.cuelloCm,
             caderaCm: userData.caderaCm ?? prev.caderaCm,
             atletico: userData.atletico ?? prev.atletico,
+            preferirRutina: userData.preferirRutina ?? prev.preferirRutina,
           }));
           
           // Verificar estado premium
@@ -287,6 +291,10 @@ export default function CreatePlan() {
       const array = patologiasTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
       formFinal.patologias = array;
     }
+    // Mantener preferencia de comidas rutinarias
+    if (typeof form.preferirRutina === 'boolean') {
+      formFinal.preferirRutina = form.preferirRutina;
+    }
     
     setLoading(true);
     setError(null);
@@ -340,6 +348,7 @@ export default function CreatePlan() {
               peso: Number(formFinal.pesoKg), // Guardar peso del usuario
               objetivo: formFinal.objetivo, // Guardar objetivo
               atletico: Boolean(formFinal.atletico), // Guardar perfil atlético
+              preferirRutina: Boolean(formFinal.preferirRutina), // Guardar preferencia de comidas rutinarias
               updatedAt: serverTimestamp(),
             };
             
@@ -721,6 +730,22 @@ export default function CreatePlan() {
                   Indica condiciones médicas relevantes para ajustar el plan nutricional
                 </p>
               </label>
+
+            {/* 5. Preferencia: comidas rutinarias */}
+            <label className="flex items-start gap-3 mt-2">
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4"
+                checked={!!form.preferirRutina}
+                onChange={(e) => update("preferirRutina", e.target.checked as any)}
+              />
+              <span className="text-sm opacity-80">
+                Mantener comidas rutinarias (poca variación entre días)
+                <span className="block text-xs opacity-60 mt-0.5">
+                  Ideal si preferís repetir comidas (p.ej., papa en déficit o pasta en volumen) para no pensar qué toca cada día. Lo podés editar luego.
+                </span>
+              </span>
+            </label>
             </div>
           )}
 

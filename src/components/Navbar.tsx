@@ -13,8 +13,10 @@ export default function Navbar() {
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [hasPlans, setHasPlans] = useState<boolean | null>(null);
   const [isPremium, setIsPremium] = useState(false);
+  const [userName, setUserName] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const isPlanPage = router.pathname === "/plan";
+  const isDashboardPage = router.pathname === "/dashboard";
 
   useEffect(() => {
     initializeAuth();
@@ -55,6 +57,10 @@ export default function Navbar() {
         if (userDoc.exists()) {
           const userData = userDoc.data();
           setIsPremium(userData.premium === true);
+          // Nombre del usuario para mostrar en dashboard
+          const nameFromDb: string | undefined = (userData as Record<string, unknown>).nombre as string | undefined;
+          const fallbackName = auth.currentUser.displayName || auth.currentUser.email?.split("@")[0] || "Usuario";
+          setUserName(nameFromDb && nameFromDb.trim().length > 0 ? nameFromDb : fallbackName);
           
           // Verificar si es admin por email
           const email = userData.email?.toLowerCase() || auth.currentUser.email?.toLowerCase() || "";
@@ -64,6 +70,8 @@ export default function Navbar() {
           // Verificar admin por email de Auth si el documento no existe
           const email = auth.currentUser.email?.toLowerCase() || "";
           setIsAdmin(email === "admin@fitplan-ai.com");
+          const fallbackName = auth.currentUser.displayName || auth.currentUser.email?.split("@")[0] || "Usuario";
+          setUserName(fallbackName);
         }
       } catch (error) {
         console.error("Error al verificar planes y premium:", error);
@@ -132,13 +140,17 @@ export default function Navbar() {
                   </div>
                   <div className="hidden md:block">
                     <p className="text-xs font-medium flex items-center gap-1">
-                      {isAdmin 
+                      {isAdmin
                         ? "Administrador"
-                        : hasPlans === null 
-                          ? "..." 
-                          : hasPlans 
-                            ? "Dashboard" 
-                            : "Crear mi plan"}
+                        : isPlanPage
+                          ? "Ir a mi dashboard"
+                          : isDashboardPage
+                            ? (userName || "Mi dashboard")
+                            : hasPlans === null
+                              ? "..."
+                              : hasPlans
+                                ? "Dashboard"
+                                : "Crear mi plan"}
                       {isPremium && (
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
