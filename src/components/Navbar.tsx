@@ -69,27 +69,27 @@ export default function Navbar() {
   }, [authUser]);
 
   return (
-    <nav className="sticky top-0 z-40 w-full border-b border-white/10 bg-black/30 backdrop-blur-md">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <nav className="sticky top-0 z-40 w-full border-b border-white/10 bg-black/30 backdrop-blur-md overflow-x-hidden">
+      <div className="mx-auto max-w-7xl px-3 sm:px-4 md:px-6 lg:px-8 w-full overflow-x-hidden">
         <div className="flex h-16 items-center justify-between">
           {/* Logo y título */}
           <div 
-            className="flex items-center gap-3 cursor-pointer"
+            className="flex items-center gap-2 sm:gap-3 cursor-pointer flex-shrink-0 min-w-0"
             onClick={() => router.push("/")}
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500">
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500">
               <FaAppleAlt className="h-5 w-5 text-white" />
             </div>
-            <div>
-              <h1 className="text-lg font-semibold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-lg font-semibold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent truncate">
                 FitPlan AI
               </h1>
-              <p className="text-[10px] opacity-60">Plan nutricional inteligente</p>
+              <p className="text-[10px] opacity-60 hidden sm:block">Plan nutricional inteligente</p>
             </div>
           </div>
 
           {/* Información del usuario y acciones */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
 
             {authUser && (
               <>

@@ -824,8 +824,11 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
             ) : null}
             {user && (
               <div className="flex flex-wrap items-center gap-3 mt-2">
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors w-fit">
-                  <span className="text-xs opacity-70 whitespace-nowrap">Objetivo:</span>
+                <div className="relative inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors max-w-full">
+                  <span className="text-xs opacity-70 whitespace-nowrap flex-shrink-0">Objetivo:</span>
+                  <span className="text-sm font-medium text-white whitespace-nowrap max-w-[150px] md:max-w-none truncate">
+                    {getObjetivoTexto(user.objetivo)}
+                  </span>
                   <select
                     value={user.objetivo}
                     onChange={(e) => {
@@ -835,12 +838,11 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                       const nuevaIntensidad = nuevoEsBasico ? "leve" : user.intensidad;
                       setUser({ ...user, objetivo: nuevoObjetivo, intensidad: nuevaIntensidad });
                     }}
-                    className="text-sm font-medium bg-transparent border-none outline-none cursor-pointer appearance-none pr-6 w-auto text-white"
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                     style={{ 
                       backgroundImage: 'none',
                       backgroundColor: 'transparent',
-                      color: '#e6f6ff',
-                      minWidth: `${getObjetivoTexto(user.objetivo).length * 0.6}ch`
+                      color: '#e6f6ff'
                     }}
                   >
                     <optgroup label="Objetivos básicos - Para empezar">
@@ -856,6 +858,9 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                       <option value="mantenimiento_avanzado" disabled={!isPremium}>🎯 Mantenimiento Elite - Optimización avanzada para atletas experimentados</option>
                     </optgroup>
                   </select>
+                  <svg className="w-4 h-4 opacity-50 flex-shrink-0 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
                 </div>
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors w-fit">
                   <span className="text-xs opacity-70 whitespace-nowrap">
