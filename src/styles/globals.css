@@ -78,3 +78,39 @@ input[type="range"]::-moz-range-thumb:hover {
   z-index: 99999 !important;
   mix-blend-mode: normal !important;
 }
+
+/* Estilos para selects en Windows - Forzar fondo oscuro */
+select {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: var(--foreground) !important;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+select:focus {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  outline: none;
+}
+
+/* Estilos para options dentro de selects */
+select option {
+  background-color: #0b1020 !important;
+  background: #0b1020 !important;
+  color: var(--foreground) !important;
+}
+
+/* Asegurar que los optgroups también tengan fondo oscuro */
+select optgroup {
+  background-color: #0b1020 !important;
+  background: #0b1020 !important;
+  color: var(--foreground) !important;
+}
+
+/* Para selects que son inline/editables en badges */
+select.bg-transparent {
+  background-color: transparent !important;
+  background: transparent !important;
+}

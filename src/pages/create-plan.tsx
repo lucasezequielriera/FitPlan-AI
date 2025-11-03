@@ -484,7 +484,12 @@ export default function CreatePlan() {
               <div className="flex flex-col gap-1 md:col-span-2">
               <label className="flex flex-col gap-1">
                 <span className="text-sm opacity-80">Objetivo</span>
-                  <select className="rounded-xl bg-white/5 px-3 py-2" value={form.objetivo} onChange={(e) => update("objetivo", e.target.value as UserInput["objetivo"])}>
+                  <select 
+                    className="rounded-xl bg-white/5 px-3 py-2 text-white" 
+                    style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', color: '#e6f6ff' }}
+                    value={form.objetivo} 
+                    onChange={(e) => update("objetivo", e.target.value as UserInput["objetivo"])}
+                  >
                     <optgroup label="Objetivos básicos - Para empezar">
                   <option value="perder_grasa">Perder peso - Reducción simple de peso corporal</option>
                   <option value="mantener">Mantener peso - Conservar tu peso actual</option>
@@ -529,7 +534,8 @@ export default function CreatePlan() {
                     {!isPremium && <span className="text-xs opacity-60 ml-1 block mt-0.5">Las dietas premium requieren suscripción</span>}
                   </span>
                   <select 
-                    className="rounded-xl bg-white/5 px-3 py-2" 
+                    className="rounded-xl bg-white/5 px-3 py-2 text-white" 
+                    style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', color: '#e6f6ff' }}
                     value={form.tipoDieta || "estandar"} 
                     onChange={(e) => update("tipoDieta", e.target.value === "estandar" ? undefined : (e.target.value as TipoDieta))}
                   >
@@ -594,7 +600,8 @@ export default function CreatePlan() {
                     )}
                   </span>
                   <select 
-                    className="rounded-xl bg-white/5 px-3 py-2 cursor-pointer"
+                    className="rounded-xl bg-white/5 px-3 py-2 cursor-pointer text-white"
+                    style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', color: '#e6f6ff' }}
                     value={form.intensidad} 
                     onChange={(e) => update("intensidad", e.target.value as UserInput["intensidad"])}
                   >

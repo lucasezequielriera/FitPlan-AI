@@ -835,9 +835,11 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                       const nuevaIntensidad = nuevoEsBasico ? "leve" : user.intensidad;
                       setUser({ ...user, objetivo: nuevoObjetivo, intensidad: nuevaIntensidad });
                     }}
-                    className="text-sm font-medium bg-transparent border-none outline-none cursor-pointer appearance-none pr-6 w-auto"
+                    className="text-sm font-medium bg-transparent border-none outline-none cursor-pointer appearance-none pr-6 w-auto text-white"
                     style={{ 
                       backgroundImage: 'none',
+                      backgroundColor: 'transparent',
+                      color: '#e6f6ff',
                       minWidth: `${getObjetivoTexto(user.objetivo).length * 0.6}ch`
                     }}
                   >
@@ -875,8 +877,10 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                       }
                       setUser({ ...user, intensidad: nuevaIntensidad });
                     }}
-                    className="text-sm font-medium bg-transparent border-none outline-none capitalize appearance-none w-auto cursor-pointer"
+                    className="text-sm font-medium bg-transparent border-none outline-none capitalize appearance-none w-auto cursor-pointer text-white"
                     style={{ 
+                      backgroundColor: 'transparent',
+                      color: '#e6f6ff',
                       minWidth: `${getIntensidadTexto(user.intensidad).length * 0.6}ch`
                     }}
                   >
@@ -899,8 +903,10 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                       const nuevaDieta = e.target.value === "estandar" ? undefined : (e.target.value as TipoDieta);
                       setUser({ ...user, tipoDieta: nuevaDieta });
                     }}
-                    className="text-sm font-medium bg-transparent border-none outline-none cursor-pointer appearance-none w-auto"
+                    className="text-sm font-medium bg-transparent border-none outline-none cursor-pointer appearance-none w-auto text-white"
                     style={{ 
+                      backgroundColor: 'transparent',
+                      color: '#e6f6ff',
                       minWidth: `${getDietaTexto(user.tipoDieta).length * 0.6}ch`
                     }}
                   >
@@ -1545,7 +1551,8 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                 <label className="flex flex-col gap-1">
                   <span className="text-sm opacity-80">Sexo</span>
                   <select
-                    className="rounded-xl bg-white/5 px-3 py-2"
+                    className="rounded-xl bg-white/5 px-3 py-2 text-white"
+                    style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', color: '#e6f6ff' }}
                     value={datosEdicion.sexo}
                     onChange={(e) => setDatosEdicion({ ...datosEdicion, sexo: e.target.value as "masculino" | "femenino" })}
                   >
