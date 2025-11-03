@@ -11,9 +11,10 @@ interface User {
   nombre: string | null;
   premium: boolean;
   premiumStatus: string | null;
-  premiumSince: any;
-  createdAt: any;
-  updatedAt: any;
+  premiumSince: unknown;
+  premiumLastPay: unknown;
+  createdAt: unknown;
+  updatedAt: unknown;
   sexo: string | null;
   alturaCm: number | null;
   edad: number | null;
@@ -23,7 +24,7 @@ interface User {
   cuelloCm: number | null;
   caderaCm: number | null;
   atletico: boolean;
-  premiumPayment: any;
+  premiumPayment: unknown;
 }
 
 export default function Admin() {
@@ -36,6 +37,124 @@ export default function Admin() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editForm, setEditForm] = useState<Partial<User>>({});
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [totalUsers, setTotalUsers] = useState<number>(0);
+  const [premiumUsers, setPremiumUsers] = useState<number>(0);
+  const [regularUsers, setRegularUsers] = useState<number>(0);
+  const [athleticUsers, setAthleticUsers] = useState<number>(0);
+  
+  // Estadísticas de ganancias
+  const [revenueStats, setRevenueStats] = useState({
+    estimatedMonthly: 0,
+    premiumActiveThisMonth: 0,
+    pendingPayments: 0,
+    estimatedAnnual: 0,
+    renewingSoon: 0,
+    totalPremiumUsers: 0,
+  });
+
+  // Función para determinar estado de pago basado en premiumLastPay
+  const getPaymentStatus = (user: User): { status: "paid" | "unpaid"; label: string; color: string } => {
+    // Solo verificar estado de pago para usuarios premium
+    if (!user.premium) {
+      return { status: "unpaid", label: "Regular", color: "gray" };
+    }
+
+    // Verificar premiumLastPay para ver si pagó este mes
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    
+    let lastPayDate: Date | null = null;
+    
+    // Intentar obtener la fecha de premiumLastPay
+    if (user.premiumLastPay) {
+      if (user.premiumLastPay instanceof Date) {
+        lastPayDate = user.premiumLastPay;
+      } else if (typeof user.premiumLastPay === 'string') {
+        lastPayDate = new Date(user.premiumLastPay);
+      } else if (user.premiumLastPay && typeof user.premiumLastPay === 'object' && 'toDate' in user.premiumLastPay) {
+        lastPayDate = (user.premiumLastPay as { toDate: () => Date }).toDate();
+      }
+    }
+    
+    // Si hay fecha de último pago y es del mes actual
+    if (lastPayDate && !isNaN(lastPayDate.getTime())) {
+      const paymentMonth = lastPayDate.getMonth();
+      const paymentYear = lastPayDate.getFullYear();
+      
+      // Si pagó este mes
+      if (paymentMonth === currentMonth && paymentYear === currentYear) {
+        return { status: "paid", label: "Pagado", color: "green" };
+      }
+    }
+    
+    // Si no pagó este mes o no tiene premiumLastPay, está sin pagar
+    return { status: "unpaid", label: "Sin Pagar", color: "red" };
+  };
+
+  // Función para calcular estadísticas de ganancias
+  const calculateRevenueStats = () => {
+    const PRICE_PER_MONTH = 25000; // ARS
+    const premiumUsersList = users.filter(u => u.premium && u.email?.toLowerCase() !== "admin@fitplan-ai.com");
+    
+    let premiumActiveThisMonth = 0;
+    let pendingPayments = 0;
+    let renewingSoon = 0;
+    
+    const now = new Date();
+    
+    const totalPremiumUsers = premiumUsersList.length;
+    
+    premiumUsersList.forEach(user => {
+      const paymentStatus = getPaymentStatus(user);
+      
+      if (paymentStatus.status === "paid") {
+        premiumActiveThisMonth++;
+      } else if (paymentStatus.status === "unpaid") {
+        pendingPayments++;
+      }
+      
+      // Usuarios que renovarán pronto (próximos 7 días)
+      if (user.premiumSince) {
+        let premiumDate: Date | null = null;
+        if (user.premiumSince instanceof Date) {
+          premiumDate = user.premiumSince;
+        } else if (typeof user.premiumSince === 'string') {
+          premiumDate = new Date(user.premiumSince);
+        } else if (user.premiumSince && typeof user.premiumSince === 'object' && 'toDate' in user.premiumSince) {
+          premiumDate = (user.premiumSince as { toDate: () => Date }).toDate();
+        }
+        
+        if (premiumDate && !isNaN(premiumDate.getTime())) {
+          const daysSincePayment = Math.floor((now.getTime() - premiumDate.getTime()) / (1000 * 60 * 60 * 24));
+          if (daysSincePayment >= 23 && daysSincePayment <= 30) {
+            renewingSoon++;
+          }
+        }
+      }
+    });
+    
+    const estimatedMonthly = premiumActiveThisMonth * PRICE_PER_MONTH;
+    // Proyección anual: asume que los usuarios activos este mes seguirán pagando cada mes durante el año
+    const estimatedAnnual = estimatedMonthly * 12;
+    
+    setRevenueStats({
+      estimatedMonthly,
+      premiumActiveThisMonth,
+      pendingPayments,
+      estimatedAnnual,
+      renewingSoon,
+      totalPremiumUsers,
+    });
+  };
+
+  useEffect(() => {
+    if (users.length > 0) {
+      calculateRevenueStats();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [users]);
 
   // Verificar si el usuario es administrador
   useEffect(() => {
@@ -71,87 +190,63 @@ export default function Admin() {
         const userRef = doc(db, "usuarios", auth.currentUser.uid);
         const userDoc = await getDoc(userRef);
         
-        // Si es admin pero el documento no existe en Firestore, crearlo primero
-        if (isAuthAdmin && !userDoc.exists()) {
-          try {
-            await setDoc(userRef, {
-              email: auth.currentUser.email,
-              nombre: "administrador",
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp(),
-            });
-            console.log("✅ Documento de administrador creado en Firestore con email y nombre");
-            // Esperar un momento para que Firestore propague el cambio
-            await new Promise(resolve => setTimeout(resolve, 500));
-            // Verificar nuevamente que el documento exista
-            const finalUserDoc = await getDoc(userRef);
-            if (finalUserDoc.exists()) {
-              setIsAdmin(true);
-              loadUsers();
-              return;
-            } else {
-              setError("El documento se creó pero no se puede verificar. Por favor, recarga la página.");
-              setLoading(false);
-              return;
-            }
-          } catch (createError) {
-            console.error("Error al crear documento de administrador:", createError);
-            setError("Error al crear documento de administrador. Verifica las reglas de Firestore.");
-            setLoading(false);
-            return;
-          }
-        }
-        
-        // Si es admin por email de Auth pero el documento existe pero no tiene nombre "administrador", actualizarlo
-        if (isAuthAdmin && userDoc.exists()) {
-          const userData = userDoc.data();
-          const needsUpdate = !userData.nombre || userData.nombre.toLowerCase() !== "administrador";
-          
-          if (needsUpdate) {
+        // Verificar y crear/actualizar documento del admin si es necesario
+        if (isAuthAdmin) {
+          if (!userDoc.exists()) {
+            // Crear documento del admin
             try {
-              await updateDoc(userRef, {
-                nombre: "administrador",
-                email: auth.currentUser.email, // Asegurar que el email esté presente
+              await setDoc(userRef, {
+                email: auth.currentUser.email || "admin@fitplan-ai.com",
+                createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp(),
               });
-              console.log("✅ Documento de administrador actualizado con nombre");
-              // Esperar un momento para que Firestore propague el cambio
-              await new Promise(resolve => setTimeout(resolve, 500));
-            } catch (updateError) {
-              console.error("Error al actualizar documento de administrador:", updateError);
-              // Continuar de todas formas, el email debería ser suficiente
+              console.log("✅ Documento de administrador creado");
+              await new Promise(resolve => setTimeout(resolve, 1500));
+            } catch (createError) {
+              console.error("Error al crear documento de administrador:", createError);
+            }
+          } else {
+            // Verificar y actualizar si es necesario
+            const userData = userDoc.data();
+            const needsUpdate = !userData.email || userData.email.toLowerCase() !== "admin@fitplan-ai.com";
+            
+            if (needsUpdate) {
+              try {
+                await updateDoc(userRef, {
+                  email: auth.currentUser.email || "admin@fitplan-ai.com",
+                  updatedAt: serverTimestamp(),
+                });
+                console.log("✅ Documento de administrador actualizado");
+                await new Promise(resolve => setTimeout(resolve, 1500));
+              } catch (updateError) {
+                console.error("Error al actualizar documento de administrador:", updateError);
+              }
             }
           }
           
           setIsAdmin(true);
-          loadUsers();
+          setLoading(false);
+          loadUserStats();
           return;
         }
 
+        // Si no es admin por email de Auth, verificar en el documento
         if (userDoc.exists()) {
           const userData = userDoc.data();
           const email = userData.email?.toLowerCase() || "";
-          const nombreLower = userData.nombre?.toLowerCase() || "";
-          
-          // Verificar si el email es "admin@fitplan-ai.com" o el nombre es "administrador"
-          const isAdminUser = email === "admin@fitplan-ai.com" || nombreLower === "administrador";
+          const isAdminUser = email === "admin@fitplan-ai.com";
           
           if (isAdminUser) {
             setIsAdmin(true);
-            loadUsers();
+            setLoading(false);
+            loadUserStats();
           } else {
             setError("Acceso denegado. Solo administradores pueden acceder.");
             setLoading(false);
           }
         } else {
-          // Si el documento no existe pero el email de Auth es admin, permitir acceso
-          if (isAuthAdmin) {
-            setIsAdmin(true);
-            loadUsers();
-          } else {
-            setError("Usuario no encontrado en la base de datos. Si eres administrador, completa tu perfil primero.");
-            setLoading(false);
-          }
+          setError("Usuario no encontrado en la base de datos.");
+          setLoading(false);
         }
       } catch (err) {
         console.error("Error al verificar admin:", err);
@@ -163,100 +258,83 @@ export default function Admin() {
     checkAdmin();
   }, [authUser, authLoading, router]);
 
-  const loadUsers = async () => {
+  const loadUserStats = async () => {
     try {
-      const db = getDbSafe();
       const auth = getAuthSafe();
       
-      if (!db || !auth?.currentUser) {
-        setError("Firebase no configurado");
-        setLoading(false);
+      if (!auth?.currentUser) {
         return;
       }
 
-      // Verificar que el documento del administrador existe antes de intentar leer la colección
-      const { doc, getDoc } = await import("firebase/firestore");
-      const adminUserRef = doc(db, "usuarios", auth.currentUser.uid);
-      const adminUserDoc = await getDoc(adminUserRef);
+      // Llamar al endpoint API para obtener estadísticas
+      const response = await fetch(`/api/admin/stats?userId=${auth.currentUser.uid}`);
       
-      if (!adminUserDoc.exists()) {
-        setError("Error: El documento de administrador no existe en Firestore. Por favor, recarga la página.");
-        setLoading(false);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Error desconocido" }));
+        console.error("❌ Error del API:", errorData);
         return;
       }
 
-      const adminData = adminUserDoc.data();
-      const isAdminDoc = adminData.email?.toLowerCase() === "admin@fitplan-ai.com" || adminData.nombre?.toLowerCase() === "administrador";
+      const data = await response.json();
       
-      console.log("📋 Datos del administrador:", {
-        email: adminData.email,
-        nombre: adminData.nombre,
-        isAdminByEmail: adminData.email?.toLowerCase() === "admin@fitplan-ai.com",
-        isAdminByName: adminData.nombre?.toLowerCase() === "administrador",
-        isAdminDoc: isAdminDoc
-      });
+      // Mostrar toda la información en console.log
+      console.log("📊 ESTADÍSTICAS DE USUARIOS:", data.stats);
+      console.log("👥 LISTA COMPLETA DE USUARIOS:", data.users);
+      console.log("📈 Total de usuarios:", data.stats?.total);
+      console.log("⭐ Usuarios premium:", data.stats?.premium);
+      console.log("👤 Usuarios regulares:", data.stats?.regular);
+      console.log("💪 Usuarios atléticos:", data.stats?.athletic);
       
-      if (!isAdminDoc) {
-        setError("Error: El usuario no tiene permisos de administrador en Firestore.");
-        setLoading(false);
-        return;
+      // Actualizar los contadores
+      if (data.stats) {
+        setTotalUsers(data.stats.total || 0);
+        setPremiumUsers(data.stats.premium || 0);
+        setRegularUsers(data.stats.regular || 0);
+        setAthleticUsers(data.stats.athletic || 0);
       }
 
-      console.log("✅ Verificación de admin exitosa, cargando usuarios...");
-      console.log("🔍 Intentando leer colección de usuarios...");
-
-      // Obtener todos los usuarios directamente desde Firestore (las reglas permitirán si es admin)
-      const { collection, query, getDocs, limit } = await import("firebase/firestore");
-      const usersQuery = query(collection(db, "usuarios"), limit(500));
-      
-      try {
-        const usersSnapshot = await getDocs(usersQuery);
-        console.log("✅ Colección leída exitosamente, usuarios encontrados:", usersSnapshot.docs.length);
-
-      const usersData = usersSnapshot.docs.map((doc) => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          email: data.email || null,
-          nombre: data.nombre || null,
-          premium: data.premium === true,
-          premiumStatus: data.premiumStatus || null,
-          premiumSince: data.premiumSince || null,
-          createdAt: data.createdAt || null,
-          updatedAt: data.updatedAt || null,
-          sexo: data.sexo || null,
-          alturaCm: data.alturaCm || null,
-          edad: data.edad || null,
-          peso: data.peso || null,
-          pesoObjetivo: data.pesoObjetivo || null,
-          cinturaCm: data.cinturaCm || null,
-          cuelloCm: data.cuelloCm || null,
-          caderaCm: data.caderaCm || null,
-          atletico: data.atletico || false,
-          premiumPayment: data.premiumPayment || null,
+      // Guardar los usuarios para mostrarlos en la tabla
+      if (data.users && Array.isArray(data.users)) {
+        // Función auxiliar para obtener timestamp numérico para ordenar
+        const getTimestamp = (timestamp: unknown): number => {
+          if (!timestamp) return 0;
+          
+          try {
+            if (timestamp instanceof Date) {
+              return timestamp.getTime();
+            } else if (typeof timestamp === 'string') {
+              return new Date(timestamp).getTime();
+            } else if (timestamp && typeof timestamp === 'object' && 'toDate' in timestamp && typeof timestamp.toDate === 'function') {
+              return (timestamp as { toDate: () => Date }).toDate().getTime();
+            } else if (timestamp && typeof timestamp === 'object' && 'seconds' in timestamp) {
+              const ts = timestamp as { seconds: number; nanoseconds?: number };
+              return ts.seconds * 1000 + (ts.nanoseconds || 0) / 1000000;
+            }
+          } catch (error) {
+            console.error("Error al obtener timestamp:", error);
+          }
+          
+          return 0;
         };
-      });
-
-        setUsers(usersData);
+        
+        // Ordenar usuarios por fecha de creación (más reciente primero)
+        const sortedUsers = [...data.users].sort((a, b) => {
+          const aTime = getTimestamp(a.createdAt);
+          const bTime = getTimestamp(b.createdAt);
+          return bTime - aTime; // Orden descendente (más reciente primero)
+        });
+        
+        setUsers(sortedUsers);
         setLoading(false);
-      } catch (queryError) {
-        console.error("❌ Error específico en getDocs:", queryError);
-        throw queryError; // Re-lanzar para que el catch general lo maneje
+        console.log(`✅ ${sortedUsers.length} usuarios cargados y ordenados por fecha de creación`);
       }
-    } catch (err: any) {
-      console.error("❌ Error al cargar usuarios:", err);
-      console.error("Código del error:", err.code);
-      console.error("Mensaje del error:", err.message);
-      
-      // Mensaje más específico según el tipo de error
-      if (err.code === 'permission-denied') {
-        setError("Error de permisos: Las reglas de Firestore no permiten leer usuarios. Verifica que:\n1. Las reglas estén publicadas en Firebase Console\n2. El documento tenga email='admin@fitplan-ai.com' y nombre='administrador'\n3. La función isAdmin() en las reglas funcione correctamente");
-      } else {
-        setError(`Error al cargar usuarios: ${err.message || "Error desconocido"}`);
-      }
-      setLoading(false);
+    } catch (err: unknown) {
+      console.error("❌ Error al cargar estadísticas:", err);
     }
   };
+
+  // Función loadUsers deshabilitada temporalmente
+  // Se puede habilitar más adelante cuando se necesite mostrar la lista completa de usuarios
 
   const handleEdit = (user: User) => {
     setEditingUser(user);
@@ -276,23 +354,77 @@ export default function Admin() {
     });
   };
 
+  const handleDelete = async () => {
+    if (!editingUser) return;
+
+    // Confirmación antes de eliminar
+    const confirmMessage = `¿Estás seguro de que deseas eliminar el usuario "${editingUser.nombre || editingUser.email || editingUser.id}"?\n\nEsta acción eliminará:\n- El usuario de la autenticación\n- El perfil del usuario\n- Todos los planes asociados\n\nEsta acción NO se puede deshacer.`;
+    
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      const auth = getAuthSafe();
+      if (!auth?.currentUser) {
+        throw new Error("No hay usuario autenticado");
+      }
+
+      console.log("🗑️ Eliminando usuario...");
+      
+      // Llamar al endpoint API para eliminar usuario
+      const response = await fetch("/api/admin/deleteUser", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          adminUserId: auth.currentUser.uid,
+          userId: editingUser.id,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Error desconocido" }));
+        throw new Error(errorData.error || `Error HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log("✅ Usuario eliminado exitosamente:", result);
+
+      // Remover el usuario de la lista local
+      setUsers(prevUsers => prevUsers.filter(user => user.id !== editingUser.id));
+
+      // Recargar estadísticas para actualizar los contadores
+      await loadUserStats();
+      
+      // Cerrar el modal
+      setEditingUser(null);
+      setEditForm({});
+      
+      alert("Usuario eliminado correctamente");
+    } catch (err: unknown) {
+      console.error("❌ Error al eliminar usuario:", err);
+      const error = err as { message?: string };
+      alert(`Error al eliminar usuario: ${error.message || "Error desconocido"}`);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!editingUser) return;
 
     setSaving(true);
     try {
-      const db = getDbSafe();
-      if (!db) {
-        throw new Error("Firebase no configurado");
+      const auth = getAuthSafe();
+      if (!auth?.currentUser) {
+        throw new Error("No hay usuario autenticado");
       }
 
-      const { doc, updateDoc, serverTimestamp } = await import("firebase/firestore");
-      const userRef = doc(db, "usuarios", editingUser.id);
-      
       // Construir objeto de actualización
-      const updateData: any = {
-        updatedAt: serverTimestamp(),
-      };
+      const updateData: Record<string, unknown> = {};
 
       // Solo actualizar campos que se proporcionan
       if (editForm.nombre !== undefined) updateData.nombre = editForm.nombre;
@@ -300,6 +432,9 @@ export default function Admin() {
       if (editForm.premium !== undefined) {
         updateData.premium = Boolean(editForm.premium);
         updateData.premiumStatus = editForm.premium ? "active" : "inactive";
+        if (editForm.premium) {
+          updateData.premiumSince = new Date().toISOString();
+        }
       }
       if (editForm.sexo !== undefined) updateData.sexo = editForm.sexo;
       if (editForm.alturaCm !== undefined) updateData.alturaCm = editForm.alturaCm ? Number(editForm.alturaCm) : null;
@@ -311,25 +446,92 @@ export default function Admin() {
       if (editForm.caderaCm !== undefined) updateData.caderaCm = editForm.caderaCm ? Number(editForm.caderaCm) : null;
       if (editForm.atletico !== undefined) updateData.atletico = Boolean(editForm.atletico);
 
-      await updateDoc(userRef, updateData);
+      console.log("💾 Enviando cambios al API...");
+      
+      // Usar el endpoint API que tiene permisos de Admin SDK
+      const response = await fetch("/api/admin/updateUser", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          adminUserId: auth.currentUser.uid, // ID del admin que hace la solicitud
+          userId: editingUser.id, // ID del usuario a actualizar
+          updateData,
+        }),
+      });
 
-      // Recargar usuarios
-      await loadUsers();
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Error desconocido" }));
+        throw new Error(errorData.error || `Error HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log("✅ Cambios guardados exitosamente:", result);
+
+      // Actualizar el usuario en la lista local sin recargar todo
+      setUsers(prevUsers => 
+        prevUsers.map(user => 
+          user.id === editingUser.id 
+            ? { ...user, ...updateData }
+            : user
+        )
+      );
+
+      // Recargar estadísticas para actualizar los contadores
+      await loadUserStats();
+      
       setEditingUser(null);
       setEditForm({});
-    } catch (err) {
-      console.error("Error al guardar:", err);
-      alert("Error al guardar cambios. Verifica que las reglas de Firestore permitan acceso de administrador.");
+    } catch (err: unknown) {
+      console.error("❌ Error al guardar:", err);
+      const error = err as { message?: string };
+      alert(`Error al guardar cambios: ${error.message || "Error desconocido"}`);
     } finally {
       setSaving(false);
     }
   };
 
-  const formatDate = (timestamp: any) => {
-    if (!timestamp) return "N/A";
-    if (timestamp.toDate) {
-      return timestamp.toDate().toLocaleDateString("es-AR");
+  const formatDate = (timestamp: unknown) => {
+    if (!timestamp) {
+      console.log("⚠️ formatDate recibió timestamp vacío/null/undefined");
+      return "N/A";
     }
+    
+    // Intentar convertir el timestamp a fecha
+    let date: Date | null = null;
+    
+    try {
+      if (timestamp instanceof Date) {
+        date = timestamp;
+      } else if (typeof timestamp === 'string') {
+        // Manejar string ISO (viene del servidor después de convertTimestamp)
+        date = new Date(timestamp);
+        if (isNaN(date.getTime())) {
+          console.log("⚠️ No se pudo parsear string de fecha:", timestamp);
+          return "N/A";
+        }
+      } else if (timestamp && typeof timestamp === 'object' && 'toDate' in timestamp && typeof timestamp.toDate === 'function') {
+        date = (timestamp as { toDate: () => Date }).toDate();
+      } else if (timestamp && typeof timestamp === 'object' && 'seconds' in timestamp) {
+        // Firestore timestamp con formato { seconds: number, nanoseconds: number }
+        const firestoreTimestamp = timestamp as { seconds: number; nanoseconds?: number };
+        date = new Date(firestoreTimestamp.seconds * 1000 + (firestoreTimestamp.nanoseconds || 0) / 1000000);
+      } else {
+        console.log("⚠️ formatDate no pudo convertir timestamp desconocido:", timestamp);
+        return "N/A";
+      }
+      
+      if (date && !isNaN(date.getTime())) {
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        return `${day}/${month}/${year}`;
+      }
+    } catch (error) {
+      console.error("❌ Error al formatear fecha:", error, "timestamp:", timestamp);
+    }
+    
     return "N/A";
   };
 
@@ -376,6 +578,108 @@ export default function Admin() {
           <p className="text-white/60">Gestiona usuarios y permisos del sistema</p>
         </motion.div>
 
+        {/* Panel de Estadísticas de Ganancias */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="lg:col-span-2 p-6 rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-blue-500/30 backdrop-blur-sm"
+          >
+            <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-yellow-400">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1.41 16.09V20h-2.67v-1.93c-1.71-.36-3.16-1.46-3.27-3.4h1.96c.1 1.05.82 1.87 2.65 1.87 1.96 0 2.4-.98 2.4-1.59 0-.83-.44-1.61-2.67-2.14-2.48-.6-4.18-1.62-4.18-3.67 0-1.72 1.39-2.84 3.11-3.21V4h2.67v1.95c1.86.45 2.79 1.86 2.85 3.39H14.3c-.05-1.11-.64-1.87-2.22-1.87-1.5 0-2.4.68-2.4 1.64 0 .84.65 1.39 2.67 1.95s4.18 1.08 4.18 3.67c-.01 1.83-1.38 2.83-3.12 3.16z"/>
+              </svg>
+              Estadísticas de Ganancias
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <p className="text-white/60 text-xs mb-1">Ganancia Mensual Estimada</p>
+                <p className="text-2xl font-bold text-yellow-400">
+                  ${revenueStats.estimatedMonthly.toLocaleString('es-AR')}
+                </p>
+                <p className="text-white/40 text-xs mt-1">ARS</p>
+              </div>
+              <div>
+                <p className="text-white/60 text-xs mb-1">Premium Activos (Este Mes)</p>
+                <p className="text-2xl font-bold text-green-400">
+                  {revenueStats.premiumActiveThisMonth}
+                </p>
+                <p className="text-white/40 text-xs mt-1">usuarios</p>
+              </div>
+              <div>
+                <p className="text-white/60 text-xs mb-1">Pendientes de Pago</p>
+                <p className="text-2xl font-bold text-orange-400">
+                  {revenueStats.pendingPayments}
+                </p>
+                <p className="text-white/40 text-xs mt-1">${(revenueStats.pendingPayments * 25000).toLocaleString('es-AR')} ARS</p>
+              </div>
+              <div>
+                <p className="text-white/60 text-xs mb-1">Renovando Pronto</p>
+                <p className="text-2xl font-bold text-blue-400">
+                  {revenueStats.renewingSoon}
+                </p>
+                <p className="text-white/40 text-xs mt-1">próximos 7 días</p>
+              </div>
+            </div>
+            <div className="mt-4 pt-4 border-t border-white/10">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/60 text-sm">Proyección Anual</p>
+                  <p className="text-xl font-bold text-cyan-400">
+                    ${revenueStats.estimatedAnnual.toLocaleString('es-AR')} ARS
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-white/60 text-sm">Potencial Mensual</p>
+                  <p className="text-xl font-bold text-green-400">
+                    ${(revenueStats.totalPremiumUsers * 25000).toLocaleString('es-AR')} ARS
+                  </p>
+                  <p className="text-white/40 text-xs mt-1">
+                    Si todos los premium pagaran este mes
+                  </p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+          
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.2 }}
+            className="p-6 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm"
+          >
+            <h3 className="text-lg font-semibold text-white mb-4">Acciones Rápidas</h3>
+            <div className="space-y-3">
+              <button
+                onClick={() => {
+                  const pendingUsers = users.filter(u => {
+                    // Excluir al admin
+                    if (u.email?.toLowerCase() === "admin@fitplan-ai.com") return false;
+                    const status = getPaymentStatus(u);
+                    return status.status === "unpaid" && u.premium;
+                  });
+                  alert(`${pendingUsers.length} usuarios premium están sin pagar este mes. Total a recuperar: $${(pendingUsers.length * 25000).toLocaleString('es-AR')} ARS`);
+                }}
+                className="w-full px-4 py-2 rounded-lg bg-orange-500/20 border border-orange-500/30 text-orange-400 hover:bg-orange-500/30 transition-colors text-sm"
+              >
+                Ver Pendientes
+              </button>
+              <button
+                onClick={() => {
+                  alert(`${revenueStats.renewingSoon} usuarios renovarán en los próximos 7 días. Total esperado: $${(revenueStats.renewingSoon * 25000).toLocaleString('es-AR')} ARS`);
+                }}
+                className="w-full px-4 py-2 rounded-lg bg-blue-500/20 border border-blue-500/30 text-blue-400 hover:bg-blue-500/30 transition-colors text-sm"
+              >
+                Renovaciones Próximas
+              </button>
+              <div className="pt-3 border-t border-white/10">
+                <p className="text-white/60 text-xs mb-2">Precio mensual actual</p>
+                <p className="text-lg font-bold text-white">$25,000 ARS</p>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+
         {/* Estadísticas rápidas */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <motion.div
@@ -384,7 +688,7 @@ export default function Admin() {
             className="p-4 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm"
           >
             <p className="text-white/60 text-sm mb-1">Total Usuarios</p>
-            <p className="text-2xl font-bold text-blue-400">{users.length}</p>
+            <p className="text-2xl font-bold text-blue-400">{totalUsers}</p>
           </motion.div>
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
@@ -394,7 +698,7 @@ export default function Admin() {
           >
             <p className="text-white/60 text-sm mb-1">Usuarios Premium</p>
             <p className="text-2xl font-bold text-yellow-400">
-              {users.filter(u => u.premium).length}
+              {premiumUsers}
             </p>
           </motion.div>
           <motion.div
@@ -405,7 +709,7 @@ export default function Admin() {
           >
             <p className="text-white/60 text-sm mb-1">Usuarios Regulares</p>
             <p className="text-2xl font-bold text-cyan-400">
-              {users.filter(u => !u.premium).length}
+              {regularUsers}
             </p>
           </motion.div>
           <motion.div
@@ -416,7 +720,7 @@ export default function Admin() {
           >
             <p className="text-white/60 text-sm mb-1">Atléticos</p>
             <p className="text-2xl font-bold text-green-400">
-              {users.filter(u => u.atletico).length}
+              {athleticUsers}
             </p>
           </motion.div>
         </div>
@@ -427,10 +731,10 @@ export default function Admin() {
             <table className="w-full">
               <thead className="bg-white/5 border-b border-white/10">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">ID</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Nombre</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Email</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Premium</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Plan</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Estado de Pago</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Edad</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Peso</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Creado</th>
@@ -438,45 +742,83 @@ export default function Admin() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/10">
-                {users.map((user, index) => (
-                  <motion.tr
-                    key={user.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    className="hover:bg-white/5 transition-colors"
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-white/80 font-mono">
-                      {user.id.substring(0, 8)}...
+                {users.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-12 text-center">
+                      <div className="flex flex-col items-center gap-3">
+                        <p className="text-white/60 text-sm">
+                          La carga de usuarios está deshabilitada temporalmente
+                        </p>
+                        <p className="text-white/40 text-xs">
+                          Esta funcionalidad se habilitará próximamente
+                        </p>
+                      </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{user.nombre || "N/A"}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-white/80">{user.email || "N/A"}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {user.premium ? (
-                        <span className="px-2 py-1 text-xs rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
-                          Premium
-                        </span>
-                      ) : (
-                        <span className="px-2 py-1 text-xs rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/30">
-                          Regular
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-white/80">{user.edad || "N/A"}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-white/80">
-                      {user.peso ? `${user.peso} kg` : "N/A"}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-white/60">{formatDate(user.createdAt)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <button
-                        onClick={() => handleEdit(user)}
-                        className="px-3 py-1.5 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30 transition-colors"
-                      >
-                        Editar
-                      </button>
-                    </td>
-                  </motion.tr>
-                ))}
+                  </tr>
+                ) : (
+                  users.map((user, index) => {
+                    const paymentStatus = getPaymentStatus(user);
+                    return (
+                    <motion.tr
+                      key={user.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      className="hover:bg-white/5 transition-colors"
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{user.nombre || "N/A"}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-white/80">{user.email || "N/A"}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {user.email?.toLowerCase() === "admin@fitplan-ai.com" ? (
+                          <span className="px-2 py-1 text-xs rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                            Admin
+                          </span>
+                        ) : user.premium ? (
+                          <span className="px-2 py-1 text-xs rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+                            Premium
+                          </span>
+                        ) : (
+                          <span className="px-2 py-1 text-xs rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/30">
+                            Regular
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {user.email?.toLowerCase() === "admin@fitplan-ai.com" ? (
+                          <span className="px-2 py-1 text-xs rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/30">
+                            N/A
+                          </span>
+                        ) : user.premium ? (
+                          <span className={`px-2 py-1 text-xs rounded-full border ${
+                            paymentStatus.status === "paid" 
+                              ? "bg-green-500/20 text-green-400 border-green-500/30"
+                              : "bg-red-500/20 text-red-400 border-red-500/30"
+                          }`}>
+                            {paymentStatus.label}
+                          </span>
+                        ) : (
+                          <span className="px-2 py-1 text-xs rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/30">
+                            Regular
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-white/80">{user.edad || "N/A"}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-white/80">
+                        {user.peso ? `${user.peso} kg` : "N/A"}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-white/60">{formatDate(user.createdAt)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <button
+                          onClick={() => handleEdit(user)}
+                          className="px-3 py-1.5 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30 transition-colors"
+                        >
+                          Editar
+                        </button>
+                      </td>
+                    </motion.tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
@@ -634,17 +976,26 @@ export default function Admin() {
               <div className="flex gap-4 mt-6">
                 <button
                   onClick={handleSave}
-                  disabled={saving}
+                  disabled={saving || deleting}
                   className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
                 >
                   {saving ? "Guardando..." : "Guardar Cambios"}
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={saving || deleting || editingUser?.email?.toLowerCase() === "admin@fitplan-ai.com"}
+                  className="px-4 py-2 rounded-lg bg-red-500/20 border border-red-500/30 text-red-400 hover:bg-red-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={editingUser?.email?.toLowerCase() === "admin@fitplan-ai.com" ? "No se puede eliminar al administrador" : "Eliminar usuario"}
+                >
+                  {deleting ? "Eliminando..." : "Eliminar Usuario"}
                 </button>
                 <button
                   onClick={() => {
                     setEditingUser(null);
                     setEditForm({});
                   }}
-                  className="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-colors"
+                  disabled={saving || deleting}
+                  className="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-colors disabled:opacity-50"
                 >
                   Cancelar
                 </button>
@@ -656,4 +1007,5 @@ export default function Admin() {
     </div>
   );
 }
+
 

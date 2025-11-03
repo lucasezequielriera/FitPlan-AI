@@ -191,19 +191,23 @@ export default function Dashboard() {
   };
 
   // Calcular progreso del plan (0-100%) basado en días desde creación hasta 30 días
+  // Usa horas en lugar de días completos para mayor precisión
   const calculateProgress = (createdAt: Timestamp | undefined): number => {
     if (!createdAt) return 0;
     
     const createdDate = createdAt.toDate?.() || new Date(createdAt.seconds * 1000);
     const now = new Date();
     const diffTime = now.getTime() - createdDate.getTime();
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    // Calcular en horas para mayor precisión (evitar que el primer día muestre 0%)
+    const diffHours = diffTime / (1000 * 60 * 60);
+    const diffDays = diffHours / 24; // Días con decimales para precisión
     
     // El plan dura 30 días (1 mes)
     const totalDays = 30;
     const progress = Math.min(100, Math.max(0, (diffDays / totalDays) * 100));
     
-    return Math.round(progress);
+    return Math.round(progress * 10) / 10; // Redondear a 1 decimal para mostrar progreso incluso el primer día
   };
 
   // Calcular días restantes del plan
@@ -213,10 +217,13 @@ export default function Dashboard() {
     const createdDate = createdAt.toDate?.() || new Date(createdAt.seconds * 1000);
     const now = new Date();
     const diffTime = now.getTime() - createdDate.getTime();
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    // Calcular en horas para mayor precisión
+    const diffHours = diffTime / (1000 * 60 * 60);
+    const diffDays = diffHours / 24; // Días con decimales
     
     const remaining = 30 - diffDays;
-    return Math.max(0, remaining);
+    return Math.max(0, Math.ceil(remaining)); // Redondear hacia arriba para mostrar días completos restantes
   };
 
   if (authLoading || loading) {
@@ -492,7 +499,7 @@ export default function Dashboard() {
                     <div className="mt-4 pt-4 border-t border-white/10">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-xs opacity-60">Progreso del plan</span>
-                        <span className="text-xs font-medium">{calculateProgress(plan.createdAt)}%</span>
+                        <span className="text-xs font-medium">{calculateProgress(plan.createdAt).toFixed(1)}%</span>
                       </div>
                       <div className="h-2 w-full rounded-full bg-white/10 overflow-hidden">
                         <div

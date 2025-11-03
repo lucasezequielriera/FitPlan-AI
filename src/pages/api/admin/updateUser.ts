@@ -1,6 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getDbSafe, getAuthSafe } from "@/lib/firebase";
-import { doc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore";
+import { getAdminDb } from "@/lib/firebase-admin";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -8,65 +7,88 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Verificar que el usuario esté autenticado y sea administrador
-    const auth = getAuthSafe();
-    if (!auth?.currentUser) {
-      return res.status(401).json({ error: "No autenticado" });
-    }
-
-    const db = getDbSafe();
+    // Usar Firebase Admin SDK (bypass las reglas de Firestore)
+    const db = getAdminDb();
     if (!db) {
-      return res.status(500).json({ error: "Firestore no configurado" });
+      return res.status(500).json({ 
+        error: "Firebase Admin SDK no configurado. Configura FIREBASE_ADMIN_PRIVATE_KEY y FIREBASE_ADMIN_CLIENT_EMAIL en las variables de entorno." 
+      });
     }
 
-    // Verificar que el usuario es administrador
-    const adminUserRef = doc(db, "usuarios", auth.currentUser.uid);
-    const adminUserDoc = await getDoc(adminUserRef);
+    // Obtener el adminUserId del body (enviado desde el cliente)
+    const { adminUserId, userId, updates, updateData } = req.body;
+
+    if (!adminUserId) {
+      return res.status(401).json({ error: "No se proporcionó adminUserId" });
+    }
+
+    // Verificar que el usuario es administrador usando Admin SDK
+    const adminUserRef = db.collection("usuarios").doc(adminUserId);
+    const adminUserDoc = await adminUserRef.get();
     
-    if (!adminUserDoc.exists()) {
-      return res.status(403).json({ error: "Acceso denegado" });
+    if (!adminUserDoc.exists) {
+      return res.status(403).json({ error: "Acceso denegado: usuario no encontrado" });
     }
 
     const adminUserData = adminUserDoc.data();
-    const email = adminUserData.email?.toLowerCase() || "";
-    const nombreLower = adminUserData.nombre?.toLowerCase() || "";
+    const email = adminUserData?.email?.toLowerCase() || "";
+    const nombreLower = adminUserData?.nombre?.toLowerCase() || "";
     const isAdmin = email === "admin@fitplan-ai.com" || nombreLower === "administrador";
 
     if (!isAdmin) {
       return res.status(403).json({ error: "Solo administradores pueden actualizar usuarios" });
     }
 
-    const { userId, updates } = req.body;
+    // El parámetro puede venir como "updates" o "updateData"
+    const dataToUpdate = updates || updateData;
 
-    if (!userId || !updates) {
-      return res.status(400).json({ error: "userId y updates son requeridos" });
+    if (!userId) {
+      return res.status(400).json({ error: "userId es requerido" });
     }
 
-    const userRef = doc(db, "usuarios", userId);
+    if (!dataToUpdate) {
+      return res.status(400).json({ error: "updateData es requerido" });
+    }
+
+    const userRef = db.collection("usuarios").doc(userId);
     
     // Construir objeto de actualización
-    const updateData: any = {
-      updatedAt: serverTimestamp(),
+    const updateFields: Record<string, unknown> = {
+      updatedAt: new Date(),
     };
 
     // Solo actualizar campos que se proporcionan
-    if (updates.nombre !== undefined) updateData.nombre = updates.nombre;
-    if (updates.email !== undefined) updateData.email = updates.email;
-    if (updates.premium !== undefined) {
-      updateData.premium = Boolean(updates.premium);
-      updateData.premiumStatus = updates.premium ? "active" : "inactive";
+    if (dataToUpdate.nombre !== undefined) updateFields.nombre = dataToUpdate.nombre;
+    if (dataToUpdate.email !== undefined) updateFields.email = dataToUpdate.email;
+    if (dataToUpdate.premium !== undefined) {
+      updateFields.premium = Boolean(dataToUpdate.premium);
+      updateFields.premiumStatus = dataToUpdate.premium ? "active" : "inactive";
+      
+      // Si se está marcando como premium, establecer premiumSince
+      if (dataToUpdate.premium) {
+        // Si se proporciona premiumSince, usarlo; de lo contrario usar la fecha actual
+        if (dataToUpdate.premiumSince) {
+          updateFields.premiumSince = dataToUpdate.premiumSince;
+        } else {
+          // Verificar si el usuario ya tiene premiumSince antes de establecerlo
+          const userDoc = await userRef.get();
+          if (!userDoc.exists || !userDoc.data()?.premiumSince) {
+            updateFields.premiumSince = new Date().toISOString();
+          }
+        }
+      }
     }
-    if (updates.sexo !== undefined) updateData.sexo = updates.sexo;
-    if (updates.alturaCm !== undefined) updateData.alturaCm = Number(updates.alturaCm);
-    if (updates.edad !== undefined) updateData.edad = Number(updates.edad);
-    if (updates.peso !== undefined) updateData.peso = updates.peso ? Number(updates.peso) : null;
-    if (updates.pesoObjetivo !== undefined) updateData.pesoObjetivo = updates.pesoObjetivo ? Number(updates.pesoObjetivo) : null;
-    if (updates.cinturaCm !== undefined) updateData.cinturaCm = updates.cinturaCm ? Number(updates.cinturaCm) : null;
-    if (updates.cuelloCm !== undefined) updateData.cuelloCm = updates.cuelloCm ? Number(updates.cuelloCm) : null;
-    if (updates.caderaCm !== undefined) updateData.caderaCm = updates.caderaCm ? Number(updates.caderaCm) : null;
-    if (updates.atletico !== undefined) updateData.atletico = Boolean(updates.atletico);
+    if (dataToUpdate.sexo !== undefined) updateFields.sexo = dataToUpdate.sexo;
+    if (dataToUpdate.alturaCm !== undefined) updateFields.alturaCm = dataToUpdate.alturaCm ? Number(dataToUpdate.alturaCm) : null;
+    if (dataToUpdate.edad !== undefined) updateFields.edad = dataToUpdate.edad ? Number(dataToUpdate.edad) : null;
+    if (dataToUpdate.peso !== undefined) updateFields.peso = dataToUpdate.peso ? Number(dataToUpdate.peso) : null;
+    if (dataToUpdate.pesoObjetivo !== undefined) updateFields.pesoObjetivo = dataToUpdate.pesoObjetivo ? Number(dataToUpdate.pesoObjetivo) : null;
+    if (dataToUpdate.cinturaCm !== undefined) updateFields.cinturaCm = dataToUpdate.cinturaCm ? Number(dataToUpdate.cinturaCm) : null;
+    if (dataToUpdate.cuelloCm !== undefined) updateFields.cuelloCm = dataToUpdate.cuelloCm ? Number(dataToUpdate.cuelloCm) : null;
+    if (dataToUpdate.caderaCm !== undefined) updateFields.caderaCm = dataToUpdate.caderaCm ? Number(dataToUpdate.caderaCm) : null;
+    if (dataToUpdate.atletico !== undefined) updateFields.atletico = Boolean(dataToUpdate.atletico);
 
-    await updateDoc(userRef, updateData);
+    await userRef.update(updateFields);
 
     return res.status(200).json({ 
       success: true, 

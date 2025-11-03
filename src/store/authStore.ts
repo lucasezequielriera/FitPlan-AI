@@ -43,7 +43,29 @@ export const useAuthStore = create<AuthState>((set) => ({
       throw new Error("Firebase Auth no configurado. Verifica que todas las variables de entorno de Firebase estén configuradas en .env.local y que Authentication esté habilitado en Firebase Console.");
     }
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      
+      // Crear documento en Firestore con datos iniciales
+      const db = await import("@/lib/firebase").then(m => m.getDbSafe());
+      if (db && userCredential.user) {
+        const { doc, setDoc, serverTimestamp } = await import("firebase/firestore");
+        const userRef = doc(db, "usuarios", userCredential.user.uid);
+        
+        try {
+          await setDoc(userRef, {
+            email: email.toLowerCase(),
+            premium: false,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+          console.log("✅ Documento de usuario creado en Firestore");
+        } catch (firestoreError) {
+          console.error("Error al crear documento en Firestore:", firestoreError);
+          // No lanzamos error aquí para no bloquear el registro si falla Firestore
+        }
+      }
+      
+      return userCredential;
     } catch (error: any) {
       if (error.code === 'auth/configuration-not-found') {
         throw new Error("Firebase Auth no está configurado. Verifica: 1) Variables de entorno en .env.local 2) Authentication habilitado en Firebase Console 3) Método Email/Password activado");

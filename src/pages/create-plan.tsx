@@ -328,38 +328,62 @@ export default function CreatePlan() {
             const userRef = doc(collection(db, "usuarios"), userId);
             const userDoc = await getDoc(userRef);
             
+            // Obtener el email del usuario autenticado
+            const userEmail = auth.currentUser?.email?.toLowerCase() || "";
+            
             // Solo incluir campos que tienen valores válidos
-            const userData: any = {
+            const userData: Record<string, unknown> = {
               nombre: formFinal.nombre,
               sexo: formFinal.sexo,
               alturaCm: Number(formFinal.alturaCm),
               edad: Number(formFinal.edad),
+              peso: Number(formFinal.pesoKg), // Guardar peso del usuario
+              objetivo: formFinal.objetivo, // Guardar objetivo
+              atletico: Boolean(formFinal.atletico), // Guardar perfil atlético
               updatedAt: serverTimestamp(),
             };
             
-            // Agregar campos opcionales solo si tienen valores
-            if (formFinal.cinturaCm !== undefined && formFinal.cinturaCm !== null) {
+            // Agregar tipoDieta solo si tiene valor (no undefined)
+            if (formFinal.tipoDieta !== undefined && formFinal.tipoDieta !== null) {
+              userData.tipoDieta = formFinal.tipoDieta;
+            }
+            
+            // Asegurar que email y premium estén presentes (si no existen ya)
+            if (!userDoc.exists() || !userDoc.data()?.email) {
+              userData.email = userEmail;
+            }
+            if (!userDoc.exists() || userDoc.data()?.premium === undefined) {
+              userData.premium = false;
+            }
+            
+            // Agregar medidas opcionales solo si tienen valores
+            if (formFinal.cinturaCm !== undefined && formFinal.cinturaCm !== null && formFinal.cinturaCm !== 0) {
               userData.cinturaCm = Number(formFinal.cinturaCm);
             }
-            if (formFinal.cuelloCm !== undefined && formFinal.cuelloCm !== null) {
+            if (formFinal.cuelloCm !== undefined && formFinal.cuelloCm !== null && formFinal.cuelloCm !== 0) {
               userData.cuelloCm = Number(formFinal.cuelloCm);
             }
-            if (formFinal.caderaCm !== undefined && formFinal.caderaCm !== null) {
+            if (formFinal.caderaCm !== undefined && formFinal.caderaCm !== null && formFinal.caderaCm !== 0) {
               userData.caderaCm = Number(formFinal.caderaCm);
             }
-            if (formFinal.atletico !== undefined) {
-              userData.atletico = Boolean(formFinal.atletico);
-            }
+            
+            // Limpiar campos undefined antes de guardar
+            const cleanUserData = Object.fromEntries(
+              Object.entries(userData).filter(([, v]) => v !== undefined && v !== null)
+            );
             
             if (!userDoc.exists()) {
               await setDoc(userRef, {
-                ...userData,
+                ...cleanUserData,
+                email: userEmail,
+                premium: false,
                 createdAt: serverTimestamp(),
               });
+              console.log("✅ Perfil de usuario creado con todos los campos");
             } else {
-              await setDoc(userRef, userData, { merge: true });
+              await setDoc(userRef, cleanUserData, { merge: true });
+              console.log("✅ Perfil de usuario actualizado con datos del plan");
             }
-            console.log("Perfil guardado exitosamente");
           } catch (profileError) {
             console.error("Error al guardar perfil del usuario:", profileError);
           }

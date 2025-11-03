@@ -1,6 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getDbSafe } from "@/lib/firebase";
 import { collection, doc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore";
+import { getAdminDb } from "@/lib/firebase-admin";
+import { FieldValue } from "firebase-admin/firestore";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -78,6 +80,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const premiumData: {
           premium: boolean;
           premiumStatus: string;
+          premiumLastPay: ReturnType<typeof serverTimestamp>;
           premiumPayment: {
             paymentId: string | number;
             amount: number;
@@ -91,6 +94,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         } = {
           premium: true,
           premiumStatus: "active", // active, expired, cancelled
+          premiumLastPay: serverTimestamp(), // Fecha del último pago completado
           premiumPayment: {
             paymentId: paymentId,
             amount: payment.transaction_amount,
@@ -111,6 +115,53 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           // Intentar actualizar primero
           await updateDoc(userRef, premiumData);
           console.log(`✅ Usuario ${userId} actualizado a premium. Pago ID: ${paymentId}, Monto: ${payment.transaction_amount} ${payment.currency_id || "ARS"}`);
+          
+          // Registrar ganancia mensual en la colección admin
+          try {
+            const adminDb = getAdminDb();
+            if (adminDb) {
+              // Obtener año y mes del pago (formato: YYYY-MM)
+              const paymentDate = payment.date_approved ? new Date(payment.date_approved) : new Date();
+              const year = paymentDate.getFullYear();
+              const month = String(paymentDate.getMonth() + 1).padStart(2, '0');
+              const monthId = `${year}-${month}`;
+              
+              // Referencia al documento del mes en la colección admin
+              const adminMonthRef = adminDb.collection("admin").doc(monthId);
+              
+              // Obtener el documento actual
+              const adminMonthDoc = await adminMonthRef.get();
+              
+              const amount = payment.transaction_amount || 0;
+              
+              if (!adminMonthDoc.exists) {
+                // Crear documento inicial para el mes
+                await adminMonthRef.set({
+                  month: monthId,
+                  year: year,
+                  monthNumber: parseInt(month),
+                  totalEarnings: amount,
+                  paymentCount: 1,
+                  createdAt: FieldValue.serverTimestamp(),
+                  updatedAt: FieldValue.serverTimestamp(),
+                });
+                console.log(`✅ Ganancias mensuales creadas para ${monthId}: $${amount} ARS`);
+              } else {
+                // Actualizar documento existente con incremento atómico
+                await adminMonthRef.update({
+                  totalEarnings: FieldValue.increment(amount),
+                  paymentCount: FieldValue.increment(1),
+                  updatedAt: FieldValue.serverTimestamp(),
+                });
+                console.log(`✅ Ganancias mensuales actualizadas para ${monthId}: +$${amount} ARS`);
+              }
+            } else {
+              console.warn("⚠️ Firebase Admin SDK no disponible para registrar ganancias mensuales");
+            }
+          } catch (adminError: unknown) {
+            console.error("❌ Error al registrar ganancias mensuales:", adminError);
+            // No bloquear el flujo si falla el registro de ganancias
+          }
         } catch (error: unknown) {
           console.error(`❌ Error al actualizar usuario ${userId} a premium:`, error);
           const errorCode = error && typeof error === 'object' && 'code' in error ? error.code : 'unknown';

@@ -1,5 +1,4 @@
 import { useRouter } from "next/router";
-import { usePlanStore } from "@/store/planStore";
 import { useAuthStore } from "@/store/authStore";
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
@@ -10,11 +9,11 @@ import { collection, query, where, getDocs, limit, doc, getDoc } from "firebase/
 
 export default function Navbar() {
   const router = useRouter();
-  const { user: planUser } = usePlanStore();
   const { user: authUser, logout, initializeAuth, loading: authLoading } = useAuthStore();
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [hasPlans, setHasPlans] = useState<boolean | null>(null);
   const [isPremium, setIsPremium] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const isPlanPage = router.pathname === "/plan";
 
   useEffect(() => {
@@ -26,6 +25,7 @@ export default function Navbar() {
       if (!authUser) {
         setHasPlans(null);
         setIsPremium(false);
+        setIsAdmin(false);
         return;
       }
 
@@ -48,20 +48,28 @@ export default function Navbar() {
         const querySnapshot = await getDocs(q);
         setHasPlans(!querySnapshot.empty);
 
-        // Verificar estado premium
+        // Verificar estado premium y admin
         const userRef = doc(db, "usuarios", auth.currentUser.uid);
         const userDoc = await getDoc(userRef);
         
         if (userDoc.exists()) {
           const userData = userDoc.data();
           setIsPremium(userData.premium === true);
+          
+          // Verificar si es admin por email
+          const email = userData.email?.toLowerCase() || auth.currentUser.email?.toLowerCase() || "";
+          setIsAdmin(email === "admin@fitplan-ai.com");
         } else {
           setIsPremium(false);
+          // Verificar admin por email de Auth si el documento no existe
+          const email = auth.currentUser.email?.toLowerCase() || "";
+          setIsAdmin(email === "admin@fitplan-ai.com");
         }
       } catch (error) {
         console.error("Error al verificar planes y premium:", error);
         setHasPlans(false);
         setIsPremium(false);
+        setIsAdmin(false);
       }
     };
 
@@ -98,7 +106,9 @@ export default function Navbar() {
                   animate={{ opacity: 1, x: 0 }}
                   className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 cursor-pointer hover:bg-white/10 transition-colors"
                   onClick={() => {
-                    if (hasPlans) {
+                    if (isAdmin) {
+                      router.push("/admin");
+                    } else if (hasPlans) {
                       router.push("/dashboard");
                     } else {
                       router.push("/create-plan");
@@ -122,7 +132,13 @@ export default function Navbar() {
                   </div>
                   <div className="hidden md:block">
                     <p className="text-xs font-medium flex items-center gap-1">
-                      {hasPlans === null ? "..." : hasPlans ? "Dashboard" : "Crear mi plan"}
+                      {isAdmin 
+                        ? "Administrador"
+                        : hasPlans === null 
+                          ? "..." 
+                          : hasPlans 
+                            ? "Dashboard" 
+                            : "Crear mi plan"}
                       {isPremium && (
                         <svg
                           xmlns="http://www.w3.org/2000/svg"

@@ -252,7 +252,69 @@ export default function PlanPage() {
         const db = await import("@/lib/firebase").then(m => m.getDbSafe());
         
         if (auth?.currentUser && db) {
-          const { collection, doc, updateDoc, addDoc, serverTimestamp } = await import("firebase/firestore");
+          const { collection, doc, updateDoc, addDoc, setDoc, getDoc, serverTimestamp } = await import("firebase/firestore");
+          
+          // Actualizar perfil del usuario en la colección "usuarios"
+          try {
+            const userRef = doc(db, "usuarios", auth.currentUser.uid);
+            const userDoc = await getDoc(userRef);
+            
+            // Obtener el email del usuario autenticado
+            const userEmail = auth.currentUser?.email?.toLowerCase() || "";
+            
+            const userProfileData: Record<string, unknown> = {
+              nombre: userActualizado.nombre,
+              sexo: userActualizado.sexo,
+              alturaCm: userActualizado.alturaCm,
+              edad: userActualizado.edad,
+              peso: userActualizado.pesoKg, // Guardar peso del usuario
+              objetivo: userActualizado.objetivo, // Guardar objetivo
+              atletico: Boolean(userActualizado.atletico), // Guardar perfil atlético
+              updatedAt: serverTimestamp(),
+            };
+            
+            // Agregar tipoDieta solo si tiene valor (no undefined)
+            if (userActualizado.tipoDieta !== undefined && userActualizado.tipoDieta !== null) {
+              userProfileData.tipoDieta = userActualizado.tipoDieta;
+            }
+            
+            // Asegurar que email y premium estén presentes
+            if (!userDoc.exists() || !userDoc.data()?.email) {
+              userProfileData.email = userEmail;
+            }
+            if (!userDoc.exists() || userDoc.data()?.premium === undefined) {
+              userProfileData.premium = false;
+            }
+            
+            // Agregar medidas opcionales si existen y tienen valores válidos
+            if (userActualizado.cinturaCm !== undefined && userActualizado.cinturaCm !== null && userActualizado.cinturaCm !== 0) {
+              userProfileData.cinturaCm = Number(userActualizado.cinturaCm);
+            }
+            if (userActualizado.cuelloCm !== undefined && userActualizado.cuelloCm !== null && userActualizado.cuelloCm !== 0) {
+              userProfileData.cuelloCm = Number(userActualizado.cuelloCm);
+            }
+            if (userActualizado.caderaCm !== undefined && userActualizado.caderaCm !== null && userActualizado.caderaCm !== 0) {
+              userProfileData.caderaCm = Number(userActualizado.caderaCm);
+            }
+            
+            // Limpiar campos undefined antes de guardar
+            const cleanUserProfileData = Object.fromEntries(
+              Object.entries(userProfileData).filter(([, v]) => v !== undefined && v !== null)
+            );
+            
+            if (!userDoc.exists()) {
+              await setDoc(userRef, {
+                ...cleanUserProfileData,
+                createdAt: serverTimestamp(),
+              });
+            } else {
+              await setDoc(userRef, cleanUserProfileData, { merge: true });
+            }
+            console.log("✅ Perfil del usuario actualizado en Firestore (incluye peso)");
+          } catch (profileError) {
+            console.error("Error al actualizar perfil del usuario:", profileError);
+            // No bloqueamos el flujo si falla guardar el perfil
+          }
           
           // Limpiar datos: eliminar campos undefined y null
           const cleanUser = Object.fromEntries(
@@ -865,9 +927,6 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors w-fit">
                   <span className="text-xs opacity-70 whitespace-nowrap">
                     Intensidad:
-                    {esObjetivoBasico && (
-                      <span className="text-[10px] opacity-50 ml-1">(Leve)</span>
-                    )}
                     {!isPremium && !esObjetivoBasico && (
                       <span className="text-[10px] opacity-50 ml-1">(Premium)</span>
                     )}
@@ -1714,7 +1773,71 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                         const db = await import("@/lib/firebase").then(m => m.getDbSafe());
                         
                         if (auth?.currentUser && db) {
-                          const { collection, doc, updateDoc, addDoc, serverTimestamp } = await import("firebase/firestore");
+                          const { collection, doc, updateDoc, addDoc, setDoc, getDoc, serverTimestamp } = await import("firebase/firestore");
+                          
+                          // Actualizar perfil del usuario en la colección "usuarios"
+                          try {
+                            const userRef = doc(db, "usuarios", auth.currentUser.uid);
+                            const userDoc = await getDoc(userRef);
+                            
+                            // Obtener el email del usuario autenticado
+                            const userEmail = auth.currentUser?.email?.toLowerCase() || "";
+                            
+                            const userProfileData: Record<string, unknown> = {
+                              nombre: userActualizado.nombre,
+                              sexo: userActualizado.sexo,
+                              alturaCm: userActualizado.alturaCm,
+                              edad: userActualizado.edad,
+                              peso: userActualizado.pesoKg, // Guardar peso del usuario
+                              objetivo: userActualizado.objetivo, // Guardar objetivo
+                              atletico: Boolean(userActualizado.atletico), // Guardar perfil atlético
+                              updatedAt: serverTimestamp(),
+                            };
+                            
+                            // Agregar tipoDieta solo si tiene valor (no undefined)
+                            if (userActualizado.tipoDieta !== undefined && userActualizado.tipoDieta !== null) {
+                              userProfileData.tipoDieta = userActualizado.tipoDieta;
+                            }
+                            
+                            // Asegurar que email y premium estén presentes
+                            if (!userDoc.exists() || !userDoc.data()?.email) {
+                              userProfileData.email = userEmail;
+                            }
+                            if (!userDoc.exists() || userDoc.data()?.premium === undefined) {
+                              userProfileData.premium = false;
+                            }
+                            
+                            // Agregar medidas opcionales si existen y tienen valores válidos
+                            if (userActualizado.cinturaCm !== undefined && userActualizado.cinturaCm !== null && userActualizado.cinturaCm !== 0) {
+                              userProfileData.cinturaCm = Number(userActualizado.cinturaCm);
+                            }
+                            if (userActualizado.cuelloCm !== undefined && userActualizado.cuelloCm !== null && userActualizado.cuelloCm !== 0) {
+                              userProfileData.cuelloCm = Number(userActualizado.cuelloCm);
+                            }
+                            if (userActualizado.caderaCm !== undefined && userActualizado.caderaCm !== null && userActualizado.caderaCm !== 0) {
+                              userProfileData.caderaCm = Number(userActualizado.caderaCm);
+                            }
+                            
+                            // Limpiar campos undefined antes de guardar
+                            const cleanUserProfileData = Object.fromEntries(
+                              Object.entries(userProfileData).filter(([, v]) => v !== undefined && v !== null)
+                            );
+                            
+                            if (!userDoc.exists()) {
+                              await setDoc(userRef, {
+                                ...cleanUserProfileData,
+                                createdAt: serverTimestamp(),
+                                email: userEmail,
+                                premium: false,
+                              });
+                            } else {
+                              await setDoc(userRef, cleanUserProfileData, { merge: true });
+                            }
+                            console.log("✅ Perfil del usuario actualizado en Firestore (incluye peso)");
+                          } catch (profileError) {
+                            console.error("Error al actualizar perfil del usuario:", profileError);
+                            // No bloqueamos el flujo si falla guardar el perfil
+                          }
                           
                           // Limpiar datos: eliminar campos undefined y null
                           const cleanUser = Object.fromEntries(

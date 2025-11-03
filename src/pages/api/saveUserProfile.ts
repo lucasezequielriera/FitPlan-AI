@@ -9,7 +9,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!db) return res.status(501).json({ error: "Firestore no configurado" });
   
   // Obtener userId del body en lugar de auth.currentUser (ya que estamos en el servidor)
-  const { userId, nombre, sexo, alturaCm, edad } = req.body;
+  const { userId, nombre, sexo, alturaCm, edad, peso } = req.body;
   
   if (!userId) {
     return res.status(401).json({ error: "Usuario no autenticado" });
@@ -25,13 +25,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Verificar si ya existe el perfil
     const userDoc = await getDoc(userRef);
     
-    const userData = {
+    const userData: Record<string, unknown> = {
       nombre,
       sexo,
       alturaCm: Number(alturaCm),
       edad: Number(edad),
       updatedAt: serverTimestamp(),
     };
+
+    // Agregar peso si está presente
+    if (peso !== undefined && peso !== null) {
+      userData.peso = Number(peso);
+    }
     
     if (!userDoc.exists()) {
       // Crear nuevo perfil
