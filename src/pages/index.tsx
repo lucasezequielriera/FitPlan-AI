@@ -7,6 +7,7 @@ import { getDbSafe, getAuthSafe } from "@/lib/firebase";
 import { collection, query, where, getDocs, limit } from "firebase/firestore";
 import Navbar from "@/components/Navbar";
 import LoginModal from "@/components/LoginModal";
+import Head from "next/head";
 
 export default function Home() {
   const router = useRouter();
@@ -94,6 +95,62 @@ export default function Home() {
 
   return (
     <div className="min-h-screen">
+      <Head>
+        <title>FitPlan AI | Plan nutricional inteligente con IA</title>
+        <meta name="description" content="Crea tu plan nutricional inteligente con IA: comidas semanales con ingredientes exactos, macros por objetivo, entrenamiento y sueño recomendados, seguimiento y PDF." />
+        <meta name="keywords" content="plan nutricional, inteligencia artificial, dieta personalizada, macros, calorías, entrenamiento, bajar de peso, ganar masa, perder grasa, recomposición, alimentación saludable" />
+        <meta name="robots" content="index,follow" />
+        <link rel="canonical" href="https://www.fitplan-ai.com/" />
+        {/* Open Graph */}
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="FitPlan AI" />
+        <meta property="og:title" content="FitPlan AI | Plan nutricional inteligente con IA" />
+        <meta property="og:description" content="Resultados en 30 días con nutrición + entrenamiento personalizados por IA." />
+        <meta property="og:url" content="https://www.fitplan-ai.com/" />
+        <meta property="og:image" content="https://www.fitplan-ai.com/brand/icon-social.png" />
+        <meta property="og:image:width" content="1080" />
+        <meta property="og:image:height" content="1080" />
+        {/* Twitter Card */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="FitPlan AI | Plan nutricional inteligente con IA" />
+        <meta name="twitter:description" content="Nutrición + entrenamiento personalizados por IA. Empieza gratis." />
+        <meta name="twitter:image" content="https://www.fitplan-ai.com/brand/icon-social.png" />
+        {/* JSON-LD */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "WebSite",
+              name: "FitPlan AI",
+              url: "https://www.fitplan-ai.com/",
+              potentialAction: {
+                "@type": "SearchAction",
+                target: "https://www.fitplan-ai.com/?q={search_term_string}",
+                "query-input": "required name=search_term_string"
+              }
+            })
+          }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "SoftwareApplication",
+              name: "FitPlan AI",
+              applicationCategory: "HealthApplication",
+              operatingSystem: "Web",
+              description: "Plan nutricional inteligente con IA, comidas semanales, macros, entrenamiento y seguimiento.",
+              offers: {
+                "@type": "Offer",
+                price: "25000",
+                priceCurrency: "ARS"
+              }
+            })
+          }}
+        />
+      </Head>
       <Navbar />
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] px-4 py-12">
         <motion.div

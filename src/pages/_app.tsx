@@ -1,5 +1,6 @@
 import "@/styles/globals.css";
 import type { AppProps } from "next/app";
+import Head from "next/head";
 import { Poppins } from "next/font/google";
 import { useEffect } from "react";
 import { useAuthStore } from "@/store/authStore";
@@ -14,8 +15,16 @@ export default function App({ Component, pageProps }: AppProps) {
   }, [initializeAuth]);
 
   return (
-    <div className={poppins.className}>
-      <Component {...pageProps} />
-    </div>
+    <>
+      <Head>
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+        <meta name="theme-color" content="#0b1220" />
+        <meta name="color-scheme" content="dark light" />
+        <link rel="manifest" href="/site.webmanifest" />
+      </Head>
+      <div className={poppins.className}>
+        <Component {...pageProps} />
+      </div>
+    </>
   );
 }
