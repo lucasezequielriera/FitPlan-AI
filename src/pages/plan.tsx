@@ -1436,12 +1436,8 @@ export default function PlanPage() {
 
           <p className="mt-4 text-sm opacity-80">{String((plan as unknown as Record<string, unknown>)?.mensaje_motivacional || '')}</p>
 
-          {(() => {
-            if (!sugerenciaEntrenamiento || typeof sugerenciaEntrenamiento !== 'object' || !('diasGym' in sugerenciaEntrenamiento)) {
-              return null;
-            }
-            return (
-              <div key="sugerencias-entrenamiento" className="mt-6 rounded-xl border border-white/10 p-4 bg-gradient-to-r from-white/5 to-white/10">
+          {sugerenciaEntrenamiento ? (
+            <div key="sugerencias-entrenamiento" className="mt-6 rounded-xl border border-white/10 p-4 bg-gradient-to-r from-white/5 to-white/10">
               <h2 className="text-lg font-semibold mb-3">💪 Recomendaciones de entrenamiento y recuperación</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
@@ -1460,7 +1456,7 @@ export default function PlanPage() {
                         })()})
                       </span>
                     </p>
-                    {sugerenciaEntrenamiento && 'diasGym' in sugerenciaEntrenamiento && sugerenciaEntrenamiento.diasGym !== diasGymActual && (
+                    {sugerenciaEntrenamiento.diasGym !== diasGymActual && (
                       <span className="text-xs opacity-70">(sugerido: {sugerenciaEntrenamiento.diasGym})</span>
                     )}
                   </div>
@@ -1493,7 +1489,7 @@ export default function PlanPage() {
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <p className="text-sm font-medium opacity-90">Caminata diaria:</p>
-                    {sugerenciaEntrenamiento && 'minutosCaminata' in sugerenciaEntrenamiento && sugerenciaEntrenamiento.minutosCaminata !== minutosCaminataActual && (
+                    {sugerenciaEntrenamiento.minutosCaminata !== minutosCaminataActual && (
                       <span className="text-xs opacity-70">(sugerido: {sugerenciaEntrenamiento.minutosCaminata})</span>
                     )}
                   </div>
@@ -1531,7 +1527,7 @@ export default function PlanPage() {
                         </svg>
             </button>
                     </p>
-                    {sugerenciaEntrenamiento && 'horasSueno' in sugerenciaEntrenamiento && sugerenciaEntrenamiento.horasSueno !== horasSuenoActual && (
+                    {sugerenciaEntrenamiento.horasSueno !== horasSuenoActual && (
                       <span className="text-xs opacity-70">(sugerido: {sugerenciaEntrenamiento.horasSueno})</span>
                     )}
                   </div>
@@ -1551,7 +1547,7 @@ export default function PlanPage() {
                 </div>
               </div>
               <p className="mt-3 text-sm opacity-80 leading-relaxed">
-                {sugerenciaEntrenamiento && 'descripcion' in sugerenciaEntrenamiento ? sugerenciaEntrenamiento.descripcion : ''}
+                {sugerenciaEntrenamiento.descripcion}
               </p>
               
               {/* Análisis de cambios */}
@@ -1589,8 +1585,7 @@ export default function PlanPage() {
                 </div>
               )}
             </div>
-            );
-          })()}
+          ) : null}
 
           {/* Selector de vista (Entrenamiento/Alimentación) - Centrado */}
           <div className="mt-6 flex items-center justify-center gap-3">
