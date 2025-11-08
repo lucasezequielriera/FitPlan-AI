@@ -1585,7 +1585,7 @@ export default function PlanPage() {
                 </div>
               )}
             </div>
-          ) : null}
+          )}
 
           {/* Selector de vista (Entrenamiento/Alimentación) - Centrado */}
           <div className="mt-6 flex items-center justify-center gap-3">
