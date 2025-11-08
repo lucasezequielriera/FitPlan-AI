@@ -541,7 +541,7 @@ export default function PlanPage() {
   const deficitSuperavit = user && plan ? plan.calorias_diarias - tdee : 0;
   
   // Calcular sugerencias de entrenamiento inteligentes
-  const sugerenciaEntrenamiento = user ? sugerirEntrenamiento(
+  const sugerenciaEntrenamiento: ReturnType<typeof sugerirEntrenamiento> | null = user ? sugerirEntrenamiento(
     user.objetivo,
     user.intensidad,
     user.edad,
@@ -1436,7 +1436,7 @@ export default function PlanPage() {
 
           <p className="mt-4 text-sm opacity-80">{String((plan as unknown as Record<string, unknown>)?.mensaje_motivacional || '')}</p>
 
-          {sugerenciaEntrenamiento !== null && (
+          {sugerenciaEntrenamiento && (
             <div key="sugerencias-entrenamiento" className="mt-6 rounded-xl border border-white/10 p-4 bg-gradient-to-r from-white/5 to-white/10">
               <h2 className="text-lg font-semibold mb-3">💪 Recomendaciones de entrenamiento y recuperación</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
