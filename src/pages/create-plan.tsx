@@ -245,6 +245,29 @@ export default function CreatePlan() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
+  
+  // Checklist de progreso
+  type StepStatus = 'pending' | 'in_progress' | 'completed' | 'error';
+  interface ChecklistStep {
+    id: string;
+    label: string;
+    status: StepStatus;
+  }
+  const [checklistSteps, setChecklistSteps] = useState<ChecklistStep[]>([
+    { id: 'preparar', label: 'Preparando datos del formulario', status: 'pending' },
+    { id: 'enviar', label: 'Enviando solicitud a OpenAI', status: 'pending' },
+    { id: 'recibir', label: 'Recibiendo respuesta de OpenAI', status: 'pending' },
+    { id: 'validar', label: 'Validando estructura del plan', status: 'pending' },
+    { id: 'perfil', label: 'Guardando perfil de usuario', status: 'pending' },
+    { id: 'plan', label: 'Guardando plan en base de datos', status: 'pending' },
+    { id: 'completo', label: '¡Plan generado exitosamente!', status: 'pending' },
+  ]);
+  
+  const updateChecklistStep = (id: string, status: StepStatus) => {
+    setChecklistSteps(prev => prev.map(step => 
+      step.id === id ? { ...step, status } : step
+    ));
+  };
   // Estados temporales para inputs de texto (restricciones/preferencias)
   const [restriccionesTexto, setRestriccionesTexto] = useState(form.restricciones?.join(", ") || "");
   const [preferenciasTexto, setPreferenciasTexto] = useState(form.preferencias?.join(", ") || "");
@@ -277,7 +300,11 @@ export default function CreatePlan() {
       return;
     }
 
+    // Resetear checklist
+    setChecklistSteps(prev => prev.map(step => ({ ...step, status: 'pending' as StepStatus })));
+    
     // Procesar restricciones y preferencias si hay texto pendiente
+    updateChecklistStep('preparar', 'in_progress');
     const formFinal = { ...form };
     if (restriccionesTexto) {
       const array = restriccionesTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
@@ -296,6 +323,7 @@ export default function CreatePlan() {
       formFinal.preferirRutina = form.preferirRutina;
     }
     
+    updateChecklistStep('preparar', 'completed');
     setLoading(true);
     setError(null);
     setProgress(0);
@@ -307,23 +335,56 @@ export default function CreatePlan() {
       setProgress(p);
     }, 250);
     try {
+      updateChecklistStep('enviar', 'in_progress');
       const resp = await fetch("/api/generatePlan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formFinal),
       });
+      updateChecklistStep('enviar', 'completed');
+      
+      updateChecklistStep('recibir', 'in_progress');
       if (!resp.ok) {
         const data = await resp.json().catch(() => null);
         const combined = data?.error && data?.detail ? `${data.error}: ${data.detail}` : (data?.error || data?.detail);
         const msg = combined || `No se pudo generar el plan (HTTP ${resp.status})`;
         // Log extendido para diagnóstico
         console.error('generatePlan error', { status: resp.status, data });
+        updateChecklistStep('recibir', 'error');
         throw new Error(msg);
       }
       const plan = await resp.json();
+      updateChecklistStep('recibir', 'completed');
+      
+      // Mostrar objeto de debug en consola del navegador
+      if (plan._debug_training_plan) {
+        console.log("=".repeat(80));
+        console.log("📊 DEBUG: DATOS USADOS PARA GENERAR TRAINING_PLAN");
+        console.log("=".repeat(80));
+        console.log(plan._debug_training_plan);
+        console.log("=".repeat(80));
+        // También exponerlo globalmente para fácil acceso
+        (window as unknown as { __TRAINING_PLAN_DEBUG__?: unknown }).__TRAINING_PLAN_DEBUG__ = plan._debug_training_plan;
+        console.log("💡 También disponible en: window.__TRAINING_PLAN_DEBUG__");
+      }
+      
+      updateChecklistStep('validar', 'in_progress');
+      // Validar que el plan tenga plan_semanal
+      if (!plan || !Array.isArray(plan.plan_semanal) || plan.plan_semanal.length !== 7) {
+        console.error('Plan inválido:', { 
+          tienePlan: !!plan, 
+          tienePlanSemanal: !!plan?.plan_semanal, 
+          esArray: Array.isArray(plan?.plan_semanal),
+          longitud: plan?.plan_semanal?.length 
+        });
+        updateChecklistStep('validar', 'error');
+        throw new Error("El plan generado no tiene la estructura correcta. Intentá nuevamente.");
+      }
+      updateChecklistStep('validar', 'completed');
       
       // Guardar perfil del usuario y plan automáticamente desde el cliente
       try {
+        updateChecklistStep('perfil', 'in_progress');
         const auth = getAuthSafe();
         const db = await import("@/lib/firebase").then(m => m.getDbSafe());
         
@@ -393,17 +454,20 @@ export default function CreatePlan() {
               await setDoc(userRef, cleanUserData, { merge: true });
               console.log("✅ Perfil de usuario actualizado con datos del plan");
             }
+            updateChecklistStep('perfil', 'completed');
           } catch (profileError) {
             console.error("Error al guardar perfil del usuario:", profileError);
+            updateChecklistStep('perfil', 'error');
           }
           
           // Guardar plan automáticamente desde el cliente
           try {
+            updateChecklistStep('plan', 'in_progress');
             const { collection, addDoc, serverTimestamp } = await import("firebase/firestore");
             
             // Limpiar datos: eliminar campos undefined y null
             const cleanUser = Object.fromEntries(
-              Object.entries(formFinal).filter(([_, v]) => v !== undefined && v !== null)
+              Object.entries(formFinal).filter(([, v]) => v !== undefined && v !== null)
             );
             
             const cleanPlan = JSON.parse(JSON.stringify({ plan, user: cleanUser })); // Eliminar undefined recursivamente
@@ -416,7 +480,9 @@ export default function CreatePlan() {
             console.log("Plan guardado automáticamente con ID:", docRef.id);
             // Guardar el planId en el store para que se pueda actualizar después
             setPlanId(docRef.id);
+            updateChecklistStep('plan', 'completed');
           } catch (savePlanError) {
+            updateChecklistStep('plan', 'error');
             console.error("Error al guardar plan automáticamente:", savePlanError);
             // No bloqueamos el flujo si falla guardar el plan
           }
@@ -430,10 +496,19 @@ export default function CreatePlan() {
     setPlan(plan);
       clearInterval(timer);
       setProgress(100);
+      updateChecklistStep('completo', 'completed');
+      // Esperar un momento para mostrar el checklist completo antes de redirigir
+      await new Promise(resolve => setTimeout(resolve, 800));
     router.push("/plan");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Ocurrió un error";
       setError(message);
+      // Marcar todos los pasos pendientes como error
+      setChecklistSteps(prev => prev.map(step => 
+        step.status === 'pending' || step.status === 'in_progress' 
+          ? { ...step, status: 'error' as StepStatus }
+          : step
+      ));
     } finally {
       setTimeout(() => setProgress(0), 600);
       setLoading(false);
@@ -737,7 +812,7 @@ export default function CreatePlan() {
                 type="checkbox"
                 className="mt-1 h-4 w-4"
                 checked={!!form.preferirRutina}
-                onChange={(e) => update("preferirRutina", e.target.checked as any)}
+                onChange={(e) => update("preferirRutina", e.target.checked)}
               />
               <span className="text-sm opacity-80">
                 Mantener comidas rutinarias (poca variación entre días)
@@ -799,18 +874,70 @@ export default function CreatePlan() {
             )}
           </div>
           {loading ? (
-            <div className="mt-3">
-              <div className="h-2 w-full rounded-full bg-white/10">
-                <div
-                  className="h-2 rounded-full"
-                  style={{
-                    width: `${progress}%`,
-                    background: "linear-gradient(90deg, var(--brand-start), var(--brand-mid), var(--brand-end))",
-                    transition: "width 200ms ease",
-                  }}
-                />
+            <div className="mt-6 space-y-4">
+              {/* Barra de progreso */}
+              <div>
+                <div className="h-2 w-full rounded-full bg-white/10">
+                  <div
+                    className="h-2 rounded-full"
+                    style={{
+                      width: `${progress}%`,
+                      background: "linear-gradient(90deg, var(--brand-start), var(--brand-mid), var(--brand-end))",
+                      transition: "width 200ms ease",
+                    }}
+                  />
+                </div>
+                <p className="mt-1 text-xs opacity-80">Generando plan: {progress}%</p>
               </div>
-              <p className="mt-1 text-xs opacity-80">Generando plan: {progress}%</p>
+              
+              {/* Checklist de progreso */}
+              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                <h3 className="text-sm font-semibold mb-3 opacity-90">Progreso de generación</h3>
+                <div className="space-y-2">
+                  {checklistSteps.map((step) => {
+                    const getIcon = () => {
+                      if (step.status === 'completed') {
+                        return (
+                          <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        );
+                      }
+                      if (step.status === 'in_progress') {
+                        return (
+                          <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                        );
+                      }
+                      if (step.status === 'error') {
+                        return (
+                          <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        );
+                      }
+                      return (
+                        <div className="w-5 h-5 border-2 border-white/30 rounded-full" />
+                      );
+                    };
+                    
+                    const getTextColor = () => {
+                      if (step.status === 'completed') return 'text-green-400';
+                      if (step.status === 'in_progress') return 'text-blue-400';
+                      if (step.status === 'error') return 'text-red-400';
+                      return 'text-white/50';
+                    };
+                    
+                    return (
+                      <div key={step.id} className="flex items-center gap-3">
+                        {getIcon()}
+                        <span className={`text-sm ${getTextColor()}`}>
+                          {step.label}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           ) : null}
           {error ? (

@@ -5,15 +5,21 @@ import { createPortal } from "react-dom";
 import { useAuthStore } from "@/store/authStore";
 import { usePlanStore } from "@/store/planStore";
 import { getDbSafe, getAuthSafe } from "@/lib/firebase";
-import { collection, query, where, getDocs, orderBy, limit, Timestamp, doc, deleteDoc, updateDoc, arrayUnion, arrayRemove, serverTimestamp, getDoc } from "firebase/firestore";
+import { collection, query, where, getDocs, limit, Timestamp, doc, deleteDoc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore";
 import Navbar from "@/components/Navbar";
+
+interface RegistroPeso {
+  fecha: string;
+  peso: number;
+  timestamp?: Timestamp | Date | { seconds: number; nanoseconds?: number } | number | null;
+}
 
 interface SavedPlan {
   id: string;
   userId: string;
   plan: {
-    plan: any;
-    user: any;
+    plan: Record<string, unknown>;
+    user: Record<string, unknown>;
   };
   createdAt: Timestamp;
   isOldest?: boolean;
@@ -49,6 +55,7 @@ export default function Dashboard() {
       loadPlans();
       checkPremiumStatus();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authUser, authLoading, router]);
 
   const checkPremiumStatus = async () => {
@@ -123,8 +130,8 @@ export default function Dashboard() {
 
   const handlePlanClick = (plan: SavedPlan) => {
     // Cargar el plan en el store y navegar a la vista del plan
-    setUser(plan.plan.user);
-    setPlan(plan.plan.plan);
+    setUser(plan.plan.user as unknown as Parameters<typeof setUser>[0]);
+    setPlan(plan.plan.plan as unknown as Parameters<typeof setPlan>[0]);
     setPlanId(plan.id); // Guardar el ID del plan para poder actualizarlo después
     router.push("/plan");
   };
@@ -437,9 +444,12 @@ export default function Dashboard() {
                           ? "Plan: Corte"
                           : plan.plan?.user?.objetivo === "mantenimiento_avanzado"
                           ? "Plan: Mantenimiento Avanzado"
-                          : plan.plan?.user?.nombre || "Plan sin nombre"}
+                          : String(plan.plan?.user?.nombre || "Plan sin nombre")}
                       </h3>
-                      {plan.plan?.plan?.dificultad && (
+                      {(() => {
+                        const dificultad = plan.plan?.plan?.dificultad;
+                        return dificultad && String(dificultad) ? true : false;
+                      })() && (
                         <div
                           className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md border"
                           style={{
@@ -454,7 +464,7 @@ export default function Dashboard() {
                               color: plan.plan.plan.dificultad === 'dificil' ? '#fecaca' : plan.plan.plan.dificultad === 'media' ? '#fde68a' : '#a7f3d0'
                             }}
                           >
-                            {plan.plan.plan.dificultad}
+                            {String(plan.plan.plan.dificultad || "")}
                           </span>
                         </div>
                       )}
@@ -494,37 +504,44 @@ export default function Dashboard() {
                           })()}
                         </span>
                       </div>
-                      {plan.plan?.user?.pesoKg && (
+                      {(() => {
+                        const peso = plan.plan?.user?.pesoKg;
+                        return peso !== undefined && peso !== null && peso !== 0;
+                      })() && (
                         <div className="flex items-center gap-2 text-xs sm:text-sm">
                           <span className="opacity-60 min-w-[55px] sm:min-w-[70px] flex-shrink-0">Peso:</span>
                           <span className="font-medium">
-                            {plan.plan.user.pesoKg} kg
-                            {plan.plan?.user?.objetivo && plan.plan.user.objetivo !== "mantener" && (
+                            {String(plan.plan.user.pesoKg)} kg
+                            {(() => {
+                              const objetivo = plan.plan?.user?.objetivo;
+                              return Boolean(objetivo && String(objetivo) !== "mantener");
+                            })() ? (
                               <span className="ml-2 opacity-70">
                                 → {
-                                  plan.plan.user.objetivo === "perder_grasa"
-                                    ? `${Math.max(1, Math.round(plan.plan.user.pesoKg * 0.95))} kg`
-                                    : plan.plan.user.objetivo === "ganar_masa"
-                                    ? `${Math.round(plan.plan.user.pesoKg * 1.05)} kg`
-                                    : plan.plan.user.objetivo === "recomposicion"
-                                    ? `${Math.round(plan.plan.user.pesoKg * 0.98)} kg`
-                                    : plan.plan.user.objetivo === "definicion"
-                                    ? `${Math.max(1, Math.round(plan.plan.user.pesoKg * 0.92))} kg`
-                                    : plan.plan.user.objetivo === "volumen"
-                                    ? `${Math.round(plan.plan.user.pesoKg * 1.08)} kg`
-                                    : plan.plan.user.objetivo === "corte"
-                                    ? `${Math.max(1, Math.round(plan.plan.user.pesoKg * 0.90))} kg`
-                                    : plan.plan.user.pesoKg
+                                  (() => {
+                                    const pesoKg = typeof plan.plan.user.pesoKg === 'number' ? plan.plan.user.pesoKg : Number(plan.plan.user.pesoKg) || 0;
+                                    const objetivo = String(plan.plan.user.objetivo || "");
+                                    if (objetivo === "perder_grasa") return `${Math.max(1, Math.round(pesoKg * 0.95))} kg`;
+                                    if (objetivo === "ganar_masa") return `${Math.round(pesoKg * 1.05)} kg`;
+                                    if (objetivo === "recomposicion") return `${Math.round(pesoKg * 0.98)} kg`;
+                                    if (objetivo === "definicion") return `${Math.max(1, Math.round(pesoKg * 0.92))} kg`;
+                                    if (objetivo === "volumen") return `${Math.round(pesoKg * 1.08)} kg`;
+                                    if (objetivo === "corte") return `${Math.max(1, Math.round(pesoKg * 0.90))} kg`;
+                                    return `${pesoKg} kg`;
+                                  })()
                                 }
                               </span>
-                            )}
+                            ) : null}
                           </span>
                         </div>
                       )}
-                      {plan.plan?.plan?.calorias_diarias && (
+                      {(() => {
+                        const calorias = plan.plan?.plan?.calorias_diarias;
+                        return calorias && String(calorias) ? true : false;
+                      })() && (
                         <div className="flex items-center gap-2 text-xs sm:text-sm">
                           <span className="opacity-60 min-w-[55px] sm:min-w-[70px] flex-shrink-0">Calorías:</span>
-                          <span className="font-medium">{plan.plan.plan.calorias_diarias} kcal</span>
+                          <span className="font-medium">{String(plan.plan.plan.calorias_diarias)} kcal</span>
                         </div>
                       )}
                     </div>
@@ -671,17 +688,31 @@ export default function Dashboard() {
 }
 
 // Componente para el contenido del modal de progreso
+// Helper global para convertir timestamp a Date
+const getTimestampDateHelper = (ts: RegistroPeso['timestamp']): Date | null => {
+  if (!ts) return null;
+  if (ts instanceof Date) return ts;
+  if (typeof ts === 'number') return new Date(ts);
+  if (typeof ts === 'object' && 'toDate' in ts && typeof ts.toDate === 'function') {
+    return ts.toDate();
+  }
+  if (typeof ts === 'object' && 'seconds' in ts && typeof ts.seconds === 'number') {
+    return new Date(ts.seconds * 1000);
+  }
+  return null;
+};
+
 function ProgressModalContent({ plan, onClose }: { plan: SavedPlan; onClose: () => void }) {
   const user = plan.plan?.user;
   const planData = plan.plan?.plan;
   const planId = plan.id;
   
-  const [registrosPeso, setRegistrosPeso] = useState<Array<{ fecha: string; peso: number; timestamp?: any }>>([]);
+  const [registrosPeso, setRegistrosPeso] = useState<RegistroPeso[]>([]);
   const [nuevoPeso, setNuevoPeso] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [mostrarConfirmacion, setMostrarConfirmacion] = useState(false);
-  const [registroAEliminar, setRegistroAEliminar] = useState<{ fecha: string; peso: number; timestamp?: any } | null>(null);
+  const [registroAEliminar, setRegistroAEliminar] = useState<RegistroPeso | null>(null);
   const [eliminando, setEliminando] = useState(false);
   
   // Cargar registros de peso desde Firestore
@@ -699,10 +730,10 @@ function ProgressModalContent({ plan, onClose }: { plan: SavedPlan; onClose: () 
         const dia = String(date.getDate()).padStart(2, '0');
         return `${año}-${mes}-${dia}`;
       };
-      
+
       // Función para limpiar duplicados, manteniendo el más reciente por fecha
-      const limpiarDuplicados = (registros: Array<{ fecha: string; peso: number; timestamp?: any }>): Array<{ fecha: string; peso: number; timestamp?: any }> => {
-        const registrosUnicos = new Map<string, { fecha: string; peso: number; timestamp?: any }>();
+      const limpiarDuplicados = (registros: RegistroPeso[]): RegistroPeso[] => {
+        const registrosUnicos = new Map<string, RegistroPeso>();
         
         registros.forEach((r) => {
           if (!registrosUnicos.has(r.fecha)) {
@@ -710,14 +741,8 @@ function ProgressModalContent({ plan, onClose }: { plan: SavedPlan; onClose: () 
           } else {
             // Si ya existe, mantener el que tenga el timestamp más reciente
             const existente = registrosUnicos.get(r.fecha)!;
-            const timestampExistente = existente.timestamp?.toDate?.() || 
-                                      (existente.timestamp instanceof Date ? existente.timestamp : null) ||
-                                      (existente.timestamp?.seconds ? new Date(existente.timestamp.seconds * 1000) : null) ||
-                                      (typeof existente.timestamp === 'number' ? new Date(existente.timestamp) : null);
-            const timestampNuevo = r.timestamp?.toDate?.() || 
-                                   (r.timestamp instanceof Date ? r.timestamp : null) ||
-                                   (r.timestamp?.seconds ? new Date(r.timestamp.seconds * 1000) : null) ||
-                                   (typeof r.timestamp === 'number' ? new Date(r.timestamp) : null);
+            const timestampExistente = getTimestampDateHelper(existente.timestamp);
+            const timestampNuevo = getTimestampDateHelper(r.timestamp);
             
             if (timestampNuevo && (!timestampExistente || timestampNuevo > timestampExistente)) {
               registrosUnicos.set(r.fecha, r);
@@ -753,23 +778,14 @@ function ProgressModalContent({ plan, onClose }: { plan: SavedPlan; onClose: () 
           const data = planDoc.data();
           if (data.registrosPeso && Array.isArray(data.registrosPeso)) {
             // Convertir timestamps de Firestore a fechas ISO si es necesario
-            const registros = data.registrosPeso.map((r: any) => {
+            const registros = (data.registrosPeso as RegistroPeso[]).map((r) => {
               // Manejar diferentes formatos de timestamp
               let fechaStr = r.fecha;
               
               // Si hay timestamp, usar la fecha local del timestamp
-              if (r.timestamp?.toDate) {
-                const fechaLocal = r.timestamp.toDate();
-                fechaStr = obtenerFechaLocal(fechaLocal);
-              } else if (r.timestamp?.seconds) {
-                // Timestamp en formato seconds/nanoseconds
-                const fechaLocal = new Date(r.timestamp.seconds * 1000);
-                fechaStr = obtenerFechaLocal(fechaLocal);
-              } else if (r.timestamp instanceof Date) {
-                fechaStr = obtenerFechaLocal(r.timestamp);
-              } else if (typeof r.timestamp === 'number') {
-                const fechaLocal = new Date(r.timestamp);
-                fechaStr = obtenerFechaLocal(fechaLocal);
+              const timestampDate = getTimestampDateHelper(r.timestamp);
+              if (timestampDate) {
+                fechaStr = obtenerFechaLocal(timestampDate);
               } else if (!fechaStr) {
                 // Si no hay fecha, usar fecha actual local
                 fechaStr = obtenerFechaLocal(new Date());
@@ -791,12 +807,14 @@ function ProgressModalContent({ plan, onClose }: { plan: SavedPlan; onClose: () 
             // Si se encontraron duplicados y se limpiaron, actualizar Firestore
             if (registrosLimpios.length !== registros.length) {
               try {
-                const registrosParaFirestore = registrosLimpios.map((r) => ({
-                  fecha: r.fecha,
-                  peso: r.peso,
-                  timestamp: r.timestamp?.toDate?.() || 
-                            (r.timestamp instanceof Date ? r.timestamp : new Date(r.fecha))
-                }));
+                const registrosParaFirestore = registrosLimpios.map((r) => {
+                  const tsDate = getTimestampDateHelper(r.timestamp);
+                  return {
+                    fecha: r.fecha,
+                    peso: r.peso,
+                    timestamp: tsDate || new Date(r.fecha)
+                  };
+                });
                 await updateDoc(planRef, {
                   registrosPeso: registrosParaFirestore,
                   updatedAt: serverTimestamp()
@@ -855,16 +873,31 @@ function ProgressModalContent({ plan, onClose }: { plan: SavedPlan; onClose: () 
     loadRegistrosPeso();
   }, [planId]);
   
-  // Obtener fecha de inicio del plan
-  const fechaInicioPlan = plan.createdAt?.toDate?.() || new Date(plan.createdAt?.seconds * 1000) || new Date();
+  // Helper para convertir timestamp a Date (fuera del useEffect)
+  const getTimestampDateFromPlan = (ts: Timestamp | Date | { seconds: number } | number | undefined): Date => {
+    if (!ts) return new Date();
+    if (ts instanceof Date) return ts;
+    if (typeof ts === 'number') return new Date(ts);
+    if (typeof ts === 'object' && 'toDate' in ts && typeof ts.toDate === 'function') {
+      return ts.toDate();
+    }
+    if (typeof ts === 'object' && 'seconds' in ts && typeof ts.seconds === 'number') {
+      return new Date(ts.seconds * 1000);
+    }
+    return new Date();
+  };
   
-  // Calcular progreso del plan
+  // Obtener fecha de inicio del plan
+  const fechaInicioPlan = getTimestampDateFromPlan(plan.createdAt);
+  
+    // Calcular progreso del plan
   const progresoPlan = (() => {
-    if (!planData?.duracion_plan_dias) return { diasTranscurridos: 0, porcentaje: 0 };
+    const duracion = typeof planData?.duracion_plan_dias === 'number' ? planData.duracion_plan_dias : Number(planData?.duracion_plan_dias) || 30;
+    if (!duracion) return { diasTranscurridos: 0, porcentaje: 0 };
     const ahora = new Date();
     const diasTranscurridos = Math.floor((ahora.getTime() - fechaInicioPlan.getTime()) / (1000 * 60 * 60 * 24));
-    const porcentaje = Math.min(100, Math.max(0, (diasTranscurridos / planData.duracion_plan_dias) * 100));
-    return { diasTranscurridos: Math.min(planData.duracion_plan_dias, Math.max(0, diasTranscurridos)), porcentaje };
+    const porcentaje = Math.min(100, Math.max(0, (diasTranscurridos / duracion) * 100));
+    return { diasTranscurridos: Math.min(duracion, Math.max(0, diasTranscurridos)), porcentaje };
   })();
 
   const handleGuardarPeso = async () => {
@@ -907,36 +940,29 @@ function ProgressModalContent({ plan, onClose }: { plan: SavedPlan; onClose: () 
           
           // Verificar si ya existe un registro para esta fecha
           // Normalizar fechas para comparación
-          const obtenerFechaNormalizada = (registro: any): string => {
+          const obtenerFechaNormalizada = (registro: RegistroPeso | Record<string, unknown>): string => {
             if (registro.fecha && typeof registro.fecha === 'string') {
               return registro.fecha;
             }
             // Si no hay fecha string, intentar obtenerla del timestamp
-            let fechaDate: Date;
-            if (registro.timestamp?.toDate) {
-              fechaDate = registro.timestamp.toDate();
-            } else if (registro.timestamp instanceof Date) {
-              fechaDate = registro.timestamp;
-            } else if (registro.timestamp?.seconds) {
-              fechaDate = new Date(registro.timestamp.seconds * 1000);
-            } else if (typeof registro.timestamp === 'number') {
-              fechaDate = new Date(registro.timestamp);
-            } else {
-              return ''; // No se puede determinar la fecha
+            const ts = 'timestamp' in registro ? registro.timestamp : undefined;
+            const tsDate = getTimestampDateHelper(ts as RegistroPeso['timestamp']);
+            if (tsDate) {
+              const año = tsDate.getFullYear();
+              const mes = String(tsDate.getMonth() + 1).padStart(2, '0');
+              const dia = String(tsDate.getDate()).padStart(2, '0');
+              return `${año}-${mes}-${dia}`;
             }
-            const año = fechaDate.getFullYear();
-            const mes = String(fechaDate.getMonth() + 1).padStart(2, '0');
-            const dia = String(fechaDate.getDate()).padStart(2, '0');
-            return `${año}-${mes}-${dia}`;
+            return ''; // No se puede determinar la fecha
           };
           
           // Buscar si ya existe un registro para esta fecha
-          const indiceExistente = registrosActuales.findIndex((r: any) => {
+          const indiceExistente = registrosActuales.findIndex((r: RegistroPeso | Record<string, unknown>) => {
             const fechaR = obtenerFechaNormalizada(r);
             return fechaR === fechaISO;
           });
           
-          let registrosActualizados: any[];
+          let registrosActualizados: RegistroPeso[];
           
           if (indiceExistente >= 0) {
             // Si existe, reemplazarlo
@@ -955,7 +981,7 @@ function ProgressModalContent({ plan, onClose }: { plan: SavedPlan; onClose: () 
           
           // Actualizar estado local también, verificando duplicados
           const indiceExistenteLocal = registrosPeso.findIndex(r => r.fecha === fechaISO);
-          let nuevosRegistros: Array<{ fecha: string; peso: number; timestamp?: any }>;
+          let nuevosRegistros: RegistroPeso[];
           
           if (indiceExistenteLocal >= 0) {
             // Si existe localmente, reemplazarlo
@@ -992,7 +1018,7 @@ function ProgressModalContent({ plan, onClose }: { plan: SavedPlan; onClose: () 
         // Fallback a localStorage si no hay Firebase
         // Verificar si ya existe un registro para esta fecha
         const indiceExistente = registrosPeso.findIndex(r => r.fecha === fechaISO);
-        let nuevosRegistros: Array<{ fecha: string; peso: number; timestamp?: any }>;
+        let nuevosRegistros: RegistroPeso[];
         
         if (indiceExistente >= 0) {
           nuevosRegistros = [...registrosPeso];
@@ -1011,7 +1037,7 @@ function ProgressModalContent({ plan, onClose }: { plan: SavedPlan; onClose: () 
       console.error("Error al guardar peso:", error);
       // Aún así guardar en localStorage como fallback, verificando duplicados
       const indiceExistente = registrosPeso.findIndex(r => r.fecha === fechaISO);
-      let nuevosRegistros: Array<{ fecha: string; peso: number; timestamp?: any }>;
+      let nuevosRegistros: RegistroPeso[];
       
       if (indiceExistente >= 0) {
         nuevosRegistros = [...registrosPeso];
@@ -1048,27 +1074,24 @@ function ProgressModalContent({ plan, onClose }: { plan: SavedPlan; onClose: () 
           
           // Filtrar el registro a eliminar del array
           // Buscar por fecha y peso ya que el timestamp puede variar en formato
-          const registrosActualizados = registrosActuales.filter((r: any) => {
+          const registrosActualizados = registrosActuales.filter((r: RegistroPeso) => {
             // Normalizar la fecha para comparación
             let fechaR = r.fecha;
-            if (r.timestamp?.toDate) {
-              const fechaLocal = r.timestamp.toDate();
-              const año = fechaLocal.getFullYear();
-              const mes = String(fechaLocal.getMonth() + 1).padStart(2, '0');
-              const dia = String(fechaLocal.getDate()).padStart(2, '0');
-              fechaR = `${año}-${mes}-${dia}`;
-            } else if (r.timestamp instanceof Date) {
-              const año = r.timestamp.getFullYear();
-              const mes = String(r.timestamp.getMonth() + 1).padStart(2, '0');
-              const dia = String(r.timestamp.getDate()).padStart(2, '0');
+            const timestampDate = getTimestampDateHelper(r.timestamp);
+            if (timestampDate) {
+              const año = timestampDate.getFullYear();
+              const mes = String(timestampDate.getMonth() + 1).padStart(2, '0');
+              const dia = String(timestampDate.getDate()).padStart(2, '0');
               fechaR = `${año}-${mes}-${dia}`;
             } else if (!fechaR && r.timestamp) {
-              // Si no hay fecha string pero hay timestamp
-              const fechaLocal = new Date(r.timestamp);
-              const año = fechaLocal.getFullYear();
-              const mes = String(fechaLocal.getMonth() + 1).padStart(2, '0');
-              const dia = String(fechaLocal.getDate()).padStart(2, '0');
-              fechaR = `${año}-${mes}-${dia}`;
+              // Si no hay fecha string pero hay timestamp, intentar convertir
+              const tsDate = getTimestampDateHelper(r.timestamp);
+              if (tsDate) {
+                const año = tsDate.getFullYear();
+                const mes = String(tsDate.getMonth() + 1).padStart(2, '0');
+                const dia = String(tsDate.getDate()).padStart(2, '0');
+                fechaR = `${año}-${mes}-${dia}`;
+              }
             }
             
             // Eliminar si coincide fecha y peso
@@ -1154,12 +1177,12 @@ function ProgressModalContent({ plan, onClose }: { plan: SavedPlan; onClose: () 
                 ? "Mantener Peso"
                 : user?.objetivo === "ganar_masa"
                 ? "Ganar Masa"
-                : user?.objetivo || "N/A"}
+                : String(user?.objetivo || "N/A")}
             </p>
           </div>
           <div>
             <span className="opacity-60">Peso inicial:</span>
-            <p className="font-medium mt-1">{user?.pesoKg || 0} kg</p>
+            <p className="font-medium mt-1">{typeof user?.pesoKg === 'number' ? user.pesoKg : Number(user?.pesoKg) || 0} kg</p>
           </div>
           <div>
             <span className="opacity-60">Progreso del plan:</span>
@@ -1167,7 +1190,7 @@ function ProgressModalContent({ plan, onClose }: { plan: SavedPlan; onClose: () 
           </div>
           <div>
             <span className="opacity-60">Días transcurridos:</span>
-            <p className="font-medium mt-1">{progresoPlan.diasTranscurridos} / {planData?.duracion_plan_dias || 30}</p>
+            <p className="font-medium mt-1">{progresoPlan.diasTranscurridos} / {typeof planData?.duracion_plan_dias === 'number' ? planData.duracion_plan_dias : Number(planData?.duracion_plan_dias) || 30}</p>
           </div>
         </div>
       </div>
@@ -1219,7 +1242,8 @@ function ProgressModalContent({ plan, onClose }: { plan: SavedPlan; onClose: () 
                           // Parsear fecha como local, no UTC
                           const [año, mes, dia] = registro.fecha.split('-').map(Number);
                           const fecha = new Date(año, mes - 1, dia);
-                          const diferencia = user?.pesoKg ? registro.peso - user.pesoKg : 0;
+                          const pesoInicial = typeof user?.pesoKg === 'number' ? user.pesoKg : Number(user?.pesoKg) || 0;
+                          const diferencia = pesoInicial ? registro.peso - pesoInicial : 0;
                     const objetivo = user?.objetivo || 'mantener';
                     const esPositivo = objetivo === 'ganar_masa' || objetivo === 'volumen' 
                       ? diferencia > 0 
@@ -1233,11 +1257,14 @@ function ProgressModalContent({ plan, onClose }: { plan: SavedPlan; onClose: () 
                           {fecha.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
                         </span>
                         <span className="font-medium">{registro.peso} kg</span>
-                        {user?.pesoKg && (
+                        {(() => {
+                          const peso = user?.pesoKg;
+                          return Boolean(peso && typeof peso === 'number');
+                        })() ? (
                           <span className={`text-xs ${esPositivo ? 'text-green-400' : 'text-orange-400'}`}>
                             {diferencia > 0 ? '+' : ''}{diferencia.toFixed(1)} kg
                           </span>
-                        )}
+                        ) : null}
                         <button
                           onClick={() => {
                             setRegistroAEliminar(registro);
@@ -1271,22 +1298,23 @@ function ProgressModalContent({ plan, onClose }: { plan: SavedPlan; onClose: () 
         {/* Gráfica de evolución */}
         <div>
           <p className="text-sm font-medium opacity-70 mb-3">Evolución del peso</p>
-          {registrosPeso.length > 0 && user?.pesoKg ? (
+          {registrosPeso.length > 0 && user?.pesoKg && typeof user.pesoKg === 'number' ? (
             <div className="space-y-2">
               <div className="h-32 flex items-end justify-between gap-1">
                 {registrosPeso
                   .sort((a, b) => a.fecha.localeCompare(b.fecha))
                   .slice(-6) // Últimos 6 registros
                   .map((registro, idx) => {
+                    const pesoInicialNum = typeof user.pesoKg === 'number' ? user.pesoKg : Number(user.pesoKg) || 0;
                     const pesos = registrosPeso
                       .sort((a, b) => a.fecha.localeCompare(b.fecha))
                       .slice(-6)
                       .map(r => r.peso);
-                    const maxPeso = Math.max(...pesos, user.pesoKg);
-                    const minPeso = Math.min(...pesos, user.pesoKg);
+                    const maxPeso = Math.max(...pesos, pesoInicialNum);
+                    const minPeso = Math.min(...pesos, pesoInicialNum);
                     const rango = maxPeso - minPeso || 1;
                     const altura = ((registro.peso - minPeso) / rango) * 100;
-                    const diferencia = registro.peso - user.pesoKg;
+                    const diferencia = registro.peso - pesoInicialNum;
                     
                     return (
                       <div key={idx} className="flex-1 flex flex-col items-center gap-1">

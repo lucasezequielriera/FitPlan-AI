@@ -33,11 +33,19 @@ export function getAdminApp(): App | null {
       });
       return adminApp;
     } else {
-      console.warn("⚠️ Firebase Admin SDK no configurado. Variables faltantes:", {
-        hasPrivateKey: !!privateKey,
-        hasClientEmail: !!clientEmail,
-        hasProjectId: !!projectId,
-      });
+      const missing = [];
+      if (!privateKey) missing.push("FIREBASE_ADMIN_PRIVATE_KEY");
+      if (!clientEmail) missing.push("FIREBASE_ADMIN_CLIENT_EMAIL");
+      if (!projectId) missing.push("NEXT_PUBLIC_FIREBASE_PROJECT_ID");
+      
+      console.error("❌ Firebase Admin SDK no configurado. Variables faltantes:", missing);
+      console.error("📝 Para configurar:");
+      console.error("1. Ve a Firebase Console > Project Settings > Service Accounts");
+      console.error("2. Haz clic en 'Generate new private key'");
+      console.error("3. Configura estas variables en Vercel:");
+      console.error(`   - FIREBASE_ADMIN_PRIVATE_KEY: (el campo 'private_key' del JSON)`);
+      console.error(`   - FIREBASE_ADMIN_CLIENT_EMAIL: (el campo 'client_email' del JSON)`);
+      console.error(`   - NEXT_PUBLIC_FIREBASE_PROJECT_ID: (ya debería estar configurado)`);
       return null;
     }
   } catch (error) {

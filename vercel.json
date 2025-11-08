@@ -1,0 +1,8 @@
+{
+  "functions": {
+    "src/pages/api/generatePlan.ts": {
+      "maxDuration": 150
+    }
+  }
+}
+

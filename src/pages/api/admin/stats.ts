@@ -17,8 +17,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Usar Firebase Admin SDK (bypass las reglas de Firestore)
     const db = getAdminDb();
     if (!db) {
+      console.error("❌ Firebase Admin SDK no configurado. Variables faltantes:", {
+        hasPrivateKey: !!process.env.FIREBASE_ADMIN_PRIVATE_KEY,
+        hasClientEmail: !!process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
+        hasProjectId: !!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+      });
       return res.status(500).json({ 
-        error: "Firebase Admin SDK no configurado. Configura FIREBASE_ADMIN_PRIVATE_KEY y FIREBASE_ADMIN_CLIENT_EMAIL en las variables de entorno." 
+        error: "Firebase Admin SDK no configurado",
+        detail: "Configura las siguientes variables de entorno en Vercel: FIREBASE_ADMIN_PRIVATE_KEY, FIREBASE_ADMIN_CLIENT_EMAIL, y NEXT_PUBLIC_FIREBASE_PROJECT_ID. Obtén estas credenciales desde Firebase Console > Project Settings > Service Accounts."
       });
     }
 

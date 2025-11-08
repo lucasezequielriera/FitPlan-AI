@@ -272,7 +272,7 @@ export default function Admin() {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: "Error desconocido" }));
         console.error("❌ Error del API:", errorData);
-        return;
+        throw new Error(errorData.detail || errorData.error || `HTTP ${response.status}`);
       }
 
       const data = await response.json();
@@ -329,7 +329,15 @@ export default function Admin() {
         console.log(`✅ ${sortedUsers.length} usuarios cargados y ordenados por fecha de creación`);
       }
     } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Error desconocido";
+      setError(message);
+      setLoading(false);
       console.error("❌ Error al cargar estadísticas:", err);
+      
+      // Si el error es sobre Firebase Admin SDK no configurado, mostrar mensaje más útil
+      if (message.includes("Firebase Admin SDK no configurado") || message.includes("500")) {
+        setError("Firebase Admin SDK no está configurado en el servidor. Configura las variables de entorno en Vercel: FIREBASE_ADMIN_PRIVATE_KEY, FIREBASE_ADMIN_CLIENT_EMAIL, y NEXT_PUBLIC_FIREBASE_PROJECT_ID.");
+      }
     }
   };
 

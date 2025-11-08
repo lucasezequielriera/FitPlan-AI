@@ -9,6 +9,47 @@ import Navbar from "@/components/Navbar";
 import { getAuthSafe, getDbSafe } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 
+interface TrainingWeek {
+  week: number;
+  days: TrainingDay[];
+}
+
+interface TrainingDay {
+  day: string;
+  ejercicios?: TrainingExercise[]; // Nueva estructura simplificada
+  // Campos legacy (para compatibilidad)
+  split?: string;
+  duration_min?: number;
+  warmup_min?: number;
+  blocks?: TrainingBlock[];
+  finisher?: string;
+  mobility?: string[];
+}
+
+interface TrainingBlock {
+  name: string;
+  level?: string;
+  exercises?: TrainingExercise[];
+}
+
+interface TrainingExercise {
+  name: string;
+  sets: number;
+  reps: string | number;
+  muscle_group: string; // OBLIGATORIO: músculo trabajado
+  // Campos legacy (para compatibilidad)
+  url?: string;
+  rest_sec?: number;
+  tempo?: string;
+  rpe?: number;
+  cues?: string[];
+  alt?: string[];
+}
+
+interface TrainingPlan {
+  weeks?: TrainingWeek[];
+}
+
 export default function PlanPage() {
   const router = useRouter();
   const { plan, user, planId, setUser, setPlan, setPlanId } = usePlanStore();
@@ -20,10 +61,6 @@ export default function PlanPage() {
       return;
     }
   }, [plan, user, router]);
-  const [expandedKeys, setExpandedKeys] = useState<Record<string, boolean>>({});
-  // seed de variantes fijo para simplicidad
-  const [selectedDay, setSelectedDay] = useState<string | null>(null);
-  const [details, setDetails] = useState<Record<string, { ingredientes?: string[]; pasos_preparacion?: string[]; loading?: boolean; error?: string }>>({});
   
   // Valores editables de entrenamiento
   const [diasGymEditado, setDiasGymEditado] = useState<number | null>(null);
@@ -48,7 +85,87 @@ export default function PlanPage() {
   const [isPremium, setIsPremium] = useState(false);
   
   // Estado para modales de información (tooltips)
-  const [modalInfoAbierto, setModalInfoAbierto] = useState<'imc' | 'macros' | 'sueno' | 'dificultad' | null>(null);
+  const [modalInfoAbierto, setModalInfoAbierto] = useState<'imc' | 'macros' | 'sueno' | 'dificultad' | 'split' | null>(null);
+  const [modalEntrenamientoAbierto, setModalEntrenamientoAbierto] = useState(false);
+  const [semanaSeleccionada, setSemanaSeleccionada] = useState<number>(1);
+  const [vistaPlan, setVistaPlan] = useState<'entrenamiento' | 'alimentacion'>('alimentacion');
+  const [modalAlimentosAbierto, setModalAlimentosAbierto] = useState<null | { diaIdx: number }>(null);
+  const [foodDetails, setFoodDetails] = useState<Record<string, { ingredientes?: string[]; pasos_preparacion?: string[]; loading?: boolean; error?: string }>>({});
+
+  // Resumen de split de entrenamiento para el título
+  const splitResumen = (() => {
+    const tp = (plan as unknown as Record<string, unknown>)?.training_plan as TrainingPlan | undefined;
+    const days = (tp?.weeks || []).flatMap((w: TrainingWeek) => w?.days || []);
+    
+    // Primero intentar obtener del campo split
+    const splits = new Set<string>(
+      days
+        .map((d: TrainingDay) => String(d?.split || '').toLowerCase())
+        .filter((s: string) => s && s !== 'undefined' && s !== '')
+    );
+    
+    // Si no hay splits en el campo split, analizar los músculos trabajados
+    if (splits.size === 0) {
+      const allMuscles = new Set<string>();
+      days.forEach((d: TrainingDay) => {
+        (d.ejercicios || []).forEach((e: TrainingExercise) => {
+          if (e.muscle_group) {
+            allMuscles.add(e.muscle_group.toLowerCase());
+          }
+        });
+      });
+      
+      // Determinar split basado en músculos trabajados
+      const hasUpper = allMuscles.has('pecho') || allMuscles.has('espalda') || allMuscles.has('hombros') || allMuscles.has('bíceps') || allMuscles.has('tríceps');
+      const hasLower = allMuscles.has('piernas') || allMuscles.has('cuádriceps') || allMuscles.has('isquiotibiales') || allMuscles.has('glúteos') || allMuscles.has('gemelos');
+      
+      // Si cada día tiene músculos variados, probablemente es Full Body
+      const daysWithVariedMuscles = days.filter((d: TrainingDay) => {
+        const musclesInDay = new Set<string>();
+        (d.ejercicios || []).forEach((e: TrainingExercise) => {
+          if (e.muscle_group) musclesInDay.add(e.muscle_group.toLowerCase());
+        });
+        return musclesInDay.size >= 4; // 4+ músculos diferentes = Full Body
+      });
+      
+      if (daysWithVariedMuscles.length >= days.length * 0.7) {
+        return 'Full Body';
+      }
+      
+      // Si hay días con solo tren superior y otros con solo tren inferior
+      if (hasUpper && hasLower) {
+        const upperDays = days.filter((d: TrainingDay) => {
+          const muscles = new Set<string>();
+          (d.ejercicios || []).forEach((e: TrainingExercise) => {
+            if (e.muscle_group) muscles.add(e.muscle_group.toLowerCase());
+          });
+          return muscles.has('pecho') || muscles.has('espalda') || muscles.has('hombros');
+        });
+        const lowerDays = days.filter((d: TrainingDay) => {
+          const muscles = new Set<string>();
+          (d.ejercicios || []).forEach((e: TrainingExercise) => {
+            if (e.muscle_group) muscles.add(e.muscle_group.toLowerCase());
+          });
+          return muscles.has('piernas') || muscles.has('cuádriceps') || muscles.has('isquiotibiales');
+        });
+        if (upperDays.length > 0 && lowerDays.length > 0) return 'Upper/Lower';
+      }
+      
+      return allMuscles.size > 0 ? 'Mixto' : 'Plan';
+    }
+    
+    const has = (s: string) => Array.from(splits).some(x => x.includes(s));
+    const hasUpper = has('upper');
+    const hasLower = has('lower');
+    const hasFull = has('full');
+    const hasPush = has('push');
+    const hasPull = has('pull');
+    const hasLegs = has('leg');
+    if (hasFull && splits.size === 1) return 'Full Body';
+    if (hasUpper && hasLower && splits.size <= 2) return 'Upper/Lower';
+    if (hasPush && hasPull && hasLegs && splits.size <= 3) return 'Push/Pull/Legs';
+    return splits.size > 0 ? 'Mixto' : 'Plan';
+  })();
   
   // Verificar estado premium del usuario
   useEffect(() => {
@@ -98,6 +215,10 @@ export default function PlanPage() {
     }
     return new Date();
   })();
+
+
+  // Vista por defecto: alimentación
+  // (el usuario puede cambiar entre alimentación y entrenamiento con los botones)
   
   // Calcular progreso del plan
   const progresoPlan = (() => {
@@ -188,11 +309,7 @@ export default function PlanPage() {
   }, [plan, router]);
 
   useEffect(() => {
-    if (!plan) return;
-    const dias = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"] as const;
-    const today = dias[new Date().getDay()];
-    const existsToday = plan.plan_semanal.find((d) => d.dia === today);
-    setSelectedDay((prev) => prev ?? (existsToday ? today : plan.plan_semanal[0]?.dia ?? null));
+    // Esta función ya no se usa, pero se mantiene por compatibilidad
   }, [plan]);
 
   // Función para regenerar el plan con los nuevos valores
@@ -239,6 +356,19 @@ export default function PlanPage() {
       }
       
       const nuevoPlan = await resp.json();
+      
+      // Mostrar objeto de debug en consola del navegador
+      if (nuevoPlan._debug_training_plan) {
+        console.log("=".repeat(80));
+        console.log("📊 DEBUG: DATOS USADOS PARA GENERAR TRAINING_PLAN (REGENERADO)");
+        console.log("=".repeat(80));
+        console.log(nuevoPlan._debug_training_plan);
+        console.log("=".repeat(80));
+        // También exponerlo globalmente para fácil acceso
+        (window as unknown as { __TRAINING_PLAN_DEBUG__?: unknown }).__TRAINING_PLAN_DEBUG__ = nuevoPlan._debug_training_plan;
+        console.log("💡 También disponible en: window.__TRAINING_PLAN_DEBUG__");
+      }
+      
       setUser(userActualizado);
       setPlan(nuevoPlan);
       
@@ -363,94 +493,42 @@ export default function PlanPage() {
     }
   }
 
-  // Actualizar sugerencias de entrenamiento cuando cambie objetivo o intensidad
+  // Guardar valores originales del plan al cargar (incluyendo recomendaciones calculadas)
+  const valoresOriginalesPlan = useRef<{
+    diasGym?: number;
+    diasCardio?: number;
+    minutosSesionGym?: number;
+    horasSueno?: number;
+    minutosCaminata?: number;
+  } | null>(null);
+
   useEffect(() => {
-    if (!user) return;
-    
-    const bmi = calculateBMI(user.pesoKg, user.alturaCm);
-    const nuevasSugerencias = sugerirEntrenamiento(
-      user.objetivo,
-      user.intensidad,
-      user.edad,
-      bmi,
-      user.atletico
-    );
-    
-    // Solo actualizar si no han sido editados manualmente
-    const cambios: Partial<UserInput> = {};
-    if (diasGymEditado === null && user.diasGym !== nuevasSugerencias.diasGym) {
-      cambios.diasGym = nuevasSugerencias.diasGym;
+    if (user && plan && !valoresOriginalesPlan.current) {
+      const bmiOriginal = calculateBMI(user.pesoKg, user.alturaCm);
+      const recomendacionesOriginales = sugerirEntrenamiento(
+        user.objetivo,
+        user.intensidad,
+        user.edad,
+        bmiOriginal,
+        user.atletico
+      );
+      
+      valoresOriginalesPlan.current = {
+        diasGym: user.diasGym,
+        diasCardio: user.diasCardio,
+        minutosSesionGym: Number((plan as unknown as Record<string, unknown>)?.minutos_sesion_gym) || undefined,
+        horasSueno: recomendacionesOriginales.horasSueno,
+        minutosCaminata: recomendacionesOriginales.minutosCaminata
+      };
     }
-    if (minutosCaminataEditado === null) {
-      const diasCardio = Math.ceil(nuevasSugerencias.minutosCaminata / (nuevasSugerencias.minutosCaminata > 45 ? 60 : nuevasSugerencias.minutosCaminata > 30 ? 45 : 30));
-      if (user.diasCardio !== diasCardio) {
-        cambios.diasCardio = diasCardio;
-      }
-    }
-    
-    if (Object.keys(cambios).length > 0) {
-      setUser({ ...user, ...cambios });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.objetivo, user?.intensidad, diasGymEditado, minutosCaminataEditado]);
+  }, [user, plan]);
+
+  // NO actualizar automáticamente las recomendaciones cuando solo cambia el select
+  // Solo se actualizan cuando el usuario regenera el plan explícitamente
 
   if (!plan) return null;
 
-  function keyFor(dia: string, mealIndex: number) {
-    return `${dia}-${mealIndex}`;
-  }
 
-  function toggleExpanded(k: string) {
-    setExpandedKeys((s) => ({ ...s, [k]: !s[k] }));
-    // Cargar detalles on-open si no existen
-    setDetails((prev) => {
-      if (prev[k]) return prev;
-      const next = { ...prev } as Record<string, { ingredientes?: string[]; pasos_preparacion?: string[]; loading?: boolean; error?: string }>;
-      next[k] = { loading: true };
-      return next;
-    });
-  }
-
-  // refresh removido (no se usa)
-
-function pickThree(options: string[], seed: number = 0, exclude: string[] = []) {
-  // normaliza y elimina duplicados
-  const seen = new Set<string>();
-  const unique = options.filter((o) => {
-    const k = o.trim().toLowerCase();
-    if (seen.has(k)) return false;
-    seen.add(k);
-    return true;
-  });
-  const excludeSet = new Set(exclude.map((o) => o.trim().toLowerCase()));
-  const pool = unique.filter((o) => !excludeSet.has(o.trim().toLowerCase()));
-  if (pool.length <= 3) return pool;
-  const a = [...pool];
-  let x = 1103515245 * (seed + 1) + 12345;
-  for (let i = a.length - 1; i > 0; i--) {
-    x = (1103515245 * x + 12345) & 0x7fffffff;
-    const j = x % (i + 1);
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a.slice(0, 3);
-}
-
-function buildPrimaryAndVariants(options: string[], seed: number) {
-  const primary = pickThree(options, seed);
-  let variants = pickThree(options, seed + 1, primary);
-  const primSet = new Set(primary.map((o) => o.trim().toLowerCase()));
-  variants = variants.filter((v) => !primSet.has(v.trim().toLowerCase()));
-  if (variants.length < 3) {
-    const pool = options.filter((o) => !primSet.has(o.trim().toLowerCase()));
-    for (const o of pool) {
-      if (!variants.find((v) => v.trim().toLowerCase() === o.trim().toLowerCase())) {
-        variants.push(o);
-        if (variants.length === 3) break;
-      }
-    }
-  }
-  return { primary, variants };
-}
 
   const bmi = user ? calculateBMI(user.pesoKg, user.alturaCm) : 0;
   const bmiCat = bmiCategory(bmi);
@@ -463,7 +541,7 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
   const deficitSuperavit = user && plan ? plan.calorias_diarias - tdee : 0;
   
   // Calcular sugerencias de entrenamiento inteligentes
-  const sugerenciaEntrenamiento = user ? sugerirEntrenamiento(
+  const sugerenciaEntrenamiento: { diasGym: number; minutosCaminata: number; horasSueno: number; descripcion: string } | null = user ? sugerirEntrenamiento(
     user.objetivo,
     user.intensidad,
     user.edad,
@@ -471,10 +549,35 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
     user.atletico
   ) : null;
   
-  // Usar valores editados si existen, sino los sugeridos
-  const diasGymActual = diasGymEditado !== null ? diasGymEditado : (sugerenciaEntrenamiento?.diasGym || 3);
-  const minutosCaminataActual = minutosCaminataEditado !== null ? minutosCaminataEditado : (sugerenciaEntrenamiento?.minutosCaminata || 30);
-  const horasSuenoActual = horasSuenoEditado !== null ? horasSuenoEditado : (sugerenciaEntrenamiento?.horasSueno || 7);
+  // Priorizar valores originales del plan guardado, luego valores editados, luego valores del user actual, luego sugerencias, luego defaults
+  const diasGymOriginal = valoresOriginalesPlan.current?.diasGym;
+  const diasGymActual = diasGymEditado !== null 
+    ? diasGymEditado 
+    : (diasGymOriginal !== undefined && diasGymOriginal !== null
+      ? diasGymOriginal
+      : (user?.diasGym !== undefined && user.diasGym !== null 
+        ? user.diasGym 
+        : (sugerenciaEntrenamiento?.diasGym || 3)));
+  
+  // Para minutos de caminata, usar valores originales del plan primero
+  const minutosCaminataOriginal = valoresOriginalesPlan.current?.minutosCaminata;
+  const diasCardioOriginal = valoresOriginalesPlan.current?.diasCardio;
+  const minutosCaminataActual = minutosCaminataEditado !== null
+    ? minutosCaminataEditado
+    : (minutosCaminataOriginal !== undefined && minutosCaminataOriginal !== null
+      ? minutosCaminataOriginal
+      : (diasCardioOriginal !== undefined && diasCardioOriginal !== null
+        ? (diasCardioOriginal <= 2 ? 30 : diasCardioOriginal <= 4 ? 45 : 60)
+        : (user?.diasCardio !== undefined && user.diasCardio !== null
+          ? (user.diasCardio <= 2 ? 30 : user.diasCardio <= 4 ? 45 : 60)
+          : (sugerenciaEntrenamiento?.minutosCaminata || 30))));
+  
+  // Para horas de sueño, usar valores originales del plan primero
+  const horasSuenoActual = horasSuenoEditado !== null 
+    ? horasSuenoEditado 
+    : (valoresOriginalesPlan.current?.horasSueno !== undefined && valoresOriginalesPlan.current?.horasSueno !== null
+      ? valoresOriginalesPlan.current.horasSueno
+      : (sugerenciaEntrenamiento?.horasSueno || 7));
   
   // Calcular proyecciones motivacionales con valores actuales
   const proyecciones = user ? calcularProyeccionesMotivacionales(
@@ -504,8 +607,8 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
     minutosCaminataActual,
     sugerenciaEntrenamiento.horasSueno,
     horasSuenoActual,
-    Number((plan as any)?.minutos_sesion_gym) || 75,
-    minutosGymEditado !== null ? minutosGymEditado : (Number((plan as any)?.minutos_sesion_gym) || 75)
+    Number((plan as unknown as Record<string, unknown>)?.minutos_sesion_gym) || 75,
+    minutosGymEditado !== null ? minutosGymEditado : (Number((plan as unknown as Record<string, unknown>)?.minutos_sesion_gym) || 75)
   ) : null;
   const bmiText =
     bmiCat === "bajo_peso"
@@ -878,6 +981,35 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                 >
                   {guardandoPDF ? '⏳ Guardando...' : '💾 Guardar PDF'}
                 </button>
+                {!isPremium && (
+                  <button
+                    className="rounded-xl px-4 py-2 text-sm font-medium bg-blue-500/20 border border-blue-500/30 hover:bg-blue-500/30 transition-colors"
+                    onClick={async () => {
+                      try {
+                        const resp = await fetch('/api/createPayment', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ userId: (getAuthSafe()?.currentUser?.uid) || undefined, userEmail: getAuthSafe()?.currentUser?.email })
+                        });
+                        if (!resp.ok) {
+                          const data = await resp.json().catch(() => null);
+                          throw new Error(data?.error || 'Error al iniciar pago');
+                        }
+                        const data = await resp.json();
+                        if (data.init_point) {
+                          window.location.href = data.init_point;
+                        } else {
+                          alert('No se recibió el enlace de pago.');
+                        }
+                      } catch (e) {
+                        console.error('Error al iniciar Premium:', e);
+                        alert('No se pudo iniciar el proceso de Premium.');
+                      }
+                    }}
+                  >
+                    🌟 Ser premium
+                  </button>
+                )}
               </div>
             </div>
             {user?.nombre ? (
@@ -1082,7 +1214,7 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                 <div className="flex items-center justify-between text-[10px] uppercase tracking-wide opacity-70">
                   <span>Bajo peso</span>
                   <span>Obesidad</span>
-                </div>
+            </div>
                 <div className="relative mt-2 h-2 w-full rounded-full"
                   style={{
                     background: bmiGradient,
@@ -1110,9 +1242,9 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                       <span className="absolute h-2 w-px bg-white/50" style={{ left: `${p18}%` }} />
                       <span className="absolute h-2 w-px bg-white/50" style={{ left: `${p25}%` }} />
                       <span className="absolute h-2 w-px bg-white/50" style={{ left: `${p30}%` }} />
-                    </div>
-                  </div>
-                </div>
+              </div>
+            </div>
+          </div>
                 {bmi ? (
                   <div className="mt-2 flex items-center justify-between text-xs">
                     <span className="opacity-75">Tu estado actual:</span>
@@ -1226,7 +1358,7 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
             {/* Información personal */}
             <div className="rounded-xl border border-white/10 bg-black/30 p-4 md:w-1/4">
               <p className="text-sm font-medium opacity-70 mb-3">Información personal</p>
-              <div className="space-y-3">
+                  <div className="space-y-3">
                 {user?.preferencias && user.preferencias.filter((s: string) => typeof s === 'string' && s.trim().length > 0).length > 0 && (
                   <div>
                     <p className="text-xs font-medium opacity-70 mb-1">Preferencias:</p>
@@ -1236,8 +1368,8 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                           {pref}
                         </span>
                       ))}
-                    </div>
-                  </div>
+                        </div>
+                      </div>
                 )}
                 {user?.restricciones && user.restricciones.filter((s: string) => typeof s === 'string' && s.trim().length > 0).length > 0 && (
                   <div>
@@ -1247,8 +1379,8 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                         <span key={`restr-${idx}-${restr}`} className="inline-flex items-center rounded-full px-2 py-0.5 text-xs bg-orange-500/20 text-orange-300 border border-orange-500/30">
                           {restr}
                         </span>
-                      ))}
-                    </div>
+                    ))}
+                  </div>
                   </div>
                 )}
                 {user?.patologias && user.patologias.filter((s: string) => typeof s === 'string' && s.trim().length > 0).length > 0 && (
@@ -1302,11 +1434,10 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
             </div>
           </div>
 
-          <p className="mt-4 text-sm opacity-80">{plan.mensaje_motivacional}</p>
+          <p className="mt-4 text-sm opacity-80">{String((plan as unknown as Record<string, unknown>)?.mensaje_motivacional || '')}</p>
 
-          {/* Sugerencias de entrenamiento */}
-          {sugerenciaEntrenamiento && (
-            <div className="mt-6 rounded-xl border border-white/10 p-4 bg-gradient-to-r from-white/5 to-white/10">
+          {sugerenciaEntrenamiento ? (
+            <div key="sugerencias-entrenamiento" className="mt-6 rounded-xl border border-white/10 p-4 bg-gradient-to-r from-white/5 to-white/10">
               <h2 className="text-lg font-semibold mb-3">💪 Recomendaciones de entrenamiento y recuperación</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
@@ -1315,7 +1446,7 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                       Días de gym:
                       <span className="ml-2 text-xs opacity-70">
                         (≈ {(() => {
-                          const min = minutosGymEditado !== null ? minutosGymEditado : (Number((plan as any)?.minutos_sesion_gym) || 75);
+                          const min = minutosGymEditado !== null ? minutosGymEditado : (Number((plan as unknown as Record<string, unknown>)?.minutos_sesion_gym) || 75);
                           const total = Math.max(0, Math.round(min));
                           const h = Math.floor(total / 60);
                           const m = total % 60;
@@ -1347,7 +1478,7 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                       min="30"
                       max="240"
                       step="5"
-                      value={minutosGymEditado !== null ? minutosGymEditado : (Number((plan as any)?.minutos_sesion_gym) || 75)}
+                      value={minutosGymEditado !== null ? minutosGymEditado : (Number((plan as unknown as Record<string, unknown>)?.minutos_sesion_gym) || 75)}
                       onChange={(e) => setMinutosGymEditado(Number(e.target.value))}
                       className="text-lg font-semibold bg-transparent border-b-2 border-white/20 focus:border-white/50 outline-none w-24"
                     />
@@ -1380,7 +1511,7 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                   <div className="flex items-center justify-between mb-1">
                     <p className="text-sm font-medium opacity-90 flex items-center gap-2">
                       Horas de sueño:
-                      <button
+            <button
                         type="button"
                         onClick={() => setModalInfoAbierto('sueno')}
                         className="inline-flex items-center cursor-pointer hover:opacity-100 transition-opacity"
@@ -1394,7 +1525,7 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                         >
                           <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm1.971-6.279-.675.693A3.375 3.375 0 0 0 12.75 14.25h-1.5a4.875 4.875 0 0 1 1.425-3.45l.93-.936a1.875 1.875 0 1 0-3.195-1.326h-1.5a3.375 3.375 0 1 1 6.03 1.283Z" />
                         </svg>
-                      </button>
+            </button>
                     </p>
                     {sugerenciaEntrenamiento.horasSueno !== horasSuenoActual && (
                       <span className="text-xs opacity-70">(sugerido: {sugerenciaEntrenamiento.horasSueno})</span>
@@ -1454,6 +1585,66 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                 </div>
               )}
             </div>
+          ) : null}
+
+          {/* Selector de vista (Entrenamiento/Alimentación) - Centrado */}
+          <div className="mt-6 flex items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => setVistaPlan('entrenamiento')}
+              className={`px-4 py-2.5 text-sm font-medium rounded-lg border transition-colors ${vistaPlan === 'entrenamiento' ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300' : 'bg-white/5 border-white/10 text-white/80 hover:bg-white/10'}`}
+            >
+              🏋️ Ver entrenamiento
+            </button>
+            <button
+              type="button"
+              onClick={() => setVistaPlan('alimentacion')}
+              className={`px-4 py-2.5 text-sm font-medium rounded-lg border transition-colors ${vistaPlan === 'alimentacion' ? 'bg-cyan-500/20 border-cyan-500/30 text-cyan-300' : 'bg-white/5 border-white/10 text-white/80 hover:bg-white/10'}`}
+            >
+              🍽️ Ver alimentación
+            </button>
+          </div>
+
+          {/* Botón para abrir modal de entrenamiento */}
+          {vistaPlan === 'entrenamiento' && isPremium && (plan as unknown as Record<string, unknown>)?.training_plan && (
+            <div className="mt-6 flex justify-center">
+              <button
+                onClick={() => setModalEntrenamientoAbierto(true)}
+                className="px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 hover:from-cyan-500/30 hover:to-blue-500/30 transition-all text-white font-medium"
+              >
+                🏋️ Ver Plan de Entrenamiento
+              </button>
+            </div>
+          )}
+
+          {/* Vista: Alimentación (resumen semanal) */}
+          {vistaPlan === 'alimentacion' && plan?.plan_semanal && (
+            <div className="mt-6 rounded-xl border border-white/10 p-4 bg-black/30">
+              <h2 className="text-lg font-semibold mb-3">🍽️ Plan de Alimentación (vista rápida)</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {plan.plan_semanal.map((dia, idx) => (
+                  <div
+                    key={`food-day-${idx}-${dia.dia}`}
+                    className="relative rounded-lg border border-white/10 bg-white/5 p-3 group cursor-pointer"
+                    onClick={() => setModalAlimentosAbierto({ diaIdx: idx })}
+                  >
+                    <p className="text-sm font-semibold mb-2">{dia.dia}</p>
+                    <div className="space-y-1.5 text-sm">
+                      {dia.comidas.map((c, ci) => (
+                        <div key={`food-${idx}-${ci}`} className="flex items-start justify-between gap-2">
+                          <span className="opacity-80 min-w-[84px]">{c.nombre}</span>
+                          <span className="flex-1 text-right opacity-90">{Array.isArray(c.opciones) && c.opciones.length > 0 && c.opciones[0] ? c.opciones[0] : 'Cargando opciones...'}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="pointer-events-none absolute inset-0 rounded-lg border border-transparent group-hover:border-cyan-400/40 transition-colors" />
+                    <div className="pointer-events-none absolute bottom-2 right-2 text-[11px] px-2 py-1 rounded-md bg-cyan-500/20 text-cyan-200 border border-cyan-500/30 opacity-0 group-hover:opacity-100 transition-opacity">
+                      Ver variantes
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
 
           {/* Proyecciones motivacionales */}
@@ -1497,128 +1688,7 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
             </div>
           )}
 
-          <div className="mt-8">
-            <h2 className="text-xl font-semibold mb-3">Plan semanal</h2>
-            <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-3">
-              {/* Columna izquierda: días */}
-              <div className="rounded-xl border border-white/10 p-2 md:col-span-1 self-start">
-                <ul className="space-y-1">
-              {plan.plan_semanal.map((d, idx) => (
-                    <li key={`dia-${idx}-${d.dia || 'sin-dia'}`}>
-                      <button
-                        className={`w-full rounded-lg px-3 text-left text-sm flex items-center ${selectedDay === d.dia ? "bg-white/10" : "hover:bg-white/5"}`}
-                        style={{ height: '2.5rem' }}
-                        onClick={() => setSelectedDay(d.dia)}
-                      >
-                        {d.dia}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              {/* Columna derecha: detalle del día seleccionado */}
-              <div className="rounded-xl border border-white/10 p-4 md:col-span-2">
-                {(() => {
-                  const day = plan.plan_semanal.find((x) => x.dia === selectedDay) ?? plan.plan_semanal[0];
-                  if (!day) return null;
-                  
-                  // Las comidas ya vienen ordenadas desde el API, pero asegurar el orden por si acaso
-                  const ordenComidas = ['Desayuno', 'Almuerzo', 'Snack', 'Merienda', 'Cena'];
-                  const comidasOrdenadas = [...day.comidas].sort((a, b) => {
-                    const nombreA = (a.nombre || '').trim();
-                    const nombreB = (b.nombre || '').trim();
-                    const indexA = ordenComidas.findIndex(o => nombreA === o);
-                    const indexB = ordenComidas.findIndex(o => nombreB === o);
-                    // Si no se encuentra, ordenar por hora
-                    if (indexA === -1 && indexB === -1) {
-                      return (a.hora || '00:00').localeCompare(b.hora || '00:00');
-                    }
-                    if (indexA === -1) return 999;
-                    if (indexB === -1) return -999;
-                    return indexA - indexB;
-                  });
-                  
-                  return (
-                    <div>
-                      <h3 className="text-lg font-medium mb-3">{day.dia}</h3>
-                  <div className="space-y-3">
-                        {comidasOrdenadas.map((c, idx) => {
-                          const originalIdx = day.comidas.indexOf(c);
-                          const k = keyFor(day.dia, originalIdx !== -1 ? originalIdx : idx);
-                          const { primary, variants: alt } = buildPrimaryAndVariants(c.opciones, 0);
-                          const isOpen = !!expandedKeys[k];
-                          const d = details[k];
-                          return (
-                            <div key={`meal-${k}`} className="rounded-lg bg-white/5 p-3 transition-colors hover:bg-white/10">
-                              <button
-                                className="w-full cursor-pointer rounded-md text-left"
-                                onClick={() => toggleExpanded(k)}
-                                aria-expanded={isOpen}
-                                aria-controls={`meal-${day.dia}-${idx}`}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <span className="font-medium text-base">{c.nombre}</span>
-                                  <span className="opacity-80 text-sm">{c.hora}</span>
-                        </div>
-                                <p className="mt-2 text-sm opacity-90">{primary[0] || c.opciones[0] || ""}</p>
-                                {c.calorias_kcal || c.cantidad_gramos ? (
-                                  <p className="mt-1 text-xs opacity-70">
-                                    {c.calorias_kcal ? `${c.calorias_kcal} kcal` : null}
-                                    {c.calorias_kcal && c.cantidad_gramos ? " · " : null}
-                                    {c.cantidad_gramos ? `${c.cantidad_gramos} g` : null}
-                                  </p>
-                                ) : null}
-                              </button>
-                              {isOpen ? (
-                                <div id={`meal-${day.dia}-${idx}`} className="mt-3 border-t border-white/10 pt-3">
-                                  {(!c.ingredientes || !c.pasos_preparacion) && (!d || (!d.ingredientes && !d.pasos_preparacion)) ? (
-                                    <FetchDetails k={k} dish={primary[0] ?? c.opciones[0] ?? c.nombre} onLoaded={(payload) => setDetails((s) => ({ ...s, [k]: { ...payload, loading: false } }))} onError={(msg) => setDetails((s) => ({ ...s, [k]: { ...s[k], loading: false, error: msg } }))} />
-                                  ) : null}
-                                  {(primary.length > 1 || alt.length > 0) && (
-                                    <div className="mt-3">
-                                      <p className="text-sm font-medium opacity-90 mb-2">Otras opciones:</p>
-                                      <div className="space-y-1">
-                                        {primary.slice(1).map((o, i) => (
-                                          <p key={`prim-${i}-${o}`} className="text-sm opacity-80">• {o}</p>
-                                        ))}
-                                        {alt.map((o, i) => (
-                                          <p key={`alt-${i}-${o}`} className="text-sm opacity-80">• {o}</p>
-                                        ))}
-                      </div>
-                                    </div>
-                                  )}
-                                  {(c.ingredientes?.length || d?.ingredientes?.length) ? (
-                                    <div className="mt-3">
-                                      <p className="text-sm font-medium">Ingredientes</p>
-                                      <ul className="mt-1 list-disc pl-5 text-sm opacity-90">
-                                        {(c.ingredientes ?? d?.ingredientes ?? []).map((ing, i) => (
-                                          <li key={`ing-${i}-${ing}`}>{ing}</li>
-                                        ))}
-                                      </ul>
-                  </div>
-                                  ) : null}
-                                  {(c.pasos_preparacion?.length || d?.pasos_preparacion?.length) ? (
-                                    <div className="mt-3">
-                                      <p className="text-sm font-medium">Pasos de preparación</p>
-                                      <ol className="mt-1 list-decimal pl-5 text-sm opacity-90">
-                                        {(c.pasos_preparacion ?? d?.pasos_preparacion ?? []).map((p, i) => (
-                                          <li key={`step-${i}-${p}`}>{p}</li>
-                                        ))}
-                                      </ol>
-                                    </div>
-                                  ) : null}
-                                </div>
-                              ) : null}
-                        </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })()}
-                  </div>
-            </div>
-          </div>
+          
 
           {plan.lista_compras?.length ? (
             <div className="mt-8">
@@ -1651,6 +1721,102 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
       </div>
       
       {/* Modal de Edición */}
+      {/* Modal de Variantes de Alimentación */}
+      <AnimatePresence>
+        {modalAlimentosAbierto && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setModalAlimentosAbierto(null);
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="glass rounded-2xl p-6 md:p-8 max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xl font-semibold">Variantes y preparación</h3>
+                <button onClick={() => setModalAlimentosAbierto(null)} className="text-white/70 hover:text-white">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+              </div>
+              {(() => {
+                const idx = modalAlimentosAbierto.diaIdx;
+                const dia = plan?.plan_semanal?.[idx];
+                if (!dia) return null;
+                return (
+                  <div className="space-y-4">
+                    {dia.comidas.map((c, ci) => {
+                      const key = `modal-${idx}-${ci}`;
+                      const opciones = (Array.isArray(c.opciones) && c.opciones.length > 0) ? c.opciones.filter((o: string) => o && typeof o === 'string' && o.trim().length > 0 && !o.toLowerCase().includes('opción disponible') && !o.toLowerCase().includes('opcion disponible')) : [];
+                      const selected = opciones[0] || c.nombre;
+                      const detailKey = `${key}-${selected}`;
+                      const det = foodDetails[detailKey] || {};
+                      return (
+                        <div key={`modal-comida-${idx}-${ci}`} className="rounded-lg border border-white/10 bg-white/5 p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-sm font-medium">{c.nombre}</p>
+                            <span className="text-xs opacity-70">{c.hora || ''}</span>
+                          </div>
+                          <div className="text-sm opacity-90">
+                            <p className="font-medium">Opción principal:</p>
+                            <p className="opacity-90 mb-2">{selected}</p>
+                            {opciones.length > 1 && (
+                              <>
+                                <p className="font-medium">Variantes:</p>
+                                <ul className="list-disc pl-5 space-y-1">
+                                  {opciones.slice(1).map((o, oi) => (
+                                    <li key={`opt-${oi}-${o}`}>{o}</li>
+                                  ))}
+                                </ul>
+                              </>
+                            )}
+                          </div>
+                          {/* Carga de detalles de la opción seleccionada si no están */}
+                          {!det.ingredientes && !det.pasos_preparacion && (
+                            <FetchDetails
+                              k={detailKey}
+                              dish={selected}
+                              onLoaded={(p) => setFoodDetails((s) => ({ ...s, [detailKey]: { ...p, loading: false } }))}
+                              onError={(msg) => setFoodDetails((s) => ({ ...s, [detailKey]: { ...s[detailKey], loading: false, error: msg } }))}
+                            />
+                          )}
+                          {det?.ingredientes && det.ingredientes.length > 0 && (
+                            <div className="mt-2">
+                              <p className="text-sm font-medium">Ingredientes (cantidades exactas):</p>
+                              <ul className="mt-1 list-disc pl-5 text-sm opacity-90">
+                                {det.ingredientes.map((ing, ii) => (
+                                  <li key={`ing-${ii}-${ing}`}>{ing}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {det?.pasos_preparacion && det.pasos_preparacion.length > 0 && (
+                            <div className="mt-2">
+                              <p className="text-sm font-medium">Preparación detallada:</p>
+                              <ol className="mt-1 list-decimal pl-5 text-sm opacity-90">
+                                {det.pasos_preparacion.map((p, pi) => (
+                                  <li key={`step-${pi}-${p}`}>{p}</li>
+                                ))}
+                              </ol>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <AnimatePresence>
         {modalAbierto && datosEdicion && (
           <motion.div
@@ -1805,8 +1971,8 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                   <input
                     type="checkbox"
                     className="mt-1 h-4 w-4"
-                    checked={!!(datosEdicion as any).preferirRutina}
-                    onChange={(e) => setDatosEdicion({ ...datosEdicion, preferirRutina: e.target.checked } as any)}
+                    checked={!!((datosEdicion as unknown as Record<string, unknown>).preferirRutina)}
+                    onChange={(e) => setDatosEdicion({ ...datosEdicion, preferirRutina: e.target.checked } as unknown as UserInput)}
                   />
                   <span className="text-sm opacity-80">
                     Mantener comidas rutinarias (poca variación entre días)
@@ -1875,6 +2041,19 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                       }
                       
                       const nuevoPlan = await resp.json();
+                      
+                      // Mostrar objeto de debug en consola del navegador
+                      if (nuevoPlan._debug_training_plan) {
+                        console.log("=".repeat(80));
+                        console.log("📊 DEBUG: DATOS USADOS PARA GENERAR TRAINING_PLAN (EDITADO)");
+                        console.log("=".repeat(80));
+                        console.log(nuevoPlan._debug_training_plan);
+                        console.log("=".repeat(80));
+                        // También exponerlo globalmente para fácil acceso
+                        (window as unknown as { __TRAINING_PLAN_DEBUG__?: unknown }).__TRAINING_PLAN_DEBUG__ = nuevoPlan._debug_training_plan;
+                        console.log("💡 También disponible en: window.__TRAINING_PLAN_DEBUG__");
+                      }
+                      
                       setUser(userActualizado);
                       setPlan(nuevoPlan);
                       
@@ -2023,7 +2202,7 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                 <div className="mb-4">
                   <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-500/20 mb-4">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                  </div>
+      </div>
                   <h3 className="text-xl font-semibold mb-2">Regenerando plan</h3>
                   <p className="text-sm opacity-70">
                     Estamos generando tu nuevo plan personalizado con IA...
@@ -2080,6 +2259,7 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                   {modalInfoAbierto === 'macros' && '¿Qué son los macronutrientes?'}
                   {modalInfoAbierto === 'sueno' && '¿Cómo contar las horas de sueño?'}
                   {modalInfoAbierto === 'dificultad' && '¿Qué implica la dificultad del plan?'}
+                  {modalInfoAbierto === 'split' && '¿Qué es la división de entrenamiento?'}
                 </h3>
                 <div className="text-sm opacity-90 leading-relaxed space-y-2">
                   {modalInfoAbierto === 'imc' && (
@@ -2096,7 +2276,7 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                   )}
                   {modalInfoAbierto === 'dificultad' && (
                     (() => {
-                      const cambios = (plan as any)?.cambios_semanales;
+                      const cambios = (plan as unknown as Record<string, unknown>)?.cambios_semanales as Record<string, unknown> | undefined;
                       const fallback = {
                         semana1: 'Adaptación: posible fatiga suave y cambios en el apetito. Enfocá en técnica y rutina.',
                         semana2: 'Mejora de energía y rendimiento. Hambre más estable. El buen descanso acelera la adaptación.',
@@ -2112,15 +2292,15 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                       return (
                         <>
                           <p>
-                            Tu plan está marcado como <strong className="capitalize">{(plan as any)?.dificultad || 'media'}</strong>
-                            {(plan as any)?.dificultad_detalle ? ` — ${(plan as any).dificultad_detalle}` : ''}.
+                            Tu plan está marcado como <strong className="capitalize">{String((plan as unknown as Record<string, unknown>)?.dificultad || 'media')}</strong>
+                            {(plan as unknown as Record<string, unknown>)?.dificultad_detalle ? ` — ${String((plan as unknown as Record<string, unknown>).dificultad_detalle)}` : ''}.
                           </p>
                           <p className="mt-2 font-medium">¿Qué vas a sentir:</p>
                           <ul className="list-disc pl-5 space-y-1">
-                            <li><strong>Semana 1:</strong> {cambios?.semana1 || fallback.semana1}</li>
-                            <li><strong>Semana 2:</strong> {cambios?.semana2 || fallback.semana2}</li>
-                            <li><strong>Semana 3-4:</strong> {cambios?.semana3_4 || fallback.semana3_4}</li>
-                            <li><strong>Después del mes:</strong> {cambios?.post_mes || fallback.post_mes}</li>
+                            <li><strong>Semana 1:</strong> {String(cambios?.semana1 || fallback.semana1)}</li>
+                            <li><strong>Semana 2:</strong> {String(cambios?.semana2 || fallback.semana2)}</li>
+                            <li><strong>Semana 3-4:</strong> {String(cambios?.semana3_4 || fallback.semana3_4)}</li>
+                            <li><strong>Después del mes:</strong> {String(cambios?.post_mes || fallback.post_mes)}</li>
                           </ul>
                           <p className="mt-2 font-medium">¿Qué cambios pasan en tu cuerpo:</p>
                           <ul className="list-disc pl-5 space-y-1">
@@ -2132,8 +2312,126 @@ function buildPrimaryAndVariants(options: string[], seed: number) {
                       );
                     })()
                   )}
+                  {modalInfoAbierto === 'split' && (
+                    <>
+                      <p>La división de entrenamiento describe cómo se reparten los grupos musculares a lo largo de la semana:</p>
+                      <ul className="list-disc pl-5 space-y-1">
+                        <li><strong>Full Body</strong>: todo el cuerpo en cada sesión. Ideal para 2–3 días/sem.</li>
+                        <li><strong>Upper/Lower</strong>: tren superior y tren inferior alternados. 4 días/sem típicos.</li>
+                        <li><strong>Push/Pull/Legs</strong>: empuje, tirón y piernas. 3–6 días/sem según volumen.</li>
+                        <li><strong>Mixto</strong>: combinación adaptada a tu objetivo, intensidad y disponibilidad.</li>
+                      </ul>
+                      <p className="opacity-90">Tu plan actual: <strong>{splitResumen}</strong>. Esto se ajusta a tus <em>días de gym</em>, intensidad y objetivo para optimizar progreso y recuperación.</p>
+                    </>
+                  )}
           </div>
         </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Modal de Plan de Entrenamiento */}
+        <AnimatePresence>
+          {modalEntrenamientoAbierto && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+              onClick={() => setModalEntrenamientoAbierto(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl border border-white/10 p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+              >
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-2xl font-bold">🏋️ Plan de Entrenamiento</h2>
+                    {splitResumen && (
+                      <span className="text-sm px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-medium">
+                        {splitResumen}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setModalEntrenamientoAbierto(false)}
+                    className="text-white/70 hover:text-white transition-colors"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Botones de semanas */}
+                <div className="flex gap-2 mb-6 flex-wrap">
+                  {[1, 2, 3, 4].map((semana) => (
+                    <button
+                      key={semana}
+                      onClick={() => setSemanaSeleccionada(semana)}
+                      className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                        semanaSeleccionada === semana
+                          ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white'
+                          : 'bg-white/10 text-white/70 hover:bg-white/20'
+                      }`}
+                    >
+                      Semana {semana}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Contenido de la semana seleccionada */}
+                {(() => {
+                  const tp = (plan as unknown as Record<string, unknown>)?.training_plan as TrainingPlan | undefined;
+                  const weeks = tp?.weeks || [];
+                  const semanaActual = weeks.find((w) => (w.week ?? 1) === semanaSeleccionada) || weeks[semanaSeleccionada - 1];
+                  
+                  if (!semanaActual) {
+                    return (
+                      <div className="text-center py-8 text-white/70">
+                        <p>No hay datos de entrenamiento para la Semana {semanaSeleccionada}</p>
+    </div>
+  );
+                  }
+
+                  return (
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold text-cyan-400 mb-4">
+                        Semana {semanaActual.week ?? semanaSeleccionada}
+                      </h3>
+                      {(semanaActual.days || []).map((dia: TrainingDay, di: number) => (
+                        <div key={`dia-${semanaSeleccionada}-${di}`} className="rounded-lg border border-white/10 bg-white/5 p-4">
+                          <h4 className="text-base font-semibold mb-3 text-white">{dia.day}</h4>
+                          {(dia.ejercicios || []).length > 0 ? (
+                            <ul className="space-y-2">
+                              {(dia.ejercicios || []).map((ejercicio: TrainingExercise, ei: number) => (
+                                <li key={`ej-${semanaSeleccionada}-${di}-${ei}`} className="flex items-center justify-between py-2 px-3 rounded-md bg-white/5 border border-white/10">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="font-medium">{ejercicio.name}</span>
+                                      <span className="text-sm opacity-70">· {ejercicio.sets}x{String(ejercicio.reps)}</span>
+                                      {ejercicio.muscle_group && (
+                                        <span className="text-xs px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                                          {ejercicio.muscle_group}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-sm text-white/50">No hay ejercicios registrados para este día</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </motion.div>
             </motion.div>
           )}
         </AnimatePresence>

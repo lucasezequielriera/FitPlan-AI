@@ -71,9 +71,37 @@ export interface PlanAIResponse {
     post_mes?: string;
     fisiologia?: string[];
   };
+  // Plan de entrenamiento generado por IA
+  training_plan?: TrainingPlan;
   // Extras (opcionales) generados por IA
   lista_compras?: string[];
   progresion_semanal?: { semana: number; ajuste_calorias_pct: number; motivo?: string }[];
   distribucion_diaria_pct?: { desayuno: number; almuerzo: number; cena: number; snacks: number };
+}
+
+export interface TrainingExercise {
+  name: string;
+  sets: number;
+  reps: string | number;
+  muscle_group: string; // Músculo o grupo muscular principal trabajado (OBLIGATORIO)
+  url?: string; // URL del video o tutorial (opcional, puede no estar)
+}
+
+export interface TrainingDayPlan {
+  day: string; // "Lunes" ...
+  ejercicios: TrainingExercise[]; // Lista simple de ejercicios (5-8 ejercicios)
+}
+
+export interface TrainingWeekPlan {
+  week: number; // 1..4
+  days: TrainingDayPlan[];
+}
+
+export interface TrainingPlan {
+  weeks: TrainingWeekPlan[];
+  progression_rules?: string[];
+  equipment_variants?: string[];
+  safety_notes?: string[];
+  sync_with_nutrition?: string[];
 }
 
