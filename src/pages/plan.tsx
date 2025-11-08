@@ -541,7 +541,7 @@ export default function PlanPage() {
   const deficitSuperavit = user && plan ? plan.calorias_diarias - tdee : 0;
   
   // Calcular sugerencias de entrenamiento inteligentes
-  const sugerenciaEntrenamiento: { diasGym: number; minutosCaminata: number; horasSueno: number; descripcion: string } | null = user ? sugerirEntrenamiento(
+  const sugerenciaEntrenamiento = user ? sugerirEntrenamiento(
     user.objetivo,
     user.intensidad,
     user.edad,
