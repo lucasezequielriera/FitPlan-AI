@@ -548,7 +548,7 @@ export default function PlanPage() {
     bmi,
     user.atletico
   ) : null;
-  
+
   // Priorizar valores originales del plan guardado, luego valores editados, luego valores del user actual, luego sugerencias, luego defaults
   const diasGymOriginal = valoresOriginalesPlan.current?.diasGym;
   const diasGymActual = diasGymEditado !== null 
@@ -667,6 +667,158 @@ export default function PlanPage() {
   } else {
     activeRangeStart = p30; activeRangeEnd = 100;
   }
+
+  // Renderizar recomendaciones de entrenamiento como ReactNode
+  const recomendacionesEntrenamientoJSX = (sugerenciaEntrenamiento ? (
+    <div key="sugerencias-entrenamiento" className="mt-6 rounded-xl border border-white/10 p-4 bg-gradient-to-r from-white/5 to-white/10">
+      <h2 className="text-lg font-semibold mb-3">💪 Recomendaciones de entrenamiento y recuperación</h2>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-sm font-medium opacity-90">
+              Días de gym:
+              <span className="ml-2 text-xs opacity-70">
+                (≈ {(() => {
+                  const min = minutosGymEditado !== null ? minutosGymEditado : (Number((plan as unknown as Record<string, unknown>)?.minutos_sesion_gym) || 75);
+                  const total = Math.max(0, Math.round(min));
+                  const h = Math.floor(total / 60);
+                  const m = total % 60;
+                  const hStr = h > 0 ? `${h} h` : "0 h";
+                  const mStr = m > 0 ? ` ${m} min` : "";
+                  return `${hStr}${mStr} por día`;
+                })()})
+              </span>
+            </p>
+            {sugerenciaEntrenamiento.diasGym !== diasGymActual && (
+              <span className="text-xs opacity-70">(sugerido: {sugerenciaEntrenamiento.diasGym})</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min="0"
+              max="7"
+              value={diasGymActual}
+              onChange={(e) => setDiasGymEditado(Number(e.target.value))}
+              className="text-2xl font-bold bg-transparent border-b-2 border-white/20 focus:border-white/50 outline-none w-16"
+            />
+            <span className="text-2xl font-bold">días por semana</span>
+          </div>
+          <div className="flex items-center gap-2 mt-2">
+            <span className="text-sm opacity-80 min-w-[130px]">Duración por sesión:</span>
+            <input
+              type="number"
+              min="30"
+              max="240"
+              step="5"
+              value={minutosGymEditado !== null ? minutosGymEditado : (Number((plan as unknown as Record<string, unknown>)?.minutos_sesion_gym) || 75)}
+              onChange={(e) => setMinutosGymEditado(Number(e.target.value))}
+              className="text-lg font-semibold bg-transparent border-b-2 border-white/20 focus:border-white/50 outline-none w-24"
+            />
+            <span className="text-sm font-medium">min</span>
+          </div>
+          <p className="text-xs opacity-75 mt-1">Entrenamiento de fuerza con pesas</p>
+        </div>
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-sm font-medium opacity-90">Caminata diaria:</p>
+            {sugerenciaEntrenamiento.minutosCaminata !== minutosCaminataActual && (
+              <span className="text-xs opacity-70">(sugerido: {sugerenciaEntrenamiento.minutosCaminata})</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min="0"
+              max="120"
+              step="5"
+              value={minutosCaminataActual}
+              onChange={(e) => setMinutosCaminataEditado(Number(e.target.value))}
+              className="text-2xl font-bold bg-transparent border-b-2 border-white/20 focus:border-white/50 outline-none w-16"
+            />
+            <span className="text-2xl font-bold">minutos</span>
+          </div>
+          <p className="text-xs opacity-75 mt-1">Caminata moderada todos los días</p>
+        </div>
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-sm font-medium opacity-90 flex items-center gap-2">
+              Horas de sueño:
+              <button
+                type="button"
+                onClick={() => setModalInfoAbierto('sueno')}
+                className="inline-flex items-center cursor-pointer hover:opacity-100 transition-opacity"
+                aria-label="Info sueño y siesta"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  className="h-4 w-4 opacity-90"
+                >
+                  <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm1.971-6.279-.675.693A3.375 3.375 0 0 0 12.75 14.25h-1.5a4.875 4.875 0 0 1 1.425-3.45l.93-.936a1.875 1.875 0 1 0-3.195-1.326h-1.5a3.375 3.375 0 1 1 6.03 1.283Z" />
+                </svg>
+              </button>
+            </p>
+            {sugerenciaEntrenamiento.horasSueno !== horasSuenoActual && (
+              <span className="text-xs opacity-70">(sugerido: {sugerenciaEntrenamiento.horasSueno})</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min="5"
+              max="12"
+              step="0.5"
+              value={horasSuenoActual}
+              onChange={(e) => setHorasSuenoEditado(Number(e.target.value))}
+              className="text-2xl font-bold bg-transparent border-b-2 border-white/20 focus:border-white/50 outline-none w-20"
+            />
+            <span className="text-2xl font-bold">horas</span>
+          </div>
+          <p className="text-xs opacity-75 mt-1">Para óptima recuperación diaria</p>
+        </div>
+      </div>
+      <p className="mt-3 text-sm opacity-80 leading-relaxed">
+        {sugerenciaEntrenamiento.descripcion}
+      </p>
+      
+      {/* Análisis de cambios */}
+      {analisisCambios && (analisisCambios.pros.length > 0 || analisisCambios.contras.length > 0) && (
+        <div className="mt-4 pt-4 border-t border-white/10">
+          <h3 className="text-sm font-semibold mb-3">📊 Impacto de tus cambios:</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {analisisCambios.pros.length > 0 && (
+              <div>
+                <p className="text-sm font-medium text-emerald-400 mb-2">✅ Pros:</p>
+                <ul className="space-y-1">
+                  {analisisCambios.pros.map((pro, idx) => (
+                    <li key={`pro-${idx}-${pro}`} className="text-xs opacity-90 flex items-start gap-2">
+                      <span className="text-emerald-400 mt-1">•</span>
+                      <span>{pro}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {analisisCambios.contras.length > 0 && (
+              <div>
+                <p className="text-sm font-medium text-orange-400 mb-2">⚠️ Contras:</p>
+                <ul className="space-y-1">
+                  {analisisCambios.contras.map((contra, idx) => (
+                    <li key={`contra-${idx}-${contra}`} className="text-xs opacity-90 flex items-start gap-2">
+                      <span className="text-orange-400 mt-1">•</span>
+                      <span>{contra}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  ) : null) as React.ReactNode;
 
   return (
     <div className="min-h-screen">
@@ -1436,162 +1588,9 @@ export default function PlanPage() {
 
           <p className="mt-4 text-sm opacity-80">{String((plan as unknown as Record<string, unknown>)?.mensaje_motivacional || '')}</p>
 
-          <React.Fragment>
-            {(() => {
-              if (!sugerenciaEntrenamiento) return null;
-              const sug = sugerenciaEntrenamiento as ReturnType<typeof sugerirEntrenamiento>;
-              return (
-                <div key="sugerencias-entrenamiento" className="mt-6 rounded-xl border border-white/10 p-4 bg-gradient-to-r from-white/5 to-white/10">
-              <h2 className="text-lg font-semibold mb-3">💪 Recomendaciones de entrenamiento y recuperación</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm font-medium opacity-90">
-                      Días de gym:
-                      <span className="ml-2 text-xs opacity-70">
-                        (≈ {(() => {
-                          const min = minutosGymEditado !== null ? minutosGymEditado : (Number((plan as unknown as Record<string, unknown>)?.minutos_sesion_gym) || 75);
-                          const total = Math.max(0, Math.round(min));
-                          const h = Math.floor(total / 60);
-                          const m = total % 60;
-                          const hStr = h > 0 ? `${h} h` : "0 h";
-                          const mStr = m > 0 ? ` ${m} min` : "";
-                          return `${hStr}${mStr} por día`;
-                        })()})
-                      </span>
-                    </p>
-                    {sug.diasGym !== diasGymActual && (
-                      <span className="text-xs opacity-70">(sugerido: {sug.diasGym})</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      min="0"
-                      max="7"
-                      value={diasGymActual}
-                      onChange={(e) => setDiasGymEditado(Number(e.target.value))}
-                      className="text-2xl font-bold bg-transparent border-b-2 border-white/20 focus:border-white/50 outline-none w-16"
-                    />
-                    <span className="text-2xl font-bold">días por semana</span>
-                  </div>
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className="text-sm opacity-80 min-w-[130px]">Duración por sesión:</span>
-                    <input
-                      type="number"
-                      min="30"
-                      max="240"
-                      step="5"
-                      value={minutosGymEditado !== null ? minutosGymEditado : (Number((plan as unknown as Record<string, unknown>)?.minutos_sesion_gym) || 75)}
-                      onChange={(e) => setMinutosGymEditado(Number(e.target.value))}
-                      className="text-lg font-semibold bg-transparent border-b-2 border-white/20 focus:border-white/50 outline-none w-24"
-                    />
-                    <span className="text-sm font-medium">min</span>
-                  </div>
-                  <p className="text-xs opacity-75 mt-1">Entrenamiento de fuerza con pesas</p>
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm font-medium opacity-90">Caminata diaria:</p>
-                    {sug.minutosCaminata !== minutosCaminataActual && (
-                      <span className="text-xs opacity-70">(sugerido: {sug.minutosCaminata})</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      min="0"
-                      max="120"
-                      step="5"
-                      value={minutosCaminataActual}
-                      onChange={(e) => setMinutosCaminataEditado(Number(e.target.value))}
-                      className="text-2xl font-bold bg-transparent border-b-2 border-white/20 focus:border-white/50 outline-none w-16"
-                    />
-                    <span className="text-2xl font-bold">minutos</span>
-                  </div>
-                  <p className="text-xs opacity-75 mt-1">Caminata moderada todos los días</p>
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm font-medium opacity-90 flex items-center gap-2">
-                      Horas de sueño:
-            <button
-                        type="button"
-                        onClick={() => setModalInfoAbierto('sueno')}
-                        className="inline-flex items-center cursor-pointer hover:opacity-100 transition-opacity"
-                        aria-label="Info sueño y siesta"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 24 24"
-                          fill="currentColor"
-                          className="h-4 w-4 opacity-90"
-                        >
-                          <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm1.971-6.279-.675.693A3.375 3.375 0 0 0 12.75 14.25h-1.5a4.875 4.875 0 0 1 1.425-3.45l.93-.936a1.875 1.875 0 1 0-3.195-1.326h-1.5a3.375 3.375 0 1 1 6.03 1.283Z" />
-                        </svg>
-            </button>
-                    </p>
-                    {sug.horasSueno !== horasSuenoActual && (
-                      <span className="text-xs opacity-70">(sugerido: {sug.horasSueno})</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      min="5"
-                      max="12"
-                      step="0.5"
-                      value={horasSuenoActual}
-                      onChange={(e) => setHorasSuenoEditado(Number(e.target.value))}
-                      className="text-2xl font-bold bg-transparent border-b-2 border-white/20 focus:border-white/50 outline-none w-20"
-                    />
-                    <span className="text-2xl font-bold">horas</span>
-                  </div>
-                  <p className="text-xs opacity-75 mt-1">Para óptima recuperación diaria</p>
-                </div>
-              </div>
-              <p className="mt-3 text-sm opacity-80 leading-relaxed">
-                {sug.descripcion}
-              </p>
-              
-              {/* Análisis de cambios */}
-              {analisisCambios && (analisisCambios.pros.length > 0 || analisisCambios.contras.length > 0) && (
-                <div className="mt-4 pt-4 border-t border-white/10">
-                  <h3 className="text-sm font-semibold mb-3">📊 Impacto de tus cambios:</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {analisisCambios.pros.length > 0 && (
-                      <div>
-                        <p className="text-sm font-medium text-emerald-400 mb-2">✅ Pros:</p>
-                        <ul className="space-y-1">
-                          {analisisCambios.pros.map((pro, idx) => (
-                            <li key={`pro-${idx}-${pro}`} className="text-xs opacity-90 flex items-start gap-2">
-                              <span className="text-emerald-400 mt-1">•</span>
-                              <span>{pro}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    {analisisCambios.contras.length > 0 && (
-                      <div>
-                        <p className="text-sm font-medium text-orange-400 mb-2">⚠️ Contras:</p>
-                        <ul className="space-y-1">
-                          {analisisCambios.contras.map((contra, idx) => (
-                            <li key={`contra-${idx}-${contra}`} className="text-xs opacity-90 flex items-start gap-2">
-                              <span className="text-orange-400 mt-1">•</span>
-                              <span>{contra}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-              );
-            })()}
-          </React.Fragment>
+          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+          {/* @ts-ignore */}
+          {recomendacionesEntrenamientoJSX as any}
 
           {/* Selector de vista (Entrenamiento/Alimentación) - Centrado */}
           <div className="mt-6 flex items-center justify-center gap-3">
