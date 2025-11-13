@@ -136,6 +136,7 @@ export default function CreatePlan() {
     restricciones: [],
     preferencias: [],
     patologias: [],
+    doloresLesiones: [],
     duracionDias: 30, // Siempre 30 días (plan mensual)
     preferirRutina: false,
     cinturaCm: undefined,
@@ -177,6 +178,7 @@ export default function CreatePlan() {
             caderaCm: userData.caderaCm ?? prev.caderaCm,
             atletico: userData.atletico ?? prev.atletico,
             preferirRutina: userData.preferirRutina ?? prev.preferirRutina,
+            doloresLesiones: Array.isArray(userData.doloresLesiones) ? userData.doloresLesiones : prev.doloresLesiones,
           }));
           
           // Verificar estado premium
@@ -273,6 +275,7 @@ export default function CreatePlan() {
   const [restriccionesTexto, setRestriccionesTexto] = useState(form.restricciones?.join(", ") || "");
   const [preferenciasTexto, setPreferenciasTexto] = useState(form.preferencias?.join(", ") || "");
   const [patologiasTexto, setPatologiasTexto] = useState(form.patologias?.join(", ") || "");
+  const [doloresLesionesTexto, setDoloresLesionesTexto] = useState(form.doloresLesiones?.join(", ") || "");
   
   // Sincronizar textos cuando cambian los arrays en el form
   useEffect(() => {
@@ -291,7 +294,12 @@ export default function CreatePlan() {
     } else if (form.patologias?.length === 0 && patologiasTexto) {
       // Solo limpiar si el usuario explícitamente borró todo
     }
-  }, [form.restricciones?.length, form.preferencias?.length, form.patologias?.length]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (form.doloresLesiones && form.doloresLesiones.length > 0) {
+      setDoloresLesionesTexto(form.doloresLesiones.join(", "));
+    } else if ((form.doloresLesiones?.length ?? 0) === 0 && doloresLesionesTexto) {
+      setDoloresLesionesTexto("");
+    }
+  }, [form.restricciones?.length, form.preferencias?.length, form.patologias?.length, form.doloresLesiones?.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function onSubmit() {
     // Verificar si puede crear plan antes de continuar
@@ -319,6 +327,10 @@ export default function CreatePlan() {
       const array = patologiasTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
       formFinal.patologias = array;
     }
+    const doloresLesionesArray = doloresLesionesTexto
+      ? doloresLesionesTexto.split(",").map((s: string) => s.trim()).filter(Boolean)
+      : [];
+    formFinal.doloresLesiones = doloresLesionesArray;
     // Mantener preferencia de comidas rutinarias
     if (typeof form.preferirRutina === 'boolean') {
       formFinal.preferirRutina = form.preferirRutina;
@@ -437,6 +449,7 @@ export default function CreatePlan() {
             if (formFinal.caderaCm !== undefined && formFinal.caderaCm !== null && formFinal.caderaCm !== 0) {
               userData.caderaCm = Number(formFinal.caderaCm);
             }
+            userData.doloresLesiones = Array.isArray(formFinal.doloresLesiones) ? formFinal.doloresLesiones : [];
             
             // Limpiar campos undefined antes de guardar
             const cleanUserData = Object.fromEntries(
@@ -804,6 +817,34 @@ export default function CreatePlan() {
                 />
                 <p className="text-xs opacity-60 mt-1">
                   Indica condiciones médicas relevantes para ajustar el plan nutricional
+                </p>
+              </label>
+
+              {/* 5. Dolores o lesiones */}
+              <label className="flex flex-col gap-1">
+                <span className="text-sm opacity-80 flex items-center gap-2">
+                  Dolores, lesiones o molestias (coma separadas)
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    className="h-4 w-4 opacity-70"
+                  >
+                    <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm1.971-6.279-.675.693A3.375 3.375 0 0 0 12.75 14.25h-1.5a4.875 4.875 0 0 1 1.425-3.45l.93-.936a1.875 1.875 0 1 0-3.195-1.326h-1.5a3.375 3.375 0 1 1 6.03 1.283Z" />
+                  </svg>
+                </span>
+                <input
+                  className="rounded-xl bg-white/5 px-3 py-2"
+                  value={doloresLesionesTexto}
+                  onChange={(e) => setDoloresLesionesTexto(e.target.value)}
+                  onBlur={(e) => {
+                    const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
+                    update("doloresLesiones", array);
+                  }}
+                  placeholder="ej: rodilla derecha, zona lumbar, hombro izquierdo"
+                />
+                <p className="text-xs opacity-60 mt-1">
+                  Usamos esta información para adaptar el plan de entrenamiento y las recomendaciones de recuperación.
                 </p>
               </label>
 

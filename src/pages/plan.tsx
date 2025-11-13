@@ -82,6 +82,7 @@ export default function PlanPage() {
   const [preferenciasTexto, setPreferenciasTexto] = useState("");
   const [restriccionesTexto, setRestriccionesTexto] = useState("");
   const [patologiasTexto, setPatologiasTexto] = useState("");
+  const [doloresLesionesTexto, setDoloresLesionesTexto] = useState("");
   const [guardandoPDF, setGuardandoPDF] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
   
@@ -404,6 +405,7 @@ export default function PlanPage() {
               peso: userActualizado.pesoKg, // Guardar peso del usuario
               objetivo: userActualizado.objetivo, // Guardar objetivo
               atletico: Boolean(userActualizado.atletico), // Guardar perfil atlético
+              doloresLesiones: Array.isArray(userActualizado.doloresLesiones) ? userActualizado.doloresLesiones : [],
               updatedAt: serverTimestamp(),
             };
             
@@ -686,7 +688,7 @@ export default function PlanPage() {
   // Renderizar recomendaciones de entrenamiento como ReactNode
   const renderRecomendacionesEntrenamiento = (): React.ReactNode => {
     if (!sugerenciaEntrenamiento) return null;
-    return (
+  return (
     <div key="sugerencias-entrenamiento" className="mt-6 rounded-xl border border-white/10 p-4 bg-gradient-to-r from-white/5 to-white/10">
       <h2 className="text-lg font-semibold mb-3">💪 Recomendaciones de entrenamiento y recuperación</h2>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -834,6 +836,27 @@ export default function PlanPage() {
           </div>
         </div>
       )}
+      {user?.doloresLesiones && user.doloresLesiones.filter((s: string) => typeof s === "string" && s.trim().length > 0).length > 0 && (
+        <div className="mt-4 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-100">
+          <p className="font-medium text-cyan-100 flex items-center gap-2">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              className="h-4 w-4"
+            >
+              <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm1.971-6.279-.675.693A3.375 3.375 0 0 0 12.75 14.25h-1.5a4.875 4.875 0 0 1 1.425-3.45l.93-.936a1.875 1.875 0 1 0-3.195-1.326h-1.5a3.375 3.375 0 1 1 6.03 1.283Z" />
+            </svg>
+            Entrenamiento adaptado para proteger:
+          </p>
+          <p className="mt-1 text-cyan-100/80">
+            {user.doloresLesiones.filter((s: string) => typeof s === "string" && s.trim().length > 0).join(", ")}
+          </p>
+          <p className="mt-1 opacity-80">
+            Incluye calentamientos dirigidos, variaciones seguras y recordatorios de técnica para evitar agravar estas zonas.
+          </p>
+        </div>
+      )}
     </div>
     );
   };
@@ -866,6 +889,7 @@ export default function PlanPage() {
                         setPreferenciasTexto(user.preferencias?.join(", ") || "");
                         setRestriccionesTexto(user.restricciones?.join(", ") || "");
                         setPatologiasTexto(user.patologias?.join(", ") || "");
+                        setDoloresLesionesTexto(user.doloresLesiones?.join(", ") || "");
                         setModalAbierto(true);
                       }
                     }}
@@ -1586,10 +1610,50 @@ export default function PlanPage() {
                 </div>
               </div>
             </div>
+            {user?.doloresLesiones && user.doloresLesiones.filter((s: string) => typeof s === "string" && s.trim().length > 0).length > 0 && (
+              <div className="mt-2 flex items-start gap-3 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-50">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  className="mt-0.5 h-5 w-5 flex-shrink-0 text-cyan-200"
+                >
+                  <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm1.971-6.279-.675.693A3.375 3.375 0 0 0 12.75 14.25h-1.5a4.875 4.875 0 0 1 1.425-3.45l.93-.936a1.875 1.875 0 1 0-3.195-1.326h-1.5a3.375 3.375 0 1 1 6.03 1.283Z" />
+                </svg>
+                <div className="space-y-1">
+                  <p className="font-medium text-cyan-100">Plan adaptado para proteger tus zonas sensibles</p>
+                  <p className="text-xs leading-relaxed text-cyan-100/70">
+                    Consideramos estas molestias/lesiones al definir la progresión, selección de ejercicios y recomendaciones de recuperación:
+                    {" "}
+                    {user.doloresLesiones.filter((s: string) => typeof s === "string" && s.trim().length > 0).join(", ")}
+                  </p>
+                </div>
+              </div>
+            )}
             
             {/* Información personal */}
             <div className="rounded-xl border border-white/10 bg-black/30 p-4 md:w-1/4">
-              <p className="text-sm font-medium opacity-70 mb-3">Información personal</p>
+              <p className="text-sm font-medium opacity-70 mb-3 flex items-center gap-2">
+                Información personal
+                {user?.doloresLesiones && user.doloresLesiones.filter((s: string) => typeof s === "string" && s.trim().length > 0).length > 0 && (
+                  <div className="relative group">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      className="h-4 w-4 opacity-80 text-cyan-200"
+                    >
+                      <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm1.971-6.279-.675.693A3.375 3.375 0 0 0 12.75 14.25h-1.5a4.875 4.875 0 0 1 1.425-3.45l.93-.936a1.875 1.875 0 1 0-3.195-1.326h-1.5a3.375 3.375 0 1 1 6.03 1.283Z" />
+                    </svg>
+                    <div className="pointer-events-none absolute left-1/2 top-full z-40 mt-2 w-56 -translate-x-1/2 rounded-lg border border-cyan-500/40 bg-black/90 px-3 py-2 text-xs text-cyan-50 opacity-0 shadow-lg transition-opacity duration-200 group-hover:opacity-100">
+                      Entrenamiento y recuperación moderados para:{" "}
+                      <span className="font-medium">
+                        {user.doloresLesiones.filter((s: string) => typeof s === "string" && s.trim().length > 0).join(", ")}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </p>
                   <div className="space-y-3">
                 {user?.preferencias && user.preferencias.filter((s: string) => typeof s === 'string' && s.trim().length > 0).length > 0 && (
                   <div>
@@ -1627,10 +1691,23 @@ export default function PlanPage() {
                     </div>
                   </div>
                 )}
+                {user?.doloresLesiones && user.doloresLesiones.filter((s: string) => typeof s === 'string' && s.trim().length > 0).length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium opacity-70 mb-1">Dolores / Lesiones:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {user.doloresLesiones.filter((s: string) => typeof s === 'string' && s.trim().length > 0).map((dolor: string, idx: number) => (
+                        <span key={`dolor-${idx}-${dolor}`} className="inline-flex items-center rounded-full px-2 py-0.5 text-xs bg-cyan-500/20 text-cyan-200 border border-cyan-500/30">
+                          {dolor}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {(!user?.preferencias || user.preferencias.length === 0) && 
                  (!user?.restricciones || user.restricciones.length === 0) && 
-                 (!user?.patologias || user.patologias.length === 0) && (
-                  <p className="text-xs opacity-60">No hay preferencias, restricciones ni patologías registradas</p>
+                 (!user?.patologias || user.patologias.length === 0) &&
+                 (!user?.doloresLesiones || user.doloresLesiones.length === 0) && (
+                  <p className="text-xs opacity-60">No hay preferencias, restricciones, patologías ni lesiones registradas</p>
                 )}
               </div>
             </div>
@@ -2075,6 +2152,32 @@ export default function PlanPage() {
                     Indica condiciones médicas relevantes para ajustar el plan nutricional
                   </p>
                 </label>
+                <label className="flex flex-col gap-1 md:col-span-2">
+                  <span className="text-sm opacity-80 flex items-center gap-2">
+                    Dolores, lesiones o molestias (separadas por comas)
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      className="h-4 w-4 opacity-70"
+                    >
+                      <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm1.971-6.279-.675.693A3.375 3.375 0 0 0 12.75 14.25h-1.5a4.875 4.875 0 0 1 1.425-3.45l.93-.936a1.875 1.875 0 1 0-3.195-1.326h-1.5a3.375 3.375 0 1 1 6.03 1.283Z" />
+                    </svg>
+                  </span>
+                  <input
+                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
+                    value={doloresLesionesTexto}
+                    onChange={(e) => setDoloresLesionesTexto(e.target.value)}
+                    onBlur={(e) => {
+                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
+                      setDatosEdicion({ ...datosEdicion, doloresLesiones: array });
+                    }}
+                    placeholder="ej: rodilla derecha, zona lumbar, hombro izquierdo"
+                  />
+                  <p className="text-xs opacity-60 mt-1">
+                    Ajustamos el entrenamiento para cuidar estas zonas y recomendar movilidad o precalentamientos específicos.
+                  </p>
+                </label>
                 <label className="flex items-start gap-3 md:col-span-2">
                   <input
                     type="checkbox"
@@ -2115,6 +2218,7 @@ export default function PlanPage() {
                       const preferenciasArray = preferenciasTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
                       const restriccionesArray = restriccionesTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
                       const patologiasArray = patologiasTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
+                      const doloresLesionesArray = doloresLesionesTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
                       
                       const bmi = calculateBMI(datosEdicion.pesoKg, datosEdicion.alturaCm);
                       const nuevasSugerencias = sugerirEntrenamiento(
@@ -2131,6 +2235,7 @@ export default function PlanPage() {
                         preferencias: preferenciasArray,
                         restricciones: restriccionesArray,
                         patologias: patologiasArray,
+                        doloresLesiones: doloresLesionesArray,
                         diasGym: nuevasSugerencias.diasGym,
                         diasCardio: Math.ceil(nuevasSugerencias.minutosCaminata / (nuevasSugerencias.minutosCaminata > 45 ? 60 : nuevasSugerencias.minutosCaminata > 30 ? 45 : 30))
                       };
@@ -2189,6 +2294,7 @@ export default function PlanPage() {
                               peso: userActualizado.pesoKg, // Guardar peso del usuario
                               objetivo: userActualizado.objetivo, // Guardar objetivo
                               atletico: Boolean(userActualizado.atletico), // Guardar perfil atlético
+                              doloresLesiones: Array.isArray(userActualizado.doloresLesiones) ? userActualizado.doloresLesiones : [],
                               updatedAt: serverTimestamp(),
                             };
                             

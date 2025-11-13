@@ -21,6 +21,7 @@ export interface UserInput {
   restricciones?: string[];
   preferencias?: string[];
   patologias?: string[]; // Condiciones médicas relevantes para la nutrición
+  doloresLesiones?: string[]; // Molestias, dolores o lesiones que deben considerarse (especialmente para entrenamiento)
   // Preferencia de variabilidad de comidas
   preferirRutina?: boolean; // true = poca variación entre días (comidas rutinarias)
   duracionDias?: number; // Siempre 30 días (mensual), se establece automáticamente

@@ -25,7 +25,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       preferirRutina: input.preferirRutina,
       restricciones: input.restricciones,
       preferencias: input.preferencias,
-      patologias: input.patologias
+      patologias: input.patologias,
+      doloresLesiones: input.doloresLesiones,
     });
   }
 
@@ -400,6 +401,7 @@ Datos del usuario: ${JSON.stringify({
       restricciones: input.restricciones,
       preferencias: input.preferencias,
       patologias: input.patologias,
+      dolores_lesiones: input.doloresLesiones,
       dias_gym: (input as unknown as Record<string, unknown>)?.diasGym ?? undefined,
       minutos_sesion_gym: (() => {
         const diasGym = (input as unknown as Record<string, unknown>)?.diasGym as number | undefined;
@@ -530,18 +532,32 @@ ADAPTAR TODO EL PLAN (calorías, macros, selección de alimentos, horarios) seg�
   : "- No hay patologías reportadas por el usuario."
 }
 
-4. TIEMPO OBJETIVO PARA RESULTADOS: El usuario debe ver resultados notables en ${input.intensidad === "intensa" ? "1-3 meses" : input.intensidad === "moderada" ? "3 meses" : "3-5 meses"}. 
+4. DOLORES / LESIONES REPORTADOS (CRÍTICO PARA ENTRENAMIENTO Y RECUPERACIÓN):
+${input.doloresLesiones && input.doloresLesiones.length > 0
+  ? `El usuario informó las siguientes molestias, dolores o lesiones que DEBEN CONDICIONAR el entrenamiento:
+${input.doloresLesiones.map((d) => `- ${d}`).join('\n')}
+
+INDICACIONES OBLIGATORIAS:
+- Evitar ejercicios que puedan agravar estas zonas. Priorizar variaciones seguras (máquinas guiadas, rangos parciales controlados, agarres neutrales, uso de bandas, trabajo unilateral con menor carga).
+- Incluir calentamientos específicos y movilidad previa para cada zona afectada.
+- Incluir notas en "safety_notes" del training_plan indicando cómo proteger cada zona (ej: "rodilla derecha: evitar sentadillas profundas, usar prensa 45° con rango medio y tempo controlado").
+- Aumentar foco en fortalecimiento compensatorio y estabilidad (ej: core, glúteos, manguito rotador) cuando la lesión lo requiera.
+- Ajustar volumen e intensidad del día correspondiente si la zona lesionada estaría muy exigida. Prefiere mayor frecuencia con menor carga que sesiones muy pesadas.
+- Si es necesario, reemplazar completamente un ejercicio conflictivo por alternativas amigables con la lesión (ej: swap burpees por remo en máquina si hay dolor lumbar).`
+  : "- No se reportaron dolores o lesiones. Puedes seguir progresiones estándar, pero de todos modos prioriza técnica perfecta, calentamientos completos y trabajo de movilidad preventiva."}
+
+5. TIEMPO OBJETIVO PARA RESULTADOS: El usuario debe ver resultados notables en ${input.intensidad === "intensa" ? "1-3 meses" : input.intensidad === "moderada" ? "3 meses" : "3-5 meses"}. 
    TODO el plan (calorías, macros, distribución de comidas) debe estar diseñado para lograr resultados VISIBLES en ese tiempo.
    - Si intensidad es "intensa": el plan debe ser AGRESIVO para resultados rápidos (1-3 meses)
    - Si intensidad es "moderada": el plan debe ser EQUILIBRADO para resultados en 3 meses exactos
    - Si intensidad es "leve": el plan debe ser GRADUAL para resultados sostenibles en 3-5 meses
    
-5. La intensidad "${input.intensidad || "moderada"}" debe reflejarse en el déficit/superávit calórico y la distribución de macros:
+6. La intensidad "${input.intensidad || "moderada"}" debe reflejarse en el déficit/superávit calórico y la distribución de macros:
 - Leve: cambios graduales y sostenibles (déficit/superávit pequeño: ~200-300 kcal) - Objetivo: resultados en 3-5 meses
 - Moderada: progresión equilibrada (déficit/superávit medio: ~400-500 kcal) - Objetivo: resultados en 3 meses
 - Intensa: cambios más agresivos (déficit/superávit alto: ~600-800 kcal) - Objetivo: resultados en 1-3 meses
 
-6. El tipo de dieta "${input.tipoDieta || "estandar"}" debe aplicarse ESTRICTAMENTE en todas las comidas. NO HAY EXCEPCIONES:
+7. El tipo de dieta "${input.tipoDieta || "estandar"}" debe aplicarse ESTRICTAMENTE en todas las comidas. NO HAY EXCEPCIONES:
 ${input.tipoDieta === "mediterranea" ? "- Mediterránea: Enfocarse en aceite de oliva, pescados, vegetales, frutas, legumbres y granos integrales. Limitar carnes rojas y procesados." : ""}
 ${input.tipoDieta === "vegana" ? `- ⚠️ VEGANA (CRÍTICO - ABSOLUTAMENTE ESTRICTO):
   * SOLO alimentos de origen vegetal. CERO productos de origen animal.

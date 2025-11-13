@@ -505,6 +505,39 @@ export default function Dashboard() {
                         </span>
                       </div>
                       {(() => {
+                        const lesiones = (plan.plan?.user?.doloresLesiones as string[] | undefined)?.filter(
+                          (s) => typeof s === "string" && s.trim().length > 0
+                        );
+                        return lesiones && lesiones.length > 0
+                          ? (
+                            <div className="flex items-center gap-2 text-xs sm:text-sm text-cyan-100">
+                              <div className="relative group flex-shrink-0">
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  viewBox="0 0 24 24"
+                                  fill="currentColor"
+                                  className="h-4 w-4 opacity-80 text-cyan-200"
+                                >
+                                  <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm1.971-6.279-.675.693A3.375 3.375 0 0 0 12.75 14.25h-1.5a4.875 4.875 0 0 1 1.425-3.45l.93-.936a1.875 1.875 0 1 0-3.195-1.326h-1.5a3.375 3.375 0 1 1 6.03 1.283Z" />
+                                </svg>
+                                <div className="pointer-events-none absolute left-1/2 top-full z-40 mt-2 w-60 -translate-x-1/2 rounded-lg border border-cyan-500/40 bg-black/90 px-3 py-2 text-[10px] sm:text-xs text-cyan-50 opacity-0 shadow-lg transition-opacity duration-200 group-hover:opacity-100">
+                                  Plan adaptado para:{" "}
+                                  <span className="font-medium">
+                                    {lesiones.join(", ")}
+                                  </span>
+                                </div>
+                              </div>
+                              <span className="opacity-80">
+                                Adaptado para:{" "}
+                                <span className="font-medium text-cyan-100">
+                                  {lesiones.join(", ")}
+                                </span>
+                              </span>
+                            </div>
+                          )
+                          : null;
+                      })()}
+                      {(() => {
                         const peso = plan.plan?.user?.pesoKg;
                         return peso !== undefined && peso !== null && peso !== 0;
                       })() && (
