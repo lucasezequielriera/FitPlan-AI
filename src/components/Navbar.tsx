@@ -925,119 +925,127 @@ function MessagesModal({
             </div>
 
             {/* Detalle del mensaje */}
-            <div className="flex-1 overflow-y-auto min-h-0">
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
               {selectedMsg ? (
-                <div className="space-y-4">
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-lg font-semibold text-white">{selectedMsg.subject}</h3>
-                      {(() => {
-                        // Verificar si hay al menos una respuesta del admin
-                        const hasAdminReply = selectedMsg.replies?.some(r => r.senderType === "admin");
-                        return hasAdminReply ? (
-                          <span className="px-2 py-1 text-xs rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
-                            Respondido
-                          </span>
-                        ) : null;
-                      })()}
-                    </div>
-                    <div className="text-sm text-white/60 space-y-1">
-                      {selectedMsg.userName && (
-                        <p><span className="text-white/80">De:</span> {selectedMsg.userName.charAt(0).toUpperCase() + selectedMsg.userName.slice(1).toLowerCase()}</p>
-                      )}
-                      {selectedMsg.userEmail && (
-                        <p><span className="text-white/80">Email:</span> {selectedMsg.userEmail}</p>
-                      )}
-                      {selectedMsg.createdAt && (
-                        <p><span className="text-white/80">Fecha:</span> {new Date(selectedMsg.createdAt).toLocaleDateString('es-AR', {
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}</p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="p-4 rounded-lg bg-white/5 border border-white/10">
-                    <div className="flex items-start gap-3">
-                      {selectedMsg.userName && (
-                        <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-sm font-semibold text-white flex-shrink-0">
-                          {selectedMsg.userName.charAt(0).toUpperCase()}
+                <>
+                  {/* Área de mensajes con scroll */}
+                  <div className="flex-1 overflow-y-auto min-h-0 pr-2">
+                    <div className="space-y-4 pb-4">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="text-lg font-semibold text-white">{selectedMsg.subject}</h3>
+                          {(() => {
+                            // Verificar si hay al menos una respuesta del admin
+                            const hasAdminReply = selectedMsg.replies?.some(r => r.senderType === "admin");
+                            return hasAdminReply ? (
+                              <span className="px-2 py-1 text-xs rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
+                                Respondido
+                              </span>
+                            ) : null;
+                          })()}
                         </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
+                        <div className="text-sm text-white/60 space-y-1">
                           {selectedMsg.userName && (
-                            <p className="text-sm font-medium text-white">
-                              {selectedMsg.userName.charAt(0).toUpperCase() + selectedMsg.userName.slice(1).toLowerCase()}
-                            </p>
+                            <p><span className="text-white/80">De:</span> {selectedMsg.userName.charAt(0).toUpperCase() + selectedMsg.userName.slice(1).toLowerCase()}</p>
+                          )}
+                          {selectedMsg.userEmail && (
+                            <p><span className="text-white/80">Email:</span> {selectedMsg.userEmail}</p>
+                          )}
+                          {selectedMsg.createdAt && (
+                            <p><span className="text-white/80">Fecha:</span> {new Date(selectedMsg.createdAt).toLocaleDateString('es-AR', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}</p>
                           )}
                         </div>
-                        <p className="text-white whitespace-pre-wrap">{selectedMsg.message}</p>
                       </div>
-                    </div>
-                  </div>
 
-                  {selectedMsg.replied && selectedMsg.replies && selectedMsg.replies.length > 0 && (
-                    <div className="space-y-3">
-                      <h4 className="text-sm font-semibold text-white/80">Respuestas:</h4>
-                      {selectedMsg.replies.map((reply, index) => {
-                        const senderName = reply.senderName || "Equipo de FitPlan";
-                        const senderInitial = senderName.charAt(0).toUpperCase();
-                        const replyDate = reply.createdAt ? new Date(reply.createdAt) : null;
-                        
-                        return (
-                          <div key={index} className="p-4 rounded-lg bg-green-500/10 border border-green-500/30">
-                            <div className="flex items-start gap-3 mb-3">
-                              <div className="h-10 w-10 rounded-full bg-gradient-to-br from-emerald-500 to-cyan-500 flex items-center justify-center text-sm font-semibold text-white flex-shrink-0">
-                                {senderInitial}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <p className="text-sm font-medium text-green-400">{senderName}</p>
-                                  {replyDate && (
-                                    <span className="text-xs text-white/60">
-                                      {replyDate.toLocaleDateString('es-AR', {
-                                        day: '2-digit',
-                                        month: '2-digit',
-                                        year: 'numeric',
-                                        hour: '2-digit',
-                                        minute: '2-digit'
-                                      })}
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="text-white/90 whitespace-pre-wrap">{reply.message}</p>
-                              </div>
+                      <div className="p-4 rounded-lg bg-white/5 border border-white/10">
+                        <div className="flex items-start gap-3">
+                          {selectedMsg.userName && (
+                            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-sm font-semibold text-white flex-shrink-0">
+                              {selectedMsg.userName.charAt(0).toUpperCase()}
                             </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-2">
+                              {selectedMsg.userName && (
+                                <p className="text-sm font-medium text-white">
+                                  {selectedMsg.userName.charAt(0).toUpperCase() + selectedMsg.userName.slice(1).toLowerCase()}
+                                </p>
+                              )}
+                            </div>
+                            <p className="text-white whitespace-pre-wrap">{selectedMsg.message}</p>
                           </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                        </div>
+                      </div>
 
-                  <div className="space-y-3 mt-4">
-                    <label className="block text-sm font-medium text-white/60">
-                      {selectedMsg.replied ? "Agregar otra respuesta" : "Responder"}
-                    </label>
-                    <textarea
-                      value={replyText}
-                      onChange={(e) => setReplyText(e.target.value)}
-                      placeholder="Escribe tu respuesta..."
-                      rows={4}
-                      className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                    />
-                    <button
-                      onClick={() => handleReply(selectedMsg.id)}
-                      disabled={replying || !replyText.trim()}
-                      className="w-full px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {replying ? "Enviando..." : selectedMsg.replied ? "Agregar Respuesta" : "Enviar Respuesta"}
-                    </button>
+                      {selectedMsg.replied && selectedMsg.replies && selectedMsg.replies.length > 0 && (
+                        <div className="space-y-3">
+                          <h4 className="text-sm font-semibold text-white/80">Respuestas:</h4>
+                          {selectedMsg.replies.map((reply, index) => {
+                            const senderName = reply.senderName || "Equipo de FitPlan";
+                            const senderInitial = senderName.charAt(0).toUpperCase();
+                            const replyDate = reply.createdAt ? new Date(reply.createdAt) : null;
+                            
+                            return (
+                              <div key={index} className="p-4 rounded-lg bg-green-500/10 border border-green-500/30">
+                                <div className="flex items-start gap-3 mb-3">
+                                  <div className="h-10 w-10 rounded-full bg-gradient-to-br from-emerald-500 to-cyan-500 flex items-center justify-center text-sm font-semibold text-white flex-shrink-0">
+                                    {senderInitial}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <p className="text-sm font-medium text-green-400">{senderName}</p>
+                                      {replyDate && (
+                                        <span className="text-xs text-white/60">
+                                          {replyDate.toLocaleDateString('es-AR', {
+                                            day: '2-digit',
+                                            month: '2-digit',
+                                            year: 'numeric',
+                                            hour: '2-digit',
+                                            minute: '2-digit'
+                                          })}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-white/90 whitespace-pre-wrap">{reply.message}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
+
+                  {/* Área de respuesta fija (footer) */}
+                  <div className="border-t border-white/10 pt-4 mt-4 flex-shrink-0 bg-gray-900">
+                    <div className="space-y-3">
+                      <label className="block text-sm font-medium text-white/60">
+                        {selectedMsg.replied ? "Agregar otra respuesta" : "Responder"}
+                      </label>
+                      <textarea
+                        value={replyText}
+                        onChange={(e) => setReplyText(e.target.value)}
+                        placeholder="Escribe tu respuesta..."
+                        rows={4}
+                        className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                      />
+                      <button
+                        onClick={() => handleReply(selectedMsg.id)}
+                        disabled={replying || !replyText.trim()}
+                        className="w-full px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {replying ? "Enviando..." : selectedMsg.replied ? "Agregar Respuesta" : "Enviar Respuesta"}
+                      </button>
+                    </div>
+                  </div>
+                </>
               ) : (
                 <div className="flex items-center justify-center h-full">
                   <p className="text-white/60">Selecciona un mensaje para ver los detalles</p>
