@@ -1,7 +1,7 @@
 import { useRouter } from "next/router";
 import { useAuthStore } from "@/store/authStore";
 import { motion } from "framer-motion";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { FaAppleAlt } from "react-icons/fa";
 import LoginModal from "./LoginModal";
 import UserMessagesModal from "./UserMessagesModal";
@@ -721,6 +721,7 @@ function MessagesModal({
   const [selectedMessage, setSelectedMessage] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
   const [replying, setReplying] = useState(false);
+  const messagesScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen && adminUserId) {
@@ -738,6 +739,18 @@ function MessagesModal({
       return () => clearInterval(interval);
     }
   }, [isOpen, adminUserId, onMessagesUpdate]);
+
+  // Hacer scroll al final cuando se selecciona un mensaje o cambian las respuestas
+  useEffect(() => {
+    if (selectedMessage && messagesScrollRef.current) {
+      // Pequeño delay para asegurar que el DOM se haya actualizado
+      setTimeout(() => {
+        if (messagesScrollRef.current) {
+          messagesScrollRef.current.scrollTop = messagesScrollRef.current.scrollHeight;
+        }
+      }, 100);
+    }
+  }, [selectedMessage, messages]);
 
   const loadMessages = async () => {
     try {
@@ -767,6 +780,17 @@ function MessagesModal({
     }
   };
 
+  // Función para hacer scroll al final después de enviar respuesta
+  const scrollToBottom = () => {
+    if (messagesScrollRef.current) {
+      setTimeout(() => {
+        if (messagesScrollRef.current) {
+          messagesScrollRef.current.scrollTop = messagesScrollRef.current.scrollHeight;
+        }
+      }, 100);
+    }
+  };
+
   const handleReply = async (messageId: string) => {
     if (!replyText.trim()) return;
 
@@ -787,6 +811,8 @@ function MessagesModal({
       await loadMessages();
       setReplyText("");
       onMessagesUpdate();
+      // Hacer scroll al final para ver la nueva respuesta
+      scrollToBottom();
     } catch (error) {
       console.error("Error al responder:", error);
       const errorMessage = error instanceof Error ? error.message : "Error al enviar respuesta";
@@ -929,7 +955,7 @@ function MessagesModal({
               {selectedMsg ? (
                 <>
                   {/* Área de mensajes con scroll */}
-                  <div className="flex-1 overflow-y-auto min-h-0 pr-2">
+                  <div ref={messagesScrollRef} className="flex-1 overflow-y-auto min-h-0 pr-2">
                     <div className="space-y-4 pb-4">
                       <div>
                         <div className="flex items-center justify-between mb-2">
