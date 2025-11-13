@@ -54,7 +54,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Obtener respuestas existentes, asegurándonos de que sea un array
     // Manejar tanto el formato antiguo (reply) como el nuevo (replies)
-    let existingReplies: Array<{ message: string; createdAt?: unknown }> = [];
+    let existingReplies: Array<{ message: string; senderName?: string; senderType?: string; createdAt?: unknown }> = [];
     
     if (Array.isArray(currentData.replies)) {
       // Formato nuevo: array de respuestas
