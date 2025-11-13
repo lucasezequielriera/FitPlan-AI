@@ -707,6 +707,8 @@ function MessagesModal({
     message: string;
     read: boolean;
     replied: boolean;
+    closed: boolean;
+    closedAt: string | null;
     replies: Array<{ message: string; senderName: string; senderType: string; createdAt: string | null }>;
     createdAt: string | null;
     lastReplyAt: string | null;
@@ -908,6 +910,13 @@ function MessagesModal({
                               {msg.subject}
                             </p>
                             {(() => {
+                              if (msg.closed) {
+                                return (
+                                  <span className="px-2 py-0.5 text-xs rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/30 whitespace-nowrap flex-shrink-0">
+                                    Finalizado
+                                  </span>
+                                );
+                              }
                               // Verificar si hay respuestas y si la última es del admin
                               const replies = msg.replies || [];
                               if (replies.length === 0) {
@@ -965,18 +974,26 @@ function MessagesModal({
                       <div>
                         <div className="flex items-center justify-between mb-2">
                           <h3 className="text-lg font-semibold text-white">{selectedMsg.subject}</h3>
-                          {(() => {
-                            // Verificar si hay respuestas y si la última es del admin
-                            const replies = selectedMsg.replies || [];
-                            if (replies.length === 0) return null;
-                            const lastReply = replies[replies.length - 1];
-                            const lastReplyIsAdmin = lastReply?.senderType === "admin";
-                            return lastReplyIsAdmin ? (
-                              <span className="px-2 py-1 text-xs rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
-                                Respondido
+                          <div className="flex items-center gap-2">
+                            {selectedMsg.closed ? (
+                              <span className="px-2 py-1 text-xs rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/30">
+                                Chat Finalizado
                               </span>
-                            ) : null;
-                          })()}
+                            ) : (
+                              (() => {
+                                // Verificar si hay respuestas y si la última es del admin
+                                const replies = selectedMsg.replies || [];
+                                if (replies.length === 0) return null;
+                                const lastReply = replies[replies.length - 1];
+                                const lastReplyIsAdmin = lastReply?.senderType === "admin";
+                                return lastReplyIsAdmin ? (
+                                  <span className="px-2 py-1 text-xs rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
+                                    Respondido
+                                  </span>
+                                ) : null;
+                              })()
+                            )}
+                          </div>
                         </div>
                         <div className="text-sm text-white/60 space-y-1">
                           {selectedMsg.userName && (
@@ -1070,25 +1087,67 @@ function MessagesModal({
 
                   {/* Área de respuesta fija (footer) */}
                   <div className="border-t border-white/10 pt-4 mt-4 flex-shrink-0 bg-gray-900">
-                    <div className="space-y-3">
-                      <label className="block text-sm font-medium text-white/60">
-                        {selectedMsg.replied ? "Agregar otra respuesta" : "Responder"}
-                      </label>
-                      <textarea
-                        value={replyText}
-                        onChange={(e) => setReplyText(e.target.value)}
-                        placeholder="Escribe tu respuesta..."
-                        rows={4}
-                        className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                      />
-                      <button
-                        onClick={() => handleReply(selectedMsg.id)}
-                        disabled={replying || !replyText.trim()}
-                        className="w-full px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {replying ? "Enviando..." : selectedMsg.replied ? "Agregar Respuesta" : "Enviar Respuesta"}
-                      </button>
-                    </div>
+                    {selectedMsg.closed ? (
+                      <div className="p-4 rounded-lg bg-gray-500/10 border border-gray-500/30 text-center">
+                        <p className="text-gray-400 text-sm">Este chat ha sido finalizado</p>
+                        <p className="text-gray-500 text-xs mt-1">No se pueden enviar más mensajes</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <label className="block text-sm font-medium text-white/60">
+                            {selectedMsg.replied ? "Agregar otra respuesta" : "Responder"}
+                          </label>
+                          <button
+                            onClick={async () => {
+                              if (!selectedMsg || !confirm("¿Estás seguro de que deseas finalizar este chat? No se podrán enviar más mensajes.")) {
+                                return;
+                              }
+                              
+                              try {
+                                const response = await fetch("/api/admin/closeChat", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({
+                                    adminUserId,
+                                    messageId: selectedMsg.id,
+                                  }),
+                                });
+
+                                if (!response.ok) {
+                                  const errorData = await response.json();
+                                  throw new Error(errorData.error || "Error al finalizar chat");
+                                }
+
+                                // Recargar mensajes para ver el estado actualizado
+                                await loadMessages();
+                                onMessagesUpdate();
+                              } catch (error) {
+                                console.error("Error al finalizar chat:", error);
+                                alert(error instanceof Error ? error.message : "Error al finalizar chat");
+                              }
+                            }}
+                            className="px-3 py-1.5 text-xs rounded-lg bg-gray-500/20 hover:bg-gray-500/30 text-gray-300 border border-gray-500/30 transition-all"
+                          >
+                            Finalizar Chat
+                          </button>
+                        </div>
+                        <textarea
+                          value={replyText}
+                          onChange={(e) => setReplyText(e.target.value)}
+                          placeholder="Escribe tu respuesta..."
+                          rows={4}
+                          className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                        />
+                        <button
+                          onClick={() => handleReply(selectedMsg.id)}
+                          disabled={replying || !replyText.trim()}
+                          className="w-full px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {replying ? "Enviando..." : selectedMsg.replied ? "Agregar Respuesta" : "Enviar Respuesta"}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </>
               ) : (

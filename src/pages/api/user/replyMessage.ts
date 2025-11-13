@@ -34,6 +34,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(403).json({ error: "No tienes permiso para este mensaje" });
     }
 
+    // Verificar si el chat está cerrado
+    if (messageData?.closed === true) {
+      return res.status(403).json({ error: "Este chat ha sido finalizado. No se pueden enviar más mensajes." });
+    }
+
     // Obtener respuestas existentes
     const existingReplies = messageData?.replies || [];
     

@@ -53,10 +53,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         message: data.message || "",
         userName: data.userName || null, // Nombre del usuario que envió el mensaje
         replied: data.replied === true,
+        closed: data.closed === true,
+        closedAt: convertTimestamp(data.closedAt),
         replies: replies.map((reply: { message?: string; senderName?: string; senderType?: string; createdAt?: unknown }) => ({
           message: reply.message || "",
-          senderName: reply.senderName || "Equipo de FitPlan",
-          senderType: reply.senderType || "admin",
+          senderName: reply.senderName || (reply.senderType === "admin" ? "Equipo de FitPlan" : "Usuario"),
+          senderType: reply.senderType || "user",
           createdAt: convertTimestamp(reply.createdAt),
         })),
         createdAt: convertTimestamp(data.createdAt),

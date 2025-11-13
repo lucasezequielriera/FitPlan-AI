@@ -71,6 +71,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         message: data.message || "",
         read: data.read === true,
         replied: data.replied === true,
+        closed: data.closed === true,
+        closedAt: convertTimestamp(data.closedAt),
         replies: replies.map((reply: { message?: string; senderName?: string; senderType?: string; createdAt?: unknown }) => ({
           message: reply.message || "",
           senderName: reply.senderName || "Equipo de FitPlan",

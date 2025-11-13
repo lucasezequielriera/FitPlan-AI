@@ -52,6 +52,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(404).json({ error: "Datos del mensaje no encontrados" });
     }
 
+    // Verificar si el chat está cerrado
+    if (currentData.closed === true) {
+      return res.status(403).json({ error: "Este chat ha sido finalizado. No se pueden enviar más mensajes." });
+    }
+
     // Obtener respuestas existentes, asegurándonos de que sea un array
     // Manejar tanto el formato antiguo (reply) como el nuevo (replies)
     let existingReplies: Array<{ message: string; senderName?: string; senderType?: string; createdAt?: unknown }> = [];

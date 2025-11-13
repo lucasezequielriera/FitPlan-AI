@@ -21,6 +21,8 @@ export default function UserMessagesModal({
     message: string;
     userName: string | null;
     replied: boolean;
+    closed: boolean;
+    closedAt: string | null;
     replies: Array<{ message: string; senderName: string; senderType: string; createdAt: string | null }>;
     createdAt: string | null;
     lastReplyAt: string | null;
@@ -196,6 +198,9 @@ export default function UserMessagesModal({
                             {msg.subject}
                           </p>
                           {(() => {
+                            if (msg.closed) {
+                              return <p className="text-xs text-gray-400 mt-1">Chat Finalizado</p>;
+                            }
                             // Verificar si hay respuestas y si la última es del admin
                             const replies = msg.replies || [];
                             if (replies.length === 0) return null;
@@ -237,6 +242,13 @@ export default function UserMessagesModal({
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="text-lg font-semibold text-white">{selectedMsg.subject}</h3>
                       {(() => {
+                        if (selectedMsg.closed) {
+                          return (
+                            <span className="px-2 py-1 text-xs rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/30">
+                              Chat Finalizado
+                            </span>
+                          );
+                        }
                         // Verificar si hay respuestas y si la última es del admin
                         const replies = selectedMsg.replies || [];
                         if (replies.length === 0) return null;
@@ -341,58 +353,65 @@ export default function UserMessagesModal({
 
                   {/* Área de respuesta fija (footer) */}
                   <div className="border-t border-white/10 pt-4 mt-4 flex-shrink-0 bg-gray-900">
-                    <div className="space-y-3">
-                      <label className="block text-sm font-medium text-white/60">
-                        Responder
-                      </label>
-                      <textarea
-                        value={replyText}
-                        onChange={(e) => setReplyText(e.target.value)}
-                        placeholder="Escribe tu respuesta..."
-                        rows={4}
-                        className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                      />
-                      <button
-                        onClick={async () => {
-                          if (!replyText.trim() || !selectedMsg) return;
-                          
-                          setReplying(true);
-                          try {
-                            const response = await fetch("/api/user/replyMessage", {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({
-                                userId,
-                                messageId: selectedMsg.id,
-                                reply: replyText.trim(),
-                                userName: selectedMsg.userName,
-                              }),
-                            });
+                    {selectedMsg.closed ? (
+                      <div className="p-4 rounded-lg bg-gray-500/10 border border-gray-500/30 text-center">
+                        <p className="text-gray-400 text-sm">Este chat ha sido finalizado</p>
+                        <p className="text-gray-500 text-xs mt-1">No se pueden enviar más mensajes</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <label className="block text-sm font-medium text-white/60">
+                          Responder
+                        </label>
+                        <textarea
+                          value={replyText}
+                          onChange={(e) => setReplyText(e.target.value)}
+                          placeholder="Escribe tu respuesta..."
+                          rows={4}
+                          className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                        />
+                        <button
+                          onClick={async () => {
+                            if (!replyText.trim() || !selectedMsg) return;
+                            
+                            setReplying(true);
+                            try {
+                              const response = await fetch("/api/user/replyMessage", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  userId,
+                                  messageId: selectedMsg.id,
+                                  reply: replyText.trim(),
+                                  userName: selectedMsg.userName,
+                                }),
+                              });
 
-                            if (!response.ok) {
-                              const errorData = await response.json();
-                              throw new Error(errorData.error || "Error al responder");
+                              if (!response.ok) {
+                                const errorData = await response.json();
+                                throw new Error(errorData.error || "Error al responder");
+                              }
+
+                              // Recargar mensajes para ver la nueva respuesta
+                              await loadMessages();
+                              setReplyText("");
+                              onMessagesUpdate();
+                              // Hacer scroll al final para ver la nueva respuesta
+                              scrollToBottom();
+                            } catch (error) {
+                              console.error("Error al responder:", error);
+                              alert(error instanceof Error ? error.message : "Error al enviar respuesta");
+                            } finally {
+                              setReplying(false);
                             }
-
-                            // Recargar mensajes para ver la nueva respuesta
-                            await loadMessages();
-                            setReplyText("");
-                            onMessagesUpdate();
-                            // Hacer scroll al final para ver la nueva respuesta
-                            scrollToBottom();
-                          } catch (error) {
-                            console.error("Error al responder:", error);
-                            alert(error instanceof Error ? error.message : "Error al enviar respuesta");
-                          } finally {
-                            setReplying(false);
-                          }
-                        }}
-                        disabled={replying || !replyText.trim()}
-                        className="w-full px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {replying ? "Enviando..." : "Enviar Respuesta"}
-                      </button>
-                    </div>
+                          }}
+                          disabled={replying || !replyText.trim()}
+                          className="w-full px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {replying ? "Enviando..." : "Enviar Respuesta"}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </>
               ) : (
