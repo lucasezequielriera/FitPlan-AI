@@ -1214,11 +1214,26 @@ export default function Admin() {
                                     // Extraer monto del último pago
                                     const payment = user.premiumPayment;
                                     let amount: number | null = null;
+                                    
                                     if (payment && typeof payment === 'object') {
-                                      const paymentObj = payment as { amount?: number };
-                                      amount = paymentObj.amount || null;
+                                      const paymentObj = payment as Record<string, unknown>;
+                                      
+                                      // Intentar diferentes formas de acceder al amount
+                                      if (typeof paymentObj.amount === 'number') {
+                                        amount = paymentObj.amount;
+                                      } else if (typeof paymentObj.amount === 'string') {
+                                        amount = parseFloat(paymentObj.amount);
+                                      } else if (paymentObj.transaction_amount && typeof paymentObj.transaction_amount === 'number') {
+                                        amount = paymentObj.transaction_amount;
+                                      }
+                                      
+                                      // Debug solo si no encontramos el amount
+                                      if (amount === null) {
+                                        console.log('🔍 Debug premiumPayment para', user.email, ':', paymentObj);
+                                      }
                                     }
-                                    return amount !== null ? (
+                                    
+                                    return amount !== null && !isNaN(amount) && amount > 0 ? (
                                       <p className="text-white/80">
                                         <span className="font-medium">Último pago:</span>{" "}
                                         ${amount.toLocaleString('es-AR')} ARS

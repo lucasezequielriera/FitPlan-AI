@@ -91,6 +91,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         caderaCm: data.caderaCm || null,
         atletico: data.atletico || false,
         premiumPayment: data.premiumPayment || null,
+        premiumExpiresAt: convertTimestamp(data.premiumExpiresAt),
+        premiumPlanType: data.premiumPlanType || null,
       };
     });
 
