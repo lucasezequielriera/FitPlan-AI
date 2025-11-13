@@ -77,6 +77,13 @@ export interface PlanAIResponse {
   lista_compras?: string[];
   progresion_semanal?: { semana: number; ajuste_calorias_pct: number; motivo?: string }[];
   distribucion_diaria_pct?: { desayuno: number; almuerzo: number; cena: number; snacks: number };
+  // Proyecciones y resultados esperados generados por IA
+  proyecciones?: {
+    musculoGananciaMensual?: string; // e.g., "1.5-2.5 kg" (solo si objetivo es ganar masa/volumen/recomposicion)
+    grasaPerdidaMensual?: string; // e.g., "1-2 kg" (solo si objetivo es perder grasa/corte)
+    proyecciones: string[]; // Lista de proyecciones específicas y personalizadas
+    tiempoEstimado: string; // e.g., "1-3 meses para ver resultados notables"
+  };
 }
 
 export interface TrainingExercise {
@@ -89,6 +96,7 @@ export interface TrainingExercise {
 
 export interface TrainingDayPlan {
   day: string; // "Lunes" ...
+  split?: string; // Tipo de entrenamiento de este día: "Full Body", "Upper", "Lower", "Push", "Pull", "Legs", "Chest & Triceps", etc.
   ejercicios: TrainingExercise[]; // Lista simple de ejercicios (5-8 ejercicios)
 }
 
@@ -98,6 +106,7 @@ export interface TrainingWeekPlan {
 }
 
 export interface TrainingPlan {
+  split?: string; // Tipo de división de entrenamiento: "Full Body", "Upper/Lower", "Push/Pull/Legs", "Bro Split", etc.
   weeks: TrainingWeekPlan[];
   progression_rules?: string[];
   equipment_variants?: string[];

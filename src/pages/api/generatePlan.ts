@@ -73,12 +73,14 @@ ESQUEMA OBLIGATORIO (ORDEN IMPORTANTE - GENERAR plan_semanal PRIMERO):
     "fisiologia": string[]
   },
   "training_plan": {
+    "split": string (OBLIGATORIO: tipo de división de entrenamiento según días de gym y objetivo: "Full Body", "Upper/Lower", "Push/Pull/Legs", "Push/Pull", "Bro Split", etc.),
     "weeks": [
       {
         "week": number (1-4),
         "days": [
           {
             "day": "Lunes" | "Martes" | "Miércoles" | "Jueves" | "Viernes" | "Sábado" | "Domingo",
+            "split": string (OBLIGATORIO: tipo de entrenamiento de este día específico según el split general: "Full Body", "Upper", "Lower", "Push", "Pull", "Legs", "Chest & Triceps", "Back & Biceps", etc.),
             "ejercicios": [
               {
                 "name": string (nombre descriptivo del ejercicio),
@@ -104,7 +106,13 @@ ESQUEMA OBLIGATORIO (ORDEN IMPORTANTE - GENERAR plan_semanal PRIMERO):
   "duracion_plan_dias": 30,
   "progresion_semanal": [ { "semana": number, "ajuste_calorias_pct": number, "motivo": string } ],
   "lista_compras": string[],
-  "mensaje_motivacional": string
+  "mensaje_motivacional": string,
+  "proyecciones": {
+    "musculoGananciaMensual": string (solo si objetivo es ganar_masa, volumen o recomposicion, ej: "1.5-2.5 kg" o "0.5-1 kg"),
+    "grasaPerdidaMensual": string (solo si objetivo es perder_grasa o corte, ej: "1-2 kg" o "0.5-1 kg"),
+    "proyecciones": string[] (array de 5-8 proyecciones específicas y personalizadas basadas en el perfil del usuario),
+    "tiempoEstimado": string (tiempo estimado para ver resultados según intensidad: "1-3 meses" para intensa, "3 meses" para moderada, "3-5 meses" para leve)
+  }
 }
 
 REGLAS CRÍTICAS:
@@ -145,13 +153,73 @@ REGLAS CRÍTICAS:
     - semana3_4: señales de progreso hacia el final del mes
     - post_mes: qué esperar después del primer mes
     - fisiologia: 4-6 bullets sobre ajustes del cuerpo (insulina, hipertrofia, recuperación, etc.)
+11. PROYECCIONES Y RESULTADOS ESPERADOS (OBLIGATORIO - PERSONALIZADAS POR IA):
+    - "proyecciones" DEBE ser un objeto con:
+      * "musculoGananciaMensual": string (solo si objetivo es ganar_masa, volumen o recomposicion)
+        - ⚠️ CRÍTICO: Este campo es OBLIGATORIO y debe ser REALISTA según el perfil del usuario.
+        - Calcular según: nivel de experiencia (principiante/intermedio/avanzado), intensidad, sexo, edad, IMC, días de gym, SUPERÁVIT CALÓRICO, y VOLUMEN TOTAL DE ENTRENAMIENTO
+        - ⚠️ CÓMO DETERMINAR EL NIVEL:
+          * Principiante: usuario NO atlético Y (días de gym = 0 O días de gym < 2)
+          * Intermedio: usuario NO atlético Y días de gym >= 2 Y días de gym < 5
+          * Avanzado: usuario atlético O días de gym >= 5
+        - ⚠️ CRÍTICO: El superávit calórico y el volumen de entrenamiento son FACTORES CLAVE:
+          * Si hay superávit calórico (>200 kcal): AUMENTAR la ganancia muscular estimada
+          * Si hay déficit calórico (<0 kcal): REDUCIR la ganancia muscular (o incluso pérdida si es muy grande)
+          * Volumen alto (≥400 min/semana): puede permitir mayor ganancia si hay superávit adecuado
+          * Volumen bajo (<200 min/semana): limita la ganancia muscular incluso con superávit
+        - ⚠️ REGLAS ESPECÍFICAS POR COMBINACIÓN:
+          * Principiante + intensidad intensa + superávit adecuado (>200 kcal): 1.5-2.5 kg (masculino) o 0.75-1.25 kg (femenino)
+          * Intermedio + intensidad moderada/intensa + superávit adecuado (>200 kcal): 0.8-1.5 kg (masculino) o 0.4-0.8 kg (femenino)
+          * Avanzado + intensidad intensa + superávit adecuado (>200 kcal) + volumen alto (≥400 min/sem): 0.8-1.5 kg (masculino) o 0.4-0.8 kg (femenino)
+          * Avanzado + intensidad intensa + superávit adecuado (>200 kcal) + volumen medio (200-399 min/sem): 0.6-1.2 kg (masculino) o 0.3-0.6 kg (femenino)
+          * Avanzado + intensidad intensa + superávit pequeño (100-200 kcal): 0.4-0.8 kg (masculino) o 0.2-0.4 kg (femenino)
+          * Avanzado + intensidad intensa + sin superávit o déficit: 0.2-0.5 kg (masculino) o 0.1-0.25 kg (femenino)
+          * Avanzado + intensidad leve: 0.2-0.4 kg (masculino) o 0.1-0.25 kg (femenino)
+        - ⚠️ IMPORTANTE: Si el objetivo es "volumen" (hipertrofia máxima), las proyecciones deben estar en el RANGO ALTO de las combinaciones arriba, especialmente si hay superávit adecuado y volumen alto.
+        - REGLA GENERAL: Superávit de 200-300 kcal permite ~0.3-0.5 kg/mes adicionales. Superávit de 400-600 kcal permite ~0.5-0.8 kg/mes adicionales.
+        - Formato: "X-Y kg" (ej: "1.5-2.5 kg", "0.8-1.5 kg", "0.6-1.2 kg")
+        - ⚠️ NO uses valores muy conservadores (ej: 0.2-0.4 kg) a menos que el usuario tenga déficit calórico o volumen muy bajo.
+      * "grasaPerdidaMensual": string (solo si objetivo es perder_grasa, corte o definicion)
+        - Calcular según: intensidad, IMC actual, edad, sexo
+        - Para "definicion": pérdida más gradual para preservar músculo (0.5-1.5 kg por mes según intensidad)
+        - Para "perder_grasa" o "corte": pérdida más agresiva
+        - Intensidad intensa: 1-2 kg por mes (perder_grasa/corte) o 0.8-1.5 kg por mes (definicion)
+        - Intensidad moderada: 0.5-1 kg por mes (perder_grasa/corte) o 0.5-1 kg por mes (definicion)
+        - Intensidad leve: 0.3-0.7 kg por mes (perder_grasa/corte) o 0.3-0.6 kg por mes (definicion)
+        - Formato: "X-Y kg" (ej: "1-2 kg", "0.5-1 kg", "0.8-1.5 kg")
+      * "proyecciones": array de 5-8 strings con proyecciones ESPECÍFICAS y PERSONALIZADAS basadas en:
+        - Objetivo del usuario (ganar masa, perder grasa, recomposición, definición, mantener)
+        - Intensidad elegida (leve, moderada, intensa)
+        - Perfil del usuario (edad, sexo, IMC, nivel atlético, días de gym)
+        - ⚠️ SUPERÁVIT/DÉFICIT CALÓRICO: TÚ (OpenAI) calcularás el superávit/déficit en "calorias_diarias" según el objetivo e intensidad del usuario. Este superávit/déficit es un FACTOR CRÍTICO que DEBES considerar al calcular las proyecciones de ganancia muscular. Si generaste un superávit alto (>200 kcal) para ganar masa, las proyecciones deben reflejar mayor ganancia muscular. Si generaste un déficit para perder grasa, las proyecciones deben reflejar pérdida de grasa.
+        - ⚠️ VOLUMEN TOTAL DE ENTRENAMIENTO: ${(() => {
+          const diasGym = (input as unknown as Record<string, unknown>)?.diasGym as number | undefined ?? 3;
+          const minutosSesion = diasGym >= 5 ? 75 : diasGym >= 3 ? 60 : 45;
+          const volumen = diasGym * minutosSesion;
+          return `${volumen} minutos/semana (${diasGym} días × ${minutosSesion} min)`;
+        })()} - Este volumen también afecta las proyecciones de ganancia muscular.
+        - Tipo de dieta seleccionada
+        - Patologías o condiciones médicas (si aplica)
+        - Ejemplos de proyecciones personalizadas:
+          * Para ganar masa + principiante + intensa: "Como principiante con alta intensidad, podés ganar músculo muy rápido (efecto novato maximizado)"
+          * Para perder grasa + IMC > 30: "Los primeros meses podés perder más peso (agua y grasa inicial)"
+          * Para recomposición + intermedio: "Pérdida simultánea de grasa mientras ganás músculo"
+          * Para definición: "Definición muscular visible: abs y músculos más marcados"
+          * Incluir proyecciones sobre: fuerza, composición corporal, circunferencias, energía, recuperación, etc.
+      * "tiempoEstimado": string con tiempo estimado para ver resultados según intensidad:
+        - Intensidad "intensa": "1-3 meses para ver resultados notables"
+        - Intensidad "moderada": "3 meses para ver resultados notables"
+        - Intensidad "leve": "3-5 meses para ver resultados notables"
+        - Ajustar según objetivo (definición puede tomar más tiempo, ganancia de principiante puede ser más rápida)
+    - Las proyecciones DEBEN ser REALISTAS, MOTIVADORAS y ESPECÍFICAS al perfil del usuario
+    - NO usar textos genéricos, cada proyección debe reflejar el contexto único del usuario
 
 ENTRENAMIENTO (OBLIGATORIO - PLAN BÁSICO POR SEMANA):
 ${(() => {
   // Calcular recomendaciones de entrenamiento
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { sugerirEntrenamiento } = require("@/utils/calculations");
+    const { sugerirEntrenamiento, calculateBMR, calculateTDEE } = require("@/utils/calculations");
     const bmi = input.alturaCm && input.pesoKg ? (input.pesoKg / Math.pow(input.alturaCm / 100, 2)) : 25;
     const recomendaciones = sugerirEntrenamiento(
       input.objetivo,
@@ -163,26 +231,121 @@ ${(() => {
     const diasGym = (input as unknown as Record<string, unknown>)?.diasGym as number | undefined ?? recomendaciones.diasGym;
     const minutosSesion = diasGym >= 5 ? 75 : diasGym >= 3 ? 60 : 45;
     
+    // Calcular superávit/déficit calórico estimado
+    let superavitDeficit = 0;
+    try {
+      const bmr = calculateBMR(input.pesoKg, input.alturaCm, input.edad, input.sexo);
+      const tdee = calculateTDEE(bmr, input.actividad, diasGym, (input as unknown as Record<string, unknown>)?.diasCardio as number | undefined);
+      // Estimar calorías del plan basándose en el objetivo (esto es aproximado, el valor real vendrá de OpenAI)
+      const caloriasEstimadas = input.objetivo === "ganar_masa" || input.objetivo === "volumen" 
+        ? Math.round(tdee * 1.15) // ~15% superávit para ganar masa
+        : input.objetivo === "perder_grasa" || input.objetivo === "corte" || input.objetivo === "definicion"
+        ? Math.round(tdee * 0.8) // ~20% déficit para perder grasa
+        : tdee; // Mantener
+      superavitDeficit = caloriasEstimadas - tdee;
+    } catch (e) {
+      // Si falla el cálculo, usar valores por defecto según intensidad
+      superavitDeficit = input.intensidad === "intensa" 
+        ? (input.objetivo === "ganar_masa" || input.objetivo === "volumen" ? 600 : input.objetivo === "perder_grasa" ? -600 : 0)
+        : input.intensidad === "moderada"
+        ? (input.objetivo === "ganar_masa" || input.objetivo === "volumen" ? 400 : input.objetivo === "perder_grasa" ? -400 : 0)
+        : (input.objetivo === "ganar_masa" || input.objetivo === "volumen" ? 250 : input.objetivo === "perder_grasa" ? -250 : 0);
+    }
+    
+    // Calcular volumen total de entrenamiento
+    const volumenTotalSemanal = diasGym * minutosSesion;
+    
     return `⚠️ RECOMENDACIONES DE ENTRENAMIENTO CALCULADAS PARA ESTE USUARIO:
 - Días de gym por semana: ${diasGym} días
 - Minutos de caminata diaria: ${recomendaciones.minutosCaminata} minutos
 - Horas de sueño recomendadas: ${recomendaciones.horasSueno} horas
 - Duración por sesión de gym: ${minutosSesion} minutos
+- Volumen total semanal: ${volumenTotalSemanal} minutos (${diasGym} días × ${minutosSesion} min)
+- Superávit/Déficit calórico estimado: ${superavitDeficit > 0 ? `+${superavitDeficit} kcal (superávit)` : superavitDeficit < 0 ? `${superavitDeficit} kcal (déficit)` : '0 kcal (mantenimiento)'}
 - Descripción: ${recomendaciones.descripcion}
 
 ⚠️ DEBES RESPETAR EXACTAMENTE ESTAS RECOMENDACIONES AL GENERAR EL PLAN DE ENTRENAMIENTO.
 
-ESTRUCTURA DEL PLAN DE ENTRENAMIENTO:
+⚠️ CRÍTICO - ESTRUCTURA DEL PLAN DE ENTRENAMIENTO (DEBES SEGUIR ESTO ESTRICTAMENTE):
+
+1. SPLIT REQUERIDO según ${diasGym} días de gym y objetivo "${input.objetivo}":
+${(() => {
+  const objetivo = input.objetivo;
+  if (diasGym <= 2) {
+    return `   - SPLIT OBLIGATORIO: "Full Body"
+   - Cada día trabaja TODOS los grupos musculares: Pecho, Espalda, Piernas, Hombros, Bíceps, Tríceps, Abdominales
+   - Ejemplo de distribución por día:
+     * Día 1: 1-2 ejercicios de Pecho, 1-2 de Espalda, 1-2 de Piernas, 1 de Hombros, 1 de Bíceps/Tríceps, 1 de Abdominales
+     * Día 2: Variar ejercicios pero mantener todos los grupos musculares`;
+  } else if (diasGym === 3) {
+    if (objetivo === "perder_grasa" || objetivo === "definicion" || objetivo === "corte") {
+      return `   - SPLIT OBLIGATORIO: "Push/Pull/Legs" (mejor para quema de grasa)
+   - Día 1 (Push): Pecho, Hombros, Tríceps
+   - Día 2 (Pull): Espalda, Bíceps, Trapecio
+   - Día 3 (Legs): Cuádriceps, Isquiotibiales, Glúteos, Gemelos, Abdominales`;
+    } else {
+      return `   - SPLIT OBLIGATORIO: "Upper/Lower" o "Push/Pull/Legs"
+   - Si "Upper/Lower":
+     * Día 1 (Upper): Pecho, Espalda, Hombros, Bíceps, Tríceps
+     * Día 2 (Lower): Cuádriceps, Isquiotibiales, Glúteos, Gemelos, Abdominales
+     * Día 3 (Upper): Variación del Día 1 con ejercicios diferentes
+   - Si "Push/Pull/Legs":
+     * Día 1 (Push): Pecho, Hombros, Tríceps
+     * Día 2 (Pull): Espalda, Bíceps, Trapecio
+     * Día 3 (Legs): Cuádriceps, Isquiotibiales, Glúteos, Gemelos, Abdominales`;
+    }
+  } else if (diasGym === 4) {
+    return `   - SPLIT OBLIGATORIO: "Upper/Lower" (2x por semana cada uno)
+   - Día 1 (Upper A): Pecho, Espalda, Hombros, Bíceps, Tríceps
+   - Día 2 (Lower A): Cuádriceps, Isquiotibiales, Glúteos, Gemelos, Abdominales
+   - Día 3 (Upper B): Variación del Upper A con ejercicios diferentes
+   - Día 4 (Lower B): Variación del Lower A con ejercicios diferentes`;
+  } else if (diasGym >= 5) {
+    if (objetivo === "definicion" || objetivo === "corte" || objetivo === "perder_grasa") {
+      return `   - SPLIT OBLIGATORIO: "Push/Pull/Legs" con días adicionales (alta frecuencia para quema de grasa)
+   - Día 1 (Push): Pecho, Hombros, Tríceps
+   - Día 2 (Pull): Espalda, Bíceps, Trapecio
+   - Día 3 (Legs): Cuádriceps, Isquiotibiales, Glúteos, Gemelos
+   - Día 4 (Push): Variación del Día 1
+   - Día 5 (Pull): Variación del Día 2
+   - Día 6+ (Legs/Cardio/Full Body ligero): Variación o cardio`;
+    } else if (objetivo === "ganar_masa" || objetivo === "volumen") {
+      return `   - SPLIT OBLIGATORIO: "Bro Split" o "Push/Pull/Legs" especializado (alta frecuencia para hipertrofia)
+   - ⚠️ CRÍTICO: Para hipertrofia máxima (volumen/ganar_masa) con ${diasGym} días, PROHIBIDO usar "Full Body". Debes usar Bro Split o Push/Pull/Legs especializado.
+   - Opción "Bro Split" (RECOMENDADO para hipertrofia máxima):
+     * Día 1: Pecho y Tríceps
+     * Día 2: Espalda y Bíceps
+     * Día 3: Piernas (Cuádriceps, Isquiotibiales, Glúteos, Gemelos)
+     * Día 4: Hombros y Trapecio
+     * Día 5: Bíceps y Tríceps (o día de descanso activo)
+     * Día 6: Piernas (segunda sesión) o Full Body ligero (solo como complemento, NO como split principal)
+   - Opción "Push/Pull/Legs" (alternativa válida):
+     * Día 1 (Push): Pecho, Hombros, Tríceps
+     * Día 2 (Pull): Espalda, Bíceps, Trapecio
+     * Día 3 (Legs): Cuádriceps, Isquiotibiales, Glúteos, Gemelos, Abdominales
+     * Día 4 (Push): Variación del Día 1
+     * Día 5 (Pull): Variación del Día 2
+     * Día 6 (Legs): Segunda sesión de piernas o variación
+   - ⚠️ REGLA ABSOLUTA: El campo "split" en training_plan DEBE ser "Bro Split" o "Push/Pull/Legs", NUNCA "Full Body" con ${diasGym} días y objetivo de hipertrofia.`;
+    } else {
+      return `   - SPLIT OBLIGATORIO: "Push/Pull/Legs" con días adicionales
+   - Día 1 (Push): Pecho, Hombros, Tríceps
+   - Día 2 (Pull): Espalda, Bíceps, Trapecio
+   - Día 3 (Legs): Cuádriceps, Isquiotibiales, Glúteos, Gemelos, Abdominales
+   - Día 4+ (Repetir ciclo con variaciones o días de Full Body ligero)`;
+    }
+  }
+  return "";
+})()}
+
+2. REGLAS OBLIGATORIAS:
 - Debe incluir EXACTAMENTE 4 semanas (weeks[0..3]) representando el mes actual.
 - Cada semana debe tener EXACTAMENTE ${diasGym} días de entrenamiento, tomados de ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"] en ese orden cronológico.
+- ⚠️ El campo "split" en training_plan DEBE indicar el tipo de división usado (ej: "Full Body", "Upper/Lower", "Push/Pull/Legs", "Bro Split").
+- ⚠️ Cada día DEBE tener el campo "split" indicando qué tipo de entrenamiento es ese día específico (ej: "Full Body", "Upper", "Lower", "Push", "Pull", "Legs", "Chest & Triceps", etc.).
 - ⚠️ VARIACIÓN OBLIGATORIA: Cada semana debe tener ejercicios DIFERENTES o variaciones (cambiar ejercicios, series, reps, o músculos trabajados). NO repitas exactamente la misma rutina semana tras semana.
 - Cada día debe tener MÍNIMO 6-8 ejercicios diferentes para una rutina completa y efectiva.
-- Formato simplificado: cada día debe tener un array "ejercicios" con ejercicios descriptivos y el músculo trabajado.
-- Los ejercicios deben estar organizados según el split apropiado para ${diasGym} días:
-  ${diasGym <= 2 ? "- Full Body: todos los grupos musculares en cada sesión (Pecho, Espalda, Piernas, Hombros, Bíceps, Tríceps, Abdominales)" : ""}
-  ${diasGym === 3 ? "- Push/Pull/Legs o Upper/Lower: dividir grupos musculares en 3 días específicos (cada día enfocado en músculos específicos)" : ""}
-  ${diasGym === 4 ? "- Upper/Lower: 2 días tren superior (Pecho, Espalda, Hombros, Bíceps, Tríceps), 2 días tren inferior (Piernas, Glúteos, Cuádriceps, Isquiotibiales, Gemelos)" : ""}
-  ${diasGym >= 5 ? "- Push/Pull/Legs o Split específico: alta frecuencia, más especialización por músculo (cada día trabaja músculos muy específicos)" : ""}
+- Los ejercicios DEBEN estar organizados según el split especificado arriba. NO uses Full Body si el split requiere Upper/Lower o Push/Pull/Legs.
 - Cada ejercicio debe incluir:
   - "name": nombre descriptivo del ejercicio
   - "sets": número de series (3-4 series típicamente)
@@ -194,9 +357,19 @@ ESTRUCTURA DEL PLAN DE ENTRENAMIENTO:
 - Calentamiento: 5-10 min al inicio de cada sesión.
 - Estiramiento: 5 min al final de cada sesión.
 - Finisher (opcional): según objetivo (HIIT para pérdida de grasa, ligero para volumen).
-- ${input.objetivo === "perder_grasa" || input.objetivo === "definicion" || input.objetivo === "corte" ? "ENFOQUE: Más densidad, circuitos, finishers de cardio. Priorizar quema de calorías." : ""}
-- ${input.objetivo === "ganar_masa" || input.objetivo === "volumen" ? "ENFOQUE: Más volumen, series pesadas, ejercicios compuestos. Priorizar hipertrofia." : ""}
-- ${input.objetivo === "recomposicion" || input.objetivo === "mantener" ? "ENFOQUE: Balance entre fuerza e hipertrofia. Progresión gradual." : ""}
+- ${input.objetivo === "perder_grasa" || input.objetivo === "definicion" || input.objetivo === "corte" ? "ENFOQUE: Más densidad, circuitos, finishers de cardio. Priorizar quema de calorías. Split recomendado: Push/Pull/Legs para mayor frecuencia y quema calórica." : ""}
+- ${input.objetivo === "ganar_masa" || input.objetivo === "volumen" ? "ENFOQUE: Más volumen, series pesadas, ejercicios compuestos. Priorizar hipertrofia. Split recomendado: Bro Split o Push/Pull/Legs especializado para mayor volumen por músculo." : ""}
+- ${input.objetivo === "recomposicion" || input.objetivo === "mantener" ? "ENFOQUE: Balance entre fuerza e hipertrofia. Progresión gradual. Split recomendado: Upper/Lower o Push/Pull/Legs equilibrado." : ""}
+
+⚠️ VALIDACIÓN FINAL DEL SPLIT - REGLAS CRÍTICAS:
+- Si el usuario tiene ${diasGym} días de gym y objetivo "${input.objetivo}":
+  * Con ${diasGym} días y objetivo "volumen" o "ganar_masa": PROHIBIDO usar "Full Body". DEBES usar "Bro Split" o "Push/Pull/Legs".
+  * Con ${diasGym} días y objetivo "definicion" o "perder_grasa": DEBES usar "Push/Pull/Legs" con días adicionales.
+  * Solo con 1-2 días de gym puedes usar "Full Body".
+- ⚠️ Si generaste "Full Body" pero el usuario tiene ${diasGym} días de gym y objetivo "${input.objetivo}", ESTÁS EQUIVOCADO. Revisa las reglas del split arriba y CORRÍGELO.
+- Si generaste ejercicios que no corresponden al split del día (ej: ejercicios de piernas en un día "Upper"), ESTÁS EQUIVOCADO.
+- El split DEBE ser consistente en todas las semanas: si la semana 1 usa "Push/Pull/Legs", las semanas 2, 3 y 4 también deben usar "Push/Pull/Legs" (pero con ejercicios variados).
+- El campo "split" en training_plan DEBE coincidir con el split especificado en las reglas arriba.
 `;
   } catch {
     const diasGym = (input as unknown as Record<string, unknown>)?.diasGym as number | undefined ?? 3;
@@ -210,12 +383,13 @@ ESTRUCTURA DEL PLAN DE ENTRENAMIENTO:
 - ⚠️ VARIACIÓN OBLIGATORIA: Cada semana debe tener ejercicios DIFERENTES.`;
   }
 })()}
-Datos: ${JSON.stringify({
+Datos del usuario: ${JSON.stringify({
       nombre: input.nombre,
       sexo: input.sexo,
       edad: input.edad,
       alturaCm: input.alturaCm,
       pesoKg: input.pesoKg,
+      IMC: input.alturaCm && input.pesoKg ? Number((input.pesoKg / Math.pow(input.alturaCm / 100, 2)).toFixed(2)) : undefined,
       actividad: typeof input.actividad === "number" 
         ? `${input.actividad} día${input.actividad !== 1 ? "s" : ""} de actividad física por semana`
         : input.actividad,
@@ -226,6 +400,22 @@ Datos: ${JSON.stringify({
       restricciones: input.restricciones,
       preferencias: input.preferencias,
       patologias: input.patologias,
+      dias_gym: (input as unknown as Record<string, unknown>)?.diasGym ?? undefined,
+      minutos_sesion_gym: (() => {
+        const diasGym = (input as unknown as Record<string, unknown>)?.diasGym as number | undefined;
+        if (typeof diasGym === 'number') {
+          return diasGym >= 5 ? 75 : diasGym >= 3 ? 60 : 45;
+        }
+        return 60; // Default
+      })(),
+      volumen_total_semanal: (() => {
+        const diasGym = (input as unknown as Record<string, unknown>)?.diasGym as number | undefined ?? 3;
+        const minutosSesion = diasGym >= 5 ? 75 : diasGym >= 3 ? 60 : 45;
+        return diasGym * minutosSesion;
+      })(),
+      // NOTA: El superávit/déficit lo calculará OpenAI en calorias_diarias según objetivo e intensidad
+      // No lo enviamos aquí porque es parte de la RESPUESTA de OpenAI, no del input del usuario
+      nivel_atletico: input.atletico || false,
     })}.
 
 INSTRUCCIONES CRÍTICAS:
@@ -351,9 +541,15 @@ ADAPTAR TODO EL PLAN (calorías, macros, selección de alimentos, horarios) seg�
 - Moderada: progresión equilibrada (déficit/superávit medio: ~400-500 kcal) - Objetivo: resultados en 3 meses
 - Intensa: cambios más agresivos (déficit/superávit alto: ~600-800 kcal) - Objetivo: resultados en 1-3 meses
 
-6. El tipo de dieta "${input.tipoDieta || "estandar"}" debe aplicarse estrictamente en todas las comidas:
+6. El tipo de dieta "${input.tipoDieta || "estandar"}" debe aplicarse ESTRICTAMENTE en todas las comidas. NO HAY EXCEPCIONES:
 ${input.tipoDieta === "mediterranea" ? "- Mediterránea: Enfocarse en aceite de oliva, pescados, vegetales, frutas, legumbres y granos integrales. Limitar carnes rojas y procesados." : ""}
-${input.tipoDieta === "vegana" ? "- Vegana: SOLO alimentos de origen vegetal. Excluir completamente carnes, pescados, huevos, lácteos y miel. Asegurar fuentes vegetales de proteínas completas (legumbres combinadas con cereales)." : ""}
+${input.tipoDieta === "vegana" ? `- ⚠️ VEGANA (CRÍTICO - ABSOLUTAMENTE ESTRICTO):
+  * SOLO alimentos de origen vegetal. CERO productos de origen animal.
+  * EXCLUIR COMPLETAMENTE: carnes (res, pollo, cerdo, pavo, cordero, etc.), pescados (atún, salmón, merluza, etc.), mariscos (camarones, langostinos, etc.), huevos (en CUALQUIER forma: huevos enteros, claras, yemas, huevos revueltos, tortillas con huevo, etc.), lácteos (leche, queso, yogurt, mantequilla, crema, nata, etc.), miel, gelatina, y cualquier producto derivado de animales.
+  * PROHIBIDO en ingredientes: huevos, leche, queso, yogurt, mantequilla, crema, nata, miel, gelatina, carnes, pescados, mariscos.
+  * PROHIBIDO en métodos de preparación: "agregar huevo", "batir con huevo", "cocinar con mantequilla", "servir con queso", etc.
+  * USAR SOLO: legumbres (garbanzos, lentejas, frijoles, soja), cereales (arroz, quinoa, avena), vegetales, frutas, frutos secos, semillas, tofu, tempeh, leches vegetales (almendras, avena, coco), aceites vegetales.
+  * Asegurar fuentes vegetales de proteínas completas (legumbres combinadas con cereales).` : ""}
 ${input.tipoDieta === "vegetariana" ? "- Vegetariana: Excluir carnes y pescados. Incluir huevos y lácteos. Enfoque en vegetales, frutas, legumbres y granos." : ""}
 ${input.tipoDieta === "pescatariana" ? "- Pescatariana: Excluir carnes rojas, aves y otras carnes. Incluir pescados, mariscos, huevos y lácteos. Enfoque vegetal con omega-3 del pescado." : ""}
 ${input.tipoDieta === "flexitariana" ? "- Flexitariana: Principalmente vegetariana con consumo ocasional de carnes/pescados. Enfoque en plantas pero permitir flexibilidad ocasional." : ""}
@@ -1190,10 +1386,26 @@ Ejemplo de estructura:
       }
 
       // Normalización mínima de training_plan: asegurar 4 semanas y días alineados a diasGym y minutos
-      const diasGym = (input as any)?.diasGym ?? undefined;
-      const minutosSesion = Number((out as any)?.minutos_sesion_gym) || 75;
+      // Usar el mismo cálculo que en el prompt para asegurar consistencia
+      let diasGym: number;
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { sugerirEntrenamiento } = require("@/utils/calculations");
+        const bmi = input.alturaCm && input.pesoKg ? (input.pesoKg / Math.pow(input.alturaCm / 100, 2)) : 25;
+        const recomendaciones = sugerirEntrenamiento(
+          input.objetivo,
+          input.intensidad || "moderada",
+          input.edad,
+          bmi,
+          input.atletico || false
+        );
+        diasGym = (input as unknown as Record<string, unknown>)?.diasGym as number | undefined ?? recomendaciones.diasGym;
+      } catch {
+        diasGym = (input as unknown as Record<string, unknown>)?.diasGym as number | undefined ?? 3;
+      }
+      const minutosSesion = Number((out as Record<string, unknown>)?.minutos_sesion_gym) || (diasGym >= 5 ? 75 : diasGym >= 3 ? 60 : 45);
       const diasSemana = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
-      const targetDays = (typeof diasGym === 'number' && diasGym > 0) ? Math.min(7, Math.max(1, diasGym)) : 3;
+      const targetDays = Math.min(7, Math.max(1, diasGym));
       const ensureWeek = (weekIndex: number) => {
         // Variar ejercicios según la semana para evitar repetición
         const ejerciciosBase = [
@@ -1212,8 +1424,9 @@ Ejemplo de estructura:
         
         return {
           week: weekIndex + 1,
-          days: diasSemana.slice(0, targetDays).map((d, di) => ({
+          days: diasSemana.slice(0, targetDays).map((d) => ({
             day: d,
+            split: targetDays <= 2 ? "Full Body" : "",
             ejercicios: ejerciciosRotados.slice(0, 8) // Mínimo 6-8 ejercicios
           }))
         };
@@ -1242,47 +1455,120 @@ Ejemplo de estructura:
         };
         return map[n] || '';
       };
-      (out as any).training_plan.weeks = weeks.map((w, wi) => {
-        const originalDays = Array.isArray(w.days) ? w.days : [];
-        // Normalizar nombres y quitar duplicados
-        const normalized = originalDays
-          .map((d: any) => ({ 
-            ...d, 
-            day: normalizeDayName(d?.day),
-            // Asegurar que tenga ejercicios (nueva estructura) o convertir blocks a ejercicios
-            ejercicios: d.ejercicios || (d.blocks ? d.blocks.flatMap((block: any) => (block.exercises || []).map((e: any) => ({
-              name: e.name,
-              sets: e.sets || 3,
-              reps: e.reps || "8-12",
-              muscle_group: e.muscle_group || (block.name || "General")
-            }))) : [])
-          }))
-          .filter((d: any) => expectedDays.includes(d.day));
-        const uniqueByDay = Array.from(new Map(normalized.map((d: any) => [d.day, d])).values());
-        // Orden cronológico
-        const ordered = uniqueByDay.sort((a: any, b: any) => expectedDays.indexOf(a.day) - expectedDays.indexOf(b.day));
-        const days = ordered.slice(0, targetDays);
-        while (days.length < targetDays) {
-          const idx = days.length % diasSemana.length;
-          const fallbackDay = ensureWeek(wi).days[idx];
-          days.push({
-            day: fallbackDay.day,
-            ejercicios: fallbackDay.ejercicios || []
-          });
-        }
-        return {
-          week: w.week ?? (wi + 1),
-          days: days.map((d: any) => ({
-            day: d.day,
-            ejercicios: Array.isArray(d.ejercicios) ? d.ejercicios.slice(0, 8).map((e: any) => ({
-              name: e.name || "Ejercicio",
-              sets: e.sets || 3,
-              reps: e.reps || "8-12",
-              muscle_group: e.muscle_group || "General"
-            })) : [] // Mínimo 6-8 ejercicios, asegurar muscle_group
-          })),
-        };
-      });
+      (out as Record<string, unknown>).training_plan = {
+        ...(out as Record<string, unknown>).training_plan as Record<string, unknown>,
+        weeks: weeks.map((w, wi) => {
+          const originalDays = Array.isArray(w.days) ? w.days : [];
+          // Normalizar nombres y quitar duplicados
+          const normalized = originalDays
+            .map((d: unknown) => {
+              const day = d as Record<string, unknown>;
+              return { 
+                ...day, 
+                day: normalizeDayName(day?.day),
+                // Asegurar que tenga ejercicios (nueva estructura) o convertir blocks a ejercicios
+                ejercicios: day.ejercicios || (day.blocks ? (day.blocks as Array<Record<string, unknown>>).flatMap((block: Record<string, unknown>) => ((block.exercises as Array<Record<string, unknown>>) || []).map((e: Record<string, unknown>) => ({
+                  name: e.name,
+                  sets: e.sets || 3,
+                  reps: e.reps || "8-12",
+                  muscle_group: e.muscle_group || (block.name as string || "General")
+                }))) : [])
+              };
+            })
+            .filter((d: Record<string, unknown>) => expectedDays.includes(d.day as string));
+          const uniqueByDay = Array.from(new Map(normalized.map((d: Record<string, unknown>) => [d.day, d])).values());
+          
+          // Si hay días generados por OpenAI, usarlos pero ordenarlos cronológicamente
+          let days: Array<Record<string, unknown>> = [];
+          if (uniqueByDay.length > 0) {
+            // Orden cronológico de los días que OpenAI generó
+            const ordered = (uniqueByDay as Array<Record<string, unknown>>).sort((a, b) => 
+              expectedDays.indexOf(a.day as string) - expectedDays.indexOf(b.day as string)
+            );
+            // Tomar solo los primeros targetDays días en orden cronológico
+            days = ordered.slice(0, targetDays);
+          }
+          
+          // Si faltan días, completar con los primeros días de la semana en orden cronológico
+          while (days.length < targetDays) {
+            const nextDayIndex = days.length;
+            const nextDay = diasSemana[nextDayIndex];
+            // Verificar que no esté ya en days
+            if (!days.some(d => d.day === nextDay)) {
+              const fallbackDay = ensureWeek(wi).days[nextDayIndex % ensureWeek(wi).days.length];
+              // Determinar split correcto según días y objetivo
+              let splitCorrecto = fallbackDay.split || "";
+              if (!splitCorrecto) {
+                if (targetDays <= 2) {
+                  splitCorrecto = "Full Body";
+                } else if (targetDays >= 5 && (objetivo === "volumen" || objetivo === "ganar_masa")) {
+                  // Para hipertrofia máxima con 5+ días, usar Bro Split o PPL, NO Full Body
+                  splitCorrecto = "Bro Split";
+                } else if (targetDays === 3) {
+                  splitCorrecto = "Push/Pull/Legs";
+                } else {
+                  splitCorrecto = "Upper/Lower";
+                }
+              }
+              days.push({
+                day: nextDay,
+                split: splitCorrecto,
+                ejercicios: fallbackDay.ejercicios || []
+              });
+            } else {
+              // Si el día ya existe, buscar el siguiente disponible
+              for (let i = 0; i < diasSemana.length; i++) {
+                const candidateDay = diasSemana[i];
+                if (!days.some(d => d.day === candidateDay)) {
+                  const fallbackDay = ensureWeek(wi).days[i % ensureWeek(wi).days.length];
+                  // Determinar split correcto según días y objetivo
+                  let splitCorrecto = fallbackDay.split || "";
+                  if (!splitCorrecto) {
+                    if (targetDays <= 2) {
+                      splitCorrecto = "Full Body";
+                    } else if (targetDays >= 5 && (objetivo === "volumen" || objetivo === "ganar_masa")) {
+                      // Para hipertrofia máxima con 5+ días, usar Bro Split o PPL, NO Full Body
+                      splitCorrecto = "Bro Split";
+                    } else if (targetDays === 3) {
+                      splitCorrecto = "Push/Pull/Legs";
+                    } else {
+                      splitCorrecto = "Upper/Lower";
+                    }
+                  }
+                  days.push({
+                    day: candidateDay,
+                    split: splitCorrecto,
+                    ejercicios: fallbackDay.ejercicios || []
+                  });
+                  break;
+                }
+              }
+            }
+          }
+          
+          // Asegurar que los días estén en orden cronológico estricto
+          days = days.sort((a: Record<string, unknown>, b: Record<string, unknown>) => 
+            expectedDays.indexOf(a.day as string) - expectedDays.indexOf(b.day as string)
+          );
+          
+          // Si aún hay más días de los necesarios, tomar solo los primeros targetDays
+          days = days.slice(0, targetDays);
+          
+          return {
+            week: w.week ?? (wi + 1),
+            days: days.map((d: Record<string, unknown>) => ({
+              day: d.day,
+              split: d.split,
+              ejercicios: Array.isArray(d.ejercicios) ? (d.ejercicios as Array<Record<string, unknown>>).slice(0, 8).map((e: Record<string, unknown>) => ({
+                name: e.name || "Ejercicio",
+                sets: e.sets || 3,
+                reps: e.reps || "8-12",
+                muscle_group: e.muscle_group || "General"
+              })) : [] // Mínimo 6-8 ejercicios, asegurar muscle_group
+            })),
+          };
+        })
+      };
     }
 
     // Crear objeto de debug con todos los datos usados para generar el training_plan
@@ -1421,6 +1707,131 @@ Ejemplo de estructura:
     console.log("=".repeat(80));
     console.log(JSON.stringify(trainingPlanDebugData, null, 2));
     console.log("=".repeat(80));
+
+    // Fallback para proyecciones si OpenAI no las generó o ajustar con superávit real
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { calcularProyeccionesMotivacionales, calculateBMR, calculateTDEE } = require("@/utils/calculations");
+      const bmi = input.alturaCm && input.pesoKg ? (input.pesoKg / Math.pow(input.alturaCm / 100, 2)) : 25;
+      const diasGym = (input as unknown as Record<string, unknown>)?.diasGym as number | undefined ?? 3;
+      
+      // Calcular superávit/déficit REAL del plan generado
+      let superavitReal: number = 0;
+      let volumenTotal: number = 0;
+      try {
+        const bmr = calculateBMR(input.pesoKg, input.alturaCm, input.edad, input.sexo);
+        const tdee = calculateTDEE(bmr, input.actividad, diasGym, (input as unknown as Record<string, unknown>)?.diasCardio as number | undefined);
+        const caloriasPlan = typeof parsedFinal.calorias_diarias === 'number' ? parsedFinal.calorias_diarias : 0;
+        superavitReal = caloriasPlan - tdee;
+        
+        const minutosSesion = Number((parsedFinal as Record<string, unknown>)?.minutos_sesion_gym) || (diasGym >= 5 ? 75 : diasGym >= 3 ? 60 : 45);
+        volumenTotal = diasGym * minutosSesion;
+      } catch (e) {
+        console.warn("⚠️ No se pudo calcular superávit real, usando estimado");
+      }
+      
+      // Si OpenAI no generó proyecciones, usar fallback
+      if (!parsedFinal.proyecciones || typeof parsedFinal.proyecciones !== 'object') {
+        const proyeccionesFallback = calcularProyeccionesMotivacionales(
+          input.objetivo,
+          input.intensidad || "moderada",
+          input.edad,
+          input.sexo,
+          bmi,
+          input.atletico || false,
+          diasGym
+        );
+        parsedFinal.proyecciones = proyeccionesFallback;
+        console.log("⚠️ OpenAI no generó proyecciones, usando fallback calculado localmente");
+      }
+      
+      // Ajustar proyecciones con el superávit REAL que OpenAI generó en calorias_diarias
+      // Este es el superávit/déficit que la IA calculó, no un estimado nuestro
+      if (parsedFinal.proyecciones && typeof parsedFinal.proyecciones === 'object' && typeof superavitReal === 'number' && superavitReal !== 0) {
+        const proyecciones = parsedFinal.proyecciones as Record<string, unknown>;
+        const musculoGanancia = proyecciones.musculoGananciaMensual as string | undefined;
+        
+        if (musculoGanancia && (input.objetivo === "ganar_masa" || input.objetivo === "volumen" || input.objetivo === "recomposicion")) {
+          // Ajustar ganancia muscular según el superávit REAL que OpenAI generó
+          const match = musculoGanancia.match(/(\d+\.?\d*)\s*-\s*(\d+\.?\d*)\s*kg/);
+          if (match) {
+            let min = parseFloat(match[1]);
+            let max = parseFloat(match[2]);
+            
+            // Ajustar según el superávit REAL que OpenAI calculó en calorias_diarias
+            // Determinar nivel aproximado para ajustar mejor
+            const diasGym = (input as unknown as Record<string, unknown>)?.diasGym as number | undefined ?? 3;
+            const esAvanzado = (input.atletico || false) || (typeof diasGym === 'number' && diasGym >= 5);
+            const esPrincipiante = !(input.atletico || false) && (typeof diasGym === 'undefined' || diasGym === 0 || diasGym < 2);
+            const esIntermedio = !esPrincipiante && !esAvanzado;
+            
+            if (typeof superavitReal === 'number' && typeof volumenTotal === 'number' && superavitReal > 200 && volumenTotal >= 400) {
+              // Superávit alto (generado por OpenAI) + volumen alto: aumentar proyección significativamente
+              if (esPrincipiante) {
+                min = Math.min(min + 0.3, 2.5);
+                max = Math.min(max + 0.5, 2.5);
+              } else if (esIntermedio) {
+                min = Math.min(min + 0.2, 1.5);
+                max = Math.min(max + 0.4, 1.5);
+              } else {
+                // Avanzado
+                min = Math.min(min + 0.2, 1.5);
+                max = Math.min(max + 0.3, 1.5);
+              }
+            } else if (superavitReal > 200) {
+              // Superávit alto (generado por OpenAI) pero volumen bajo: ajuste moderado
+              if (esPrincipiante) {
+                min = Math.min(min + 0.2, 2.0);
+                max = Math.min(max + 0.3, 2.0);
+              } else if (esIntermedio) {
+                min = Math.min(min + 0.15, 1.2);
+                max = Math.min(max + 0.25, 1.2);
+              } else {
+                // Avanzado
+                min = Math.min(min + 0.1, 1.2);
+                max = Math.min(max + 0.2, 1.2);
+              }
+            } else if (superavitReal >= 100 && superavitReal <= 200) {
+              // Superávit moderado: ajuste pequeño
+              if (esPrincipiante) {
+                min = Math.min(min + 0.1, 1.5);
+                max = Math.min(max + 0.2, 1.5);
+              } else if (esIntermedio) {
+                min = Math.min(min + 0.05, 1.0);
+                max = Math.min(max + 0.15, 1.0);
+              }
+              // Avanzado: mantener valores
+            } else if (superavitReal < 100 && superavitReal > 0) {
+              // Superávit bajo (generado por OpenAI): reducir proyección
+              min = Math.max(min - 0.1, 0.2);
+              max = Math.max(max - 0.2, min + 0.1);
+            } else if (superavitReal <= 0) {
+              // Sin superávit o déficit (generado por OpenAI): reducir significativamente
+              min = Math.max(min - 0.2, 0.1);
+              max = Math.max(max - 0.3, min + 0.1);
+            }
+            
+            // Ajuste adicional si el objetivo es "volumen" (hipertrofia máxima)
+            if (input.objetivo === "volumen" && superavitReal > 200) {
+              min = Math.min(min + 0.1, max);
+              max = Math.min(max + 0.2, esAvanzado ? 1.5 : 2.0);
+            }
+            
+            proyecciones.musculoGananciaMensual = `${min.toFixed(1)}-${max.toFixed(1)} kg`;
+            console.log(`✅ Proyecciones ajustadas con superávit REAL de OpenAI: ${superavitReal} kcal (calculado desde calorias_diarias), volumen: ${volumenTotal} min/sem → ${proyecciones.musculoGananciaMensual}`);
+          }
+        }
+      }
+    } catch (e) {
+      console.error("❌ Error calculando/ajustando proyecciones:", e);
+      // Proyecciones mínimas como último recurso
+      if (!parsedFinal.proyecciones || typeof parsedFinal.proyecciones !== 'object') {
+        parsedFinal.proyecciones = {
+          proyecciones: ["Progreso constante con adherencia al plan", "Mejora en composición corporal", "Aumento de energía y bienestar"],
+          tiempoEstimado: input.intensidad === "intensa" ? "1-3 meses para ver resultados notables" : input.intensidad === "moderada" ? "3 meses para ver resultados notables" : "3-5 meses para ver resultados notables"
+        };
+      }
+    }
 
     // Agregar el objeto de debug a la respuesta (solo en desarrollo o si se solicita)
     const responseWithDebug = {

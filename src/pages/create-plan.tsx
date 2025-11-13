@@ -7,6 +7,7 @@ import { getAuthSafe, getDbSafe } from "@/lib/firebase";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import type { UserInput, Goal, TipoDieta, Intensidad } from "@/types/plan";
 import Navbar from "@/components/Navbar";
+import { FaAppleAlt } from "react-icons/fa";
 
 const objetivoDescripciones: Record<Goal, string> = {
   perder_grasa: "Reduce tu porcentaje de grasa corporal mediante un déficit calórico controlado. Ideal si buscás perder peso de forma saludable, mejorando tu composición corporal y salud general. El plan incluirá un déficit moderado de calorías mientras mantiene tus músculos.",
@@ -887,7 +888,14 @@ export default function CreatePlan() {
                     }}
                   />
                 </div>
-                <p className="mt-1 text-xs opacity-80">Generando plan: {progress}%</p>
+                <div className="mt-2 flex items-center gap-2">
+                  <FaAppleAlt className="h-4 w-4 text-white animate-spin" />
+                  <p className="text-xs opacity-80">
+                    {progress >= 95 
+                      ? "Finalizando plan..." 
+                      : `Generando plan: ${progress}%`}
+                  </p>
+                </div>
               </div>
               
               {/* Checklist de progreso */}

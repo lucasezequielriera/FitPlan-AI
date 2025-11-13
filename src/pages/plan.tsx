@@ -47,6 +47,7 @@ interface TrainingExercise {
 }
 
 interface TrainingPlan {
+  split?: string; // Tipo de división de entrenamiento: "Full Body", "Upper/Lower", "Push/Pull/Legs", etc.
   weeks?: TrainingWeek[];
 }
 
@@ -199,7 +200,14 @@ export default function PlanPage() {
     };
 
     checkPremium();
-  }, []);
+  }, [user]);
+
+  // Si el usuario no es premium y está viendo entrenamiento, cambiar a alimentación
+  useEffect(() => {
+    if (!isPremium && vistaPlan === 'entrenamiento') {
+      setVistaPlan('alimentacion');
+    }
+  }, [isPremium, vistaPlan]);
   
   // Obtener fecha de inicio del plan desde localStorage o usar fecha actual
   const fechaInicioPlan = (() => {
@@ -579,16 +587,23 @@ export default function PlanPage() {
       ? valoresOriginalesPlan.current.horasSueno
       : (sugerenciaEntrenamiento?.horasSueno || 7));
   
-  // Calcular proyecciones motivacionales con valores actuales
-  const proyecciones = user ? calcularProyeccionesMotivacionales(
-    user.objetivo,
-    user.intensidad,
-    user.edad,
-    user.sexo,
-    bmi,
-    user.atletico,
-    diasGymActual
-  ) : null;
+  // Usar proyecciones de OpenAI si están disponibles, sino calcular localmente como fallback
+  const proyecciones = (plan as unknown as Record<string, unknown>)?.proyecciones 
+    ? (plan as unknown as Record<string, unknown>).proyecciones as {
+        musculoGananciaMensual?: string;
+        grasaPerdidaMensual?: string;
+        proyecciones: string[];
+        tiempoEstimado: string;
+      }
+    : (user ? calcularProyeccionesMotivacionales(
+        user.objetivo,
+        user.intensidad,
+        user.edad,
+        user.sexo,
+        bmi,
+        user.atletico,
+        diasGymActual
+      ) : null);
   
   // Verificar si hay diferencias con las sugerencias
   const hayDiferencias = sugerenciaEntrenamiento && (
@@ -834,23 +849,45 @@ export default function PlanPage() {
             <div className="flex items-center justify-between gap-4 flex-wrap">
             <h1 className="text-2xl md:text-3xl font-semibold">Tu plan inteligente</h1>
               <div className="flex gap-3">
-                <button
-                  className="rounded-xl px-4 py-2 text-sm font-medium bg-blue-500/20 border border-blue-500/30 hover:bg-blue-500/30 transition-colors"
-                  onClick={() => {
-                    if (user) {
-                      setDatosEdicion({ ...user });
-                    setPreferenciasTexto(user.preferencias?.join(", ") || "");
-                    setRestriccionesTexto(user.restricciones?.join(", ") || "");
-                    setPatologiasTexto(user.patologias?.join(", ") || "");
-                      setModalAbierto(true);
-                    }
-                  }}
-                >
-                  ✏️ Editar
-                </button>
-                <button
-                  className="rounded-xl px-4 py-2 text-sm font-medium bg-emerald-500/20 border border-emerald-500/30 hover:bg-emerald-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  onClick={async () => {
+                <div className="relative group">
+                  <button
+                    className={`rounded-xl px-4 py-2 text-sm font-medium border transition-colors ${
+                      !isPremium 
+                        ? 'bg-blue-500/10 border-blue-500/20 text-blue-300/50 cursor-not-allowed opacity-50' 
+                        : 'bg-blue-500/20 border-blue-500/30 hover:bg-blue-500/30'
+                    }`}
+                    onClick={() => {
+                      if (!isPremium) return;
+                      if (user) {
+                        setDatosEdicion({ ...user });
+                        setPreferenciasTexto(user.preferencias?.join(", ") || "");
+                        setRestriccionesTexto(user.restricciones?.join(", ") || "");
+                        setPatologiasTexto(user.patologias?.join(", ") || "");
+                        setModalAbierto(true);
+                      }
+                    }}
+                    disabled={!isPremium}
+                  >
+                    ✏️ Editar
+                  </button>
+                  {!isPremium && (
+                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gradient-to-r from-yellow-500/95 to-orange-500/95 text-white text-xs font-medium rounded-lg shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 border border-yellow-400/50">
+                      💳 Requiere Premium para editar el plan
+                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                        <div className="w-2 h-2 bg-gradient-to-r from-yellow-500 to-orange-500 rotate-45 border-r border-b border-yellow-400/50"></div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="relative group">
+                  <button
+                    className={`rounded-xl px-4 py-2 text-sm font-medium border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                      !isPremium 
+                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300/50 cursor-not-allowed opacity-50' 
+                        : 'bg-emerald-500/20 border-emerald-500/30 hover:bg-emerald-500/30'
+                    }`}
+                    onClick={async () => {
+                      if (!isPremium) return;
                     if (!plan || !user) return;
                     setGuardandoPDF(true);
                     try {
@@ -1129,10 +1166,19 @@ export default function PlanPage() {
                       setGuardandoPDF(false);
                     }
                   }}
-                  disabled={guardandoPDF}
+                  disabled={guardandoPDF || !isPremium}
                 >
                   {guardandoPDF ? '⏳ Guardando...' : '💾 Guardar PDF'}
                 </button>
+                {!isPremium && (
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gradient-to-r from-yellow-500/95 to-orange-500/95 text-white text-xs font-medium rounded-lg shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 border border-yellow-400/50">
+                    💳 Requiere Premium para guardar el PDF
+                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                      <div className="w-2 h-2 bg-gradient-to-r from-yellow-500 to-orange-500 rotate-45 border-r border-b border-yellow-400/50"></div>
+                    </div>
+                  </div>
+                )}
+                </div>
                 {!isPremium && (
                   <button
                     className="rounded-xl px-4 py-2 text-sm font-medium bg-blue-500/20 border border-blue-500/30 hover:bg-blue-500/30 transition-colors"
@@ -1169,7 +1215,7 @@ export default function PlanPage() {
             ) : null}
             {user && (
               <div className="flex flex-wrap items-center gap-3 mt-2">
-                <div className="relative inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors max-w-full">
+                <div className={`relative inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors max-w-full group ${!isPremium ? 'bg-white/5 border-white/10 opacity-50' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}>
                   <span className="text-xs opacity-70 whitespace-nowrap flex-shrink-0">Objetivo:</span>
                   <span className="text-sm font-medium text-white whitespace-nowrap max-w-[150px] md:max-w-none truncate">
                     {getObjetivoTexto(user.objetivo)}
@@ -1177,13 +1223,15 @@ export default function PlanPage() {
                   <select
                     value={user.objetivo}
                     onChange={(e) => {
+                      if (!isPremium) return;
                       const nuevoObjetivo = e.target.value as Goal;
                       const nuevoEsBasico = nuevoObjetivo === "perder_grasa" || nuevoObjetivo === "mantener" || nuevoObjetivo === "ganar_masa";
                       // Si cambia a objetivo básico, fijar intensidad a leve
                       const nuevaIntensidad = nuevoEsBasico ? "leve" : user.intensidad;
                       setUser({ ...user, objetivo: nuevoObjetivo, intensidad: nuevaIntensidad });
                     }}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    disabled={!isPremium}
+                    className={`absolute inset-0 w-full h-full opacity-0 ${!isPremium ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                     style={{ 
                       backgroundImage: 'none',
                       backgroundColor: 'transparent',
@@ -1203,34 +1251,43 @@ export default function PlanPage() {
                       <option value="mantenimiento_avanzado" disabled={!isPremium}>🎯 Mantenimiento Elite - Optimización avanzada para atletas experimentados</option>
                     </optgroup>
                   </select>
-                  <svg className="w-4 h-4 opacity-50 flex-shrink-0 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  {!isPremium && (
+                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gradient-to-r from-yellow-500/95 to-orange-500/95 text-white text-xs font-medium rounded-lg shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 border border-yellow-400/50">
+                      💳 Requiere Premium para cambiar el objetivo
+                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                        <div className="w-2 h-2 bg-gradient-to-r from-yellow-500 to-orange-500 rotate-45 border-r border-b border-yellow-400/50"></div>
+                      </div>
+                    </div>
+                  )}
+                  <svg className={`w-4 h-4 flex-shrink-0 ml-1 ${!isPremium ? 'opacity-30' : 'opacity-50'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
                 </div>
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors w-fit">
-                  <span className="text-xs opacity-70 whitespace-nowrap">
-                    Intensidad:
-                    {!isPremium && !esObjetivoBasico && (
-                      <span className="text-[10px] opacity-50 ml-1">(Premium)</span>
-                    )}
-                  </span>
-                  <select
-                    value={user.intensidad}
-                    onChange={(e) => {
-                      const nuevaIntensidad = e.target.value as Intensidad;
-                      if (!isPremium && (nuevaIntensidad === "moderada" || nuevaIntensidad === "intensa")) {
-                        alert("Las opciones Moderada e Intensa requieren plan Premium.");
-                        return;
-                      }
-                      setUser({ ...user, intensidad: nuevaIntensidad });
-                    }}
-                    className="text-sm font-medium bg-transparent border-none outline-none capitalize appearance-none w-auto cursor-pointer text-white"
-                    style={{ 
-                      backgroundColor: 'transparent',
-                      color: '#e6f6ff',
-                      minWidth: `${getIntensidadTexto(user.intensidad).length * 0.6}ch`
-                    }}
-                  >
+                <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors w-fit relative ${!isPremium ? 'bg-white/5 border-white/10 opacity-50' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}>
+                  <div className="relative group">
+                    <span className="text-xs opacity-70 whitespace-nowrap">
+                      Intensidad:
+                      {!isPremium && !esObjetivoBasico && (
+                        <span className="text-[10px] opacity-50 ml-1">(Premium)</span>
+                      )}
+                    </span>
+                    <select
+                      value={user.intensidad}
+                      onChange={(e) => {
+                        const nuevaIntensidad = e.target.value as Intensidad;
+                        if (!isPremium && (nuevaIntensidad === "moderada" || nuevaIntensidad === "intensa")) {
+                          return;
+                        }
+                        setUser({ ...user, intensidad: nuevaIntensidad });
+                      }}
+                      disabled={!isPremium}
+                      className={`text-sm font-medium bg-transparent border-none outline-none capitalize appearance-none w-auto text-white ${!isPremium ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                      style={{ 
+                        backgroundColor: 'transparent',
+                        color: '#e6f6ff',
+                        minWidth: `${getIntensidadTexto(user.intensidad).length * 0.6}ch`
+                      }}
+                    >
                     <option value="leve">Leve</option>
                     <optgroup label={isPremium ? "🌟 PREMIUM (Activas)" : "🌟 PREMIUM (Desbloquea con suscripción)"}>
                       <option value="moderada" disabled={!isPremium || esObjetivoBasico}>
@@ -1240,23 +1297,34 @@ export default function PlanPage() {
                         Intensa
                       </option>
                     </optgroup>
-                  </select>
+                    </select>
+                    {!isPremium && (
+                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gradient-to-r from-yellow-500/95 to-orange-500/95 text-white text-xs font-medium rounded-lg shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 border border-yellow-400/50">
+                        💳 Requiere Premium para cambiar la intensidad
+                        <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                          <div className="w-2 h-2 bg-gradient-to-r from-yellow-500 to-orange-500 rotate-45 border-r border-b border-yellow-400/50"></div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors w-fit">
-                  <span className="text-xs opacity-70 whitespace-nowrap">Dieta:</span>
-                  <select
-                    value={user.tipoDieta || "estandar"}
-                    onChange={(e) => {
-                      const nuevaDieta = e.target.value === "estandar" ? undefined : (e.target.value as TipoDieta);
-                      setUser({ ...user, tipoDieta: nuevaDieta });
-                    }}
-                    className="text-sm font-medium bg-transparent border-none outline-none cursor-pointer appearance-none w-auto text-white"
-                    style={{ 
-                      backgroundColor: 'transparent',
-                      color: '#e6f6ff',
-                      minWidth: `${getDietaTexto(user.tipoDieta).length * 0.6}ch`
-                    }}
-                  >
+                <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors w-fit relative ${!isPremium ? 'bg-white/5 border-white/10 opacity-50' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}>
+                  <div className="relative group">
+                    <span className="text-xs opacity-70 whitespace-nowrap">Dieta:</span>
+                    <select
+                      value={user.tipoDieta || "estandar"}
+                      onChange={(e) => {
+                        const nuevaDieta = e.target.value === "estandar" ? undefined : (e.target.value as TipoDieta);
+                        setUser({ ...user, tipoDieta: nuevaDieta });
+                      }}
+                      disabled={!isPremium}
+                      className={`text-sm font-medium bg-transparent border-none outline-none appearance-none w-auto text-white ${!isPremium ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                      style={{ 
+                        backgroundColor: 'transparent',
+                        color: '#e6f6ff',
+                        minWidth: `${getDietaTexto(user.tipoDieta).length * 0.6}ch`
+                      }}
+                    >
                     <optgroup label="Dietas básicas">
                       <option value="estandar">Estándar</option>
                       <option value="mediterranea">Mediterránea</option>
@@ -1278,7 +1346,16 @@ export default function PlanPage() {
                       <option value="sin_gluten" disabled={!isPremium}>🌾 Sin Gluten</option>
                       <option value="tlc" disabled={!isPremium}>📊 TLC</option>
                     </optgroup>
-                  </select>
+                    </select>
+                    {!isPremium && (
+                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gradient-to-r from-yellow-500/95 to-orange-500/95 text-white text-xs font-medium rounded-lg shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 border border-yellow-400/50">
+                        💳 Requiere Premium para cambiar la dieta
+                        <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                          <div className="w-2 h-2 bg-gradient-to-r from-yellow-500 to-orange-500 rotate-45 border-r border-b border-yellow-400/50"></div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 {plan?.dificultad && (
                   <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors w-fit"
@@ -1588,19 +1665,42 @@ export default function PlanPage() {
 
           <p className="mt-4 text-sm opacity-80">{String((plan as unknown as Record<string, unknown>)?.mensaje_motivacional || '')}</p>
 
-          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-          {/* @ts-ignore */}
-          {recomendacionesEntrenamientoJSX as any}
+          {/* @ts-expect-error - TypeScript infiere unknown pero el valor es ReactNode válido */}
+          {recomendacionesEntrenamientoJSX as React.ReactNode}
 
           {/* Selector de vista (Entrenamiento/Alimentación) - Centrado */}
           <div className="mt-6 flex items-center justify-center gap-3">
+            <div className="relative group">
             <button
-              type="button"
-              onClick={() => setVistaPlan('entrenamiento')}
-              className={`px-4 py-2.5 text-sm font-medium rounded-lg border transition-colors ${vistaPlan === 'entrenamiento' ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300' : 'bg-white/5 border-white/10 text-white/80 hover:bg-white/10'}`}
-            >
-              🏋️ Ver entrenamiento
+                type="button"
+                onClick={() => {
+                  if (isPremium) {
+                    setVistaPlan('entrenamiento');
+                  }
+                }}
+                disabled={!isPremium}
+                className={`px-4 py-2.5 text-sm font-medium rounded-lg border transition-colors relative ${
+                  !isPremium 
+                    ? 'bg-white/5 border-white/10 text-white/40 cursor-not-allowed opacity-50' 
+                    : vistaPlan === 'entrenamiento' 
+                      ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300' 
+                      : 'bg-white/5 border-white/10 text-white/80 hover:bg-white/10'
+                }`}
+              >
+                🏋️ Ver entrenamiento
+                {!isPremium && (
+                  <span className="ml-1.5 text-xs">🌟</span>
+                )}
             </button>
+              {!isPremium && (
+                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gradient-to-r from-yellow-500/95 to-orange-500/95 text-white text-xs font-medium rounded-lg shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 border border-yellow-400/50">
+                  💳 Requiere Premium para ver el contenido
+                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                    <div className="w-2 h-2 bg-gradient-to-r from-yellow-500 to-orange-500 rotate-45 border-r border-b border-yellow-400/50"></div>
+                  </div>
+                </div>
+              )}
+            </div>
             <button
               type="button"
               onClick={() => setVistaPlan('alimentacion')}
@@ -1665,7 +1765,7 @@ export default function PlanPage() {
                 </div>
               )}
               
-              {(user?.objetivo === "perder_grasa" || user?.objetivo === "corte") && proyecciones.grasaPerdidaMensual && (
+              {(user?.objetivo === "perder_grasa" || user?.objetivo === "corte" || user?.objetivo === "definicion") && proyecciones.grasaPerdidaMensual && (
                 <div className="mb-4 p-3 rounded-lg bg-white/5 border border-white/10">
                   <p className="text-sm font-medium opacity-90 mb-1">Pérdida de grasa por mes:</p>
                   <p className="text-3xl font-bold text-red-400">{proyecciones.grasaPerdidaMensual}</p>
@@ -2407,9 +2507,79 @@ export default function PlanPage() {
                       <h3 className="text-lg font-semibold text-cyan-400 mb-4">
                         Semana {semanaActual.week ?? semanaSeleccionada}
                       </h3>
-                      {(semanaActual.days || []).map((dia: TrainingDay, di: number) => (
+                      {(semanaActual.days || []).map((dia: TrainingDay, di: number) => {
+                        // Función para determinar qué músculos se trabajan en este día
+                        const getMusculosDelDia = (): string | null => {
+                          const tp = (plan as unknown as Record<string, unknown>)?.training_plan as TrainingPlan | undefined;
+                          const splitGeneral = (tp as unknown as Record<string, unknown>)?.split as string | undefined;
+                          
+                          // Si el día tiene un split específico, usarlo
+                          if (dia.split) {
+                            const splitLower = dia.split.toLowerCase();
+                            
+                            // Si es Full Body, mostrar "Full Body"
+                            if (splitLower.includes("full body")) {
+                              return "Full Body";
+                            }
+                            
+                            // Mapear splits comunes a músculos
+                            if (splitLower.includes("push")) {
+                              return "Pecho, Hombros, Tríceps";
+                            } else if (splitLower.includes("pull")) {
+                              return "Espalda, Bíceps, Trapecio";
+                            } else if (splitLower.includes("legs") || splitLower.includes("piernas")) {
+                              return "Cuádriceps, Isquiotibiales, Glúteos, Gemelos";
+                            } else if (splitLower.includes("upper")) {
+                              return "Pecho, Espalda, Hombros, Bíceps, Tríceps";
+                            } else if (splitLower.includes("lower")) {
+                              return "Cuádriceps, Isquiotibiales, Glúteos, Gemelos, Abdominales";
+                            } else if (splitLower.includes("chest") || splitLower.includes("pecho")) {
+                              return "Pecho, Tríceps";
+                            } else if (splitLower.includes("back") || splitLower.includes("espalda")) {
+                              return "Espalda, Bíceps";
+                            } else if (splitLower.includes("shoulders") || splitLower.includes("hombros")) {
+                              return "Hombros, Trapecio";
+                            }
+                          }
+                          
+                          // Si el split general es Full Body, mostrar "Full Body"
+                          if (splitGeneral === "Full Body" || splitGeneral?.toLowerCase().includes("full body")) {
+                            return "Full Body";
+                          }
+                          
+                          // Si no hay split específico, analizar los muscle_group de los ejercicios
+                          if (dia.ejercicios && dia.ejercicios.length > 0) {
+                            const muscleGroups = new Set<string>();
+                            dia.ejercicios.forEach(ej => {
+                              if (ej.muscle_group) {
+                                muscleGroups.add(ej.muscle_group);
+                              }
+                            });
+                            
+                            // Si hay 4 o más músculos diferentes, probablemente es Full Body
+                            if (muscleGroups.size >= 4) {
+                              return "Full Body";
+                            }
+                            
+                            // Devolver los músculos únicos encontrados
+                            if (muscleGroups.size > 0) {
+                              return Array.from(muscleGroups).join(", ");
+                            }
+                          }
+                          
+                          return null;
+                        };
+                        
+                        const musculos = getMusculosDelDia();
+                        
+                        return (
                         <div key={`dia-${semanaSeleccionada}-${di}`} className="rounded-lg border border-white/10 bg-white/5 p-4">
-                          <h4 className="text-base font-semibold mb-3 text-white">{dia.day}</h4>
+                          <h4 className="text-base font-semibold mb-3 text-white">
+                            {dia.day}
+                            {musculos && (
+                              <span className="text-sm font-normal opacity-70 ml-2">({musculos})</span>
+                            )}
+                          </h4>
                           {(dia.ejercicios || []).length > 0 ? (
                             <ul className="space-y-2">
                               {(dia.ejercicios || []).map((ejercicio: TrainingExercise, ei: number) => (
@@ -2432,7 +2602,8 @@ export default function PlanPage() {
                             <p className="text-sm text-white/50">No hay ejercicios registrados para este día</p>
                           )}
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   );
                 })()}
@@ -2446,13 +2617,24 @@ export default function PlanPage() {
 }
 
 function FetchDetails({ k, dish, onLoaded, onError }: { k: string; dish: string; onLoaded: (p: { ingredientes?: string[]; pasos_preparacion?: string[] }) => void; onError: (msg: string) => void }) {
+  const { user } = usePlanStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const resp = await fetch('/api/mealDetails', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dish }) });
+        const resp = await fetch('/api/mealDetails', { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify({ 
+            dish,
+            tipoDieta: user?.tipoDieta,
+            restricciones: user?.restricciones,
+            preferencias: user?.preferencias,
+            patologias: user?.patologias
+          }) 
+        });
         if (!resp.ok) {
           const data = await resp.json().catch(() => null);
           throw new Error(data?.error || `HTTP ${resp.status}`);
@@ -2472,7 +2654,8 @@ function FetchDetails({ k, dish, onLoaded, onError }: { k: string; dish: string;
       }
     })();
     return () => { cancelled = true; };
-  }, [dish, k, onLoaded, onError]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dish, k, user?.tipoDieta, user?.restricciones, user?.preferencias, user?.patologias]);
 
   if (loading) return <p className="text-xs opacity-70">Cargando detalles…</p>;
   if (error) return <p className="text-xs text-red-300">{String(error)}</p>;

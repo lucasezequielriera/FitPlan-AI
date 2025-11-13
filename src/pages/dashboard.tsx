@@ -400,11 +400,11 @@ export default function Dashboard() {
                           <line x1="6" y1="20" x2="6" y2="14" />
                         </svg>
                       </button>
-                      {(isPremium || !plan.isOldest) && (
+                      {isPremium && (
                         <button
                           onClick={(e) => handleDeleteClick(e, plan)}
                           className="p-1.5 sm:p-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-400 hover:text-red-300 transition-colors"
-                          title={plan.isOldest && isPremium ? "Eliminar Plan Base (Premium)" : "Eliminar plan"}
+                          title="Eliminar plan"
                           aria-label="Eliminar plan"
                         >
                         <svg

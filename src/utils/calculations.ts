@@ -401,10 +401,22 @@ export function calcularProyeccionesMotivacionales(
     proyecciones.push("Mejora en composición corporal sin cambios drásticos de peso");
     
   } else if (objetivo === "definicion") {
+    // Pérdida de grasa para definición (más gradual que perder_grasa para preservar músculo)
+    musculoGanancia = undefined; // No mostrar ganancia de músculo para este objetivo
+    grasaPerdida = intensidad === "intensa" ? "0.8-1.5 kg" : intensidad === "moderada" ? "0.5-1 kg" : "0.3-0.6 kg";
     proyecciones.push("Mantenimiento de masa muscular mientras reducís grasa");
     proyecciones.push("Definición muscular visible: abs y músculos más marcados");
     proyecciones.push("Reducción de % de grasa corporal: 1-2% por mes");
-    tiempoEstimado = `${tiempoObjetivo} para definición óptima`;
+    
+    if (bmi > 25) {
+      tiempoEstimado = `${tiempoObjetivo} para definición visible`;
+      proyecciones.push("Mejora notable en definición muscular y energía");
+    } else {
+      tiempoEstimado = `${tiempoObjetivo} para definición óptima`;
+      proyecciones.push("Enfoque en definición extrema preservando músculo ganado");
+    }
+    
+    proyecciones.push("Reducción de circunferencia de cintura: ~1-3 cm por mes");
     
   } else {
     // Mantener
