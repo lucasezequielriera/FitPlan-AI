@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 
 // Componente Modal para ver mensajes (usuarios)
@@ -30,12 +30,36 @@ export default function UserMessagesModal({
   const [selectedMessage, setSelectedMessage] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
   const [replying, setReplying] = useState(false);
+  const messagesScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen && userId) {
       loadMessages();
     }
   }, [isOpen, userId]);
+
+  // Hacer scroll al final cuando se selecciona un mensaje o cambian las respuestas
+  useEffect(() => {
+    if (selectedMessage && messagesScrollRef.current) {
+      // Pequeño delay para asegurar que el DOM se haya actualizado
+      setTimeout(() => {
+        if (messagesScrollRef.current) {
+          messagesScrollRef.current.scrollTop = messagesScrollRef.current.scrollHeight;
+        }
+      }, 100);
+    }
+  }, [selectedMessage, messages]);
+
+  // Función para hacer scroll al final después de enviar respuesta
+  const scrollToBottom = () => {
+    if (messagesScrollRef.current) {
+      setTimeout(() => {
+        if (messagesScrollRef.current) {
+          messagesScrollRef.current.scrollTop = messagesScrollRef.current.scrollHeight;
+        }
+      }, 100);
+    }
+  };
 
   const loadMessages = async () => {
     try {
@@ -86,7 +110,7 @@ export default function UserMessagesModal({
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.9, y: 20 }}
-        className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+        className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-4xl w-full h-[85vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
@@ -133,9 +157,9 @@ export default function UserMessagesModal({
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400"></div>
           </div>
         ) : (
-          <div className="flex-1 flex gap-4 overflow-hidden">
+          <div className="flex-1 flex gap-4 overflow-hidden min-h-0">
             {/* Lista de mensajes */}
-            <div className="w-1/3 border-r border-white/10 pr-4 overflow-y-auto">
+            <div className="w-1/3 border-r border-white/10 pr-4 overflow-y-auto flex-shrink-0">
               {messages.length === 0 ? (
                 <div className="text-center py-8">
                   <p className="text-white/60 mb-4">No tienes mensajes</p>
@@ -172,9 +196,12 @@ export default function UserMessagesModal({
                             {msg.subject}
                           </p>
                           {(() => {
-                            // Verificar si hay al menos una respuesta del admin
-                            const hasAdminReply = msg.replies?.some(r => r.senderType === "admin");
-                            return hasAdminReply ? (
+                            // Verificar si hay respuestas y si la última es del admin
+                            const replies = msg.replies || [];
+                            if (replies.length === 0) return null;
+                            const lastReply = replies[replies.length - 1];
+                            const lastReplyIsAdmin = lastReply?.senderType === "admin";
+                            return lastReplyIsAdmin ? (
                               <p className="text-xs text-green-400 mt-1">✓ Respondido</p>
                             ) : null;
                           })()}
@@ -200,16 +227,22 @@ export default function UserMessagesModal({
             </div>
 
             {/* Detalle del mensaje */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
               {selectedMsg ? (
-                <div className="space-y-4">
+                <>
+                  {/* Área de mensajes con scroll */}
+                  <div ref={messagesScrollRef} className="flex-1 overflow-y-auto min-h-0 pr-2">
+                    <div className="space-y-4 pb-4">
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="text-lg font-semibold text-white">{selectedMsg.subject}</h3>
                       {(() => {
-                        // Verificar si hay al menos una respuesta del admin
-                        const hasAdminReply = selectedMsg.replies?.some(r => r.senderType === "admin");
-                        return hasAdminReply ? (
+                        // Verificar si hay respuestas y si la última es del admin
+                        const replies = selectedMsg.replies || [];
+                        if (replies.length === 0) return null;
+                        const lastReply = replies[replies.length - 1];
+                        const lastReplyIsAdmin = lastReply?.senderType === "admin";
+                        return lastReplyIsAdmin ? (
                           <span className="px-2 py-1 text-xs rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
                             Respondido
                           </span>
@@ -303,61 +336,65 @@ export default function UserMessagesModal({
                     </div>
                   )}
 
-                  {/* Campo para responder */}
-                  <div className="space-y-3 mt-4">
-                    <label className="block text-sm font-medium text-white/60">
-                      Responder
-                    </label>
-                    <textarea
-                      value={replyText}
-                      onChange={(e) => setReplyText(e.target.value)}
-                      placeholder="Escribe tu respuesta..."
-                      rows={4}
-                      className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                    />
-                    <button
-                      onClick={async () => {
-                        if (!replyText.trim() || !selectedMsg) return;
-                        
-                        setReplying(true);
-                        try {
-                          const response = await fetch("/api/user/replyMessage", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              userId,
-                              messageId: selectedMsg.id,
-                              reply: replyText.trim(),
-                              userName: selectedMsg.userName,
-                            }),
-                          });
-
-                          if (!response.ok) {
-                            const errorData = await response.json();
-                            throw new Error(errorData.error || "Error al responder");
-                          }
-
-                          // Recargar mensajes para ver la nueva respuesta
-                          await loadMessages();
-                          setReplyText("");
-                          onMessagesUpdate();
-                          
-                          // Notificar al admin que hay un nuevo mensaje (actualizar su contador)
-                          // Esto se hace automáticamente porque marcamos read: false en el mensaje
-                        } catch (error) {
-                          console.error("Error al responder:", error);
-                          alert(error instanceof Error ? error.message : "Error al enviar respuesta");
-                        } finally {
-                          setReplying(false);
-                        }
-                      }}
-                      disabled={replying || !replyText.trim()}
-                      className="w-full px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {replying ? "Enviando..." : "Enviar Respuesta"}
-                    </button>
+                    </div>
                   </div>
-                </div>
+
+                  {/* Área de respuesta fija (footer) */}
+                  <div className="border-t border-white/10 pt-4 mt-4 flex-shrink-0 bg-gray-900">
+                    <div className="space-y-3">
+                      <label className="block text-sm font-medium text-white/60">
+                        Responder
+                      </label>
+                      <textarea
+                        value={replyText}
+                        onChange={(e) => setReplyText(e.target.value)}
+                        placeholder="Escribe tu respuesta..."
+                        rows={4}
+                        className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                      />
+                      <button
+                        onClick={async () => {
+                          if (!replyText.trim() || !selectedMsg) return;
+                          
+                          setReplying(true);
+                          try {
+                            const response = await fetch("/api/user/replyMessage", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                userId,
+                                messageId: selectedMsg.id,
+                                reply: replyText.trim(),
+                                userName: selectedMsg.userName,
+                              }),
+                            });
+
+                            if (!response.ok) {
+                              const errorData = await response.json();
+                              throw new Error(errorData.error || "Error al responder");
+                            }
+
+                            // Recargar mensajes para ver la nueva respuesta
+                            await loadMessages();
+                            setReplyText("");
+                            onMessagesUpdate();
+                            // Hacer scroll al final para ver la nueva respuesta
+                            scrollToBottom();
+                          } catch (error) {
+                            console.error("Error al responder:", error);
+                            alert(error instanceof Error ? error.message : "Error al enviar respuesta");
+                          } finally {
+                            setReplying(false);
+                          }
+                        }}
+                        disabled={replying || !replyText.trim()}
+                        className="w-full px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {replying ? "Enviando..." : "Enviar Respuesta"}
+                      </button>
+                    </div>
+                  </div>
+                </>
               ) : (
                 <div className="flex items-center justify-center h-full">
                   <p className="text-white/60">Selecciona un mensaje para ver los detalles</p>
