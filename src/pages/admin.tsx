@@ -333,15 +333,16 @@ export default function Admin() {
   useEffect(() => {
     if (!isAdmin || !authUser) return;
 
-    // Actualización automática silenciosa cada 30 segundos (sin mostrar loading)
+    // Actualización automática silenciosa cada 60 segundos (sin mostrar loading)
     // Esto permite detectar nuevos usuarios sin interrumpir la experiencia
+    // Menos frecuente para reducir re-renders innecesarios
     const pollInterval = setInterval(async () => {
       try {
         await loadUserStats(adminMeta.lastUsersCheck ?? null, true); // silent = true para no mostrar loading
-      } catch (error) {
-        console.error("Error en polling de usuarios:", error);
+      } catch {
+        // Silenciar errores en polling
       }
-    }, 30000); // Actualizar cada 30 segundos (menos frecuente y silencioso)
+    }, 60000); // Actualizar cada 60 segundos (menos frecuente para reducir re-renders)
 
     return () => {
       clearInterval(pollInterval);

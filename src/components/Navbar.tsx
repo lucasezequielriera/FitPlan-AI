@@ -94,48 +94,43 @@ export default function Navbar() {
 
   // Verificar mensajes nuevos para admin
   useEffect(() => {
-    const checkMessages = async () => {
-      if (!authUser || !isAdmin) {
-        setMessagesCount(0);
-        return;
-      }
+    if (!authUser || !isAdmin) {
+      setMessagesCount(0);
+      return;
+    }
 
+    const checkMessages = async () => {
       try {
-        setLoadingMessages(true);
         const response = await fetch(`/api/admin/messages?adminUserId=${authUser.uid}`);
         
         if (!response.ok) {
-          console.error("Error al obtener mensajes");
           return;
         }
 
         const data = await response.json();
-        setMessagesCount(data.unreadCount || 0);
+        const newCount = data.unreadCount || 0;
+        // Solo actualizar si el contador cambió para evitar re-renders innecesarios
+        setMessagesCount(prev => prev !== newCount ? newCount : prev);
       } catch (error) {
-        console.error("Error al verificar mensajes:", error);
-        setMessagesCount(0);
-      } finally {
-        setLoadingMessages(false);
+        // Silenciar errores en polling
       }
     };
 
     checkMessages();
     
-    // Verificar cada 15 segundos si es admin (más frecuente para notificaciones)
-    if (isAdmin) {
-      const interval = setInterval(checkMessages, 15000);
-      return () => clearInterval(interval);
-    }
+    // Verificar cada 30 segundos si es admin (menos frecuente para reducir re-renders)
+    const interval = setInterval(checkMessages, 30000);
+    return () => clearInterval(interval);
   }, [authUser, isAdmin]);
 
   // Verificar respuestas nuevas para usuarios
   useEffect(() => {
-    const checkUserMessages = async () => {
-      if (!authUser || isAdmin) {
-        setUserMessagesCount(0);
-        return;
-      }
+    if (!authUser || isAdmin) {
+      setUserMessagesCount(0);
+      return;
+    }
 
+    const checkUserMessages = async () => {
       try {
         const response = await fetch(`/api/user/messages?userId=${authUser.uid}`);
         
@@ -144,20 +139,19 @@ export default function Navbar() {
         }
 
         const data = await response.json();
-        setUserMessagesCount(data.unreadRepliesCount || 0);
+        const newCount = data.unreadRepliesCount || 0;
+        // Solo actualizar si el contador cambió para evitar re-renders innecesarios
+        setUserMessagesCount(prev => prev !== newCount ? newCount : prev);
       } catch (error) {
-        console.error("Error al verificar mensajes del usuario:", error);
-        setUserMessagesCount(0);
+        // Silenciar errores en polling
       }
     };
 
     checkUserMessages();
     
-    // Verificar cada 15 segundos si es usuario (más frecuente para notificaciones)
-    if (!isAdmin && authUser) {
-      const interval = setInterval(checkUserMessages, 15000);
-      return () => clearInterval(interval);
-    }
+    // Verificar cada 30 segundos si es usuario (menos frecuente para reducir re-renders)
+    const interval = setInterval(checkUserMessages, 30000);
+    return () => clearInterval(interval);
   }, [authUser, isAdmin]);
 
   return (
@@ -731,13 +725,14 @@ function MessagesModal({
 
   // Recargar mensajes periódicamente cuando el modal está abierto para detectar nuevas respuestas
   useEffect(() => {
-    if (isOpen && adminUserId) {
-      const interval = setInterval(() => {
-        loadMessages();
-        onMessagesUpdate(); // Actualizar contador también
-      }, 10000); // Cada 10 segundos
-      return () => clearInterval(interval);
-    }
+    if (!isOpen || !adminUserId) return;
+    
+    const interval = setInterval(() => {
+      loadMessages();
+      onMessagesUpdate(); // Actualizar contador también
+    }, 15000); // Cada 15 segundos (menos frecuente para reducir re-renders)
+    
+    return () => clearInterval(interval);
   }, [isOpen, adminUserId, onMessagesUpdate]);
 
   // Hacer scroll al final cuando se selecciona un mensaje o cambian las respuestas
