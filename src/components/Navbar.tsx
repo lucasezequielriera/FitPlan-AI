@@ -838,35 +838,48 @@ function MessagesModal({
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.9, y: 20 }}
-        className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-4xl w-full h-[85vh] overflow-hidden flex flex-col"
+        className="bg-gray-900 rounded-xl border border-white/10 p-3 sm:p-4 md:p-6 max-w-4xl w-full h-[90vh] sm:h-[85vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-5 w-5 text-blue-400"
-            >
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
-            Mensajes
-            {unreadCount > 0 && (
-              <span className="px-2 py-0.5 text-xs rounded-full bg-red-500 text-white">
-                {unreadCount}
-              </span>
+        <div className="flex items-center justify-between mb-3 sm:mb-4">
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Botón atrás en móvil cuando hay mensaje seleccionado */}
+            {selectedMessage && (
+              <button
+                onClick={() => setSelectedMessage(null)}
+                className="md:hidden text-white/70 hover:text-white transition-colors mr-1"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
+                  <path d="M19 12H5M12 19l-7-7 7-7"/>
+                </svg>
+              </button>
             )}
-          </h2>
+            <h2 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-5 w-5 text-blue-400"
+              >
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              Mensajes
+              {unreadCount > 0 && (
+                <span className="px-2 py-0.5 text-xs rounded-full bg-red-500 text-white">
+                  {unreadCount}
+                </span>
+              )}
+            </h2>
+          </div>
           <button
             onClick={onClose}
-            className="text-white/70 hover:text-white transition-colors"
+            className="text-white/70 hover:text-white transition-colors flex-shrink-0"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-6 w-6">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5 sm:h-6 sm:w-6">
               <path d="M18 6L6 18M6 6l12 12"/>
             </svg>
           </button>
@@ -877,9 +890,9 @@ function MessagesModal({
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400"></div>
           </div>
         ) : (
-          <div className="flex-1 flex gap-4 overflow-hidden">
+          <div className="flex-1 flex gap-2 sm:gap-4 overflow-hidden">
             {/* Lista de mensajes */}
-            <div className="w-1/3 border-r border-white/10 pr-4 overflow-y-auto flex-shrink-0">
+            <div className={`${selectedMessage ? 'hidden md:block' : 'block'} w-full md:w-1/3 lg:w-1/3 border-r border-white/10 pr-2 sm:pr-4 overflow-y-auto flex-shrink-0`}>
               {messages.length === 0 ? (
                 <div className="text-center py-8">
                   <p className="text-white/60">No hay mensajes</p>
@@ -895,7 +908,7 @@ function MessagesModal({
                           handleMarkAsRead(msg.id);
                         }
                       }}
-                      className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                      className={`p-2 sm:p-3 rounded-lg border cursor-pointer transition-colors ${
                         selectedMessage === msg.id
                           ? "bg-blue-500/20 border-blue-500/50"
                           : msg.read
@@ -965,7 +978,7 @@ function MessagesModal({
             </div>
 
             {/* Detalle del mensaje */}
-            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            <div className={`${selectedMessage ? 'block' : 'hidden md:block'} flex-1 flex flex-col min-h-0 overflow-hidden`}>
               {selectedMsg ? (
                 <>
                   {/* Área de mensajes con scroll */}
@@ -1093,9 +1106,9 @@ function MessagesModal({
                         <p className="text-gray-500 text-xs mt-1">No se pueden enviar más mensajes</p>
                       </div>
                     ) : (
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <label className="block text-sm font-medium text-white/60">
+                      <div className="space-y-2 sm:space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                          <label className="block text-xs sm:text-sm font-medium text-white/60">
                             {selectedMsg.replied ? "Agregar otra respuesta" : "Responder"}
                           </label>
                           <button
@@ -1127,7 +1140,7 @@ function MessagesModal({
                                 alert(error instanceof Error ? error.message : "Error al finalizar chat");
                               }
                             }}
-                            className="px-3 py-1.5 text-xs rounded-lg bg-gray-500/20 hover:bg-gray-500/30 text-gray-300 border border-gray-500/30 transition-all"
+                            className="px-3 py-1.5 text-xs rounded-lg bg-gray-500/20 hover:bg-gray-500/30 text-gray-300 border border-gray-500/30 transition-all w-full sm:w-auto"
                           >
                             Finalizar Chat
                           </button>
@@ -1136,13 +1149,13 @@ function MessagesModal({
                           value={replyText}
                           onChange={(e) => setReplyText(e.target.value)}
                           placeholder="Escribe tu respuesta..."
-                          rows={4}
-                          className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                          rows={3}
+                          className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                         />
                         <button
                           onClick={() => handleReply(selectedMsg.id)}
                           disabled={replying || !replyText.trim()}
-                          className="w-full px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="w-full px-4 py-2.5 sm:py-2 text-sm sm:text-base rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {replying ? "Enviando..." : selectedMsg.replied ? "Agregar Respuesta" : "Enviar Respuesta"}
                         </button>
