@@ -913,9 +913,19 @@ function MessagesModal({
                               {msg.subject}
                             </p>
                             {(() => {
-                              // Verificar si hay al menos una respuesta del admin
-                              const hasAdminReply = msg.replies?.some(r => r.senderType === "admin");
-                              return hasAdminReply ? (
+                              // Verificar si hay respuestas y si la última es del admin
+                              const replies = msg.replies || [];
+                              if (replies.length === 0) {
+                                return (
+                                  <span className="px-2 py-0.5 text-xs rounded-full bg-red-500/20 text-red-400 border border-red-500/30 whitespace-nowrap flex-shrink-0">
+                                    Responder
+                                  </span>
+                                );
+                              }
+                              // Verificar si la última respuesta es del admin
+                              const lastReply = replies[replies.length - 1];
+                              const lastReplyIsAdmin = lastReply?.senderType === "admin";
+                              return lastReplyIsAdmin ? (
                                 <span className="px-2 py-0.5 text-xs rounded-full bg-green-500/20 text-green-400 border border-green-500/30 whitespace-nowrap flex-shrink-0">
                                   Respondido
                                 </span>
@@ -961,9 +971,12 @@ function MessagesModal({
                         <div className="flex items-center justify-between mb-2">
                           <h3 className="text-lg font-semibold text-white">{selectedMsg.subject}</h3>
                           {(() => {
-                            // Verificar si hay al menos una respuesta del admin
-                            const hasAdminReply = selectedMsg.replies?.some(r => r.senderType === "admin");
-                            return hasAdminReply ? (
+                            // Verificar si hay respuestas y si la última es del admin
+                            const replies = selectedMsg.replies || [];
+                            if (replies.length === 0) return null;
+                            const lastReply = replies[replies.length - 1];
+                            const lastReplyIsAdmin = lastReply?.senderType === "admin";
+                            return lastReplyIsAdmin ? (
                               <span className="px-2 py-1 text-xs rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
                                 Respondido
                               </span>
@@ -1009,23 +1022,34 @@ function MessagesModal({
                         </div>
                       </div>
 
-                      {selectedMsg.replied && selectedMsg.replies && selectedMsg.replies.length > 0 && (
+                      {selectedMsg.replies && selectedMsg.replies.length > 0 && (
                         <div className="space-y-3">
-                          <h4 className="text-sm font-semibold text-white/80">Respuestas:</h4>
+                          <h4 className="text-sm font-semibold text-white/80">Conversación:</h4>
                           {selectedMsg.replies.map((reply, index) => {
-                            const senderName = reply.senderName || "Equipo de FitPlan";
+                            const senderName = reply.senderName || (reply.senderType === "admin" ? "Equipo de FitPlan" : "Usuario");
                             const senderInitial = senderName.charAt(0).toUpperCase();
                             const replyDate = reply.createdAt ? new Date(reply.createdAt) : null;
+                            const isAdminReply = reply.senderType === "admin";
                             
                             return (
-                              <div key={index} className="p-4 rounded-lg bg-green-500/10 border border-green-500/30">
+                              <div key={index} className={`p-4 rounded-lg border ${
+                                isAdminReply 
+                                  ? "bg-green-500/10 border-green-500/30" 
+                                  : "bg-blue-500/10 border-blue-500/30"
+                              }`}>
                                 <div className="flex items-start gap-3 mb-3">
-                                  <div className="h-10 w-10 rounded-full bg-gradient-to-br from-emerald-500 to-cyan-500 flex items-center justify-center text-sm font-semibold text-white flex-shrink-0">
+                                  <div className={`h-10 w-10 rounded-full flex items-center justify-center text-sm font-semibold text-white flex-shrink-0 ${
+                                    isAdminReply
+                                      ? "bg-gradient-to-br from-emerald-500 to-cyan-500"
+                                      : "bg-gradient-to-br from-blue-500 to-cyan-500"
+                                  }`}>
                                     {senderInitial}
                                   </div>
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 mb-1">
-                                      <p className="text-sm font-medium text-green-400">{senderName}</p>
+                                      <p className={`text-sm font-medium ${isAdminReply ? "text-green-400" : "text-blue-400"}`}>
+                                        {senderName}
+                                      </p>
                                       {replyDate && (
                                         <span className="text-xs text-white/60">
                                           {replyDate.toLocaleDateString('es-AR', {
