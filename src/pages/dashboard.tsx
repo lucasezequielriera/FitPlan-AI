@@ -7,6 +7,7 @@ import { usePlanStore } from "@/store/planStore";
 import { getDbSafe, getAuthSafe } from "@/lib/firebase";
 import { collection, query, where, getDocs, limit, Timestamp, doc, deleteDoc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore";
 import Navbar from "@/components/Navbar";
+import PremiumPlanModal from "@/components/PremiumPlanModal";
 
 interface RegistroPeso {
   fecha: string;
@@ -40,6 +41,7 @@ export default function Dashboard() {
   const [planForProgress, setPlanForProgress] = useState<SavedPlan | null>(null);
   const [processingPayment, setProcessingPayment] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
+  const [premiumModalOpen, setPremiumModalOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -319,43 +321,12 @@ export default function Dashboard() {
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
                 {!isPremium && (
                   <button
-                    onClick={async () => {
+                    onClick={() => {
                       if (!authUser) {
                         alert("Debes estar registrado para acceder al plan Premium");
                         return;
                       }
-
-                      setProcessingPayment(true);
-                      try {
-                        const response = await fetch("/api/createPayment", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            userId: authUser.uid,
-                            userEmail: authUser.email,
-                          }),
-                        });
-
-                        if (!response.ok) {
-                          const error = await response.json();
-                          throw new Error(error.error || "Error al crear el pago");
-                        }
-
-                        const data = await response.json();
-                        
-                        if (data.init_point) {
-                          // Redirigir al checkout de MercadoPago
-                          window.location.href = data.init_point;
-                        } else {
-                          throw new Error("No se recibió el link de pago");
-                        }
-                      } catch (error: unknown) {
-                        const message = error instanceof Error ? error.message : "Error desconocido";
-                        alert(`Error al procesar el pago: ${message}`);
-                        console.error("Error al crear pago:", error);
-                      } finally {
-                        setProcessingPayment(false);
-                      }
+                      setPremiumModalOpen(true);
                     }}
                     disabled={processingPayment}
                     className="flex-1 sm:flex-none px-4 py-2.5 sm:px-6 sm:py-3 rounded-lg sm:rounded-xl bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white text-sm sm:text-base font-medium transition-all shadow-lg shadow-yellow-500/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -372,7 +343,7 @@ export default function Dashboard() {
                     >
                       <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                     </svg>
-                    <span className="truncate">{processingPayment ? "Procesando..." : "Premium $25.000"}</span>
+                    <span className="truncate">Ser Premium</span>
                   </button>
                 )}
                 {(!isPremium && plans.length >= 1) ? (
@@ -768,6 +739,16 @@ export default function Dashboard() {
           )}
         </AnimatePresence>,
         document.body
+      )}
+
+      {/* Modal de selección de plan premium */}
+      {premiumModalOpen && authUser && (
+        <PremiumPlanModal
+          isOpen={premiumModalOpen}
+          onClose={() => setPremiumModalOpen(false)}
+          userId={authUser.uid}
+          userEmail={authUser.email || ""}
+        />
       )}
     </div>
   );

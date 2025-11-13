@@ -6,8 +6,10 @@ import type { Goal, TipoDieta, Intensidad, UserInput } from "@/types/plan";
 import { calculateBMI, bmiCategory, calculateBodyFatUSNavy, bodyFatCategory, waistToHeightRatio, whtrCategory, calculateBMR, calculateTDEE, sugerirEntrenamiento, calcularProyeccionesMotivacionales, analizarCambiosEntrenamiento } from "@/utils/calculations";
 import jsPDF from "jspdf";
 import Navbar from "@/components/Navbar";
+import PremiumPlanModal from "@/components/PremiumPlanModal";
 import { getAuthSafe, getDbSafe } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
+import { useAuthStore } from "@/store/authStore";
 
 interface TrainingWeek {
   week: number;
@@ -63,6 +65,7 @@ interface TrainingPlan {
 export default function PlanPage() {
   const router = useRouter();
   const { plan, user, planId, setUser, setPlan, setPlanId } = usePlanStore();
+  const { user: authUser } = useAuthStore();
 
   useEffect(() => {
     // Si no hay plan ni user en el store, redirigir
@@ -94,6 +97,7 @@ export default function PlanPage() {
   const [doloresLesionesTexto, setDoloresLesionesTexto] = useState("");
   const [guardandoPDF, setGuardandoPDF] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
+  const [premiumModalOpen, setPremiumModalOpen] = useState(false);
   
   // Estado para modales de información (tooltips)
   const [modalInfoAbierto, setModalInfoAbierto] = useState<'imc' | 'macros' | 'sueno' | 'dificultad' | 'split' | null>(null);
@@ -1257,27 +1261,12 @@ export default function PlanPage() {
                 {!isPremium && (
                   <button
                     className="rounded-xl px-4 py-2 text-sm font-medium bg-blue-500/20 border border-blue-500/30 hover:bg-blue-500/30 transition-colors"
-                    onClick={async () => {
-                      try {
-                        const resp = await fetch('/api/createPayment', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ userId: (getAuthSafe()?.currentUser?.uid) || undefined, userEmail: getAuthSafe()?.currentUser?.email })
-                        });
-                        if (!resp.ok) {
-                          const data = await resp.json().catch(() => null);
-                          throw new Error(data?.error || 'Error al iniciar pago');
-                        }
-                        const data = await resp.json();
-                        if (data.init_point) {
-                          window.location.href = data.init_point;
-                        } else {
-                          alert('No se recibió el enlace de pago.');
-                        }
-                      } catch (e) {
-                        console.error('Error al iniciar Premium:', e);
-                        alert('No se pudo iniciar el proceso de Premium.');
+                    onClick={() => {
+                      if (!authUser) {
+                        alert("Debes estar registrado para acceder al plan Premium");
+                        return;
                       }
+                      setPremiumModalOpen(true);
                     }}
                   >
                     🌟 Ser premium
@@ -1594,13 +1583,13 @@ export default function PlanPage() {
             {/* Cuadro de progreso del plan */}
             <div className="rounded-xl border border-white/10 bg-black/30 p-4 md:w-1/4">
               <p className="text-sm font-medium opacity-70 mb-3">Progreso del plan</p>
-              <div className="space-y-3">
+                  <div className="space-y-3">
                 <div>
                   <p className="text-xs opacity-70 mb-1">Fecha de inicio:</p>
                   <p className="text-sm font-medium">
                     {fechaInicioPlan.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
                   </p>
-                </div>
+                        </div>
                 {plan?.dificultad && (
                   <div>
                     <p className="text-xs opacity-70 mb-1 flex items-center gap-2">
@@ -1636,7 +1625,7 @@ export default function PlanPage() {
                       >
                         {plan.dificultad}
                       </span>
-                    </div>
+                      </div>
                   </div>
                 )}
                 <div>
@@ -1690,8 +1679,8 @@ export default function PlanPage() {
                         <span key={`pref-${idx}-${pref}`} className="inline-flex items-center rounded-full px-2 py-0.5 text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                           {pref}
                         </span>
-                      ))}
-                        </div>
+                    ))}
+                  </div>
                       </div>
                 )}
                 {user?.restricciones && user.restricciones.filter((s: string) => typeof s === 'string' && s.trim().length > 0).length > 0 && (
@@ -2833,6 +2822,16 @@ export default function PlanPage() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Modal de selección de plan premium */}
+      {premiumModalOpen && authUser && (
+        <PremiumPlanModal
+          isOpen={premiumModalOpen}
+          onClose={() => setPremiumModalOpen(false)}
+          userId={authUser.uid}
+          userEmail={authUser.email || ""}
+        />
+      )}
     </div>
   );
 }

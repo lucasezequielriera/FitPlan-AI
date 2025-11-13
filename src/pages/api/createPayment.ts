@@ -10,11 +10,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { userId, userEmail } = req.body;
+  const { userId, userEmail, planType } = req.body;
 
   if (!userId || !userEmail) {
     return res.status(400).json({ error: "userId y userEmail son requeridos" });
   }
+
+  // Definir precios según el tipo de plan
+  const planPrices: Record<string, { price: number; title: string; description: string }> = {
+    monthly: {
+      price: 30000,
+      title: "Plan Premium Mensual - FitPlan AI",
+      description: "Acceso premium mensual a objetivos avanzados, dietas personalizadas y análisis avanzado",
+    },
+    quarterly: {
+      price: 75000,
+      title: "Plan Premium Trimestral - FitPlan AI",
+      description: "Acceso premium trimestral (3 meses) a objetivos avanzados, dietas personalizadas y análisis avanzado",
+    },
+    annual: {
+      price: 250000,
+      title: "Plan Premium Anual - FitPlan AI",
+      description: "Acceso premium anual (12 meses) a objetivos avanzados, dietas personalizadas y análisis avanzado",
+    },
+  };
+
+  // Validar planType o usar mensual por defecto
+  const selectedPlan = planType && planPrices[planType] ? planPrices[planType] : planPrices.monthly;
 
   if (!process.env.MERCADOPAGO_ACCESS_TOKEN) {
     return res.status(500).json({ error: "MercadoPago no está configurado. Falta MERCADOPAGO_ACCESS_TOKEN en las variables de entorno." });
@@ -33,10 +55,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const paymentPreference: any = {
       items: [
         {
-          title: "Plan Premium - FitPlan AI",
-          description: "Acceso premium a objetivos avanzados, dietas personalizadas y análisis avanzado",
+          title: selectedPlan.title,
+          description: selectedPlan.description,
           quantity: 1,
-          unit_price: 25000, // $25.000 ARS
+          unit_price: selectedPlan.price,
           currency_id: "ARS",
         },
       ],
