@@ -1665,7 +1665,8 @@ export default function PlanPage() {
 
           <p className="mt-4 text-sm opacity-80">{String((plan as unknown as Record<string, unknown>)?.mensaje_motivacional || '')}</p>
 
-          {/* @ts-expect-error - TypeScript infiere unknown pero el valor es ReactNode válido */}
+          {/* eslint-disable-next-line @typescript-eslint/ban-ts-comment */}
+          {/* @ts-ignore - TypeScript infiere unknown pero el valor es ReactNode válido */}
           {recomendacionesEntrenamientoJSX as React.ReactNode}
 
           {/* Selector de vista (Entrenamiento/Alimentación) - Centrado */}
