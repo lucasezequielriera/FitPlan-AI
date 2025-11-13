@@ -42,6 +42,19 @@ export default function Admin() {
   const [premiumUsers, setPremiumUsers] = useState<number>(0);
   const [regularUsers, setRegularUsers] = useState<number>(0);
   const [athleticUsers, setAthleticUsers] = useState<number>(0);
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [selectedUserForHistory, setSelectedUserForHistory] = useState<User | null>(null);
+  const [userHistory, setUserHistory] = useState<{
+    user: unknown;
+    plans: unknown[];
+    history: unknown[];
+    weightRecords?: Array<{ fecha: string; peso: number; planId: string; planCreatedAt?: string }>;
+  } | null>(null);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [adminMeta, setAdminMeta] = useState<{ lastUsersCheck?: string | null }>({});
+  const [newUsersList, setNewUsersList] = useState<Array<{ id: string; nombre: string | null; email: string | null; createdAt?: string | null }>>([]);
+  const [newUserIds, setNewUserIds] = useState<string[]>([]);
+  const [markingNewUsersSeen, setMarkingNewUsersSeen] = useState(false);
   
   // Estadísticas de ganancias
   const [revenueStats, setRevenueStats] = useState({
@@ -98,46 +111,29 @@ export default function Admin() {
     const PRICE_PER_MONTH = 25000; // ARS
     const premiumUsersList = users.filter(u => u.premium && u.email?.toLowerCase() !== "admin@fitplan-ai.com");
     
-    let premiumActiveThisMonth = 0;
-    let pendingPayments = 0;
-    let renewingSoon = 0;
+    // Usuarios que pagaron este mes
+    const paidThisMonth = premiumUsersList.filter(user => getPaymentStatus(user).status === "paid");
+    const premiumActiveThisMonth = paidThisMonth.length;
     
-    const now = new Date();
-    
-    const totalPremiumUsers = premiumUsersList.length;
-    
-    premiumUsersList.forEach(user => {
-      const paymentStatus = getPaymentStatus(user);
-      
-      if (paymentStatus.status === "paid") {
-        premiumActiveThisMonth++;
-      } else if (paymentStatus.status === "unpaid") {
-        pendingPayments++;
-      }
-      
-      // Usuarios que renovarán pronto (próximos 7 días)
-      if (user.premiumSince) {
-        let premiumDate: Date | null = null;
-        if (user.premiumSince instanceof Date) {
-          premiumDate = user.premiumSince;
-        } else if (typeof user.premiumSince === 'string') {
-          premiumDate = new Date(user.premiumSince);
-        } else if (user.premiumSince && typeof user.premiumSince === 'object' && 'toDate' in user.premiumSince) {
-          premiumDate = (user.premiumSince as { toDate: () => Date }).toDate();
-        }
-        
-        if (premiumDate && !isNaN(premiumDate.getTime())) {
-          const daysSincePayment = Math.floor((now.getTime() - premiumDate.getTime()) / (1000 * 60 * 60 * 24));
-          if (daysSincePayment >= 23 && daysSincePayment <= 30) {
-            renewingSoon++;
-          }
-        }
-      }
-    });
+    // Usuarios premium que no han pagado este mes
+    const pendingPayments = premiumUsersList.length - premiumActiveThisMonth;
     
     const estimatedMonthly = premiumActiveThisMonth * PRICE_PER_MONTH;
-    // Proyección anual: asume que los usuarios activos este mes seguirán pagando cada mes durante el año
     const estimatedAnnual = estimatedMonthly * 12;
+    
+    // Usuarios premium cuya renovación ocurrirá en los próximos 7 días
+    const renewingSoon = premiumUsersList.filter(user => {
+      const status = getPaymentStatus(user);
+      if (status.status !== "paid") return false;
+      const lastPayISO = convertTimestampToISO(user.premiumLastPay);
+      if (!lastPayISO) return false;
+      const lastPayDate = new Date(lastPayISO);
+      if (isNaN(lastPayDate.getTime())) return false;
+      const now = new Date();
+      const diffDays = (now.getTime() - lastPayDate.getTime()) / (1000 * 60 * 60 * 24);
+      const daysUntilRenewal = 30 - diffDays;
+      return daysUntilRenewal > 0 && daysUntilRenewal <= 7;
+    }).length;
     
     setRevenueStats({
       estimatedMonthly,
@@ -145,7 +141,49 @@ export default function Admin() {
       pendingPayments,
       estimatedAnnual,
       renewingSoon,
-      totalPremiumUsers,
+      totalPremiumUsers: premiumUsersList.length,
+    });
+  };
+
+  const convertTimestampToISO = (value: unknown): string | null => {
+    if (!value) return null;
+    try {
+      if (value instanceof Date) {
+        return value.toISOString();
+      }
+      if (typeof value === "string") {
+        const parsed = new Date(value);
+        return isNaN(parsed.getTime()) ? null : parsed.toISOString();
+      }
+      if (typeof value === "number") {
+        return new Date(value).toISOString();
+      }
+      if (typeof value === "object") {
+        if (value && "toDate" in value && typeof (value as { toDate: () => Date }).toDate === "function") {
+          const date = (value as { toDate: () => Date }).toDate();
+          return date.toISOString();
+        }
+        if (value && "seconds" in value && typeof (value as { seconds: number }).seconds === "number") {
+          const { seconds, nanoseconds = 0 } = value as { seconds: number; nanoseconds?: number };
+          return new Date(seconds * 1000 + nanoseconds / 1_000_000).toISOString();
+        }
+      }
+    } catch (error) {
+      console.error("Error al convertir timestamp a ISO:", error, value);
+    }
+    return null;
+  };
+
+  const formatDateTimeWithHour = (iso?: string | null) => {
+    if (!iso) return "N/A";
+    const date = new Date(iso);
+    if (isNaN(date.getTime())) return "N/A";
+    return date.toLocaleString("es-AR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
@@ -174,6 +212,8 @@ export default function Admin() {
           return;
         }
 
+        let lastUsersCheckISO: string | null = null;
+
         // Primero verificar el email de Firebase Auth (disponible inmediatamente)
         const authEmail = auth.currentUser.email?.toLowerCase() || "";
         const isAuthAdmin = authEmail === "admin@fitplan-ai.com";
@@ -193,20 +233,21 @@ export default function Admin() {
         // Verificar y crear/actualizar documento del admin si es necesario
         if (isAuthAdmin) {
           if (!userDoc.exists()) {
-            // Crear documento del admin
+            const nowISO = new Date().toISOString();
             try {
               await setDoc(userRef, {
                 email: auth.currentUser.email || "admin@fitplan-ai.com",
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp(),
+                lastUsersCheck: serverTimestamp(),
               });
               console.log("✅ Documento de administrador creado");
               await new Promise(resolve => setTimeout(resolve, 1500));
             } catch (createError) {
               console.error("Error al crear documento de administrador:", createError);
             }
+            lastUsersCheckISO = nowISO;
           } else {
-            // Verificar y actualizar si es necesario
             const userData = userDoc.data();
             const needsUpdate = !userData.email || userData.email.toLowerCase() !== "admin@fitplan-ai.com";
             
@@ -222,11 +263,25 @@ export default function Admin() {
                 console.error("Error al actualizar documento de administrador:", updateError);
               }
             }
+
+            lastUsersCheckISO = convertTimestampToISO(userData.lastUsersCheck);
+            if (!lastUsersCheckISO) {
+              const nowISO = new Date().toISOString();
+              try {
+                await updateDoc(userRef, {
+                  lastUsersCheck: serverTimestamp(),
+                  updatedAt: serverTimestamp(),
+                });
+                lastUsersCheckISO = nowISO;
+              } catch (updateError) {
+                console.error("Error al inicializar lastUsersCheck:", updateError);
+              }
+            }
           }
-          
+
+          setAdminMeta({ lastUsersCheck: lastUsersCheckISO });
           setIsAdmin(true);
-          setLoading(false);
-          loadUserStats();
+          await loadUserStats(lastUsersCheckISO);
           return;
         }
 
@@ -237,9 +292,23 @@ export default function Admin() {
           const isAdminUser = email === "admin@fitplan-ai.com";
           
           if (isAdminUser) {
+            lastUsersCheckISO = convertTimestampToISO(userData.lastUsersCheck);
+            if (!lastUsersCheckISO) {
+              const nowISO = new Date().toISOString();
+              try {
+                await updateDoc(userRef, {
+                  lastUsersCheck: serverTimestamp(),
+                  updatedAt: serverTimestamp(),
+                });
+                lastUsersCheckISO = nowISO;
+              } catch (updateError) {
+                console.error("Error al actualizar lastUsersCheck para admin:", updateError);
+              }
+            }
+
+            setAdminMeta({ lastUsersCheck: lastUsersCheckISO });
             setIsAdmin(true);
-            setLoading(false);
-            loadUserStats();
+            await loadUserStats(lastUsersCheckISO);
           } else {
             setError("Acceso denegado. Solo administradores pueden acceder.");
             setLoading(false);
@@ -256,13 +325,41 @@ export default function Admin() {
     };
 
     checkAdmin();
+    // loadUserStats se maneja manualmente para evitar bucles de recarga
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authUser, authLoading, router]);
 
-  const loadUserStats = async () => {
+  // Actualización automática de usuarios - usando polling cada 10 segundos
+  useEffect(() => {
+    if (!isAdmin || !authUser) return;
+
+    // Actualización automática silenciosa cada 30 segundos (sin mostrar loading)
+    // Esto permite detectar nuevos usuarios sin interrumpir la experiencia
+    const pollInterval = setInterval(async () => {
+      try {
+        await loadUserStats(adminMeta.lastUsersCheck ?? null, true); // silent = true para no mostrar loading
+      } catch (error) {
+        console.error("Error en polling de usuarios:", error);
+      }
+    }, 30000); // Actualizar cada 30 segundos (menos frecuente y silencioso)
+
+    return () => {
+      clearInterval(pollInterval);
+    };
+    // loadUserStats se maneja manualmente para evitar bucles
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, authUser, adminMeta.lastUsersCheck]);
+
+
+  const loadUserStats = async (lastUsersCheck?: string | null, silent = false) => {
     try {
+      if (!silent) {
+        setLoading(true);
+      }
       const auth = getAuthSafe();
       
       if (!auth?.currentUser) {
+        setLoading(false);
         return;
       }
 
@@ -323,10 +420,44 @@ export default function Admin() {
           const bTime = getTimestamp(b.createdAt);
           return bTime - aTime; // Orden descendente (más reciente primero)
         });
+
+        // Calcular usuarios nuevos desde la última revisión
+        const effectiveLastUsersCheckISO = lastUsersCheck ?? adminMeta.lastUsersCheck ?? null;
+        let extractedNewUsers: Array<{ id: string; nombre: string | null; email: string | null; createdAt?: string | null }> = [];
+        if (effectiveLastUsersCheckISO) {
+          const lastCheckDate = new Date(effectiveLastUsersCheckISO);
+          if (!isNaN(lastCheckDate.getTime())) {
+            const lastCheckTime = lastCheckDate.getTime();
+            extractedNewUsers = sortedUsers
+              .filter((user: Record<string, unknown>) => {
+                const email = typeof user.email === "string" ? user.email.toLowerCase() : "";
+                if (email === "admin@fitplan-ai.com") return false;
+                const createdAtTime = getTimestamp(user.createdAt);
+                return createdAtTime > lastCheckTime;
+              })
+              .map((user: Record<string, unknown>) => ({
+                id: String(user.id || ""),
+                nombre: (user.nombre as string | null) || null,
+                email: (user.email as string | null) || null,
+                createdAt: convertTimestampToISO(user.createdAt),
+              }))
+              .filter(user => !!user.id);
+          }
+        }
+        
+        setNewUsersList(extractedNewUsers);
+        setNewUserIds(extractedNewUsers.map(user => user.id));
         
         setUsers(sortedUsers);
-        setLoading(false);
         console.log(`✅ ${sortedUsers.length} usuarios cargados y ordenados por fecha de creación`);
+      } else {
+        setUsers([]);
+        setNewUsersList([]);
+        setNewUserIds([]);
+      }
+
+      if (!silent) {
+        setLoading(false);
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Error desconocido";
@@ -340,9 +471,6 @@ export default function Admin() {
       }
     }
   };
-
-  // Función loadUsers deshabilitada temporalmente
-  // Se puede habilitar más adelante cuando se necesite mostrar la lista completa de usuarios
 
   const handleEdit = (user: User) => {
     setEditingUser(user);
@@ -405,7 +533,7 @@ export default function Admin() {
       setUsers(prevUsers => prevUsers.filter(user => user.id !== editingUser.id));
 
       // Recargar estadísticas para actualizar los contadores
-      await loadUserStats();
+      await loadUserStats(adminMeta.lastUsersCheck ?? null);
       
       // Cerrar el modal
       setEditingUser(null);
@@ -487,7 +615,7 @@ export default function Admin() {
       );
 
       // Recargar estadísticas para actualizar los contadores
-      await loadUserStats();
+      await loadUserStats(adminMeta.lastUsersCheck ?? null);
       
       setEditingUser(null);
       setEditForm({});
@@ -543,6 +671,42 @@ export default function Admin() {
     return "N/A";
   };
 
+  const handleMarkNewUsersSeen = async () => {
+    try {
+      const auth = getAuthSafe();
+      if (!auth?.currentUser) {
+        return;
+      }
+      setMarkingNewUsersSeen(true);
+      const response = await fetch("/api/admin/markUsersSeen", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          adminUserId: auth.currentUser.uid,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Error desconocido" }));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      const updatedLastCheck = result.lastUsersCheck || new Date().toISOString();
+      setAdminMeta(prev => ({ ...prev, lastUsersCheck: updatedLastCheck }));
+      setNewUsersList([]);
+      setNewUserIds([]);
+      await loadUserStats(updatedLastCheck);
+    } catch (error) {
+      console.error("❌ Error al marcar usuarios como revisados:", error);
+      alert("No se pudieron marcar los usuarios como revisados. Intenta nuevamente.");
+    } finally {
+      setMarkingNewUsersSeen(false);
+    }
+  };
+
   if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900">
@@ -585,6 +749,58 @@ export default function Admin() {
           </h1>
           <p className="text-white/60">Gestiona usuarios y permisos del sistema</p>
         </motion.div>
+
+        {newUsersList.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8 p-6 rounded-xl border border-green-500/30 bg-gradient-to-r from-green-500/20 to-emerald-500/10 backdrop-blur-sm"
+          >
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                  <span role="img" aria-label="confeti">🎉</span>
+                  {newUsersList.length === 1
+                    ? "Nuevo usuario desde tu última revisión"
+                    : `${newUsersList.length} usuarios nuevos desde tu última revisión`}
+                </h2>
+                <p className="text-white/70 text-sm mt-1">
+                  Última revisión registrada: {formatDateTimeWithHour(adminMeta.lastUsersCheck)}
+                </p>
+              </div>
+              <button
+                onClick={handleMarkNewUsersSeen}
+                disabled={markingNewUsersSeen}
+                className="px-4 py-2 rounded-lg bg-green-500/30 hover:bg-green-500/40 border border-green-500/40 text-green-200 text-sm font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {markingNewUsersSeen ? "Guardando..." : "Marcar como revisado"}
+              </button>
+            </div>
+            <ul className="mt-4 space-y-2 text-sm">
+              {newUsersList.slice(0, 5).map((user) => (
+                <li
+                  key={user.id}
+                  className="flex items-center justify-between px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white/90"
+                >
+                  <div>
+                    <p className="font-medium text-white">{user.nombre || user.email || user.id}</p>
+                    <p className="text-white/60 text-xs">
+                      {user.email || "Sin email registrado"}
+                    </p>
+                  </div>
+                  <span className="text-white/60 text-xs">
+                    {user.createdAt ? formatDateTimeWithHour(user.createdAt) : "Sin fecha"}
+                  </span>
+                </li>
+              ))}
+              {newUsersList.length > 5 && (
+                <li className="text-white/60 text-xs text-center">
+                  ... y {newUsersList.length - 5} usuarios más
+                </li>
+              )}
+            </ul>
+          </motion.div>
+        )}
 
         {/* Panel de Estadísticas de Ganancias */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
@@ -766,15 +982,25 @@ export default function Admin() {
                 ) : (
                   users.map((user, index) => {
                     const paymentStatus = getPaymentStatus(user);
+                    const isNewUser = newUserIds.includes(user.id);
                     return (
                     <motion.tr
                       key={user.id}
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.05 }}
-                      className="hover:bg-white/5 transition-colors"
+                      className={`hover:bg-white/5 transition-colors border-l-4 ${isNewUser ? "bg-green-500/10 border-green-400/70" : "border-transparent"}`}
                     >
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-white">{user.nombre || "N/A"}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
+                        <div className="flex items-center gap-2">
+                          <span>{user.nombre || "N/A"}</span>
+                          {isNewUser && (
+                            <span className="px-2 py-0.5 text-[10px] uppercase tracking-wide rounded-full bg-green-500/30 text-green-100 border border-green-500/40">
+                              Nuevo
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-white/80">{user.email || "N/A"}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {user.email?.toLowerCase() === "admin@fitplan-ai.com" ? (
@@ -816,12 +1042,37 @@ export default function Admin() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-white/60">{formatDate(user.createdAt)}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <button
-                          onClick={() => handleEdit(user)}
-                          className="px-3 py-1.5 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30 transition-colors"
-                        >
-                          Editar
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleEdit(user)}
+                            className="px-3 py-1.5 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30 transition-colors"
+                          >
+                            Editar
+                          </button>
+                          {user.email?.toLowerCase() !== "admin@fitplan-ai.com" && (
+                            <button
+                              onClick={async () => {
+                                setSelectedUserForHistory(user);
+                                setHistoryModalOpen(true);
+                                setLoadingHistory(true);
+                                try {
+                                  const response = await fetch(`/api/admin/userHistory?userId=${user.id}&adminUserId=${authUser?.uid}`);
+                                  if (!response.ok) throw new Error("Error al cargar historial");
+                                  const data = await response.json();
+                                  setUserHistory(data);
+                                } catch (error) {
+                                  console.error("Error al cargar historial:", error);
+                                  setUserHistory(null);
+                                } finally {
+                                  setLoadingHistory(false);
+                                }
+                              }}
+                              className="px-3 py-1.5 rounded-lg bg-green-500/20 hover:bg-green-500/30 text-green-400 border border-green-500/30 transition-colors"
+                            >
+                              Historial
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </motion.tr>
                     );
@@ -1008,6 +1259,392 @@ export default function Admin() {
                   Cancelar
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Modal de Historial Mensual */}
+        {historyModalOpen && selectedUserForHistory && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-5xl w-full max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-white">
+                    Historial Mensual: {selectedUserForHistory.nombre || selectedUserForHistory.email}
+                  </h2>
+                  <p className="text-white/60 text-sm mt-1">{selectedUserForHistory.email}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setHistoryModalOpen(false);
+                    setSelectedUserForHistory(null);
+                    setUserHistory(null);
+                  }}
+                  className="text-white/70 hover:text-white transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-6 w-6">
+                    <path d="M18 6L6 18M6 6l12 12"/>
+                  </svg>
+                </button>
+              </div>
+
+              {loadingHistory ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400"></div>
+                </div>
+              ) : userHistory ? (
+                <div className="space-y-6">
+                  {/* Resumen del usuario */}
+                  {(() => {
+                    const user = userHistory.user as { peso?: number; alturaCm?: number; edad?: number; premium?: boolean } | null;
+                    if (!user) return null;
+                    return (
+                      <div className="p-4 rounded-lg bg-white/5 border border-white/10">
+                        <h3 className="text-lg font-semibold text-white mb-3">Datos del Usuario</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                          <div>
+                            <p className="text-white/60">Peso Actual</p>
+                            <p className="text-white font-medium">{user.peso || "N/A"} kg</p>
+                          </div>
+                          <div>
+                            <p className="text-white/60">Altura</p>
+                            <p className="text-white font-medium">{user.alturaCm || "N/A"} cm</p>
+                          </div>
+                          <div>
+                            <p className="text-white/60">Edad</p>
+                            <p className="text-white font-medium">{user.edad || "N/A"} años</p>
+                          </div>
+                          <div>
+                            <p className="text-white/60">Premium</p>
+                            <p className={`font-medium ${user.premium ? "text-yellow-400" : "text-gray-400"}`}>
+                              {user.premium ? "Sí" : "No"}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Historial mensual */}
+                  <div>
+                    <h3 className="text-lg font-semibold text-white mb-3">Historial Mensual</h3>
+                    {userHistory.history && Array.isArray(userHistory.history) && userHistory.history.length > 0 ? (
+                      <div className="space-y-4">
+                        {userHistory.history.map((snapshot: unknown, idx: number) => {
+                          const snap = snapshot as {
+                            snapshotMonth?: string;
+                            objetivo?: string;
+                            intensidad?: string;
+                            tipoDieta?: string;
+                            calorias_diarias?: number;
+                            macros?: { proteinas?: string; grasas?: string; carbohidratos?: string };
+                            pesoInicial?: number;
+                            pesoObjetivo?: number;
+                            diasGym?: number;
+                            minutosSesion?: number;
+                            createdAt?: string;
+                          };
+                          const monthYear = snap.snapshotMonth || "N/A";
+                          const [year, month] = monthYear.split("-");
+                          const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+                          const monthName = month ? monthNames[parseInt(month) - 1] : "N/A";
+                          
+                          return (
+                            <div key={idx} className="p-4 rounded-lg bg-white/5 border border-white/10">
+                              <div className="flex items-center justify-between mb-3">
+                                <h4 className="text-lg font-semibold text-white">
+                                  {monthName} {year}
+                                </h4>
+                                {snap.createdAt && (
+                                  <span className="text-xs text-white/60">
+                                    {new Date(snap.createdAt).toLocaleDateString('es-AR')}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                                <div>
+                                  <p className="text-white/60">Objetivo</p>
+                                  <p className="text-white font-medium capitalize">{snap.objetivo || "N/A"}</p>
+                                </div>
+                                <div>
+                                  <p className="text-white/60">Intensidad</p>
+                                  <p className="text-white font-medium capitalize">{snap.intensidad || "N/A"}</p>
+                                </div>
+                                <div>
+                                  <p className="text-white/60">Calorías Diarias</p>
+                                  <p className="text-white font-medium">{snap.calorias_diarias || "N/A"} kcal</p>
+                                </div>
+                                <div>
+                                  <p className="text-white/60">Días Gym/Sem</p>
+                                  <p className="text-white font-medium">{snap.diasGym || "N/A"}</p>
+                                </div>
+                                <div>
+                                  <p className="text-white/60">Peso Inicial</p>
+                                  <p className="text-white font-medium">{snap.pesoInicial || "N/A"} kg</p>
+                                </div>
+                                <div>
+                                  <p className="text-white/60">Peso Objetivo</p>
+                                  <p className="text-white font-medium">{snap.pesoObjetivo || "N/A"} kg</p>
+                                </div>
+                                <div>
+                                  <p className="text-white/60">Duración Sesión</p>
+                                  <p className="text-white font-medium">{snap.minutosSesion || "N/A"} min</p>
+                                </div>
+                                <div>
+                                  <p className="text-white/60">Dieta</p>
+                                  <p className="text-white font-medium capitalize">{snap.tipoDieta || "N/A"}</p>
+                                </div>
+                              </div>
+                              {snap.macros && (
+                                <div className="mt-3 pt-3 border-t border-white/10">
+                                  <p className="text-white/60 text-xs mb-2">Macronutrientes</p>
+                                  <div className="flex gap-4 text-xs">
+                                    <span className="text-white/80">Proteínas: {snap.macros.proteinas || "N/A"}</span>
+                                    <span className="text-white/80">Grasas: {snap.macros.grasas || "N/A"}</span>
+                                    <span className="text-white/80">Carbos: {snap.macros.carbohidratos || "N/A"}</span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="p-6 rounded-lg bg-white/5 border border-white/10 text-center">
+                        <p className="text-white/60">No hay historial mensual registrado aún</p>
+                        <p className="text-white/40 text-sm mt-2">El historial se genera automáticamente cuando los planes cumplen 30 días</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Seguimiento de Peso */}
+                  {userHistory.weightRecords && userHistory.weightRecords.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-white mb-3">Seguimiento de Peso</h3>
+                      <div className="p-4 rounded-lg bg-white/5 border border-white/10">
+                        {/* Gráfico simple de evolución */}
+                        <div className="mb-4">
+                          <div className="flex items-end justify-between gap-1 h-32 mb-2">
+                            {userHistory.weightRecords.slice(-10).map((record, idx) => {
+                              const maxPeso = Math.max(...userHistory.weightRecords!.map(r => r.peso));
+                              const minPeso = Math.min(...userHistory.weightRecords!.map(r => r.peso));
+                              const range = maxPeso - minPeso || 1;
+                              const height = ((record.peso - minPeso) / range) * 100;
+                              const fecha = new Date(record.fecha);
+                              return (
+                                <div key={idx} className="flex-1 flex flex-col items-center group relative">
+                                  <div
+                                    className="w-full bg-gradient-to-t from-cyan-500 to-blue-500 rounded-t transition-all hover:from-cyan-400 hover:to-blue-400"
+                                    style={{ height: `${Math.max(height, 10)}%` }}
+                                  >
+                                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-900 px-2 py-1 rounded text-xs whitespace-nowrap border border-white/10">
+                                      {fecha.toLocaleDateString('es-AR')}: {record.peso} kg
+                                    </div>
+                                  </div>
+                                  <span className="text-[8px] text-white/50 mt-1 transform -rotate-45 origin-top-left whitespace-nowrap">
+                                    {fecha.getDate()}/{fecha.getMonth() + 1}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        
+                        {/* Tabla de registros */}
+                        <div className="mt-4 max-h-48 overflow-y-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-white/10">
+                                <th className="text-left py-2 text-white/60">Fecha</th>
+                                <th className="text-right py-2 text-white/60">Peso (kg)</th>
+                                <th className="text-right py-2 text-white/60">Cambio</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {userHistory.weightRecords
+                                .sort((a, b) => b.fecha.localeCompare(a.fecha))
+                                .slice(0, 15)
+                                .map((record, idx, arr) => {
+                                  const fecha = new Date(record.fecha);
+                                  const cambio = idx < arr.length - 1 
+                                    ? (record.peso - arr[idx + 1].peso).toFixed(1)
+                                    : null;
+                                  return (
+                                    <tr key={idx} className="border-b border-white/5">
+                                      <td className="py-2 text-white/80">
+                                        {fecha.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                      </td>
+                                      <td className="text-right py-2 text-white font-medium">{record.peso} kg</td>
+                                      <td className="text-right py-2">
+                                        {cambio && (
+                                          <span className={Number(cambio) > 0 ? "text-red-400" : "text-green-400"}>
+                                            {Number(cambio) > 0 ? `+${cambio}` : cambio} kg
+                                          </span>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                            </tbody>
+                          </table>
+                          {userHistory.weightRecords.length > 15 && (
+                            <p className="text-white/60 text-xs text-center mt-2">
+                              ... y {userHistory.weightRecords.length - 15} registros más
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Estadísticas */}
+                        {userHistory.weightRecords.length > 1 && (() => {
+                          const sorted = [...userHistory.weightRecords].sort((a, b) => a.fecha.localeCompare(b.fecha));
+                          const primerPeso = sorted[0].peso;
+                          const ultimoPeso = sorted[sorted.length - 1].peso;
+                          const diferencia = ultimoPeso - primerPeso;
+                          const diasTranscurridos = Math.ceil(
+                            (new Date(sorted[sorted.length - 1].fecha).getTime() - new Date(sorted[0].fecha).getTime()) / (1000 * 60 * 60 * 24)
+                          );
+                          const promedio = sorted.reduce((sum, r) => sum + r.peso, 0) / sorted.length;
+                          
+                          return (
+                            <div className="mt-4 pt-4 border-t border-white/10 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                              <div>
+                                <p className="text-white/60">Peso Inicial</p>
+                                <p className="text-white font-medium">{primerPeso} kg</p>
+                              </div>
+                              <div>
+                                <p className="text-white/60">Peso Actual</p>
+                                <p className="text-white font-medium">{ultimoPeso} kg</p>
+                              </div>
+                              <div>
+                                <p className="text-white/60">Cambio Total</p>
+                                <p className={`font-medium ${diferencia > 0 ? "text-red-400" : diferencia < 0 ? "text-green-400" : "text-white"}`}>
+                                  {diferencia > 0 ? `+${diferencia.toFixed(1)}` : diferencia.toFixed(1)} kg
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-white/60">Promedio</p>
+                                <p className="text-white font-medium">{promedio.toFixed(1)} kg</p>
+                              </div>
+                              {diasTranscurridos > 0 && (
+                                <div className="col-span-2 md:col-span-4">
+                                  <p className="text-white/60">Período</p>
+                                  <p className="text-white font-medium">{diasTranscurridos} días ({Math.round(diasTranscurridos / 30 * 10) / 10} meses)</p>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Planes del usuario */}
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-lg font-semibold text-white">Planes Creados ({userHistory.plans?.length || 0})</h3>
+                      <button
+                        onClick={async () => {
+                          if (!selectedUserForHistory) return;
+                          try {
+                            // Obtener el plan más reciente del usuario
+                            const plans = userHistory.plans as Array<{ id?: string; plan?: { plan?: unknown; user?: unknown } }>;
+                            if (plans && plans.length > 0) {
+                              const latestPlan = plans[0];
+                              const response = await fetch("/api/saveMonthlySnapshot", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  userId: selectedUserForHistory.id,
+                                  planId: latestPlan.id,
+                                  planData: latestPlan.plan?.plan || {},
+                                  userData: latestPlan.plan?.user || {},
+                                }),
+                              });
+                              if (response.ok) {
+                                alert("Snapshot mensual creado exitosamente");
+                                // Recargar historial
+                                const historyResponse = await fetch(`/api/admin/userHistory?userId=${selectedUserForHistory.id}&adminUserId=${authUser?.uid}`);
+                                if (historyResponse.ok) {
+                                  const data = await historyResponse.json();
+                                  setUserHistory(data);
+                                }
+                              } else {
+                                const error = await response.json();
+                                alert(`Error: ${error.error || "No se pudo crear el snapshot"}`);
+                              }
+                            } else {
+                              alert("No hay planes para crear snapshot");
+                            }
+                          } catch (error) {
+                            console.error("Error al crear snapshot:", error);
+                            alert("Error al crear snapshot mensual");
+                          }
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30 transition-colors text-sm"
+                      >
+                        Crear Snapshot Manual
+                      </button>
+                    </div>
+                    {userHistory.plans && Array.isArray(userHistory.plans) && userHistory.plans.length > 0 ? (
+                      <div className="space-y-2">
+                        {userHistory.plans.slice(0, 5).map((plan: unknown, idx: number) => {
+                          const p = plan as {
+                            id?: string;
+                            createdAt?: string;
+                            plan?: {
+                              plan?: {
+                                calorias_diarias?: number;
+                                macros?: { proteinas?: string; grasas?: string; carbohidratos?: string };
+                              };
+                              user?: {
+                                objetivo?: string;
+                                intensidad?: string;
+                              };
+                            };
+                          };
+                          return (
+                            <div key={idx} className="p-3 rounded-lg bg-white/5 border border-white/10 text-sm">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="text-white font-medium">Plan #{idx + 1}</p>
+                                  <p className="text-white/60 text-xs">
+                                    {p.createdAt ? new Date(p.createdAt).toLocaleDateString('es-AR') : "N/A"}
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-white/80">
+                                    {p.plan?.plan?.calorias_diarias || "N/A"} kcal
+                                  </p>
+                                  <p className="text-white/60 text-xs capitalize">
+                                    {p.plan?.user?.objetivo || "N/A"} - {p.plan?.user?.intensidad || "N/A"}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {userHistory.plans.length > 5 && (
+                          <p className="text-white/60 text-sm text-center mt-2">
+                            ... y {userHistory.plans.length - 5} planes más
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="p-4 rounded-lg bg-white/5 border border-white/10 text-center">
+                        <p className="text-white/60">No hay planes registrados</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-6 rounded-lg bg-red-500/10 border border-red-500/30 text-center">
+                  <p className="text-red-400">Error al cargar el historial</p>
+                </div>
+              )}
             </motion.div>
           </div>
         )}

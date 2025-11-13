@@ -97,6 +97,59 @@ export default function Dashboard() {
 
       const querySnapshot = await getDocs(q);
       const plansData: SavedPlan[] = [];
+      
+      // Verificar y guardar snapshots mensuales para planes que cumplieron 30 días
+      const now = new Date();
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        const createdAt = data.createdAt;
+        
+        if (createdAt) {
+          let createdDate: Date;
+          if (createdAt.toDate) {
+            createdDate = createdAt.toDate();
+          } else if (createdAt.seconds) {
+            createdDate = new Date(createdAt.seconds * 1000);
+          } else {
+            createdDate = new Date(createdAt);
+          }
+          
+          const diffTime = now.getTime() - createdDate.getTime();
+          const diffDays = diffTime / (1000 * 60 * 60 * 24);
+          
+          // Si el plan tiene 30 días o más, guardar snapshot mensual (solo una vez)
+          if (diffDays >= 30) {
+            const monthYear = `${createdDate.getFullYear()}-${String(createdDate.getMonth() + 1).padStart(2, '0')}`;
+            
+            // Verificar si ya existe snapshot para este mes
+            if (auth.currentUser) {
+              const historyRef = collection(db, "historial_mensual", auth.currentUser.uid, "meses");
+              const historyQuery = query(historyRef, where("snapshotMonth", "==", monthYear), limit(1));
+              
+              getDocs(historyQuery).then((historySnapshot) => {
+                if (historySnapshot.empty) {
+                  // No existe snapshot, guardarlo
+                  fetch("/api/saveMonthlySnapshot", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      userId: auth.currentUser?.uid,
+                      planId: doc.id,
+                      planData: data.plan?.plan || {},
+                      userData: data.plan?.user || {},
+                    }),
+                  }).catch((err) => {
+                    console.error("Error al guardar snapshot mensual:", err);
+                  });
+                }
+              }).catch((err) => {
+                console.error("Error al verificar snapshot existente:", err);
+              });
+            }
+          }
+        }
+      });
+      
       querySnapshot.forEach((doc) => {
         plansData.push({
           id: doc.id,

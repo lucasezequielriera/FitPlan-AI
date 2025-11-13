@@ -82,25 +82,75 @@ ESQUEMA OBLIGATORIO (ORDEN IMPORTANTE - GENERAR plan_semanal PRIMERO):
           {
             "day": "Lunes" | "Martes" | "Miércoles" | "Jueves" | "Viernes" | "Sábado" | "Domingo",
             "split": string (OBLIGATORIO: tipo de entrenamiento de este día específico según el split general: "Full Body", "Upper", "Lower", "Push", "Pull", "Legs", "Chest & Triceps", "Back & Biceps", etc.),
+            "warmup": {
+              "duration_minutes": number (tiempo de calentamiento en minutos: 5-10 min si no hay lesiones, 10-15 min si hay lesiones),
+              "description": string (descripción detallada del calentamiento específico para este día, incluyendo movilidad para zonas afectadas si hay lesiones)
+            } (OBLIGATORIO: calentamiento específico para cada día),
             "ejercicios": [
               {
                 "name": string (nombre descriptivo del ejercicio),
                 "sets": number (3-4 series típicamente),
                 "reps": string | number (ej: "8-12", "10-15"),
-                "muscle_group": string (músculo o grupo muscular principal trabajado, OBLIGATORIO: "Pecho", "Espalda", "Piernas", "Hombros", "Bíceps", "Tríceps", "Cuádriceps", "Isquiotibiales", "Glúteos", "Abdominales", "Trapecio", "Gemelos", etc.)
+                "muscle_group": string (músculo o grupo muscular principal trabajado, OBLIGATORIO: "Pecho", "Espalda", "Piernas", "Hombros", "Bíceps", "Tríceps", "Cuádriceps", "Isquiotibiales", "Glúteos", "Abdominales", "Trapecio", "Gemelos", etc.),
+                "rpe": number (OPCIONAL pero RECOMENDADO: RPE 1-10, donde 10 = máximo esfuerzo. Para hipertrofia: 7-9. Para fuerza: 8-10. Para principiantes: 6-8),
+                "tempo": string (OPCIONAL pero RECOMENDADO: tempo del movimiento, ej: "2-0-1-0" = 2s excéntrico, 0s pausa, 1s concéntrico, 0s pausa. Para hipertrofia: control excéntrico 2-3s. Para fuerza: explosivo 1-0-1-0),
+                "rest_seconds": number (OPCIONAL pero RECOMENDADO: descanso entre series en segundos. Hipertrofia: 60-90s. Fuerza: 2-5min. Principiantes: 60-90s),
+                "technique": string (OPCIONAL pero RECOMENDADO: puntos clave de técnica para principiantes Y avanzados, ej: "Principiante: Mantén la espalda recta, baja controlado. Avanzado: Aplica tensión constante, activa glúteos al subir"),
+                "progression": string (OPCIONAL pero RECOMENDADO: cómo progresar, ej: "Semana 1-2: 8-10 reps. Semana 3-4: Aumenta peso 2.5-5kg y haz 6-8 reps"),
+                "alternative": string (OPCIONAL: ejercicio alternativo si hay lesión o falta de equipo, ej: "Si tienes dolor lumbar: usa prensa 45° en lugar de sentadillas"),
+                "cues": string[] (OPCIONAL pero RECOMENDADO: 2-3 pistas mentales para ejecución correcta, ej: ["Mantén el core activo", "Empuja con los talones", "Espalda neutra"])
               }
-            ] (MÍNIMO 6-8 ejercicios por día, lista completa)
+            ] (MÍNIMO 6-8 ejercicios por día, lista completa. Para usuarios con lesiones, incluir "alternative" y ajustar técnica)
           }
-        ] (número de días según recomendaciones calculadas: ${(() => {
+        ] (número de días según recomendaciones calculadas, PERO AJUSTADO SEGÚN LESIONES: ${(() => {
           try {
             const { sugerirEntrenamiento } = require("@/utils/calculations");
             const bmi = input.alturaCm && input.pesoKg ? (input.pesoKg / Math.pow(input.alturaCm / 100, 2)) : 25;
             const recomendaciones = sugerirEntrenamiento(input.objetivo, input.intensidad || "moderada", input.edad, bmi, input.atletico || false);
-            return (input as unknown as Record<string, unknown>)?.diasGym as number | undefined ?? recomendaciones.diasGym;
+            let diasGymSugeridos = (input as unknown as Record<string, unknown>)?.diasGym as number | undefined ?? recomendaciones.diasGym;
+            
+            // Ajustar días de gym según lesiones reportadas
+            if (input.doloresLesiones && input.doloresLesiones.length > 0) {
+              const lesionesGraves = input.doloresLesiones.some((d) => 
+                d.toLowerCase().includes('hernia') && d.toLowerCase().includes('disco') ||
+                d.toLowerCase().includes('hernia discal') ||
+                d.toLowerCase().includes('fractura') ||
+                d.toLowerCase().includes('desgarro')
+              );
+              const lesionesModeradas = input.doloresLesiones.some((d) =>
+                d.toLowerCase().includes('lumbar') ||
+                d.toLowerCase().includes('espalda baja') ||
+                d.toLowerCase().includes('rodilla') ||
+                d.toLowerCase().includes('hombro') ||
+                d.toLowerCase().includes('manguito')
+              );
+              
+              if (lesionesGraves) {
+                diasGymSugeridos = Math.min(2, diasGymSugeridos); // Máximo 2 días para lesiones graves
+              } else if (lesionesModeradas) {
+                diasGymSugeridos = Math.min(3, diasGymSugeridos); // Máximo 3 días para lesiones moderadas
+              } else {
+                diasGymSugeridos = Math.min(4, diasGymSugeridos); // Máximo 4 días para lesiones leves
+              }
+            }
+            
+            return diasGymSugeridos;
           } catch {
-            return (input as unknown as Record<string, unknown>)?.diasGym as number | undefined ?? 3;
+            let diasGymDefault = (input as unknown as Record<string, unknown>)?.diasGym as number | undefined ?? 3;
+            // Ajustar según lesiones
+            if (input.doloresLesiones && input.doloresLesiones.length > 0) {
+              const lesionesGraves = input.doloresLesiones.some((d) => 
+                d.toLowerCase().includes('hernia') && d.toLowerCase().includes('disco')
+              );
+              if (lesionesGraves) {
+                diasGymDefault = Math.min(2, diasGymDefault);
+              } else {
+                diasGymDefault = Math.min(3, diasGymDefault);
+              }
+            }
+            return diasGymDefault;
           }
-        })()} días exactos)
+        })()} días exactos, con MÍNIMO 1 día de descanso entre sesiones si hay lesiones reportadas)
       }
     ] (EXACTAMENTE 4 semanas, cada una con ejercicios VARIADOS y diferentes)
   },
@@ -342,25 +392,66 @@ ${(() => {
 2. REGLAS OBLIGATORIAS:
 - Debe incluir EXACTAMENTE 4 semanas (weeks[0..3]) representando el mes actual.
 - Cada semana debe tener EXACTAMENTE ${diasGym} días de entrenamiento, tomados de ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"] en ese orden cronológico.
+- ⚠️ CRÍTICO - DÍAS DE DESCANSO: Si el usuario tiene lesiones reportadas, DEBE haber MÍNIMO 1 día de descanso completo entre cada sesión de entrenamiento. Para lesiones graves (hernia de disco, fracturas, desgarros), considerar 2 días de descanso entre sesiones. NO programar días consecutivos de entrenamiento cuando hay lesiones.
 - ⚠️ El campo "split" en training_plan DEBE indicar el tipo de división usado (ej: "Full Body", "Upper/Lower", "Push/Pull/Legs", "Bro Split").
 - ⚠️ Cada día DEBE tener el campo "split" indicando qué tipo de entrenamiento es ese día específico (ej: "Full Body", "Upper", "Lower", "Push", "Pull", "Legs", "Chest & Triceps", etc.).
 - ⚠️ VARIACIÓN OBLIGATORIA: Cada semana debe tener ejercicios DIFERENTES o variaciones (cambiar ejercicios, series, reps, o músculos trabajados). NO repitas exactamente la misma rutina semana tras semana.
 - Cada día debe tener MÍNIMO 6-8 ejercicios diferentes para una rutina completa y efectiva.
 - Los ejercicios DEBEN estar organizados según el split especificado arriba. NO uses Full Body si el split requiere Upper/Lower o Push/Pull/Legs.
-- Cada ejercicio debe incluir:
-  - "name": nombre descriptivo del ejercicio
-  - "sets": número de series (3-4 series típicamente)
-  - "reps": repeticiones o rango (ej: "8-12", "10-15")
+- Cada ejercicio debe incluir (CAMPOS OBLIGATORIOS Y OPCIONALES):
+  - "name": nombre descriptivo del ejercicio (OBLIGATORIO)
+  - "sets": número de series (3-4 series típicamente) (OBLIGATORIO)
+  - "reps": repeticiones o rango (ej: "8-12", "10-15") (OBLIGATORIO)
   - "muscle_group" (OBLIGATORIO): músculo o grupo muscular principal trabajado (ej: "Pecho", "Espalda", "Piernas", "Hombros", "Bíceps", "Tríceps", "Cuádriceps", "Isquiotibiales", "Glúteos", "Abdominales", etc.)
+  - "rpe" (RECOMENDADO): RPE 1-10 (7-9 para hipertrofia, 8-10 para fuerza, 6-8 para principiantes)
+  - "tempo" (RECOMENDADO): tempo del movimiento (ej: "2-0-1-0" para hipertrofia con control excéntrico, "1-0-1-0" para fuerza explosiva)
+  - "rest_seconds" (RECOMENDADO): descanso entre series (60-90s hipertrofia, 2-5min fuerza, 60-90s principiantes)
+  - "technique" (RECOMENDADO): puntos clave de técnica para principiantes Y avanzados (ej: "Principiante: Mantén la espalda recta. Avanzado: Aplica tensión constante, activa glúteos")
+  - "progression" (RECOMENDADO): cómo progresar semana a semana (ej: "Semana 1-2: 8-10 reps. Semana 3-4: Aumenta peso 2.5-5kg y haz 6-8 reps")
+  - "alternative" (OPCIONAL pero CRÍTICO si hay lesiones): ejercicio alternativo si hay lesión o falta de equipo
+  - "cues" (RECOMENDADO): 2-3 pistas mentales para ejecución correcta (ej: ["Mantén el core activo", "Empuja con los talones"])
 - VARIACIÓN CRÍTICA: Cada semana debe tener ejercicios DIFERENTES o con variaciones (cambios en series, reps, o ejercicios alternativos). NO repitas exactamente la misma rutina en todas las semanas.
 - Cada día debe tener MÍNIMO 6-8 ejercicios diferentes para una rutina completa y efectiva.
 - Duración por sesión: ${minutosSesion} minutos (incluyendo calentamiento y estiramiento).
-- Calentamiento: 5-10 min al inicio de cada sesión.
-- Estiramiento: 5 min al final de cada sesión.
-- Finisher (opcional): según objetivo (HIIT para pérdida de grasa, ligero para volumen).
-- ${input.objetivo === "perder_grasa" || input.objetivo === "definicion" || input.objetivo === "corte" ? "ENFOQUE: Más densidad, circuitos, finishers de cardio. Priorizar quema de calorías. Split recomendado: Push/Pull/Legs para mayor frecuencia y quema calórica." : ""}
-- ${input.objetivo === "ganar_masa" || input.objetivo === "volumen" ? "ENFOQUE: Más volumen, series pesadas, ejercicios compuestos. Priorizar hipertrofia. Split recomendado: Bro Split o Push/Pull/Legs especializado para mayor volumen por músculo." : ""}
-- ${input.objetivo === "recomposicion" || input.objetivo === "mantener" ? "ENFOQUE: Balance entre fuerza e hipertrofia. Progresión gradual. Split recomendado: Upper/Lower o Push/Pull/Legs equilibrado." : ""}
+- Calentamiento OBLIGATORIO: Cada día DEBE incluir un objeto "warmup" con:
+  * "duration_minutes": número (5-10 min si no hay lesiones, 10-15 min si hay lesiones, 15 min para lesiones graves)
+  * "description": string detallada del calentamiento específico para ese día, incluyendo movilidad para zonas afectadas si hay lesiones reportadas
+- Estiramiento: 5 min al final de cada sesión (enfocado en músculos trabajados y zonas con lesiones si aplica).
+- Finisher (opcional): según objetivo (HIIT para pérdida de grasa, ligero para volumen, movilidad para lesiones).
+- ${input.objetivo === "perder_grasa" || input.objetivo === "definicion" || input.objetivo === "corte" ? "ENFOQUE: Más densidad, circuitos, finishers de cardio. Priorizar quema de calorías. Split recomendado: Push/Pull/Legs para mayor frecuencia y quema calórica. RPE: 7-9. Descanso: 45-60s." : ""}
+- ${input.objetivo === "ganar_masa" || input.objetivo === "volumen" ? "ENFOQUE: Más volumen, series pesadas, ejercicios compuestos. Priorizar hipertrofia. Split recomendado: Bro Split o Push/Pull/Legs especializado para mayor volumen por músculo. RPE: 7-9. Descanso: 60-90s. Tempo: control excéntrico 2-3s." : ""}
+- ${input.objetivo === "recomposicion" || input.objetivo === "mantener" ? "ENFOQUE: Balance entre fuerza e hipertrofia. Progresión gradual. Split recomendado: Upper/Lower o Push/Pull/Legs equilibrado. RPE: 7-8. Descanso: 60-90s." : ""}
+
+⚠️ DETALLES TÉCNICOS OBLIGATORIOS PARA DIFERENTES NIVELES:
+- PRINCIPIANTES (no atlético, <2 días gym/semana): 
+  * RPE: 6-8 (no al fallo, priorizar técnica)
+  * Tempo: controlado 2-1-2-0 (2s bajar, 1s pausa, 2s subir)
+  * Descanso: 60-90s (suficiente para recuperación)
+  * Técnica: Explicaciones simples, puntos clave básicos, evitar ejercicios complejos
+  * Progresión: Semana 1-2 aprender técnica, semana 3-4 aumentar peso ligero (2.5-5kg)
+  * Cues: Enfocados en seguridad y forma básica (ej: "Espalda recta", "Core activo")
+- INTERMEDIOS (2-4 días gym/semana):
+  * RPE: 7-9 (cerca del fallo en últimas series)
+  * Tempo: 2-0-1-0 (control excéntrico, explosivo concéntrico)
+  * Descanso: 60-90s hipertrofia, 2-3min fuerza
+  * Técnica: Puntos avanzados, activación muscular, conexión mente-músculo
+  * Progresión: Aumentar peso 2.5-5kg cada 2 semanas o aumentar reps
+  * Cues: Enfocados en activación y tensión (ej: "Aprieta glúteos", "Tensión constante")
+- AVANZADOS (atlético o ≥5 días gym/semana):
+  * RPE: 8-10 (al fallo o cerca en últimas series)
+  * Tempo: Variable según objetivo (1-0-1-0 fuerza, 2-0-1-0 hipertrofia, 3-1-1-0 tiempo bajo tensión)
+  * Descanso: 90-120s hipertrofia, 3-5min fuerza máxima
+  * Técnica: Técnica avanzada, variaciones, técnicas de intensidad (dropsets, rest-pause)
+  * Progresión: Periodización avanzada, aumentar peso 5-10kg cada 2 semanas, variaciones de ejercicios
+  * Cues: Enfocados en máxima activación y técnica perfecta (ej: "Máxima tensión", "Contracción pico")
+
+⚠️ ADAPTACIÓN PARA LESIONES (CRÍTICO):
+- Si hay lesiones reportadas, CADA ejercicio debe incluir:
+  * "alternative": ejercicio alternativo seguro que no agrave la lesión
+  * "technique": técnica modificada específica para la lesión (ej: "Si tienes hernia de disco: rango parcial, evita flexión profunda")
+  * Ajustar RPE: Reducir a 6-7 para evitar compensaciones
+  * Ajustar tempo: Más controlado, evitar movimientos explosivos que puedan agravar
+  * Ajustar descanso: Aumentar a 90-120s para mejor recuperación
 
 ⚠️ VALIDACIÓN FINAL DEL SPLIT - REGLAS CRÍTICAS:
 - Si el usuario tiene ${diasGym} días de gym y objetivo "${input.objetivo}":
@@ -532,19 +623,98 @@ ADAPTAR TODO EL PLAN (calorías, macros, selección de alimentos, horarios) seg�
   : "- No hay patologías reportadas por el usuario."
 }
 
-4. DOLORES / LESIONES REPORTADOS (CRÍTICO PARA ENTRENAMIENTO Y RECUPERACIÓN):
+4. DOLORES / LESIONES (CRÍTICO - CONDICIONA ENTRENAMIENTO):
 ${input.doloresLesiones && input.doloresLesiones.length > 0
-  ? `El usuario informó las siguientes molestias, dolores o lesiones que DEBEN CONDICIONAR el entrenamiento:
-${input.doloresLesiones.map((d) => `- ${d}`).join('\n')}
+  ? `⚠️⚠️⚠️ LESIONES REPORTADAS: ${input.doloresLesiones.join(', ')}. DEBEN CONDICIONAR COMPLETAMENTE el entrenamiento.
 
-INDICACIONES OBLIGATORIAS:
-- Evitar ejercicios que puedan agravar estas zonas. Priorizar variaciones seguras (máquinas guiadas, rangos parciales controlados, agarres neutrales, uso de bandas, trabajo unilateral con menor carga).
-- Incluir calentamientos específicos y movilidad previa para cada zona afectada.
-- Incluir notas en "safety_notes" del training_plan indicando cómo proteger cada zona (ej: "rodilla derecha: evitar sentadillas profundas, usar prensa 45° con rango medio y tempo controlado").
-- Aumentar foco en fortalecimiento compensatorio y estabilidad (ej: core, glúteos, manguito rotador) cuando la lesión lo requiera.
-- Ajustar volumen e intensidad del día correspondiente si la zona lesionada estaría muy exigida. Prefiere mayor frecuencia con menor carga que sesiones muy pesadas.
-- Si es necesario, reemplazar completamente un ejercicio conflictivo por alternativas amigables con la lesión (ej: swap burpees por remo en máquina si hay dolor lumbar).`
-  : "- No se reportaron dolores o lesiones. Puedes seguir progresiones estándar, pero de todos modos prioriza técnica perfecta, calentamientos completos y trabajo de movilidad preventiva."}
+REGLAS CRÍTICAS POR LESIÓN:
+${input.doloresLesiones.some((d) => d.toLowerCase().includes('hernia') && (d.toLowerCase().includes('disco') || d.toLowerCase().includes('discal')))
+  ? `🚨🚨🚨 HERNIA DE DISCO (LESIÓN GRAVE - PROTOCOLO DE SEGURIDAD MÁXIMA) 🚨🚨🚨
+
+⚠️⚠️⚠️ EJERCICIOS ABSOLUTAMENTE PROHIBIDOS (NUNCA INCLUIR EN EL PLAN):
+- Remo con barra (bent-over row, barbell row, T-bar row) - PROHIBIDO
+- Peso muerto (deadlift, cualquier variante) - PROHIBIDO
+- Sentadillas profundas o con carga pesada - PROHIBIDO
+- Peso muerto rumano (RDL) - PROHIBIDO
+- Good mornings - PROHIBIDO
+- Hiperextensiones de espalda (back extensions profundas) - PROHIBIDO
+- Crunch abdominales tradicionales - PROHIBIDO
+- Russian twists con peso - PROHIBIDO
+- Overhead press pesado (press militar con carga alta) - PROHIBIDO
+- Sentadillas frontales con barra sobre hombros - PROHIBIDO
+- Leg press con rango completo profundo - PROHIBIDO
+- Hack squat profundo - PROHIBIDO
+- Cualquier ejercicio de impacto (saltos, burpees, jumping jacks) - PROHIBIDO
+- Cualquier ejercicio que requiera flexión/extensión excesiva de columna - PROHIBIDO
+- Cualquier ejercicio que genere compresión espinal - PROHIBIDO
+- Cualquier ejercicio que requiera cargar peso sobre los hombros - PROHIBIDO
+
+✅ EJERCICIOS SEGUROS Y PERMITIDOS (SOLO ESTOS):
+- Remo en máquina sentado (cable row, máquina de remo) - SEGURO
+- Jalón al pecho en polea (lat pulldown) - SEGURO
+- Remo con mancuernas apoyado en banco (chest supported row) - SEGURO
+- Prensa 45° con rango medio (NO profundo) - SEGURO
+- Máquina de extensión de piernas (leg extension) - SEGURO
+- Máquina de curl de piernas (leg curl) - SEGURO
+- Plancha isométrica (plank) - SEGURO
+- Dead bug - SEGURO
+- Bird dog - SEGURO
+- Trabajo de brazos con mancuernas (curl, extensiones, press) - SEGURO
+- Cardio bajo impacto (caminata, elíptica, bicicleta estática) - SEGURO
+- Ejercicios de movilidad suave (cat-cow, estiramientos de cadera) - SEGURO
+
+REGLAS CRÍTICAS:
+- Días: MÁXIMO 2 días/semana, MÍNIMO 48h descanso entre sesiones
+- Calentamiento: 15 min obligatorio (movilidad cadera, estiramientos isquios, activación core)
+- RPE: Máximo 6-7 (NUNCA al fallo, evitar compensaciones)
+- Tempo: Controlado 3-1-2-0 (máximo control, evitar explosivo)
+- Descanso: 90-120s (mejor recuperación)
+- Alternativas OBLIGATORIAS: Cada ejercicio debe tener "alternative" seguro
+- Técnica: "technique" debe incluir "Si tienes hernia de disco: rango parcial, evita flexión profunda, mantén core activo"
+
+⚠️⚠️⚠️ VALIDACIÓN FINAL: ANTES de incluir CUALQUIER ejercicio en el plan, VERIFICA que NO esté en la lista de PROHIBIDOS arriba. Si el ejercicio involucra flexión de columna, carga sobre espalda, o compresión espinal, NO LO INCLUYAS. Usa SOLO los ejercicios de la lista SEGUROS.`
+  : ''}
+${input.doloresLesiones.some((d) => d.toLowerCase().includes('lumbar') || d.toLowerCase().includes('espalda baja'))
+  ? `⚠️ LUMBAR (MODERADA):
+- Días: Máximo 3-4 días/semana, 1 día descanso entre sesiones
+- EVITAR: peso muerto, sentadillas profundas, impacto, flexión columna con carga
+- PRIORIZAR: core isométrico, máquinas guiadas, brazos/piernas carga moderada, trabajo unilateral
+- Calentamiento: 10-15 min (movilidad cadera, estiramientos isquios, activación core)
+- RPE: 6-8 (evitar compensaciones)
+- Tempo: Controlado 2-0-1-0
+- Alternativas: Incluir "alternative" para ejercicios que involucren espalda baja`
+  : ''}
+${input.doloresLesiones.some((d) => d.toLowerCase().includes('rodilla'))
+  ? `⚠️ RODILLA (MODERADA):
+- Días: Máximo 3-4 días/semana, 1 día descanso entre sesiones
+- EVITAR: sentadillas/lunges profundos, impacto, extensión pierna alta carga, saltos
+- PRIORIZAR: máquinas (prensa 45° rango medio), brazos/core, glúteos/isquios (curl piernas), trabajo unilateral
+- Calentamiento: 10-15 min (movilidad cadera, activación glúteos, estiramientos suaves)
+- RPE: 6-8
+- Tempo: Controlado, evitar explosivo
+- Alternativas: Incluir "alternative" para ejercicios que involucren rodilla`
+  : ''}
+${input.doloresLesiones.some((d) => d.toLowerCase().includes('hombro') || d.toLowerCase().includes('manguito'))
+  ? `⚠️ HOMBRO/MANGUITO (MODERADA):
+- Días: Máximo 3-4 días/semana, 1 día descanso entre sesiones
+- EVITAR: press militar, press banca ancho, elevaciones laterales alta carga, overhead, movimientos por encima de 90°
+- PRIORIZAR: brazos agarre neutro, piernas/core, manguito rotador con bandas (baja resistencia), trabajo unilateral
+- Calentamiento: 10-15 min (movilidad hombro, estiramientos pecho, activación manguito)
+- RPE: 6-8
+- Tempo: Controlado, evitar explosivo
+- Alternativas: Incluir "alternative" para ejercicios que involucren hombro`
+  : ''}
+REGLAS GENERALES LESIONES:
+- Lesiones graves (hernia disco, fracturas): máximo 2-3 días/semana, 48h descanso mínimo
+- Lesiones moderadas (lumbar, rodilla, hombro): máximo 3-4 días/semana, 24h descanso mínimo
+- Calentamiento: 10-15 min (15 min lesiones graves), enfocado en zona afectada
+- RPE reducido: 6-7 lesiones graves, 6-8 moderadas (nunca al fallo)
+- Tempo controlado: Evitar explosivo, priorizar control excéntrico
+- Descanso aumentado: 90-120s para mejor recuperación
+- Alternativas OBLIGATORIAS: Cada ejercicio debe incluir "alternative" seguro
+- Técnica adaptada: "technique" debe incluir modificaciones específicas para la lesión
+- Incluir "safety_notes" en training_plan con precauciones específicas`
+  : "- Sin lesiones reportadas. Calentamiento estándar: 5-10 min. RPE: según nivel. Tempo: según objetivo."}
 
 5. TIEMPO OBJETIVO PARA RESULTADOS: El usuario debe ver resultados notables en ${input.intensidad === "intensa" ? "1-3 meses" : input.intensidad === "moderada" ? "3 meses" : "3-5 meses"}. 
    TODO el plan (calorías, macros, distribución de comidas) debe estar diseñado para lograr resultados VISIBLES en ese tiempo.
@@ -586,7 +756,7 @@ Ajusta las calorías, macros y selección de alimentos según la intensidad y ti
 
     // Use fetch to avoid adding deps, with timeout for faster fallback
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 120000); // 120s (2 min) - suficiente con max_tokens: 4000
+    const timeout = setTimeout(() => controller.abort(), 150000); // 150s (2.5 min) - alineado con Vercel maxDuration
     const resp = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -595,11 +765,11 @@ Ajusta las calorías, macros y selección de alimentos según la intensidad y ti
       },
       body: JSON.stringify({
         model: "gpt-4o-mini",
-        temperature: 0.6, // un poco más bajo para reducir divagues y acelerar
-        max_tokens: 4000, // Balanceado: suficiente para plan completo pero más rápido que 5000
+        temperature: 0.5, // Más bajo para respuestas más rápidas y determinísticas
+        max_tokens: 3500, // Reducido para acelerar generación (sigue siendo suficiente)
         response_format: { type: "json_object" },
         messages: [
-          { role: "system", content: "Sos un nutricionista experto. Tu respuesta DEBE ser solo JSON válido. El campo 'plan_semanal' es OBLIGATORIO y debe contener exactamente 7 días con 4 comidas cada uno. Prioriza completar 'plan_semanal' antes que cualquier otro campo." },
+          { role: "system", content: "Sos un experto en nutrición, entrenamiento personal y deportología. Actuá como personal trainer certificado, nutricionista deportivo y deportólogo. Responde SOLO con JSON válido. PRIORIDAD: generar 'plan_semanal' primero (7 días, 4 comidas cada uno). Para 'training_plan', incluir detalles técnicos completos (RPE, tempo, técnica, progresión, alternativas) adaptados al nivel del usuario y lesiones. Sé conciso pero completo." },
           { role: "user", content: prompt },
         ],
       }),
@@ -1130,7 +1300,7 @@ Ajusta las calorías, macros y selección de alimentos según la intensidad y ti
         }
         try {
           const repairController = new AbortController();
-          const repairTimeout = setTimeout(() => repairController.abort(), 90000); // 90s para reparación con max_tokens: 4000
+          const repairTimeout = setTimeout(() => repairController.abort(), 120000); // 120s para reparación
           const input = req.body as UserInput;
           const repairPrompt = `Genera SOLO un objeto JSON con un campo "plan_semanal" que sea un array de 7 días (Lunes, Martes, Miércoles, Jueves, Viernes, Sábado, Domingo). Cada día debe tener:
 - "dia": uno de los días de la semana
@@ -1195,7 +1365,7 @@ Ejemplo de estructura:
             body: JSON.stringify({
               model: "gpt-4o-mini",
               temperature: 0.5,
-              max_tokens: 4000, // Balanceado: suficiente para plan completo pero más rápido
+              max_tokens: 3000, // Reducido para reparación rápida (solo plan_semanal)
               response_format: { type: "json_object" },
               messages: [
                 { role: "system", content: "Respondé SOLO con JSON válido. El objeto debe tener un campo 'plan_semanal' que sea un array de EXACTAMENTE 7 días (Lunes a Domingo), cada uno con 4 comidas y 3 opciones descriptivas cada una." },
@@ -1419,31 +1589,166 @@ Ejemplo de estructura:
       } catch {
         diasGym = (input as unknown as Record<string, unknown>)?.diasGym as number | undefined ?? 3;
       }
+      
+      // Ajustar días de gym según lesiones reportadas
+      if (input.doloresLesiones && input.doloresLesiones.length > 0) {
+        const lesionesGraves = input.doloresLesiones.some((d) => 
+          d.toLowerCase().includes('hernia') && d.toLowerCase().includes('disco') ||
+          d.toLowerCase().includes('hernia discal') ||
+          d.toLowerCase().includes('fractura') ||
+          d.toLowerCase().includes('desgarro')
+        );
+        const lesionesModeradas = input.doloresLesiones.some((d) =>
+          d.toLowerCase().includes('lumbar') ||
+          d.toLowerCase().includes('espalda baja') ||
+          d.toLowerCase().includes('rodilla') ||
+          d.toLowerCase().includes('hombro') ||
+          d.toLowerCase().includes('manguito')
+        );
+        
+        if (lesionesGraves) {
+          diasGym = Math.min(2, diasGym); // Máximo 2 días para lesiones graves
+        } else if (lesionesModeradas) {
+          diasGym = Math.min(3, diasGym); // Máximo 3 días para lesiones moderadas
+        } else {
+          diasGym = Math.min(4, diasGym); // Máximo 4 días para lesiones leves
+        }
+      }
+      
       const minutosSesion = Number((out as Record<string, unknown>)?.minutos_sesion_gym) || (diasGym >= 5 ? 75 : diasGym >= 3 ? 60 : 45);
       const diasSemana = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
       const targetDays = Math.min(7, Math.max(1, diasGym));
+      
+      // Función para distribuir días con descanso entre sesiones cuando hay lesiones
+      const distribuirDiasConDescanso = (numDias: number, tieneLesiones: boolean): string[] => {
+        if (!tieneLesiones || numDias >= 4) {
+          // Sin lesiones o muchos días: usar días consecutivos al inicio de la semana
+          return diasSemana.slice(0, numDias);
+        }
+        
+        // Con lesiones y pocos días: distribuir con descanso
+        if (numDias === 2) {
+          // 2 días: Lunes y Jueves (3 días de descanso entre ellos)
+          return ["Lunes", "Jueves"];
+        } else if (numDias === 3) {
+          // 3 días: Lunes, Miércoles, Viernes (1 día de descanso entre cada uno)
+          return ["Lunes", "Miércoles", "Viernes"];
+        }
+        // Para 1 día, solo Lunes
+        return ["Lunes"];
+      };
+      
+      const diasDistribuidos = distribuirDiasConDescanso(targetDays, Boolean(input.doloresLesiones && input.doloresLesiones.length > 0));
+      
+      // Función para filtrar ejercicios peligrosos según lesiones (VALIDACIÓN CRÍTICA DE SEGURIDAD)
+      const filtrarEjerciciosPeligrosos = (ejercicios: Array<{ name: string; [key: string]: unknown }>, tieneHerniaDisco: boolean, tieneDolorLumbar: boolean): Array<{ name: string; [key: string]: unknown }> => {
+        if (!tieneHerniaDisco && !tieneDolorLumbar) return ejercicios;
+        
+        const ejerciciosProhibidosHernia = [
+          'remo con barra', 'bent-over row', 'barbell row', 't-bar row', 'row con barra',
+          'peso muerto', 'deadlift', 'rdl', 'peso muerto rumano',
+          'sentadilla', 'squat', 'sentadillas profundas',
+          'good morning', 'good mornings',
+          'hiperextensión', 'back extension', 'hiperextensiones',
+          'crunch', 'crunch abdominal', 'crunch tradicional',
+          'russian twist', 'russian twists',
+          'overhead press', 'press militar', 'press overhead',
+          'sentadilla frontal', 'front squat',
+          'leg press profundo', 'hack squat profundo',
+          'burpee', 'burpees', 'jumping jack', 'saltos'
+        ];
+        
+        const ejerciciosProhibidosLumbar = [
+          'peso muerto', 'deadlift', 'rdl',
+          'sentadilla profunda', 'squat profundo',
+          'good morning', 'good mornings'
+        ];
+        
+        const prohibidos = tieneHerniaDisco ? ejerciciosProhibidosHernia : ejerciciosProhibidosLumbar;
+        
+        return ejercicios.filter(ej => {
+          const nombreLower = String(ej.name || '').toLowerCase();
+          const esProhibido = prohibidos.some(prohibido => nombreLower.includes(prohibido));
+          
+          if (esProhibido) {
+            console.warn(`⚠️ Ejercicio peligroso filtrado: "${ej.name}" para lesión reportada`);
+            return false;
+          }
+          return true;
+        });
+      };
+      
+      // Determinar ejercicios seguros según lesiones
+      const tieneHerniaDisco = input.doloresLesiones?.some((d) => 
+        d.toLowerCase().includes('hernia') && d.toLowerCase().includes('disco') ||
+        d.toLowerCase().includes('hernia discal')
+      ) || false;
+      const tieneDolorLumbar = input.doloresLesiones?.some((d) =>
+        d.toLowerCase().includes('lumbar') ||
+        d.toLowerCase().includes('espalda baja')
+      ) || false;
+      const tieneDolorRodilla = input.doloresLesiones?.some((d) =>
+        d.toLowerCase().includes('rodilla')
+      ) || false;
+      const tieneDolorHombro = input.doloresLesiones?.some((d) =>
+        d.toLowerCase().includes('hombro') ||
+        d.toLowerCase().includes('manguito')
+      ) || false;
+      
       const ensureWeek = (weekIndex: number) => {
-        // Variar ejercicios según la semana para evitar repetición
-        const ejerciciosBase = [
-          { name: "Sentadilla goblet", sets: 3, reps: "8-10", muscle_group: "Cuádriceps" },
+        // Ejercicios base seguros (evitar ejercicios problemáticos para lesiones comunes)
+        const ejerciciosBaseInicial = [
           { name: "Press de banca", sets: 3, reps: "8-12", muscle_group: "Pecho" },
-          { name: "Remo con barra", sets: 3, reps: "8-12", muscle_group: "Espalda" },
-          { name: "Peso muerto", sets: 3, reps: "6-10", muscle_group: "Isquiotibiales" },
-          { name: "Press militar", sets: 3, reps: "8-12", muscle_group: "Hombros" },
           { name: "Curl de bíceps", sets: 3, reps: "10-12", muscle_group: "Bíceps" },
           { name: "Fondos en paralelas", sets: 3, reps: "8-10", muscle_group: "Tríceps" },
           { name: "Plancha", sets: 3, reps: "30-45s", muscle_group: "Abdominales" }
         ];
+        
+        // Agregar ejercicios según lesiones (evitar los problemáticos)
+        const ejerciciosBase: Array<{ name: string; sets: number; reps: string; muscle_group: string }> = [...ejerciciosBaseInicial];
+        
+        // Para espalda: usar ejercicios seguros si hay hernia/lumbar
+        if (tieneHerniaDisco || tieneDolorLumbar) {
+          ejerciciosBase.push({ name: "Remo en máquina sentado", sets: 3, reps: "10-12", muscle_group: "Espalda" });
+          ejerciciosBase.push({ name: "Jalón al pecho en polea", sets: 3, reps: "10-12", muscle_group: "Espalda" });
+        } else {
+          ejerciciosBase.push({ name: "Remo con barra", sets: 3, reps: "8-12", muscle_group: "Espalda" });
+        }
+        
+        if (!tieneHerniaDisco && !tieneDolorLumbar) {
+          ejerciciosBase.push({ name: "Peso muerto", sets: 3, reps: "6-10", muscle_group: "Isquiotibiales" });
+        }
+        if (!tieneHerniaDisco && !tieneDolorLumbar && !tieneDolorRodilla) {
+          ejerciciosBase.push({ name: "Sentadilla goblet", sets: 3, reps: "8-10", muscle_group: "Cuádriceps" });
+        } else if (tieneHerniaDisco || tieneDolorLumbar) {
+          // Alternativas seguras para hernia/lumbar
+          ejerciciosBase.push({ name: "Prensa 45° (rango medio)", sets: 3, reps: "10-12", muscle_group: "Cuádriceps" });
+          ejerciciosBase.push({ name: "Extensión de piernas en máquina", sets: 3, reps: "10-12", muscle_group: "Cuádriceps" });
+        }
+        if (!tieneDolorHombro) {
+          ejerciciosBase.push({ name: "Press militar", sets: 3, reps: "8-12", muscle_group: "Hombros" });
+        } else {
+          ejerciciosBase.push({ name: "Elevaciones laterales con mancuernas (carga ligera)", sets: 3, reps: "12-15", muscle_group: "Hombros" });
+        }
+        
         // Rotar ejercicios según la semana
         const offset = weekIndex % ejerciciosBase.length;
         const ejerciciosRotados = [...ejerciciosBase.slice(offset), ...ejerciciosBase.slice(0, offset)];
         
         return {
           week: weekIndex + 1,
-          days: diasSemana.slice(0, targetDays).map((d) => ({
+          days: diasDistribuidos.map((d) => ({
             day: d,
             split: targetDays <= 2 ? "Full Body" : "",
-            ejercicios: ejerciciosRotados.slice(0, 8) // Mínimo 6-8 ejercicios
+            warmup: {
+              duration_minutes: tieneHerniaDisco ? 15 : (input.doloresLesiones && input.doloresLesiones.length > 0 ? 12 : 8),
+              description: tieneHerniaDisco 
+                ? "Calentamiento específico para hernia de disco: 5 min caminata suave, 5 min movilidad de cadera (cat-cow, estiramientos de isquiotibiales), 5 min activación de core (plancha isométrica, dead bug). Evitar flexión/extensión excesiva de columna."
+                : (input.doloresLesiones && input.doloresLesiones.length > 0
+                  ? `Calentamiento adaptado para lesiones: movilidad de zonas afectadas, activación de músculos estabilizadores, estiramientos suaves y progresivos.`
+                  : "Calentamiento general: 3-5 min cardio ligero, movilidad articular, activación muscular específica para los ejercicios del día.")
+            },
+            ejercicios: filtrarEjerciciosPeligrosos(ejerciciosRotados.slice(0, 8) as Array<{ name: string; [key: string]: unknown }>, tieneHerniaDisco, tieneDolorLumbar) // Mínimo 6-8 ejercicios, filtrados por seguridad
           }))
         };
       };
@@ -1483,12 +1788,16 @@ Ejemplo de estructura:
                 ...day, 
                 day: normalizeDayName(day?.day),
                 // Asegurar que tenga ejercicios (nueva estructura) o convertir blocks a ejercicios
-                ejercicios: day.ejercicios || (day.blocks ? (day.blocks as Array<Record<string, unknown>>).flatMap((block: Record<string, unknown>) => ((block.exercises as Array<Record<string, unknown>>) || []).map((e: Record<string, unknown>) => ({
-                  name: e.name,
-                  sets: e.sets || 3,
-                  reps: e.reps || "8-12",
-                  muscle_group: e.muscle_group || (block.name as string || "General")
-                }))) : [])
+                ejercicios: (() => {
+                  const ejerciciosRaw = day.ejercicios || (day.blocks ? (day.blocks as Array<Record<string, unknown>>).flatMap((block: Record<string, unknown>) => ((block.exercises as Array<Record<string, unknown>>) || []).map((e: Record<string, unknown>) => ({
+                    name: e.name,
+                    sets: e.sets || 3,
+                    reps: e.reps || "8-12",
+                    muscle_group: e.muscle_group || (block.name as string || "General")
+                  }))) : []);
+                  // FILTRAR EJERCICIOS PELIGROSOS (VALIDACIÓN CRÍTICA DE SEGURIDAD)
+                  return filtrarEjerciciosPeligrosos(ejerciciosRaw as Array<{ name: string; [key: string]: unknown }>, tieneHerniaDisco, tieneDolorLumbar);
+                })()
               };
             })
             .filter((d: Record<string, unknown>) => expectedDays.includes(d.day as string));
@@ -1501,71 +1810,95 @@ Ejemplo de estructura:
             const ordered = (uniqueByDay as Array<Record<string, unknown>>).sort((a, b) => 
               expectedDays.indexOf(a.day as string) - expectedDays.indexOf(b.day as string)
             );
-            // Tomar solo los primeros targetDays días en orden cronológico
-            days = ordered.slice(0, targetDays);
+            // Si hay lesiones, filtrar para respetar días de descanso
+            if (input.doloresLesiones && input.doloresLesiones.length > 0 && targetDays <= 3) {
+              // Asegurar que los días seleccionados tengan descanso entre ellos
+              const diasConDescanso: Array<Record<string, unknown>> = [];
+              for (const day of ordered) {
+                if (diasConDescanso.length === 0) {
+                  diasConDescanso.push(day);
+                } else {
+                  const ultimoDia = diasConDescanso[diasConDescanso.length - 1];
+                  const ultimoIndex = expectedDays.indexOf(ultimoDia.day as string);
+                  const currentIndex = expectedDays.indexOf(day.day as string);
+                  // Solo agregar si hay al menos 1 día de diferencia
+                  if (currentIndex - ultimoIndex >= 2 || (currentIndex === 0 && ultimoIndex >= 5)) {
+                    diasConDescanso.push(day);
+                    if (diasConDescanso.length >= targetDays) break;
+                  }
+                }
+              }
+              days = diasConDescanso.slice(0, targetDays);
+            } else {
+              // Sin lesiones: tomar los primeros targetDays días
+              days = ordered.slice(0, targetDays);
+            }
           }
           
-          // Si faltan días, completar con los primeros días de la semana en orden cronológico
+          // Si faltan días, completar con días distribuidos según lesiones
           while (days.length < targetDays) {
-            const nextDayIndex = days.length;
-            const nextDay = diasSemana[nextDayIndex];
-            // Verificar que no esté ya en days
-            if (!days.some(d => d.day === nextDay)) {
-              const fallbackDay = ensureWeek(wi).days[nextDayIndex % ensureWeek(wi).days.length];
-              // Determinar split correcto según días y objetivo
-              let splitCorrecto = fallbackDay.split || "";
-              if (!splitCorrecto) {
-                if (targetDays <= 2) {
-                  splitCorrecto = "Full Body";
-                } else if (targetDays >= 5 && (objetivo === "volumen" || objetivo === "ganar_masa")) {
-                  // Para hipertrofia máxima con 5+ días, usar Bro Split o PPL, NO Full Body
-                  splitCorrecto = "Bro Split";
-                } else if (targetDays === 3) {
-                  splitCorrecto = "Push/Pull/Legs";
-                } else {
-                  splitCorrecto = "Upper/Lower";
-                }
-              }
-              days.push({
-                day: nextDay,
-                split: splitCorrecto,
-                ejercicios: fallbackDay.ejercicios || []
-              });
-            } else {
-              // Si el día ya existe, buscar el siguiente disponible
-              for (let i = 0; i < diasSemana.length; i++) {
-                const candidateDay = diasSemana[i];
-                if (!days.some(d => d.day === candidateDay)) {
-                  const fallbackDay = ensureWeek(wi).days[i % ensureWeek(wi).days.length];
-                  // Determinar split correcto según días y objetivo
-                  let splitCorrecto = fallbackDay.split || "";
-                  if (!splitCorrecto) {
-                    if (targetDays <= 2) {
-                      splitCorrecto = "Full Body";
-                    } else if (targetDays >= 5 && (objetivo === "volumen" || objetivo === "ganar_masa")) {
-                      // Para hipertrofia máxima con 5+ días, usar Bro Split o PPL, NO Full Body
-                      splitCorrecto = "Bro Split";
-                    } else if (targetDays === 3) {
-                      splitCorrecto = "Push/Pull/Legs";
-                    } else {
-                      splitCorrecto = "Upper/Lower";
-                    }
-                  }
-                  days.push({
-                    day: candidateDay,
-                    split: splitCorrecto,
-                    ejercicios: fallbackDay.ejercicios || []
-                  });
-                  break;
-                }
+            const diasDisponibles = diasDistribuidos.filter(d => !days.some(day => day.day === d));
+            if (diasDisponibles.length === 0) break;
+            
+            const nextDay = diasDisponibles[0];
+            const fallbackDay = ensureWeek(wi).days.find((d: Record<string, unknown>) => d.day === nextDay) || ensureWeek(wi).days[0];
+            // Determinar split correcto según días y objetivo
+            let splitCorrecto = (fallbackDay as Record<string, unknown>)?.split as string || "";
+            if (!splitCorrecto) {
+              if (targetDays <= 2) {
+                splitCorrecto = "Full Body";
+              } else if (targetDays >= 5 && (objetivo === "volumen" || objetivo === "ganar_masa")) {
+                // Para hipertrofia máxima con 5+ días, usar Bro Split o PPL, NO Full Body
+                splitCorrecto = "Bro Split";
+              } else if (targetDays === 3) {
+                splitCorrecto = "Push/Pull/Legs";
+              } else {
+                splitCorrecto = "Upper/Lower";
               }
             }
+            // Asegurar que tenga warmup si no lo tiene
+            const warmupExistente = (fallbackDay as Record<string, unknown>)?.warmup;
+            const warmupDefault = (ensureWeek(wi).days[0] as Record<string, unknown>)?.warmup || {
+              duration_minutes: tieneHerniaDisco ? 15 : (input.doloresLesiones && input.doloresLesiones.length > 0 ? 12 : 8),
+              description: tieneHerniaDisco 
+                ? "Calentamiento específico para hernia de disco: 5 min caminata suave, 5 min movilidad de cadera, 5 min activación de core."
+                : (input.doloresLesiones && input.doloresLesiones.length > 0
+                  ? "Calentamiento adaptado para lesiones: movilidad de zonas afectadas, activación de músculos estabilizadores."
+                  : "Calentamiento general: cardio ligero, movilidad articular, activación muscular.")
+            };
+            
+            const ejerciciosFallback = (fallbackDay as Record<string, unknown>)?.ejercicios || [];
+            days.push({
+              day: nextDay,
+              split: splitCorrecto,
+              warmup: warmupExistente || warmupDefault,
+              ejercicios: filtrarEjerciciosPeligrosos(
+                Array.isArray(ejerciciosFallback) ? ejerciciosFallback as Array<{ name: string; [key: string]: unknown }> : [],
+                tieneHerniaDisco,
+                tieneDolorLumbar
+              )
+            });
           }
           
           // Asegurar que los días estén en orden cronológico estricto
           days = days.sort((a: Record<string, unknown>, b: Record<string, unknown>) => 
             expectedDays.indexOf(a.day as string) - expectedDays.indexOf(b.day as string)
           );
+          
+          // Asegurar que cada día tenga warmup si no lo tiene
+          days = days.map((d: Record<string, unknown>) => {
+            if (!d.warmup) {
+              d.warmup = {
+                duration_minutes: tieneHerniaDisco ? 15 : (input.doloresLesiones && input.doloresLesiones.length > 0 ? 12 : 8),
+                description: tieneHerniaDisco 
+                  ? "Calentamiento específico para hernia de disco: 5 min caminata suave, 5 min movilidad de cadera (cat-cow, estiramientos de isquiotibiales), 5 min activación de core (plancha isométrica, dead bug). Evitar flexión/extensión excesiva de columna."
+                  : (input.doloresLesiones && input.doloresLesiones.length > 0
+                    ? `Calentamiento adaptado para lesiones: movilidad de zonas afectadas, activación de músculos estabilizadores, estiramientos suaves y progresivos.`
+                    : "Calentamiento general: 3-5 min cardio ligero, movilidad articular, activación muscular específica para los ejercicios del día.")
+              };
+            }
+            return d;
+          });
           
           // Si aún hay más días de los necesarios, tomar solo los primeros targetDays
           days = days.slice(0, targetDays);
@@ -1575,12 +1908,24 @@ Ejemplo de estructura:
             days: days.map((d: Record<string, unknown>) => ({
               day: d.day,
               split: d.split,
-              ejercicios: Array.isArray(d.ejercicios) ? (d.ejercicios as Array<Record<string, unknown>>).slice(0, 8).map((e: Record<string, unknown>) => ({
-                name: e.name || "Ejercicio",
-                sets: e.sets || 3,
-                reps: e.reps || "8-12",
-                muscle_group: e.muscle_group || "General"
-              })) : [] // Mínimo 6-8 ejercicios, asegurar muscle_group
+              warmup: d.warmup || {
+                duration_minutes: tieneHerniaDisco ? 15 : (input.doloresLesiones && input.doloresLesiones.length > 0 ? 12 : 8),
+                description: tieneHerniaDisco 
+                  ? "Calentamiento específico para hernia de disco: 5 min caminata suave, 5 min movilidad de cadera, 5 min activación de core."
+                  : (input.doloresLesiones && input.doloresLesiones.length > 0
+                    ? "Calentamiento adaptado para lesiones: movilidad de zonas afectadas, activación de músculos estabilizadores."
+                    : "Calentamiento general: cardio ligero, movilidad articular, activación muscular.")
+              },
+              ejercicios: (() => {
+                const ejerciciosRaw = Array.isArray(d.ejercicios) ? (d.ejercicios as Array<Record<string, unknown>>).slice(0, 8).map((e: Record<string, unknown>) => ({
+                  name: String(e.name || "Ejercicio"),
+                  sets: e.sets || 3,
+                  reps: e.reps || "8-12",
+                  muscle_group: String(e.muscle_group || "General")
+                })) : [];
+                // FILTRAR EJERCICIOS PELIGROSOS (VALIDACIÓN CRÍTICA DE SEGURIDAD)
+                return filtrarEjerciciosPeligrosos(ejerciciosRaw as unknown as Array<{ name: string; [key: string]: unknown }>, tieneHerniaDisco, tieneDolorLumbar);
+              })() // Mínimo 6-8 ejercicios, asegurar muscle_group
             })),
           };
         })

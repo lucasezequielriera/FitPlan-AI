@@ -92,12 +92,22 @@ export interface TrainingExercise {
   sets: number;
   reps: string | number;
   muscle_group: string; // Músculo o grupo muscular principal trabajado (OBLIGATORIO)
-  url?: string; // URL del video o tutorial (opcional, puede no estar)
+  rpe?: number; // RPE (Rate of Perceived Exertion) 1-10, opcional
+  tempo?: string; // Tempo del movimiento (ej: "2-0-1-0" = 2s excéntrico, 0s pausa, 1s concéntrico, 0s pausa), opcional
+  rest_seconds?: number; // Descanso entre series en segundos, opcional
+  technique?: string; // Puntos clave de técnica para principiantes y avanzados, opcional
+  progression?: string; // Cómo progresar este ejercicio (aumentar peso, reps, etc.), opcional
+  alternative?: string; // Ejercicio alternativo si no se puede hacer este (por lesión o falta de equipo), opcional
+  cues?: string[]; // Pistas mentales para ejecución correcta (ej: ["Mantén el core activo", "Empuja con los talones"]), opcional
 }
 
 export interface TrainingDayPlan {
   day: string; // "Lunes" ...
   split?: string; // Tipo de entrenamiento de este día: "Full Body", "Upper", "Lower", "Push", "Pull", "Legs", "Chest & Triceps", etc.
+  warmup?: {
+    duration_minutes: number; // Tiempo de calentamiento en minutos
+    description: string; // Descripción detallada del calentamiento
+  };
   ejercicios: TrainingExercise[]; // Lista simple de ejercicios (5-8 ejercicios)
 }
 

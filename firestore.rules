@@ -2,20 +2,24 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     // Función para verificar si el usuario es administrador
-    // Optimizada para queries de colección
+    // Para queries de colección, necesitamos verificar el email del token si está disponible
+    // Si no está disponible, verificamos en la base de datos
     function isAdmin() {
-      return request.auth != null
-        && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid))
-        && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.email != null
-        && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.email.toLowerCase() == 'admin@fitplan-ai.com';
+      return request.auth != null && (
+        // Primero intentar verificar desde el token (más rápido para queries)
+        (request.auth.token.email != null && request.auth.token.email.toLowerCase() == 'admin@fitplan-ai.com') ||
+        // Fallback: verificar en la base de datos
+        (exists(/databases/$(database)/documents/usuarios/$(request.auth.uid))
+          && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.email != null
+          && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.email.toLowerCase() == 'admin@fitplan-ai.com')
+      );
     }
     
     match /usuarios/{userId} {
       // ORDEN IMPORTANTE: Primero verificar si es admin (para queries de colección)
-      // Luego verificar si es el propio usuario
+      // Esta regla debe estar PRIMERO para que funcione con queries
       
       // Administrador puede leer/escribir TODOS los usuarios (incluyendo queries de colección)
-      // Esta regla debe estar PRIMERO para que funcione con queries
       allow read: if request.auth != null && isAdmin();
       allow write: if request.auth != null && isAdmin();
       
@@ -28,7 +32,7 @@ service cloud.firestore {
       
       // Permitir actualización de campos premium desde el servidor
       allow update: if (
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['premium', 'premiumStatus', 'premiumSince', 'premiumPayment', 'updatedAt'])
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['premium', 'premiumStatus', 'premiumSince', 'premiumPayment', 'premiumLastPay', 'lastUsersCheck', 'updatedAt'])
         && request.resource.data.premium == true
       );
     }
@@ -38,6 +42,28 @@ service cloud.firestore {
       allow read: if request.auth != null && resource.data.userId == request.auth.uid;
       allow update: if request.auth != null && resource.data.userId == request.auth.uid;
       allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+    
+    // Permitir acceso a historial mensual solo para el propio usuario o admin
+    match /historial_mensual/{userId} {
+      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      allow write: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      
+      match /meses/{monthId} {
+        allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+        allow write: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      }
+    }
+    
+    // Mensajes: usuarios pueden crear, admin puede leer/escribir todos
+    match /mensajes/{messageId} {
+      // Cualquier usuario autenticado puede crear mensajes
+      allow create: if request.auth != null;
+      
+      // Solo admin puede leer y actualizar mensajes
+      allow read: if request.auth != null && isAdmin();
+      allow update: if request.auth != null && isAdmin();
+      allow delete: if request.auth != null && isAdmin();
     }
   }
 }

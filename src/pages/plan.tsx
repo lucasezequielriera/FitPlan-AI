@@ -20,6 +20,10 @@ interface TrainingDay {
   // Campos legacy (para compatibilidad)
   split?: string;
   duration_min?: number;
+  warmup?: {
+    duration_minutes: number;
+    description: string;
+  };
   warmup_min?: number;
   blocks?: TrainingBlock[];
   finisher?: string;
@@ -37,12 +41,17 @@ interface TrainingExercise {
   sets: number;
   reps: string | number;
   muscle_group: string; // OBLIGATORIO: músculo trabajado
+  // Campos técnicos nuevos
+  rpe?: number; // RPE 1-10
+  tempo?: string; // Tempo del movimiento (ej: "2-0-1-0")
+  rest_seconds?: number; // Descanso entre series en segundos
+  technique?: string; // Puntos clave de técnica para principiantes y avanzados
+  progression?: string; // Cómo progresar este ejercicio
+  alternative?: string; // Ejercicio alternativo si hay lesión o falta de equipo
+  cues?: string[]; // Pistas mentales para ejecución correcta
   // Campos legacy (para compatibilidad)
   url?: string;
   rest_sec?: number;
-  tempo?: string;
-  rpe?: number;
-  cues?: string[];
   alt?: string[];
 }
 
@@ -559,15 +568,47 @@ export default function PlanPage() {
     user.atletico
   ) : null;
 
-  // Priorizar valores originales del plan guardado, luego valores editados, luego valores del user actual, luego sugerencias, luego defaults
+  // Ajustar días de gym según lesiones reportadas
+  const ajustarDiasGymPorLesiones = (diasGymSugeridos: number): number => {
+    if (!user?.doloresLesiones || user.doloresLesiones.length === 0) {
+      return diasGymSugeridos;
+    }
+    
+    const lesionesGraves = user.doloresLesiones.some((d) => 
+      d.toLowerCase().includes('hernia') && d.toLowerCase().includes('disco') ||
+      d.toLowerCase().includes('hernia discal') ||
+      d.toLowerCase().includes('fractura') ||
+      d.toLowerCase().includes('desgarro')
+    );
+    const lesionesModeradas = user.doloresLesiones.some((d) =>
+      d.toLowerCase().includes('lumbar') ||
+      d.toLowerCase().includes('espalda baja') ||
+      d.toLowerCase().includes('rodilla') ||
+      d.toLowerCase().includes('hombro') ||
+      d.toLowerCase().includes('manguito')
+    );
+    
+    if (lesionesGraves) {
+      return Math.min(2, diasGymSugeridos); // Máximo 2 días para lesiones graves
+    } else if (lesionesModeradas) {
+      return Math.min(3, diasGymSugeridos); // Máximo 3 días para lesiones moderadas
+    } else {
+      return Math.min(4, diasGymSugeridos); // Máximo 4 días para lesiones leves
+    }
+  };
+
+  // Priorizar valores originales del plan guardado, luego valores editados, luego valores del user actual, luego sugerencias ajustadas por lesiones, luego defaults
   const diasGymOriginal = valoresOriginalesPlan.current?.diasGym;
+  const diasGymSugeridoAjustado = sugerenciaEntrenamiento 
+    ? ajustarDiasGymPorLesiones(sugerenciaEntrenamiento.diasGym)
+    : 3;
   const diasGymActual = diasGymEditado !== null 
     ? diasGymEditado 
     : (diasGymOriginal !== undefined && diasGymOriginal !== null
       ? diasGymOriginal
       : (user?.diasGym !== undefined && user.diasGym !== null 
-        ? user.diasGym 
-        : (sugerenciaEntrenamiento?.diasGym || 3)));
+        ? ajustarDiasGymPorLesiones(user.diasGym)
+        : diasGymSugeridoAjustado));
   
   // Para minutos de caminata, usar valores originales del plan primero
   const minutosCaminataOriginal = valoresOriginalesPlan.current?.minutosCaminata;
@@ -607,22 +648,29 @@ export default function PlanPage() {
         diasGymActual
       ) : null);
   
-  // Verificar si hay diferencias con las sugerencias
-  const hayDiferencias = sugerenciaEntrenamiento && (
+  // Ajustar sugerencias de entrenamiento según lesiones para comparación
+  const sugerenciaEntrenamientoAjustada = sugerenciaEntrenamiento ? {
+    ...sugerenciaEntrenamiento,
+    diasGym: ajustarDiasGymPorLesiones(sugerenciaEntrenamiento.diasGym)
+  } : null;
+
+  // Verificar si hay diferencias con las sugerencias ajustadas
+  const hayDiferencias = sugerenciaEntrenamientoAjustada && (
     diasGymEditado !== null || 
     minutosCaminataEditado !== null || 
     horasSuenoEditado !== null ||
+    (diasGymActual !== sugerenciaEntrenamientoAjustada.diasGym) ||
     minutosGymEditado !== null
   );
   
   // Analizar pros y contras si hay cambios
-  const analisisCambios = hayDiferencias && sugerenciaEntrenamiento && user ? analizarCambiosEntrenamiento(
+  const analisisCambios = hayDiferencias && sugerenciaEntrenamientoAjustada && user ? analizarCambiosEntrenamiento(
     user.objetivo,
-    sugerenciaEntrenamiento.diasGym,
+    sugerenciaEntrenamientoAjustada.diasGym,
     diasGymActual,
-    sugerenciaEntrenamiento.minutosCaminata,
+    sugerenciaEntrenamientoAjustada.minutosCaminata,
     minutosCaminataActual,
-    sugerenciaEntrenamiento.horasSueno,
+    sugerenciaEntrenamientoAjustada.horasSueno,
     horasSuenoActual,
     Number((plan as unknown as Record<string, unknown>)?.minutos_sesion_gym) || 75,
     minutosGymEditado !== null ? minutosGymEditado : (Number((plan as unknown as Record<string, unknown>)?.minutos_sesion_gym) || 75)
@@ -687,7 +735,7 @@ export default function PlanPage() {
 
   // Renderizar recomendaciones de entrenamiento como ReactNode
   const renderRecomendacionesEntrenamiento = (): React.ReactNode => {
-    if (!sugerenciaEntrenamiento) return null;
+    if (!sugerenciaEntrenamientoAjustada) return null;
   return (
     <div key="sugerencias-entrenamiento" className="mt-6 rounded-xl border border-white/10 p-4 bg-gradient-to-r from-white/5 to-white/10">
       <h2 className="text-lg font-semibold mb-3">💪 Recomendaciones de entrenamiento y recuperación</h2>
@@ -708,8 +756,8 @@ export default function PlanPage() {
                 })()})
               </span>
             </p>
-            {sugerenciaEntrenamiento.diasGym !== diasGymActual && (
-              <span className="text-xs opacity-70">(sugerido: {sugerenciaEntrenamiento.diasGym})</span>
+            {sugerenciaEntrenamientoAjustada.diasGym !== diasGymActual && (
+              <span className="text-xs opacity-70">(sugerido: {sugerenciaEntrenamientoAjustada.diasGym})</span>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -741,8 +789,8 @@ export default function PlanPage() {
         <div>
           <div className="flex items-center justify-between mb-1">
             <p className="text-sm font-medium opacity-90">Caminata diaria:</p>
-            {sugerenciaEntrenamiento.minutosCaminata !== minutosCaminataActual && (
-              <span className="text-xs opacity-70">(sugerido: {sugerenciaEntrenamiento.minutosCaminata})</span>
+            {sugerenciaEntrenamientoAjustada.minutosCaminata !== minutosCaminataActual && (
+              <span className="text-xs opacity-70">(sugerido: {sugerenciaEntrenamientoAjustada.minutosCaminata})</span>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -779,8 +827,8 @@ export default function PlanPage() {
                 </svg>
               </button>
             </p>
-            {sugerenciaEntrenamiento.horasSueno !== horasSuenoActual && (
-              <span className="text-xs opacity-70">(sugerido: {sugerenciaEntrenamiento.horasSueno})</span>
+            {sugerenciaEntrenamientoAjustada.horasSueno !== horasSuenoActual && (
+              <span className="text-xs opacity-70">(sugerido: {sugerenciaEntrenamientoAjustada.horasSueno})</span>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -799,7 +847,7 @@ export default function PlanPage() {
         </div>
       </div>
       <p className="mt-3 text-sm opacity-80 leading-relaxed">
-        {sugerenciaEntrenamiento.descripcion}
+        {sugerenciaEntrenamientoAjustada.descripcion}
       </p>
       
       {/* Análisis de cambios */}
@@ -1610,27 +1658,6 @@ export default function PlanPage() {
                 </div>
               </div>
             </div>
-            {user?.doloresLesiones && user.doloresLesiones.filter((s: string) => typeof s === "string" && s.trim().length > 0).length > 0 && (
-              <div className="mt-2 flex items-start gap-3 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-50">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  className="mt-0.5 h-5 w-5 flex-shrink-0 text-cyan-200"
-                >
-                  <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm1.971-6.279-.675.693A3.375 3.375 0 0 0 12.75 14.25h-1.5a4.875 4.875 0 0 1 1.425-3.45l.93-.936a1.875 1.875 0 1 0-3.195-1.326h-1.5a3.375 3.375 0 1 1 6.03 1.283Z" />
-                </svg>
-                <div className="space-y-1">
-                  <p className="font-medium text-cyan-100">Plan adaptado para proteger tus zonas sensibles</p>
-                  <p className="text-xs leading-relaxed text-cyan-100/70">
-                    Consideramos estas molestias/lesiones al definir la progresión, selección de ejercicios y recomendaciones de recuperación:
-                    {" "}
-                    {user.doloresLesiones.filter((s: string) => typeof s === "string" && s.trim().length > 0).join(", ")}
-                  </p>
-                </div>
-              </div>
-            )}
-            
             {/* Información personal */}
             <div className="rounded-xl border border-white/10 bg-black/30 p-4 md:w-1/4">
               <p className="text-sm font-medium opacity-70 mb-3 flex items-center gap-2">
@@ -2689,23 +2716,108 @@ export default function PlanPage() {
                               <span className="text-sm font-normal opacity-70 ml-2">({musculos})</span>
                             )}
                           </h4>
+                          
+                          {/* Calentamiento */}
+                          {dia.warmup && (
+                            <div className="mb-4 p-3 rounded-md bg-gradient-to-r from-orange-500/20 to-yellow-500/20 border border-orange-500/30">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-sm font-semibold text-orange-300">🔥 Calentamiento</span>
+                                <span className="text-xs opacity-70">({dia.warmup.duration_minutes} min)</span>
+                              </div>
+                              <p className="text-sm opacity-90 leading-relaxed">{dia.warmup.description}</p>
+                            </div>
+                          )}
+                          
                           {(dia.ejercicios || []).length > 0 ? (
-                            <ul className="space-y-2">
-                              {(dia.ejercicios || []).map((ejercicio: TrainingExercise, ei: number) => (
-                                <li key={`ej-${semanaSeleccionada}-${di}-${ei}`} className="flex items-center justify-between py-2 px-3 rounded-md bg-white/5 border border-white/10">
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <span className="font-medium">{ejercicio.name}</span>
-                                      <span className="text-sm opacity-70">· {ejercicio.sets}x{String(ejercicio.reps)}</span>
-                                      {ejercicio.muscle_group && (
-                                        <span className="text-xs px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-                                          {ejercicio.muscle_group}
-                                        </span>
+                            <ul className="space-y-3">
+                              {(dia.ejercicios || []).map((ejercicio: TrainingExercise, ei: number) => {
+                                const restTime = ejercicio.rest_seconds || ejercicio.rest_sec;
+                                return (
+                                  <li key={`ej-${semanaSeleccionada}-${di}-${ei}`} className="rounded-lg bg-white/5 border border-white/10 p-3">
+                                    <div className="flex-1">
+                                      {/* Header del ejercicio */}
+                                      <div className="flex items-start justify-between gap-2 mb-2">
+                                        <div className="flex-1">
+                                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                                            <span className="font-semibold text-white">{ejercicio.name}</span>
+                                            <span className="text-sm opacity-70">· {ejercicio.sets}x{String(ejercicio.reps)}</span>
+                                            {ejercicio.muscle_group && (
+                                              <span className="text-xs px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                                                {ejercicio.muscle_group}
+                                              </span>
+                                            )}
+                                          </div>
+                                          {/* Detalles técnicos compactos */}
+                                          <div className="flex items-center gap-3 flex-wrap text-xs opacity-80">
+                                            {ejercicio.rpe && (
+                                              <span className="flex items-center gap-1">
+                                                <span className="opacity-60">RPE:</span>
+                                                <span className="font-medium">{ejercicio.rpe}/10</span>
+                                              </span>
+                                            )}
+                                            {ejercicio.tempo && (
+                                              <span className="flex items-center gap-1">
+                                                <span className="opacity-60">Tempo:</span>
+                                                <span className="font-medium">{ejercicio.tempo}</span>
+                                              </span>
+                                            )}
+                                            {restTime && (
+                                              <span className="flex items-center gap-1">
+                                                <span className="opacity-60">Descanso:</span>
+                                                <span className="font-medium">{restTime}s</span>
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      
+                                      {/* Técnica (expandible) */}
+                                      {ejercicio.technique && (
+                                        <details className="mt-2">
+                                          <summary className="text-xs font-medium text-cyan-300 cursor-pointer hover:text-cyan-200">
+                                            💡 Técnica
+                                          </summary>
+                                          <p className="mt-1 text-xs opacity-90 leading-relaxed pl-2 border-l-2 border-cyan-500/30">
+                                            {ejercicio.technique}
+                                          </p>
+                                        </details>
+                                      )}
+                                      
+                                      {/* Progresión */}
+                                      {ejercicio.progression && (
+                                        <details className="mt-2">
+                                          <summary className="text-xs font-medium text-yellow-300 cursor-pointer hover:text-yellow-200">
+                                            📈 Progresión
+                                          </summary>
+                                          <p className="mt-1 text-xs opacity-90 leading-relaxed pl-2 border-l-2 border-yellow-500/30">
+                                            {ejercicio.progression}
+                                          </p>
+                                        </details>
+                                      )}
+                                      
+                                      {/* Cues mentales */}
+                                      {ejercicio.cues && ejercicio.cues.length > 0 && (
+                                        <div className="mt-2">
+                                          <p className="text-xs font-medium text-purple-300 mb-1">🎯 Pistas mentales:</p>
+                                          <ul className="list-disc pl-4 space-y-0.5">
+                                            {ejercicio.cues.map((cue, cueIdx) => (
+                                              <li key={`cue-${ei}-${cueIdx}`} className="text-xs opacity-90">{cue}</li>
+                                            ))}
+                                          </ul>
+                                        </div>
+                                      )}
+                                      
+                                      {/* Alternativa (si hay lesión) */}
+                                      {ejercicio.alternative && (
+                                        <div className="mt-2 p-2 rounded bg-orange-500/10 border border-orange-500/30">
+                                          <p className="text-xs font-medium text-orange-300 mb-1">⚠️ Alternativa (si tienes lesión):</p>
+                                          <p className="text-xs opacity-90">{ejercicio.alternative}</p>
+                                        </div>
                                       )}
                                     </div>
-                                  </div>
-                                </li>
-                              ))}
+                                  </li>
+                                );
+                              })}
                             </ul>
                           ) : (
                             <p className="text-sm text-white/50">No hay ejercicios registrados para este día</p>

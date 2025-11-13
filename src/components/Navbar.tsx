@@ -4,8 +4,10 @@ import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
 import { FaAppleAlt } from "react-icons/fa";
 import LoginModal from "./LoginModal";
+import UserMessagesModal from "./UserMessagesModal";
 import { getDbSafe, getAuthSafe } from "@/lib/firebase";
 import { collection, query, where, getDocs, limit, doc, getDoc } from "firebase/firestore";
+import React from "react";
 
 export default function Navbar() {
   const router = useRouter();
@@ -15,6 +17,12 @@ export default function Navbar() {
   const [isPremium, setIsPremium] = useState(false);
   const [userName, setUserName] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [messagesCount, setMessagesCount] = useState(0);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [messagesModalOpen, setMessagesModalOpen] = useState(false);
+  const [sendMessageModalOpen, setSendMessageModalOpen] = useState(false);
+  const [userMessagesCount, setUserMessagesCount] = useState(0);
+  const [userMessagesModalOpen, setUserMessagesModalOpen] = useState(false);
   const isPlanPage = router.pathname === "/plan";
   const isDashboardPage = router.pathname === "/dashboard";
 
@@ -84,7 +92,76 @@ export default function Navbar() {
     checkUserPlans();
   }, [authUser]);
 
+  // Verificar mensajes nuevos para admin
+  useEffect(() => {
+    const checkMessages = async () => {
+      if (!authUser || !isAdmin) {
+        setMessagesCount(0);
+        return;
+      }
+
+      try {
+        setLoadingMessages(true);
+        const response = await fetch(`/api/admin/messages?adminUserId=${authUser.uid}`);
+        
+        if (!response.ok) {
+          console.error("Error al obtener mensajes");
+          return;
+        }
+
+        const data = await response.json();
+        setMessagesCount(data.unreadCount || 0);
+      } catch (error) {
+        console.error("Error al verificar mensajes:", error);
+        setMessagesCount(0);
+      } finally {
+        setLoadingMessages(false);
+      }
+    };
+
+    checkMessages();
+    
+    // Verificar cada 30 segundos si es admin
+    if (isAdmin) {
+      const interval = setInterval(checkMessages, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [authUser, isAdmin]);
+
+  // Verificar respuestas nuevas para usuarios
+  useEffect(() => {
+    const checkUserMessages = async () => {
+      if (!authUser || isAdmin) {
+        setUserMessagesCount(0);
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/user/messages?userId=${authUser.uid}`);
+        
+        if (!response.ok) {
+          return;
+        }
+
+        const data = await response.json();
+        setUserMessagesCount(data.unreadRepliesCount || 0);
+      } catch (error) {
+        console.error("Error al verificar mensajes del usuario:", error);
+        setUserMessagesCount(0);
+      }
+    };
+
+    checkUserMessages();
+    
+    // Verificar cada 15 segundos si es usuario (más frecuente para notificaciones)
+    if (!isAdmin && authUser) {
+      const interval = setInterval(checkUserMessages, 15000);
+      return () => clearInterval(interval);
+    }
+  }, [authUser, isAdmin]);
+
   return (
+    <>
     <nav className="sticky top-0 z-40 w-full border-b border-white/10 bg-black/30 backdrop-blur-md overflow-x-hidden">
       <div className="mx-auto max-w-7xl px-3 sm:px-4 md:px-6 lg:px-8 w-full overflow-x-hidden">
         <div className="flex h-16 items-center justify-between">
@@ -109,6 +186,119 @@ export default function Navbar() {
 
             {authUser && (
               <>
+                {/* Icono de mensajes para usuarios (no admin) */}
+                {!isAdmin && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="relative cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setUserMessagesModalOpen(true);
+                    }}
+                    title="Mis mensajes"
+                  >
+                    <motion.div
+                      animate={userMessagesCount > 0 ? {
+                        scale: [1, 1.1, 1],
+                        rotate: [0, -5, 5, 0]
+                      } : {}}
+                      transition={{
+                        duration: 0.5,
+                        repeat: userMessagesCount > 0 ? Infinity : 0,
+                        repeatDelay: 2
+                      }}
+                      className="p-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="h-5 w-5 text-white/80"
+                      >
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                      </svg>
+                    </motion.div>
+                    {userMessagesCount > 0 && (
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-blue-500 border-2 border-black flex items-center justify-center"
+                      >
+                        <motion.span
+                          animate={{ scale: [1, 1.2, 1] }}
+                          transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 1 }}
+                          className="text-[10px] font-bold text-white"
+                        >
+                          {userMessagesCount > 9 ? "9+" : userMessagesCount}
+                        </motion.span>
+                      </motion.div>
+                    )}
+                  </motion.div>
+                )}
+
+                {/* Icono de notificaciones de mensajes para admin */}
+                {isAdmin && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="relative cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMessagesModalOpen(true);
+                    }}
+                    title="Mensajes"
+                  >
+                    <motion.div
+                      animate={messagesCount > 0 ? {
+                        scale: [1, 1.1, 1],
+                        rotate: [0, -5, 5, 0]
+                      } : {}}
+                      transition={{
+                        duration: 0.5,
+                        repeat: messagesCount > 0 ? Infinity : 0,
+                        repeatDelay: 2
+                      }}
+                      className="p-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="h-5 w-5 text-white/80"
+                      >
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                      </svg>
+                    </motion.div>
+                    {messagesCount > 0 && (
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 border-2 border-black flex items-center justify-center"
+                      >
+                        <motion.span
+                          animate={{ scale: [1, 1.2, 1] }}
+                          transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 1 }}
+                          className="text-[10px] font-bold text-white"
+                        >
+                          {messagesCount > 9 ? "9+" : messagesCount}
+                        </motion.span>
+                      </motion.div>
+                    )}
+                    {loadingMessages && messagesCount === 0 && (
+                      <div className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-blue-500 animate-pulse" />
+                    )}
+                  </motion.div>
+                )}
+
                 <motion.div
                   initial={{ opacity: 0, x: 10 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -233,6 +423,601 @@ export default function Navbar() {
       </div>
       <LoginModal isOpen={loginModalOpen} onClose={() => setLoginModalOpen(false)} />
     </nav>
+    
+    {/* Modal para enviar mensaje (usuarios) */}
+    {sendMessageModalOpen && (
+      <SendMessageModal 
+        isOpen={sendMessageModalOpen} 
+        onClose={() => setSendMessageModalOpen(false)}
+        userName={userName}
+        userEmail={authUser?.email || null}
+        onMessageSent={() => {
+          // NO cerrar el modal, solo actualizar el contador de mensajes
+          // Recargar mensajes del usuario
+          if (authUser && !isAdmin) {
+            fetch(`/api/user/messages?userId=${authUser.uid}`)
+              .then(res => res.json())
+              .then(data => setUserMessagesCount(data.unreadRepliesCount || 0))
+              .catch(err => console.error("Error al actualizar mensajes:", err));
+          }
+        }}
+      />
+    )}
+
+    {/* Modal de Mensajes para Usuarios */}
+    {!isAdmin && userMessagesModalOpen && (
+      <UserMessagesModal 
+        isOpen={userMessagesModalOpen} 
+        onClose={() => setUserMessagesModalOpen(false)}
+        userId={authUser?.uid || ""}
+        onMessagesUpdate={async () => {
+          // Recargar contador de mensajes inmediatamente
+          if (authUser && !isAdmin) {
+            try {
+              const response = await fetch(`/api/user/messages?userId=${authUser.uid}`);
+              if (response.ok) {
+                const data = await response.json();
+                setUserMessagesCount(data.unreadRepliesCount || 0);
+              }
+            } catch (err) {
+              console.error("Error al actualizar mensajes:", err);
+            }
+          }
+        }}
+        onSendMessage={() => {
+          setUserMessagesModalOpen(false);
+          setSendMessageModalOpen(true);
+        }}
+      />
+    )}
+
+    {/* Modal de Mensajes para Admin */}
+    {isAdmin && messagesModalOpen && (
+      <MessagesModal 
+        isOpen={messagesModalOpen} 
+        onClose={() => setMessagesModalOpen(false)}
+        adminUserId={authUser?.uid || ""}
+        onMessagesUpdate={() => {
+          // Recargar contador de mensajes
+          if (authUser && isAdmin) {
+            fetch(`/api/admin/messages?adminUserId=${authUser.uid}`)
+              .then(res => res.json())
+              .then(data => setMessagesCount(data.unreadCount || 0))
+              .catch(err => console.error("Error al actualizar mensajes:", err));
+          }
+        }}
+      />
+    )}
+  </>
+  );
+}
+
+// Componente Modal para enviar mensaje
+function SendMessageModal({ 
+  isOpen, 
+  onClose, 
+  userName, 
+  userEmail,
+  onMessageSent
+}: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  userName: string | null;
+  userEmail: string | null;
+  onMessageSent?: () => void;
+}) {
+  const { user: authUser } = useAuthStore();
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!authUser || !message.trim()) {
+      setError("El mensaje no puede estar vacío");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/sendMessage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: authUser.uid,
+          userName: userName || null,
+          userEmail: userEmail || null,
+          subject: subject.trim() || "Consulta",
+          message: message.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Error al enviar mensaje");
+      }
+
+      setSuccess(true);
+      setSubject("");
+      setMessage("");
+      
+      if (onMessageSent) {
+        onMessageSent();
+      }
+      
+      // Mostrar mensaje de éxito por 2 segundos y luego permitir enviar otro
+      setTimeout(() => {
+        setSuccess(false);
+      }, 2000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al enviar mensaje");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div 
+      className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
+      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.9, y: 20 }}
+        className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-white flex items-center gap-2">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-5 w-5 text-blue-400"
+            >
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+            Enviar Mensaje
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-white/70 hover:text-white transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-6 w-6">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+
+        {success ? (
+          <div className="text-center py-6">
+            <div className="mb-4">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="h-12 w-12 text-green-400 mx-auto"
+              >
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                <polyline points="22 4 12 14.01 9 11.01" />
+              </svg>
+            </div>
+            <p className="text-green-400 font-semibold">¡Mensaje enviado exitosamente!</p>
+            <p className="text-white/60 text-sm mt-2 mb-4">Te responderemos pronto</p>
+            <button
+              onClick={() => setSuccess(false)}
+              className="px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white text-sm font-medium transition-all"
+            >
+              Enviar otro mensaje
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-white/60 mb-2">
+                Asunto (opcional)
+              </label>
+              <input
+                type="text"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                placeholder="Ej: Error en el plan, Consulta sobre premium..."
+                className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                maxLength={100}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-white/60 mb-2">
+                Mensaje <span className="text-red-400">*</span>
+              </label>
+              <textarea
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Escribe tu consulta, error, petición o lo que necesites..."
+                rows={6}
+                className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                required
+                maxLength={2000}
+              />
+              <p className="text-white/40 text-xs mt-1 text-right">
+                {message.length}/2000
+              </p>
+            </div>
+
+            {error && (
+              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30">
+                <p className="text-red-400 text-sm">{error}</p>
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-white transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={loading || !message.trim()}
+                className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? "Enviando..." : "Enviar"}
+              </button>
+            </div>
+          </form>
+        )}
+      </motion.div>
+    </div>
+  );
+}
+
+// Componente Modal para ver mensajes (admin)
+function MessagesModal({ 
+  isOpen, 
+  onClose, 
+  adminUserId,
+  onMessagesUpdate
+}: { 
+  isOpen: boolean; 
+  onClose: () => void;
+  adminUserId: string;
+  onMessagesUpdate: () => void;
+}) {
+  const [messages, setMessages] = useState<Array<{
+    id: string;
+    userId: string;
+    userName: string | null;
+    userEmail: string | null;
+    subject: string;
+    message: string;
+    read: boolean;
+    replied: boolean;
+    replies: Array<{ message: string; senderName: string; senderType: string; createdAt: string | null }>;
+    createdAt: string | null;
+    lastReplyAt: string | null;
+  }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedMessage, setSelectedMessage] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [replying, setReplying] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && adminUserId) {
+      loadMessages();
+    }
+  }, [isOpen, adminUserId]);
+
+  const loadMessages = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/admin/messages?adminUserId=${adminUserId}`);
+      if (!response.ok) throw new Error("Error al cargar mensajes");
+      const data = await response.json();
+      setMessages(data.messages || []);
+    } catch (error) {
+      console.error("Error al cargar mensajes:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMarkAsRead = async (messageId: string) => {
+    try {
+      await fetch("/api/admin/markMessageRead", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ adminUserId, messageId }),
+      });
+      setMessages(prev => prev.map(m => m.id === messageId ? { ...m, read: true } : m));
+      onMessagesUpdate();
+    } catch (error) {
+      console.error("Error al marcar como leído:", error);
+    }
+  };
+
+  const handleReply = async (messageId: string) => {
+    if (!replyText.trim()) return;
+
+    setReplying(true);
+    try {
+      const response = await fetch("/api/admin/replyMessage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ adminUserId, messageId, reply: replyText.trim() }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Error desconocido" }));
+        throw new Error(errorData.error || errorData.detail || `Error ${response.status}`);
+      }
+
+      // Recargar mensajes para obtener las respuestas actualizadas
+      await loadMessages();
+      setReplyText("");
+      onMessagesUpdate();
+    } catch (error) {
+      console.error("Error al responder:", error);
+      const errorMessage = error instanceof Error ? error.message : "Error al enviar respuesta";
+      alert(`Error al enviar respuesta: ${errorMessage}`);
+    } finally {
+      setReplying(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  const selectedMsg = selectedMessage ? messages.find(m => m.id === selectedMessage) : null;
+  const unreadCount = messages.filter(m => !m.read).length;
+
+  return (
+    <div 
+      className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
+      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.9, y: 20 }}
+        className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-white flex items-center gap-2">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-5 w-5 text-blue-400"
+            >
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+            Mensajes
+            {unreadCount > 0 && (
+              <span className="px-2 py-0.5 text-xs rounded-full bg-red-500 text-white">
+                {unreadCount}
+              </span>
+            )}
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-white/70 hover:text-white transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-6 w-6">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400"></div>
+          </div>
+        ) : (
+          <div className="flex-1 flex gap-4 overflow-hidden">
+            {/* Lista de mensajes */}
+            <div className="w-1/3 border-r border-white/10 pr-4 overflow-y-auto">
+              {messages.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-white/60">No hay mensajes</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {messages.map((msg) => (
+                    <div
+                      key={msg.id}
+                      onClick={() => {
+                        setSelectedMessage(msg.id);
+                        if (!msg.read) {
+                          handleMarkAsRead(msg.id);
+                        }
+                      }}
+                      className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                        selectedMessage === msg.id
+                          ? "bg-blue-500/20 border-blue-500/50"
+                          : msg.read
+                          ? "bg-white/5 border-white/10 hover:bg-white/10"
+                          : "bg-blue-500/10 border-blue-500/30 hover:bg-blue-500/20"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-medium truncate ${msg.read ? "text-white/80" : "text-white"}`}>
+                            {msg.subject}
+                          </p>
+                          <p className="text-xs text-white/60 truncate mt-1">
+                            {msg.userName || msg.userEmail || "Usuario"}
+                          </p>
+                          {msg.createdAt && (
+                            <p className="text-xs text-white/40 mt-1">
+                              {new Date(msg.createdAt).toLocaleDateString('es-AR', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </p>
+                          )}
+                        </div>
+                        {!msg.read && (
+                          <div className="h-2 w-2 rounded-full bg-blue-400 flex-shrink-0 mt-1" />
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Detalle del mensaje */}
+            <div className="flex-1 overflow-y-auto">
+              {selectedMsg ? (
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-lg font-semibold text-white">{selectedMsg.subject}</h3>
+                      {selectedMsg.replied && (
+                        <span className="px-2 py-1 text-xs rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
+                          Respondido
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-sm text-white/60 space-y-1">
+                      {selectedMsg.userName && (
+                        <p><span className="text-white/80">De:</span> {selectedMsg.userName.charAt(0).toUpperCase() + selectedMsg.userName.slice(1).toLowerCase()}</p>
+                      )}
+                      {selectedMsg.userEmail && (
+                        <p><span className="text-white/80">Email:</span> {selectedMsg.userEmail}</p>
+                      )}
+                      {selectedMsg.createdAt && (
+                        <p><span className="text-white/80">Fecha:</span> {new Date(selectedMsg.createdAt).toLocaleDateString('es-AR', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-lg bg-white/5 border border-white/10">
+                    <div className="flex items-start gap-3">
+                      {selectedMsg.userName && (
+                        <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-sm font-semibold text-white flex-shrink-0">
+                          {selectedMsg.userName.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-2">
+                          {selectedMsg.userName && (
+                            <p className="text-sm font-medium text-white">
+                              {selectedMsg.userName.charAt(0).toUpperCase() + selectedMsg.userName.slice(1).toLowerCase()}
+                            </p>
+                          )}
+                        </div>
+                        <p className="text-white whitespace-pre-wrap">{selectedMsg.message}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {selectedMsg.replied && selectedMsg.replies && selectedMsg.replies.length > 0 && (
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-semibold text-white/80">Respuestas:</h4>
+                      {selectedMsg.replies.map((reply, index) => {
+                        const senderName = reply.senderName || "Equipo de FitPlan";
+                        const senderInitial = senderName.charAt(0).toUpperCase();
+                        const replyDate = reply.createdAt ? new Date(reply.createdAt) : null;
+                        
+                        return (
+                          <div key={index} className="p-4 rounded-lg bg-green-500/10 border border-green-500/30">
+                            <div className="flex items-start gap-3 mb-3">
+                              <div className="h-10 w-10 rounded-full bg-gradient-to-br from-emerald-500 to-cyan-500 flex items-center justify-center text-sm font-semibold text-white flex-shrink-0">
+                                {senderInitial}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <p className="text-sm font-medium text-green-400">{senderName}</p>
+                                  {replyDate && (
+                                    <span className="text-xs text-white/60">
+                                      {replyDate.toLocaleDateString('es-AR', {
+                                        day: '2-digit',
+                                        month: '2-digit',
+                                        year: 'numeric',
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                      })}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-white/90 whitespace-pre-wrap">{reply.message}</p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div className="space-y-3 mt-4">
+                    <label className="block text-sm font-medium text-white/60">
+                      {selectedMsg.replied ? "Agregar otra respuesta" : "Responder"}
+                    </label>
+                    <textarea
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      placeholder="Escribe tu respuesta..."
+                      rows={4}
+                      className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                    />
+                    <button
+                      onClick={() => handleReply(selectedMsg.id)}
+                      disabled={replying || !replyText.trim()}
+                      className="w-full px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {replying ? "Enviando..." : selectedMsg.replied ? "Agregar Respuesta" : "Enviar Respuesta"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-white/60">Selecciona un mensaje para ver los detalles</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </motion.div>
+    </div>
   );
 }
 

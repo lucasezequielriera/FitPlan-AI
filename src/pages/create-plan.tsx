@@ -347,28 +347,81 @@ export default function CreatePlan() {
       p = Math.min(p, 95);
       setProgress(p);
     }, 250);
-    try {
-      updateChecklistStep('enviar', 'in_progress');
-      const resp = await fetch("/api/generatePlan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formFinal),
-      });
-      updateChecklistStep('enviar', 'completed');
-      
-      updateChecklistStep('recibir', 'in_progress');
-      if (!resp.ok) {
-        const data = await resp.json().catch(() => null);
-        const combined = data?.error && data?.detail ? `${data.error}: ${data.detail}` : (data?.error || data?.detail);
-        const msg = combined || `No se pudo generar el plan (HTTP ${resp.status})`;
-        // Log extendido para diagnóstico
-        console.error('generatePlan error', { status: resp.status, data });
-        updateChecklistStep('recibir', 'error');
-        throw new Error(msg);
+    // Retry automático para timeouts (máximo 2 intentos)
+    let lastError: Error | null = null;
+    let attempts = 0;
+    const maxAttempts = 2;
+    let resp: Response | null = null;
+    
+    while (attempts < maxAttempts) {
+      try {
+        attempts++;
+        if (attempts > 1) {
+          // En el segundo intento, mostrar mensaje
+          setError("Reintentando generación del plan...");
+          updateChecklistStep('enviar', 'in_progress');
+        } else {
+          updateChecklistStep('enviar', 'in_progress');
+        }
+        
+        resp = await fetch("/api/generatePlan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formFinal),
+        });
+        updateChecklistStep('enviar', 'completed');
+        
+        updateChecklistStep('recibir', 'in_progress');
+        if (!resp.ok) {
+          const data = await resp.json().catch(() => null);
+          const combined = data?.error && data?.detail ? `${data.error}: ${data.detail}` : (data?.error || data?.detail);
+          const msg = combined || `No se pudo generar el plan (HTTP ${resp.status})`;
+          
+          // Si es timeout y aún tenemos intentos, reintentar
+          const isTimeout = resp.status === 502 && (msg.includes("Timeout") || msg.includes("tardó demasiado"));
+          if (isTimeout && attempts < maxAttempts) {
+            console.log(`⏱️ Timeout en intento ${attempts}, reintentando...`);
+            lastError = new Error(msg);
+            // Esperar 2 segundos antes de reintentar
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            continue; // Reintentar
+          }
+          
+          // Log extendido para diagnóstico
+          console.error('generatePlan error', { status: resp.status, data, attempt: attempts });
+          updateChecklistStep('recibir', 'error');
+          throw new Error(msg);
+        }
+        
+        // Si llegamos aquí, la respuesta fue exitosa
+        break; // Salir del loop de retry
+      } catch (err: unknown) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        const isTimeout = lastError.message.includes("Timeout") || lastError.message.includes("tardó demasiado") || lastError.message.includes("aborted");
+        
+        // Si es timeout y aún tenemos intentos, reintentar
+        if (isTimeout && attempts < maxAttempts) {
+          console.log(`⏱️ Error de timeout en intento ${attempts}, reintentando...`);
+          // Esperar 2 segundos antes de reintentar
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          continue; // Reintentar
+        }
+        
+        // Si no es timeout o ya agotamos los intentos, lanzar el error
+        throw lastError;
       }
-      const plan = await resp.json();
-      updateChecklistStep('recibir', 'completed');
-      
+    }
+    
+    // Si llegamos aquí, tenemos una respuesta exitosa
+    if (!resp) {
+      throw new Error("No se pudo obtener respuesta del servidor");
+    }
+    
+    // Parsear respuesta
+    const plan = await resp.json();
+    updateChecklistStep('recibir', 'completed');
+    
+    try {
       // Mostrar objeto de debug en consola del navegador
       if (plan._debug_training_plan) {
         console.log("=".repeat(80));
