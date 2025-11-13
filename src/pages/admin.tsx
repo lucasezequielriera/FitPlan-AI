@@ -13,6 +13,8 @@ interface User {
   premiumStatus: string | null;
   premiumSince: unknown;
   premiumLastPay: unknown;
+  premiumExpiresAt?: Date | string | { toDate?: () => Date; seconds?: number } | null;
+  premiumPlanType?: string | null;
   createdAt: unknown;
   updatedAt: unknown;
   sexo: string | null;
@@ -66,44 +68,112 @@ export default function Admin() {
     totalPremiumUsers: 0,
   });
 
-  // Función para determinar estado de pago basado en premiumLastPay
-  const getPaymentStatus = (user: User): { status: "paid" | "unpaid"; label: string; color: string } => {
+  // Función para convertir timestamp a Date
+  const convertTimestampToDate = (ts: unknown): Date | null => {
+    if (!ts) return null;
+    if (ts instanceof Date) return ts;
+    if (typeof ts === 'string') return new Date(ts);
+    if (typeof ts === 'object' && 'toDate' in ts && typeof (ts as { toDate: () => Date }).toDate === 'function') {
+      return (ts as { toDate: () => Date }).toDate();
+    }
+    if (typeof ts === 'object' && 'seconds' in ts) {
+      const seconds = (ts as { seconds: number; nanoseconds?: number }).seconds;
+      return new Date(seconds * 1000);
+    }
+    return null;
+  };
+
+  // Función para determinar estado de pago basado en premiumExpiresAt
+  const getPaymentStatus = (user: User): { 
+    status: "paid" | "expiring" | "expired" | "unpaid"; 
+    label: string; 
+    color: string;
+    expiresAt: Date | null;
+    daysUntilExpiry: number | null;
+  } => {
     // Solo verificar estado de pago para usuarios premium
     if (!user.premium) {
-      return { status: "unpaid", label: "Regular", color: "gray" };
+      return { 
+        status: "unpaid", 
+        label: "Regular", 
+        color: "gray",
+        expiresAt: null,
+        daysUntilExpiry: null
+      };
     }
 
-    // Verificar premiumLastPay para ver si pagó este mes
     const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-    
-    let lastPayDate: Date | null = null;
-    
-    // Intentar obtener la fecha de premiumLastPay
-    if (user.premiumLastPay) {
-      if (user.premiumLastPay instanceof Date) {
-        lastPayDate = user.premiumLastPay;
-      } else if (typeof user.premiumLastPay === 'string') {
-        lastPayDate = new Date(user.premiumLastPay);
-      } else if (user.premiumLastPay && typeof user.premiumLastPay === 'object' && 'toDate' in user.premiumLastPay) {
-        lastPayDate = (user.premiumLastPay as { toDate: () => Date }).toDate();
+    let expiresAt: Date | null = null;
+
+    // Intentar obtener la fecha de vencimiento
+    if (user.premiumExpiresAt) {
+      expiresAt = convertTimestampToDate(user.premiumExpiresAt);
+    }
+
+    // Si no hay fecha de vencimiento, calcular basado en premiumLastPay y planType (fallback)
+    if (!expiresAt && user.premiumLastPay) {
+      const lastPayDate = convertTimestampToDate(user.premiumLastPay);
+      if (lastPayDate) {
+        expiresAt = new Date(lastPayDate);
+        const planType = user.premiumPlanType || "monthly";
+        switch (planType) {
+          case "monthly":
+            expiresAt.setMonth(expiresAt.getMonth() + 1);
+            break;
+          case "quarterly":
+            expiresAt.setMonth(expiresAt.getMonth() + 3);
+            break;
+          case "annual":
+            expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+            break;
+        }
       }
     }
-    
-    // Si hay fecha de último pago y es del mes actual
-    if (lastPayDate && !isNaN(lastPayDate.getTime())) {
-      const paymentMonth = lastPayDate.getMonth();
-      const paymentYear = lastPayDate.getFullYear();
-      
-      // Si pagó este mes
-      if (paymentMonth === currentMonth && paymentYear === currentYear) {
-        return { status: "paid", label: "Pagado", color: "green" };
-      }
+
+    if (!expiresAt) {
+      // Si no hay fecha de vencimiento, considerar como sin pagar
+      return { 
+        status: "unpaid", 
+        label: "Sin Fecha", 
+        color: "red",
+        expiresAt: null,
+        daysUntilExpiry: null
+      };
     }
-    
-    // Si no pagó este mes o no tiene premiumLastPay, está sin pagar
-    return { status: "unpaid", label: "Sin Pagar", color: "red" };
+
+    const diffTime = expiresAt.getTime() - now.getTime();
+    const daysUntilExpiry = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    // Si ya venció
+    if (daysUntilExpiry < 0) {
+      return { 
+        status: "expired", 
+        label: "Vencido", 
+        color: "red",
+        expiresAt,
+        daysUntilExpiry
+      };
+    }
+
+    // Si vence en los próximos 7 días
+    if (daysUntilExpiry <= 7) {
+      return { 
+        status: "expiring", 
+        label: "Por Vencer", 
+        color: "yellow",
+        expiresAt,
+        daysUntilExpiry
+      };
+    }
+
+    // Si está vigente
+    return { 
+      status: "paid", 
+      label: "Pagado", 
+      color: "green",
+      expiresAt,
+      daysUntilExpiry
+    };
   };
 
   // Función para calcular estadísticas de ganancias
@@ -112,7 +182,10 @@ export default function Admin() {
     const premiumUsersList = users.filter(u => u.premium && u.email?.toLowerCase() !== "admin@fitplan-ai.com");
     
     // Usuarios que pagaron este mes
-    const paidThisMonth = premiumUsersList.filter(user => getPaymentStatus(user).status === "paid");
+    const paidThisMonth = premiumUsersList.filter(user => {
+      const status = getPaymentStatus(user);
+      return status.status === "paid" || status.status === "expiring";
+    });
     const premiumActiveThisMonth = paidThisMonth.length;
     
     // Usuarios premium que no han pagado este mes
@@ -451,6 +524,38 @@ export default function Admin() {
         
         setUsers(sortedUsers);
         console.log(`✅ ${sortedUsers.length} usuarios cargados y ordenados por fecha de creación`);
+        
+        // Verificar y desactivar premium vencido para todos los usuarios premium
+        const premiumUsers = sortedUsers.filter(u => u.premium);
+        for (const user of premiumUsers) {
+          const status = getPaymentStatus(user);
+          if (status.status === "expired") {
+            // Desactivar premium vencido automáticamente
+            try {
+              const expireResponse = await fetch("/api/admin/expirePremium", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ userId: user.id }),
+              });
+              if (expireResponse.ok) {
+                const expireData = await expireResponse.json();
+                if (expireData.expired) {
+                  console.log(`✅ Premium desactivado automáticamente para ${user.email}`);
+                  // Actualizar el usuario en el estado local
+                  setUsers(prevUsers => 
+                    prevUsers.map(u => 
+                      u.id === user.id 
+                        ? { ...u, premium: false, premiumStatus: "expired" }
+                        : u
+                    )
+                  );
+                }
+              }
+            } catch (error) {
+              console.error(`Error al desactivar premium para ${user.email}:`, error);
+            }
+          }
+        }
       } else {
         setUsers([]);
         setNewUsersList([]);
@@ -1024,13 +1129,60 @@ export default function Admin() {
                             N/A
                           </span>
                         ) : user.premium ? (
-                          <span className={`px-2 py-1 text-xs rounded-full border ${
-                            paymentStatus.status === "paid" 
-                              ? "bg-green-500/20 text-green-400 border-green-500/30"
-                              : "bg-red-500/20 text-red-400 border-red-500/30"
-                          }`}>
-                            {paymentStatus.label}
-                          </span>
+                          <div className="relative group">
+                            <span className={`px-2 py-1 text-xs rounded-full border cursor-pointer ${
+                              paymentStatus.status === "paid" 
+                                ? "bg-green-500/20 text-green-400 border-green-500/30"
+                                : paymentStatus.status === "expiring"
+                                ? "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
+                                : "bg-red-500/20 text-red-400 border-red-500/30"
+                            }`}>
+                              {paymentStatus.label}
+                            </span>
+                            {/* Tooltip con información de vencimiento */}
+                            {paymentStatus.expiresAt && (
+                              <div className="pointer-events-none absolute left-1/2 bottom-full z-50 mb-2 w-64 -translate-x-1/2 rounded-lg border border-white/20 bg-black/95 px-3 py-2 text-xs text-white opacity-0 shadow-xl transition-opacity duration-200 group-hover:opacity-100 group-focus:opacity-100">
+                                <div className="space-y-1">
+                                  <p className="font-semibold text-white">
+                                    {paymentStatus.status === "expired" 
+                                      ? "⚠️ Plan Vencido"
+                                      : paymentStatus.status === "expiring"
+                                      ? "⏰ Por Vencer"
+                                      : "✅ Plan Activo"}
+                                  </p>
+                                  <p className="text-white/80">
+                                    <span className="font-medium">Vencimiento:</span>{" "}
+                                    {paymentStatus.expiresAt.toLocaleDateString('es-AR', { 
+                                      day: '2-digit', 
+                                      month: '2-digit', 
+                                      year: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}
+                                  </p>
+                                  {paymentStatus.daysUntilExpiry !== null && (
+                                    <p className="text-white/80">
+                                      <span className="font-medium">
+                                        {paymentStatus.daysUntilExpiry < 0 
+                                          ? "Vencido hace:" 
+                                          : "Días restantes:"}
+                                      </span>{" "}
+                                      {Math.abs(paymentStatus.daysUntilExpiry)} día{Math.abs(paymentStatus.daysUntilExpiry) !== 1 ? 's' : ''}
+                                    </p>
+                                  )}
+                                  {user.premiumPlanType && (
+                                    <p className="text-white/60 text-[10px] mt-1 pt-1 border-t border-white/10">
+                                      Plan: {user.premiumPlanType === "monthly" ? "Mensual" : user.premiumPlanType === "quarterly" ? "Trimestral" : "Anual"}
+                                    </p>
+                                  )}
+                                </div>
+                                {/* Flecha del tooltip */}
+                                <div className="absolute left-1/2 top-full -translate-x-1/2 -mt-1">
+                                  <div className="h-2 w-2 rotate-45 border-r border-b border-white/20 bg-black/95"></div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         ) : (
                           <span className="px-2 py-1 text-xs rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/30">
                             Regular

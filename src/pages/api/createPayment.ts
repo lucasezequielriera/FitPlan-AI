@@ -65,7 +65,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       payer: {
         email: userEmail,
       },
-      external_reference: userId, // Para identificar al usuario cuando regrese del pago
+      external_reference: `${userId}|${planType || 'monthly'}`, // userId|planType para identificar usuario y tipo de plan
       back_urls: {
         success: `${baseUrl}/payment/success`,
         failure: `${baseUrl}/payment/failure`,

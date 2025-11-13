@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getDbSafe } from "@/lib/firebase";
-import { collection, doc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore";
+import { collection, doc, updateDoc, serverTimestamp, getDoc, Timestamp } from "firebase/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 
@@ -51,12 +51,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       // Verificar que el pago fue aprobado
       if (payment.status === "approved" && payment.status_detail === "accredited") {
-        const userId = payment.external_reference;
+        // Extraer userId y planType del external_reference (formato: "userId|planType")
+        const externalRef = payment.external_reference || "";
+        const [userId, planType] = externalRef.includes("|") 
+          ? externalRef.split("|") 
+          : [externalRef, "monthly"]; // Fallback a monthly si no hay planType
         
         if (!userId) {
           console.error("❌ No se encontró external_reference en el pago");
           return res.status(200).json({ received: true });
         }
+
+        // Calcular fecha de vencimiento según el tipo de plan
+        const paymentDate = payment.date_approved ? new Date(payment.date_approved) : new Date();
+        const expiresAt = new Date(paymentDate);
+        
+        switch (planType) {
+          case "monthly":
+            expiresAt.setMonth(expiresAt.getMonth() + 1);
+            break;
+          case "quarterly":
+            expiresAt.setMonth(expiresAt.getMonth() + 3);
+            break;
+          case "annual":
+            expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+            break;
+          default:
+            expiresAt.setMonth(expiresAt.getMonth() + 1); // Default a 1 mes
+        }
+        
+        console.log(`📅 Plan ${planType} - Vencimiento calculado: ${expiresAt.toISOString()}`);
 
         const db = getDbSafe();
         if (!db) {
@@ -81,6 +105,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           premium: boolean;
           premiumStatus: string;
           premiumLastPay: ReturnType<typeof serverTimestamp>;
+          premiumExpiresAt: ReturnType<typeof Timestamp.fromDate>; // Fecha de vencimiento del plan como Timestamp
+          premiumPlanType: string; // Tipo de plan: monthly, quarterly, annual
           premiumPayment: {
             paymentId: string | number;
             amount: number;
@@ -88,6 +114,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             date: ReturnType<typeof serverTimestamp>;
             method: string;
             status: string;
+            planType: string;
           };
           updatedAt: ReturnType<typeof serverTimestamp>;
           premiumSince?: ReturnType<typeof serverTimestamp>;
@@ -95,6 +122,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           premium: true,
           premiumStatus: "active", // active, expired, cancelled
           premiumLastPay: serverTimestamp(), // Fecha del último pago completado
+          premiumExpiresAt: Timestamp.fromDate(expiresAt), // Fecha de vencimiento calculada como Timestamp de Firestore
+          premiumPlanType: planType || "monthly", // Tipo de plan
           premiumPayment: {
             paymentId: paymentId,
             amount: payment.transaction_amount,
@@ -102,6 +131,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             date: serverTimestamp(),
             method: payment.payment_method_id || "unknown",
             status: payment.status,
+            planType: planType || "monthly",
           },
           updatedAt: serverTimestamp(),
         };
