@@ -684,7 +684,9 @@ export default function PlanPage() {
   }
 
   // Renderizar recomendaciones de entrenamiento como ReactNode
-  const recomendacionesEntrenamientoJSX = (sugerenciaEntrenamiento ? (
+  const renderRecomendacionesEntrenamiento = (): React.ReactNode => {
+    if (!sugerenciaEntrenamiento) return null;
+    return (
     <div key="sugerencias-entrenamiento" className="mt-6 rounded-xl border border-white/10 p-4 bg-gradient-to-r from-white/5 to-white/10">
       <h2 className="text-lg font-semibold mb-3">💪 Recomendaciones de entrenamiento y recuperación</h2>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -833,7 +835,8 @@ export default function PlanPage() {
         </div>
       )}
     </div>
-  ) : null) as React.ReactNode;
+    );
+  };
 
   return (
     <div className="min-h-screen">
@@ -1665,9 +1668,8 @@ export default function PlanPage() {
 
           <p className="mt-4 text-sm opacity-80">{String((plan as unknown as Record<string, unknown>)?.mensaje_motivacional || '')}</p>
 
-          {/* eslint-disable-next-line @typescript-eslint/ban-ts-comment */}
-          {/* @ts-ignore - TypeScript infiere unknown pero el valor es ReactNode válido */}
-          {recomendacionesEntrenamientoJSX as React.ReactNode}
+          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+          {(renderRecomendacionesEntrenamiento() as any)}
 
           {/* Selector de vista (Entrenamiento/Alimentación) - Centrado */}
           <div className="mt-6 flex items-center justify-center gap-3">
