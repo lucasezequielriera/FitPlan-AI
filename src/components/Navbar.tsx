@@ -815,7 +815,7 @@ function MessagesModal({
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.9, y: 20 }}
-        className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+        className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-4xl w-full h-[85vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
@@ -856,7 +856,7 @@ function MessagesModal({
         ) : (
           <div className="flex-1 flex gap-4 overflow-hidden">
             {/* Lista de mensajes */}
-            <div className="w-1/3 border-r border-white/10 pr-4 overflow-y-auto">
+            <div className="w-1/3 border-r border-white/10 pr-4 overflow-y-auto flex-shrink-0">
               {messages.length === 0 ? (
                 <div className="text-center py-8">
                   <p className="text-white/60">No hay mensajes</p>
@@ -882,9 +882,24 @@ function MessagesModal({
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-medium truncate ${msg.read ? "text-white/80" : "text-white"}`}>
-                            {msg.subject}
-                          </p>
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <p className={`text-sm font-medium truncate ${msg.read ? "text-white/80" : "text-white"}`}>
+                              {msg.subject}
+                            </p>
+                            {(() => {
+                              // Verificar si hay al menos una respuesta del admin
+                              const hasAdminReply = msg.replies?.some(r => r.senderType === "admin");
+                              return hasAdminReply ? (
+                                <span className="px-2 py-0.5 text-xs rounded-full bg-green-500/20 text-green-400 border border-green-500/30 whitespace-nowrap flex-shrink-0">
+                                  Respondido
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 text-xs rounded-full bg-red-500/20 text-red-400 border border-red-500/30 whitespace-nowrap flex-shrink-0">
+                                  Responder
+                                </span>
+                              );
+                            })()}
+                          </div>
                           <p className="text-xs text-white/60 truncate mt-1">
                             {msg.userName || msg.userEmail || "Usuario"}
                           </p>
@@ -910,7 +925,7 @@ function MessagesModal({
             </div>
 
             {/* Detalle del mensaje */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto min-h-0">
               {selectedMsg ? (
                 <div className="space-y-4">
                   <div>
