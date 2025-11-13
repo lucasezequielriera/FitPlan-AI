@@ -121,9 +121,9 @@ export default function Navbar() {
 
     checkMessages();
     
-    // Verificar cada 30 segundos si es admin
+    // Verificar cada 15 segundos si es admin (más frecuente para notificaciones)
     if (isAdmin) {
-      const interval = setInterval(checkMessages, 30000);
+      const interval = setInterval(checkMessages, 15000);
       return () => clearInterval(interval);
     }
   }, [authUser, isAdmin]);
@@ -728,6 +728,17 @@ function MessagesModal({
     }
   }, [isOpen, adminUserId]);
 
+  // Recargar mensajes periódicamente cuando el modal está abierto para detectar nuevas respuestas
+  useEffect(() => {
+    if (isOpen && adminUserId) {
+      const interval = setInterval(() => {
+        loadMessages();
+        onMessagesUpdate(); // Actualizar contador también
+      }, 10000); // Cada 10 segundos
+      return () => clearInterval(interval);
+    }
+  }, [isOpen, adminUserId, onMessagesUpdate]);
+
   const loadMessages = async () => {
     try {
       setLoading(true);
@@ -905,11 +916,15 @@ function MessagesModal({
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="text-lg font-semibold text-white">{selectedMsg.subject}</h3>
-                      {selectedMsg.replied && (
-                        <span className="px-2 py-1 text-xs rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
-                          Respondido
-                        </span>
-                      )}
+                      {(() => {
+                        // Verificar si hay al menos una respuesta del admin
+                        const hasAdminReply = selectedMsg.replies?.some(r => r.senderType === "admin");
+                        return hasAdminReply ? (
+                          <span className="px-2 py-1 text-xs rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
+                            Respondido
+                          </span>
+                        ) : null;
+                      })()}
                     </div>
                     <div className="text-sm text-white/60 space-y-1">
                       {selectedMsg.userName && (

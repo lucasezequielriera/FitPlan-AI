@@ -53,10 +53,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Agregar respuesta al array
     const updatedReplies = [...existingReplies, newReply];
 
+    // Verificar si hay respuestas del admin
+    const hasAdminReply = updatedReplies.some((r: { senderType?: string }) => r.senderType === "admin");
+    
     // Actualizar mensaje con nueva respuesta
     await messageRef.update({
       replies: updatedReplies,
       lastReplyAt: new Date(),
+      // Solo marcar como "replied" si hay al menos una respuesta del admin
+      replied: hasAdminReply,
+      // Marcar como no leído para el admin cuando el usuario responde
+      read: false,
       updatedAt: new Date(),
     });
 

@@ -171,9 +171,13 @@ export default function UserMessagesModal({
                           <p className={`text-sm font-medium truncate ${msg.replied && !msg.userRead ? "text-white" : "text-white/80"}`}>
                             {msg.subject}
                           </p>
-                          {msg.replied && (
-                            <p className="text-xs text-green-400 mt-1">✓ Respondido</p>
-                          )}
+                          {(() => {
+                            // Verificar si hay al menos una respuesta del admin
+                            const hasAdminReply = msg.replies?.some(r => r.senderType === "admin");
+                            return hasAdminReply ? (
+                              <p className="text-xs text-green-400 mt-1">✓ Respondido</p>
+                            ) : null;
+                          })()}
                           {msg.createdAt && (
                             <p className="text-xs text-white/40 mt-1">
                               {new Date(msg.createdAt).toLocaleDateString('es-AR', {
@@ -202,11 +206,15 @@ export default function UserMessagesModal({
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="text-lg font-semibold text-white">{selectedMsg.subject}</h3>
-                      {selectedMsg.replied && (
-                        <span className="px-2 py-1 text-xs rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
-                          Respondido
-                        </span>
-                      )}
+                      {(() => {
+                        // Verificar si hay al menos una respuesta del admin
+                        const hasAdminReply = selectedMsg.replies?.some(r => r.senderType === "admin");
+                        return hasAdminReply ? (
+                          <span className="px-2 py-1 text-xs rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
+                            Respondido
+                          </span>
+                        ) : null;
+                      })()}
                     </div>
                     {selectedMsg.createdAt && (
                       <p className="text-sm text-white/60">
@@ -333,6 +341,9 @@ export default function UserMessagesModal({
                           await loadMessages();
                           setReplyText("");
                           onMessagesUpdate();
+                          
+                          // Notificar al admin que hay un nuevo mensaje (actualizar su contador)
+                          // Esto se hace automáticamente porque marcamos read: false en el mensaje
                         } catch (error) {
                           console.error("Error al responder:", error);
                           alert(error instanceof Error ? error.message : "Error al enviar respuesta");
