@@ -39,6 +39,29 @@ export default function Admin() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editForm, setEditForm] = useState<Partial<User>>({});
   const [saving, setSaving] = useState(false);
+  const [tooltipOpenUserId, setTooltipOpenUserId] = useState<string | null>(null);
+  
+  // Cerrar tooltip al hacer click fuera (solo en mobile)
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      if (tooltipOpenUserId) {
+        const target = event.target as HTMLElement;
+        if (!target.closest('.relative')) {
+          setTooltipOpenUserId(null);
+        }
+      }
+    };
+    
+    if (tooltipOpenUserId) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [tooltipOpenUserId]);
   const [deleting, setDeleting] = useState(false);
   const [totalUsers, setTotalUsers] = useState<number>(0);
   const [premiumUsers, setPremiumUsers] = useState<number>(0);
@@ -1095,7 +1118,7 @@ export default function Admin() {
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.05 }}
-                      className={`hover:bg-white/5 transition-colors border-l-4 ${isNewUser ? "bg-green-500/10 border-green-400/70" : "border-transparent"}`}
+                      className={`hover:bg-white/5 transition-colors border-l-4 group ${isNewUser ? "bg-green-500/10 border-green-400/70" : "border-transparent"}`}
                     >
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
                         <div className="flex items-center gap-2">
@@ -1129,19 +1152,36 @@ export default function Admin() {
                             N/A
                           </span>
                         ) : user.premium ? (
-                          <div className="relative group">
-                            <span className={`px-2 py-1 text-xs rounded-full border cursor-pointer ${
-                              paymentStatus.status === "paid" 
-                                ? "bg-green-500/20 text-green-400 border-green-500/30"
-                                : paymentStatus.status === "expiring"
-                                ? "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
-                                : "bg-red-500/20 text-red-400 border-red-500/30"
-                            }`}>
+                          <div className="relative">
+                            <span 
+                              onClick={() => {
+                                if (tooltipOpenUserId === user.id) {
+                                  setTooltipOpenUserId(null);
+                                } else {
+                                  setTooltipOpenUserId(user.id);
+                                }
+                              }}
+                              className={`px-2 py-1 text-xs rounded-full border cursor-pointer touch-manipulation ${
+                                paymentStatus.status === "paid" 
+                                  ? "bg-green-500/20 text-green-400 border-green-500/30"
+                                  : paymentStatus.status === "expiring"
+                                  ? "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
+                                  : "bg-red-500/20 text-red-400 border-red-500/30"
+                              }`}
+                            >
                               {paymentStatus.label}
                             </span>
                             {/* Tooltip con información de vencimiento */}
                             {paymentStatus.expiresAt && (
-                              <div className="pointer-events-none absolute left-1/2 bottom-full z-50 mb-2 w-64 -translate-x-1/2 rounded-lg border border-white/20 bg-black/95 px-3 py-2 text-xs text-white opacity-0 shadow-xl transition-opacity duration-200 group-hover:opacity-100 group-focus:opacity-100">
+                              <div 
+                                className={`absolute left-1/2 bottom-full z-50 mb-2 w-64 -translate-x-1/2 rounded-lg border border-white/20 bg-black/95 px-3 py-2 text-xs text-white shadow-xl transition-opacity duration-200 ${
+                                  // Mostrar en desktop con hover, en mobile con click
+                                  tooltipOpenUserId === user.id 
+                                    ? "opacity-100 pointer-events-auto md:pointer-events-none" 
+                                    : "opacity-0 pointer-events-none md:group-hover:opacity-100 md:group-focus:opacity-100"
+                                }`}
+                                onClick={(e) => e.stopPropagation()}
+                              >
                                 <div className="space-y-1">
                                   <p className="font-semibold text-white">
                                     {paymentStatus.status === "expired" 
@@ -1170,6 +1210,21 @@ export default function Admin() {
                                       {Math.abs(paymentStatus.daysUntilExpiry)} día{Math.abs(paymentStatus.daysUntilExpiry) !== 1 ? 's' : ''}
                                     </p>
                                   )}
+                                  {(() => {
+                                    // Extraer monto del último pago
+                                    const payment = user.premiumPayment;
+                                    let amount: number | null = null;
+                                    if (payment && typeof payment === 'object') {
+                                      const paymentObj = payment as { amount?: number };
+                                      amount = paymentObj.amount || null;
+                                    }
+                                    return amount !== null ? (
+                                      <p className="text-white/80">
+                                        <span className="font-medium">Último pago:</span>{" "}
+                                        ${amount.toLocaleString('es-AR')} ARS
+                                      </p>
+                                    ) : null;
+                                  })()}
                                   {user.premiumPlanType && (
                                     <p className="text-white/60 text-[10px] mt-1 pt-1 border-t border-white/10">
                                       Plan: {user.premiumPlanType === "monthly" ? "Mensual" : user.premiumPlanType === "quarterly" ? "Trimestral" : "Anual"}
