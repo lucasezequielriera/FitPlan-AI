@@ -27,6 +27,8 @@ interface User {
   caderaCm: number | null;
   atletico: boolean;
   premiumPayment: unknown;
+  ciudad?: string | null;
+  pais?: string | null;
 }
 
 export default function Admin() {
@@ -40,8 +42,9 @@ export default function Admin() {
   const [editForm, setEditForm] = useState<Partial<User>>({});
   const [saving, setSaving] = useState(false);
   const [tooltipOpenUserId, setTooltipOpenUserId] = useState<string | null>(null);
+  const [locationTooltipOpenUserId, setLocationTooltipOpenUserId] = useState<string | null>(null);
   
-  // Cerrar tooltip al hacer click fuera (solo en mobile)
+  // Cerrar tooltips al hacer click fuera (solo en mobile)
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent | TouchEvent) => {
       if (tooltipOpenUserId) {
@@ -50,9 +53,15 @@ export default function Admin() {
           setTooltipOpenUserId(null);
         }
       }
+      if (locationTooltipOpenUserId) {
+        const target = event.target as HTMLElement;
+        if (!target.closest('.relative')) {
+          setLocationTooltipOpenUserId(null);
+        }
+      }
     };
     
-    if (tooltipOpenUserId) {
+    if (tooltipOpenUserId || locationTooltipOpenUserId) {
       document.addEventListener('mousedown', handleClickOutside);
       document.addEventListener('touchstart', handleClickOutside);
     }
@@ -61,7 +70,7 @@ export default function Admin() {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('touchstart', handleClickOutside);
     };
-  }, [tooltipOpenUserId]);
+  }, [tooltipOpenUserId, locationTooltipOpenUserId]);
   const [deleting, setDeleting] = useState(false);
   const [totalUsers, setTotalUsers] = useState<number>(0);
   const [premiumUsers, setPremiumUsers] = useState<number>(0);
@@ -199,6 +208,83 @@ export default function Admin() {
       expiresAt,
       daysUntilExpiry
     };
+  };
+
+  // Función para obtener el emoji de la bandera del país
+  const getCountryFlag = (countryName: string | null | undefined): string => {
+    if (!countryName) return "🌍";
+    
+    // Mapeo de países comunes a emojis de banderas
+    const countryFlags: Record<string, string> = {
+      "Argentina": "🇦🇷",
+      "United States": "🇺🇸",
+      "USA": "🇺🇸",
+      "España": "🇪🇸",
+      "Spain": "🇪🇸",
+      "México": "🇲🇽",
+      "Mexico": "🇲🇽",
+      "Chile": "🇨🇱",
+      "Colombia": "🇨🇴",
+      "Perú": "🇵🇪",
+      "Peru": "🇵🇪",
+      "Uruguay": "🇺🇾",
+      "Paraguay": "🇵🇾",
+      "Brasil": "🇧🇷",
+      "Brazil": "🇧🇷",
+      "Venezuela": "🇻🇪",
+      "Ecuador": "🇪🇨",
+      "Bolivia": "🇧🇴",
+      "Costa Rica": "🇨🇷",
+      "Panamá": "🇵🇦",
+      "Panama": "🇵🇦",
+      "Guatemala": "🇬🇹",
+      "Honduras": "🇭🇳",
+      "El Salvador": "🇸🇻",
+      "Nicaragua": "🇳🇮",
+      "República Dominicana": "🇩🇴",
+      "Dominican Republic": "🇩🇴",
+      "Cuba": "🇨🇺",
+      "Puerto Rico": "🇵🇷",
+      "Francia": "🇫🇷",
+      "France": "🇫🇷",
+      "Italia": "🇮🇹",
+      "Italy": "🇮🇹",
+      "Alemania": "🇩🇪",
+      "Germany": "🇩🇪",
+      "Reino Unido": "🇬🇧",
+      "United Kingdom": "🇬🇧",
+      "UK": "🇬🇧",
+      "Canadá": "🇨🇦",
+      "Canada": "🇨🇦",
+      "Australia": "🇦🇺",
+      "Nueva Zelanda": "🇳🇿",
+      "New Zealand": "🇳🇿",
+      "Japón": "🇯🇵",
+      "Japan": "🇯🇵",
+      "China": "🇨🇳",
+      "Corea del Sur": "🇰🇷",
+      "South Korea": "🇰🇷",
+      "India": "🇮🇳",
+      "Rusia": "🇷🇺",
+      "Russia": "🇷🇺",
+      "Turquía": "🇹🇷",
+      "Turkey": "🇹🇷",
+      "Egipto": "🇪🇬",
+      "Egypt": "🇪🇬",
+      "Sudáfrica": "🇿🇦",
+      "South Africa": "🇿🇦",
+    };
+    
+    // Buscar coincidencia exacta o parcial (case insensitive)
+    const countryLower = countryName.toLowerCase();
+    for (const [key, flag] of Object.entries(countryFlags)) {
+      if (key.toLowerCase() === countryLower || countryLower.includes(key.toLowerCase())) {
+        return flag;
+      }
+    }
+    
+    // Si no se encuentra, retornar emoji genérico
+    return "🌍";
   };
 
   // Función para obtener ganancias mensuales reales desde Firestore
@@ -1253,6 +1339,50 @@ export default function Admin() {
                               Nuevo
                             </span>
                           )}
+                          {user.pais && (
+                            <div className="relative group">
+                              <span
+                                onClick={() => {
+                                  if (locationTooltipOpenUserId === user.id) {
+                                    setLocationTooltipOpenUserId(null);
+                                  } else {
+                                    setLocationTooltipOpenUserId(user.id);
+                                  }
+                                }}
+                                className="text-xl cursor-pointer touch-manipulation"
+                              >
+                                {getCountryFlag(user.pais)}
+                              </span>
+                              {/* Tooltip (click en mobile, hover en desktop) */}
+                              <div
+                                className={`absolute left-1/2 bottom-full z-[9999] mb-2 w-48 -translate-x-1/2 rounded-lg border border-white/20 bg-black/95 px-3 py-2 text-xs text-white shadow-xl transition-opacity duration-200 ${
+                                  locationTooltipOpenUserId === user.id
+                                    ? "opacity-100 pointer-events-auto"
+                                    : "opacity-0 pointer-events-none md:group-hover:opacity-100"
+                                }`}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <div className="space-y-1">
+                                  {user.ciudad && (
+                                    <p className="text-white/90">
+                                      <span className="font-medium">Ciudad:</span> {user.ciudad}
+                                    </p>
+                                  )}
+                                  {user.pais && (
+                                    <p className="text-white/90">
+                                      <span className="font-medium">País:</span> {user.pais}
+                                    </p>
+                                  )}
+                                  {!user.ciudad && !user.pais && (
+                                    <p className="text-white/60">Ubicación no disponible</p>
+                                  )}
+                                </div>
+                                <div className="absolute left-1/2 top-full -translate-x-1/2 -mt-1">
+                                  <div className="h-2 w-2 rotate-45 border-r border-b border-white/20 bg-black/95"></div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-white/80">{user.email || "N/A"}</td>
@@ -1488,6 +1618,50 @@ export default function Admin() {
                           <span className="px-2 py-0.5 text-[10px] uppercase tracking-wide rounded-full bg-green-500/30 text-green-100 border border-green-500/40">
                             Nuevo
                           </span>
+                        )}
+                        {user.pais && (
+                          <div className="relative group">
+                            <span
+                              onClick={() => {
+                                if (locationTooltipOpenUserId === user.id) {
+                                  setLocationTooltipOpenUserId(null);
+                                } else {
+                                  setLocationTooltipOpenUserId(user.id);
+                                }
+                              }}
+                              className="text-xl cursor-pointer touch-manipulation"
+                            >
+                              {getCountryFlag(user.pais)}
+                            </span>
+                            {/* Tooltip (click en mobile, hover en desktop) */}
+                            <div
+                              className={`absolute left-1/2 bottom-full z-[9999] mb-2 w-48 -translate-x-1/2 rounded-lg border border-white/20 bg-black/95 px-3 py-2 text-xs text-white shadow-xl transition-opacity duration-200 ${
+                                locationTooltipOpenUserId === user.id
+                                  ? "opacity-100 pointer-events-auto"
+                                  : "opacity-0 pointer-events-none md:group-hover:opacity-100"
+                              }`}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div className="space-y-1">
+                                {user.ciudad && (
+                                  <p className="text-white/90">
+                                    <span className="font-medium">Ciudad:</span> {user.ciudad}
+                                  </p>
+                                )}
+                                {user.pais && (
+                                  <p className="text-white/90">
+                                    <span className="font-medium">País:</span> {user.pais}
+                                  </p>
+                                )}
+                                {!user.ciudad && !user.pais && (
+                                  <p className="text-white/60">Ubicación no disponible</p>
+                                )}
+                              </div>
+                              <div className="absolute left-1/2 top-full -translate-x-1/2 -mt-1">
+                                <div className="h-2 w-2 rotate-45 border-r border-b border-white/20 bg-black/95"></div>
+                              </div>
+                            </div>
+                          </div>
                         )}
                         {user.email?.toLowerCase() === "admin@fitplan-ai.com" ? (
                           <span className="px-2 py-1 text-xs rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30">
