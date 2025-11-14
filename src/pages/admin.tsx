@@ -607,6 +607,7 @@ export default function Admin() {
       nombre: user.nombre || "",
       email: user.email || "",
       premium: user.premium,
+      premiumPlanType: user.premiumPlanType || null,
       sexo: user.sexo || "",
       alturaCm: user.alturaCm ?? null,
       edad: user.edad ?? null,
@@ -700,6 +701,9 @@ export default function Admin() {
         if (editForm.premium) {
           updateData.premiumSince = new Date().toISOString();
         }
+      }
+      if (editForm.premiumPlanType !== undefined) {
+        updateData.premiumPlanType = editForm.premiumPlanType || null;
       }
       if (editForm.sexo !== undefined) updateData.sexo = editForm.sexo;
       if (editForm.alturaCm !== undefined) updateData.alturaCm = editForm.alturaCm ? Number(editForm.alturaCm) : null;
@@ -1137,9 +1141,22 @@ export default function Admin() {
                             Admin
                           </span>
                         ) : user.premium ? (
-                          <span className="px-2 py-1 text-xs rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
-                            Premium
-                          </span>
+                          <div className="flex flex-col gap-1">
+                            <span className="px-2 py-1 text-xs rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+                              Premium
+                            </span>
+                            {user.premiumPlanType && (
+                              <span className="px-2 py-0.5 text-[10px] rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                                {user.premiumPlanType === "monthly" 
+                                  ? "Mensual" 
+                                  : user.premiumPlanType === "quarterly"
+                                  ? "Trimestral"
+                                  : user.premiumPlanType === "annual"
+                                  ? "Anual"
+                                  : ""}
+                              </span>
+                            )}
+                          </div>
                         ) : (
                           <span className="px-2 py-1 text-xs rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/30">
                             Regular
@@ -1416,6 +1433,22 @@ export default function Admin() {
                   </label>
                 </div>
 
+                {editForm.premium && (
+                  <div>
+                    <label className="block text-sm font-medium text-white/60 mb-2">Tipo de Plan</label>
+                    <select
+                      value={editForm.premiumPlanType || ""}
+                      onChange={(e) => setEditForm({ ...editForm, premiumPlanType: e.target.value || null })}
+                      className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Seleccionar tipo de plan...</option>
+                      <option value="monthly">Mensual ($30.000 ARS)</option>
+                      <option value="quarterly">Trimestral ($75.000 ARS)</option>
+                      <option value="annual">Anual ($250.000 ARS)</option>
+                    </select>
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-sm font-medium text-white/60 mb-2">Perfil Atlético</label>
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -1531,7 +1564,7 @@ export default function Admin() {
                 <div className="space-y-6">
                   {/* Resumen del usuario */}
                   {(() => {
-                    const user = userHistory.user as { peso?: number; alturaCm?: number; edad?: number; premium?: boolean } | null;
+                    const user = userHistory.user as { peso?: number; alturaCm?: number; edad?: number; premium?: boolean; premiumPlanType?: string | null } | null;
                     if (!user) return null;
                     return (
                       <div className="p-4 rounded-lg bg-white/5 border border-white/10">
@@ -1555,6 +1588,20 @@ export default function Admin() {
                               {user.premium ? "Sí" : "No"}
                             </p>
                           </div>
+                          {user.premium && (
+                            <div>
+                              <p className="text-white/60">Tipo de Plan</p>
+                              <p className="text-white font-medium">
+                                {user.premiumPlanType === "monthly" 
+                                  ? "Mensual" 
+                                  : user.premiumPlanType === "quarterly"
+                                  ? "Trimestral"
+                                  : user.premiumPlanType === "annual"
+                                  ? "Anual"
+                                  : "N/A"}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
