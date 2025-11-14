@@ -78,6 +78,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       }
     }
+    if (dataToUpdate.premiumPlanType !== undefined) {
+      updateFields.premiumPlanType = dataToUpdate.premiumPlanType || null;
+    }
     if (dataToUpdate.sexo !== undefined) updateFields.sexo = dataToUpdate.sexo;
     if (dataToUpdate.alturaCm !== undefined) updateFields.alturaCm = dataToUpdate.alturaCm ? Number(dataToUpdate.alturaCm) : null;
     if (dataToUpdate.edad !== undefined) updateFields.edad = dataToUpdate.edad ? Number(dataToUpdate.edad) : null;
