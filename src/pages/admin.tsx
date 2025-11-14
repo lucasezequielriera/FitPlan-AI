@@ -1084,7 +1084,8 @@ export default function Admin() {
 
         {/* Lista de usuarios */}
         <div className="rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Vista de tabla para desktop */}
+          <div className="hidden lg:block overflow-x-auto">
             <table className="w-full">
               <thead className="bg-white/5 border-b border-white/10">
                 <tr>
@@ -1328,6 +1329,248 @@ export default function Admin() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Vista de cards para mobile y tablet */}
+          <div className="lg:hidden p-4 space-y-4">
+            {users.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="flex flex-col items-center gap-3">
+                  <p className="text-white/60 text-sm">
+                    La carga de usuarios está deshabilitada temporalmente
+                  </p>
+                  <p className="text-white/40 text-xs">
+                    Esta funcionalidad se habilitará próximamente
+                  </p>
+                </div>
+              </div>
+            ) : (
+              users.map((user, index) => {
+                const paymentStatus = getPaymentStatus(user);
+                const isNewUser = newUserIds.includes(user.id);
+                return (
+                  <motion.div
+                    key={user.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className={`rounded-lg border p-4 space-y-3 group ${
+                      isNewUser 
+                        ? "bg-green-500/10 border-green-400/30 border-l-4 border-l-green-400" 
+                        : "bg-white/5 border-white/10"
+                    }`}
+                  >
+                    {/* Header con nombre y badges */}
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="text-base font-semibold text-white">{user.nombre || "N/A"}</h3>
+                          {isNewUser && (
+                            <span className="px-2 py-0.5 text-[10px] uppercase tracking-wide rounded-full bg-green-500/30 text-green-100 border border-green-500/40">
+                              Nuevo
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-white/70">{user.email || "N/A"}</p>
+                      </div>
+                      <div className="flex flex-col gap-1 items-end">
+                        {user.email?.toLowerCase() === "admin@fitplan-ai.com" ? (
+                          <span className="px-2 py-1 text-xs rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                            Admin
+                          </span>
+                        ) : user.premium ? (
+                          <>
+                            <span className="px-2 py-1 text-xs rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+                              Premium
+                            </span>
+                            {user.premiumPlanType && (
+                              <span className="px-2 py-0.5 text-[10px] rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                                {user.premiumPlanType === "monthly" 
+                                  ? "Mensual" 
+                                  : user.premiumPlanType === "quarterly"
+                                  ? "Trimestral"
+                                  : user.premiumPlanType === "annual"
+                                  ? "Anual"
+                                  : ""}
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <span className="px-2 py-1 text-xs rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/30">
+                            Regular
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Información del usuario */}
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <p className="text-white/60 text-xs mb-0.5">Edad</p>
+                        <p className="text-white font-medium">{user.edad || "N/A"} años</p>
+                      </div>
+                      <div>
+                        <p className="text-white/60 text-xs mb-0.5">Peso</p>
+                        <p className="text-white font-medium">{user.peso ? `${user.peso} kg` : "N/A"}</p>
+                      </div>
+                      <div>
+                        <p className="text-white/60 text-xs mb-0.5">Estado de Pago</p>
+                        {user.email?.toLowerCase() === "admin@fitplan-ai.com" ? (
+                          <span className="px-2 py-1 text-xs rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/30">
+                            N/A
+                          </span>
+                        ) : user.premium ? (
+                          <div className="relative inline-block">
+                            <span 
+                              onClick={() => {
+                                if (tooltipOpenUserId === user.id) {
+                                  setTooltipOpenUserId(null);
+                                } else {
+                                  setTooltipOpenUserId(user.id);
+                                }
+                              }}
+                              className={`px-2 py-1 text-xs rounded-full border cursor-pointer touch-manipulation ${
+                                paymentStatus.status === "paid" 
+                                  ? "bg-green-500/20 text-green-400 border-green-500/30"
+                                  : paymentStatus.status === "expiring"
+                                  ? "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
+                                  : "bg-red-500/20 text-red-400 border-red-500/30"
+                              }`}
+                            >
+                              {paymentStatus.label}
+                            </span>
+                            {/* Tooltip con información de vencimiento */}
+                            {paymentStatus.expiresAt && (
+                              <div 
+                                className={`absolute left-1/2 bottom-full z-50 mb-2 w-64 -translate-x-1/2 rounded-lg border border-white/20 bg-black/95 px-3 py-2 text-xs text-white shadow-xl transition-opacity duration-200 ${
+                                  tooltipOpenUserId === user.id 
+                                    ? "opacity-100 pointer-events-auto" 
+                                    : "opacity-0 pointer-events-none"
+                                }`}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <div className="space-y-1">
+                                  <p className="font-semibold text-white">
+                                    {paymentStatus.status === "expired" 
+                                      ? "⚠️ Plan Vencido"
+                                      : paymentStatus.status === "expiring"
+                                      ? "⏰ Por Vencer"
+                                      : "✅ Plan Activo"}
+                                  </p>
+                                  <p className="text-white/80">
+                                    <span className="font-medium">Vencimiento:</span>{" "}
+                                    {paymentStatus.expiresAt.toLocaleDateString('es-AR', { 
+                                      day: '2-digit', 
+                                      month: '2-digit', 
+                                      year: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}
+                                  </p>
+                                  {paymentStatus.daysUntilExpiry !== null && (
+                                    <p className="text-white/80">
+                                      <span className="font-medium">
+                                        {paymentStatus.daysUntilExpiry < 0 
+                                          ? "Vencido hace:" 
+                                          : "Días restantes:"}
+                                      </span>{" "}
+                                      {Math.abs(paymentStatus.daysUntilExpiry)} día{Math.abs(paymentStatus.daysUntilExpiry) !== 1 ? 's' : ''}
+                                    </p>
+                                  )}
+                                  {(() => {
+                                    const payment = user.premiumPayment;
+                                    let amount: number | null = null;
+                                    
+                                    if (payment && typeof payment === 'object') {
+                                      const paymentObj = payment as Record<string, unknown>;
+                                      if (typeof paymentObj.amount === 'number') {
+                                        amount = paymentObj.amount;
+                                      } else if (typeof paymentObj.amount === 'string') {
+                                        amount = parseFloat(paymentObj.amount);
+                                      } else if (paymentObj.transaction_amount && typeof paymentObj.transaction_amount === 'number') {
+                                        amount = paymentObj.transaction_amount;
+                                      }
+                                    }
+                                    
+                                    if (amount === null && user.premiumPlanType) {
+                                      const planPrices: Record<string, number> = {
+                                        monthly: 30000,
+                                        quarterly: 75000,
+                                        annual: 250000,
+                                      };
+                                      amount = planPrices[user.premiumPlanType] || null;
+                                    }
+                                    
+                                    return amount !== null && !isNaN(amount) && amount > 0 ? (
+                                      <p className="text-white/80">
+                                        <span className="font-medium">Último pago:</span>{" "}
+                                        ${amount.toLocaleString('es-AR')} ARS
+                                        {!payment && user.premiumPlanType && (
+                                          <span className="text-white/50 text-[10px] ml-1">(estimado)</span>
+                                        )}
+                                      </p>
+                                    ) : null;
+                                  })()}
+                                  {user.premiumPlanType && (
+                                    <p className="text-white/60 text-[10px] mt-1 pt-1 border-t border-white/10">
+                                      Plan: {user.premiumPlanType === "monthly" ? "Mensual" : user.premiumPlanType === "quarterly" ? "Trimestral" : "Anual"}
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="absolute left-1/2 top-full -translate-x-1/2 -mt-1">
+                                  <div className="h-2 w-2 rotate-45 border-r border-b border-white/20 bg-black/95"></div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="px-2 py-1 text-xs rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/30">
+                            Regular
+                          </span>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-white/60 text-xs mb-0.5">Creado</p>
+                        <p className="text-white font-medium text-xs">{formatDate(user.createdAt)}</p>
+                      </div>
+                    </div>
+
+                    {/* Botones de acción */}
+                    <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-white/10">
+                      <button
+                        onClick={() => handleEdit(user)}
+                        className="flex-1 px-3 py-2 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30 transition-colors text-sm font-medium"
+                      >
+                        Editar
+                      </button>
+                      {user.email?.toLowerCase() !== "admin@fitplan-ai.com" && (
+                        <button
+                          onClick={async () => {
+                            setSelectedUserForHistory(user);
+                            setHistoryModalOpen(true);
+                            setLoadingHistory(true);
+                            try {
+                              const response = await fetch(`/api/admin/userHistory?userId=${user.id}&adminUserId=${authUser?.uid}`);
+                              if (!response.ok) throw new Error("Error al cargar historial");
+                              const data = await response.json();
+                              setUserHistory(data);
+                            } catch (error) {
+                              console.error("Error al cargar historial:", error);
+                              setUserHistory(null);
+                            } finally {
+                              setLoadingHistory(false);
+                            }
+                          }}
+                          className="flex-1 px-3 py-2 rounded-lg bg-green-500/20 hover:bg-green-500/30 text-green-400 border border-green-500/30 transition-colors text-sm font-medium"
+                        >
+                          Historial
+                        </button>
+                      )}
+                    </div>
+                  </motion.div>
+                );
+              })
+            )}
           </div>
         </div>
 
