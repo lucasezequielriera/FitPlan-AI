@@ -84,11 +84,13 @@ export default function Admin() {
   // Estadísticas de ganancias
   const [revenueStats, setRevenueStats] = useState({
     estimatedMonthly: 0,
+    actualMonthly: 0, // Ganancias reales del mes actual
     premiumActiveThisMonth: 0,
     pendingPayments: 0,
     estimatedAnnual: 0,
     renewingSoon: 0,
     totalPremiumUsers: 0,
+    totalRevenueFromPayments: 0, // Suma real de todos los pagos de usuarios premium
   });
 
   // Función para convertir timestamp a Date
@@ -199,12 +201,85 @@ export default function Admin() {
     };
   };
 
-  // Función para calcular estadísticas de ganancias
-  const calculateRevenueStats = () => {
-    const PRICE_PER_MONTH = 25000; // ARS
+  // Función para obtener ganancias mensuales reales desde Firestore
+  const fetchMonthlyEarnings = async () => {
+    if (!authUser?.uid) return 0;
+    
+    try {
+      const now = new Date();
+      const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
+      const currentYear = now.getFullYear();
+      const monthId = `${currentYear}-${currentMonth}`;
+      
+      const response = await fetch(`/api/admin/monthlyEarnings?monthId=${monthId}&adminUserId=${authUser.uid}`);
+      if (!response.ok) {
+        console.warn("No se pudieron obtener las ganancias mensuales");
+        return 0;
+      }
+      const data = await response.json();
+      return data.totalEarnings || 0;
+    } catch (error) {
+      console.error("Error al obtener ganancias mensuales:", error);
+      return 0;
+    }
+  };
+
+  // Función para calcular estadísticas de ganancias basadas en datos reales
+  const calculateRevenueStats = async () => {
+    const PLAN_PRICES = {
+      monthly: 30000,
+      quarterly: 75000,
+      annual: 250000,
+    };
+    
     const premiumUsersList = users.filter(u => u.premium && u.email?.toLowerCase() !== "admin@fitplan-ai.com");
     
-    // Usuarios que pagaron este mes
+    // Calcular ganancias reales basadas en pagos de usuarios
+    let totalRevenueFromPayments = 0;
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    
+    premiumUsersList.forEach(user => {
+      // Intentar obtener el monto del pago real
+      let paymentAmount = 0;
+      
+      if (user.premiumPayment && typeof user.premiumPayment === 'object') {
+        const payment = user.premiumPayment as Record<string, unknown>;
+        if (typeof payment.amount === 'number') {
+          paymentAmount = payment.amount;
+        } else if (typeof payment.amount === 'string') {
+          paymentAmount = parseFloat(payment.amount);
+        } else if (typeof payment.transaction_amount === 'number') {
+          paymentAmount = payment.transaction_amount;
+        }
+      }
+      
+      // Si no hay monto de pago, estimar basado en el tipo de plan
+      if (paymentAmount === 0 && user.premiumPlanType) {
+        paymentAmount = PLAN_PRICES[user.premiumPlanType as keyof typeof PLAN_PRICES] || 30000;
+      }
+      
+      // Verificar si el pago fue este mes
+      const lastPayISO = convertTimestampToISO(user.premiumLastPay);
+      if (lastPayISO) {
+        const lastPayDate = new Date(lastPayISO);
+        if (!isNaN(lastPayDate.getTime())) {
+          const paymentMonth = lastPayDate.getMonth();
+          const paymentYear = lastPayDate.getFullYear();
+          
+          // Si el pago fue este mes, sumarlo a las ganancias reales
+          if (paymentMonth === currentMonth && paymentYear === currentYear) {
+            totalRevenueFromPayments += paymentAmount;
+          }
+        }
+      }
+    });
+    
+    // Obtener ganancias mensuales reales desde Firestore
+    const actualMonthly = await fetchMonthlyEarnings();
+    
+    // Usuarios que pagaron este mes (con plan activo)
     const paidThisMonth = premiumUsersList.filter(user => {
       const status = getPaymentStatus(user);
       return status.status === "paid" || status.status === "expiring";
@@ -214,30 +289,68 @@ export default function Admin() {
     // Usuarios premium que no han pagado este mes
     const pendingPayments = premiumUsersList.length - premiumActiveThisMonth;
     
-    const estimatedMonthly = premiumActiveThisMonth * PRICE_PER_MONTH;
+    // Calcular proyección mensual basada en tipos de plan reales
+    let estimatedMonthly = 0;
+    premiumUsersList.forEach(user => {
+      const status = getPaymentStatus(user);
+      if (status.status === "paid" || status.status === "expiring") {
+        // Calcular el valor mensual equivalente según el tipo de plan
+        if (user.premiumPlanType === "monthly") {
+          estimatedMonthly += PLAN_PRICES.monthly;
+        } else if (user.premiumPlanType === "quarterly") {
+          estimatedMonthly += PLAN_PRICES.quarterly / 3; // Dividir por 3 meses
+        } else if (user.premiumPlanType === "annual") {
+          estimatedMonthly += PLAN_PRICES.annual / 12; // Dividir por 12 meses
+        } else {
+          // Fallback a precio mensual estándar
+          estimatedMonthly += PLAN_PRICES.monthly;
+        }
+      }
+    });
+    
     const estimatedAnnual = estimatedMonthly * 12;
     
     // Usuarios premium cuya renovación ocurrirá en los próximos 7 días
     const renewingSoon = premiumUsersList.filter(user => {
       const status = getPaymentStatus(user);
       if (status.status !== "paid") return false;
+      
+      if (status.expiresAt) {
+        const daysUntilExpiry = status.daysUntilExpiry || 0;
+        return daysUntilExpiry > 0 && daysUntilExpiry <= 7;
+      }
+      
+      // Fallback al método anterior si no hay expiresAt
       const lastPayISO = convertTimestampToISO(user.premiumLastPay);
       if (!lastPayISO) return false;
       const lastPayDate = new Date(lastPayISO);
       if (isNaN(lastPayDate.getTime())) return false;
-      const now = new Date();
       const diffDays = (now.getTime() - lastPayDate.getTime()) / (1000 * 60 * 60 * 24);
-      const daysUntilRenewal = 30 - diffDays;
+      
+      // Calcular días hasta renovación según tipo de plan
+      let daysUntilRenewal = 0;
+      if (user.premiumPlanType === "monthly") {
+        daysUntilRenewal = 30 - diffDays;
+      } else if (user.premiumPlanType === "quarterly") {
+        daysUntilRenewal = 90 - diffDays;
+      } else if (user.premiumPlanType === "annual") {
+        daysUntilRenewal = 365 - diffDays;
+      } else {
+        daysUntilRenewal = 30 - diffDays; // Fallback
+      }
+      
       return daysUntilRenewal > 0 && daysUntilRenewal <= 7;
     }).length;
     
     setRevenueStats({
-      estimatedMonthly,
+      estimatedMonthly: Math.round(estimatedMonthly),
+      actualMonthly: actualMonthly || totalRevenueFromPayments, // Usar ganancias reales de Firestore o calculadas
       premiumActiveThisMonth,
       pendingPayments,
-      estimatedAnnual,
+      estimatedAnnual: Math.round(estimatedAnnual),
       renewingSoon,
       totalPremiumUsers: premiumUsersList.length,
+      totalRevenueFromPayments: Math.round(totalRevenueFromPayments),
     });
   };
 
@@ -284,11 +397,11 @@ export default function Admin() {
   };
 
   useEffect(() => {
-    if (users.length > 0) {
+    if (users.length > 0 && authUser?.uid) {
       calculateRevenueStats();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [users]);
+  }, [users, authUser]);
 
   // Verificar si el usuario es administrador
   useEffect(() => {
@@ -950,15 +1063,22 @@ export default function Admin() {
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
+                <p className="text-white/60 text-xs mb-1">Ganancia Mensual Real</p>
+                <p className="text-2xl font-bold text-green-400">
+                  ${revenueStats.actualMonthly.toLocaleString('es-AR')}
+                </p>
+                <p className="text-white/40 text-xs mt-1">ARS (confirmado)</p>
+              </div>
+              <div>
                 <p className="text-white/60 text-xs mb-1">Ganancia Mensual Estimada</p>
                 <p className="text-2xl font-bold text-yellow-400">
                   ${revenueStats.estimatedMonthly.toLocaleString('es-AR')}
                 </p>
-                <p className="text-white/40 text-xs mt-1">ARS</p>
+                <p className="text-white/40 text-xs mt-1">ARS (proyección)</p>
               </div>
               <div>
                 <p className="text-white/60 text-xs mb-1">Premium Activos (Este Mes)</p>
-                <p className="text-2xl font-bold text-green-400">
+                <p className="text-2xl font-bold text-cyan-400">
                   {revenueStats.premiumActiveThisMonth}
                 </p>
                 <p className="text-white/40 text-xs mt-1">usuarios</p>
@@ -968,7 +1088,7 @@ export default function Admin() {
                 <p className="text-2xl font-bold text-orange-400">
                   {revenueStats.pendingPayments}
                 </p>
-                <p className="text-white/40 text-xs mt-1">${(revenueStats.pendingPayments * 25000).toLocaleString('es-AR')} ARS</p>
+                <p className="text-white/40 text-xs mt-1">usuarios</p>
               </div>
               <div>
                 <p className="text-white/60 text-xs mb-1">Renovando Pronto</p>
@@ -987,12 +1107,12 @@ export default function Admin() {
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-white/60 text-sm">Potencial Mensual</p>
-                  <p className="text-xl font-bold text-green-400">
-                    ${(revenueStats.totalPremiumUsers * 25000).toLocaleString('es-AR')} ARS
+                  <p className="text-white/60 text-sm">Total Premium</p>
+                  <p className="text-xl font-bold text-purple-400">
+                    {revenueStats.totalPremiumUsers}
                   </p>
                   <p className="text-white/40 text-xs mt-1">
-                    Si todos los premium pagaran este mes
+                    usuarios premium registrados
                   </p>
                 </div>
               </div>
