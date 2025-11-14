@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { motion } from "framer-motion";
 import { useAuthStore } from "@/store/authStore";
 import { getDbSafe, getAuthSafe } from "@/lib/firebase";
 import Navbar from "@/components/Navbar";
+import { FaArrowUp, FaArrowDown, FaCheck } from "react-icons/fa";
 
 interface User {
   id: string;
@@ -43,6 +44,45 @@ export default function Admin() {
   const [saving, setSaving] = useState(false);
   const [tooltipOpenUserId, setTooltipOpenUserId] = useState<string | null>(null);
   const [locationTooltipOpenUserId, setLocationTooltipOpenUserId] = useState<string | null>(null);
+  const [paymentHistoryModalOpen, setPaymentHistoryModalOpen] = useState(false);
+  const [selectedUserForPaymentHistory, setSelectedUserForPaymentHistory] = useState<User | null>(null);
+  const [paymentHistory, setPaymentHistory] = useState<Array<{
+    id?: string;
+    paymentId?: string | number;
+    amount: number;
+    currency: string;
+    date: Date | string;
+    method?: string;
+    status?: string;
+    planType: string;
+    expiresAt?: Date | string;
+    paymentMethod?: string;
+    isManual?: boolean;
+    notes?: string;
+  }>>([]);
+  const [loadingPaymentHistory, setLoadingPaymentHistory] = useState(false);
+  const [editingPaymentIndex, setEditingPaymentIndex] = useState<number | null>(null);
+  const [editingPayment, setEditingPayment] = useState<{
+    amount: number;
+    date: string;
+    planType: string;
+    expiresAt: string;
+  } | null>(null);
+  const [showAddPaymentForm, setShowAddPaymentForm] = useState(false);
+  const [newPayment, setNewPayment] = useState<{
+    amount: string;
+    planType: string;
+    date: string;
+    paymentMethod: string;
+    notes: string;
+  }>({
+    amount: "",
+    planType: "monthly",
+    date: new Date().toISOString().split('T')[0],
+    paymentMethod: "transferencia",
+    notes: "",
+  });
+  const [savingPayment, setSavingPayment] = useState(false);
   
   // Cerrar tooltips al hacer click fuera (solo en mobile)
   useEffect(() => {
@@ -211,6 +251,41 @@ export default function Admin() {
   };
 
   // Función para obtener el emoji de la bandera del país
+  const getIMCStatus = (peso: number | null, alturaCm: number | null): { status: "bajo" | "saludable" | "excedido"; icon: React.ReactElement; color: string } => {
+    if (!peso || !alturaCm || alturaCm === 0) {
+      return {
+        status: "saludable",
+        icon: <FaCheck className="text-gray-400" />,
+        color: "text-gray-400"
+      };
+    }
+
+    // Calcular IMC: peso (kg) / (altura (m))^2
+    const alturaM = alturaCm / 100;
+    const imc = peso / (alturaM * alturaM);
+
+    // Clasificación IMC según OMS
+    if (imc < 18.5) {
+      return {
+        status: "bajo",
+        icon: <FaArrowDown className="text-blue-400" />,
+        color: "text-blue-400"
+      };
+    } else if (imc >= 18.5 && imc < 25) {
+      return {
+        status: "saludable",
+        icon: <FaCheck className="text-green-400" />,
+        color: "text-green-400"
+      };
+    } else {
+      return {
+        status: "excedido",
+        icon: <FaArrowUp className="text-red-400" />,
+        color: "text-red-400"
+      };
+    }
+  };
+
   const getCountryFlag = (countryName: string | null | undefined): string => {
     if (!countryName) return "🌍";
     
@@ -816,6 +891,8 @@ export default function Admin() {
       cuelloCm: user.cuelloCm ?? null,
       caderaCm: user.caderaCm ?? null,
       atletico: user.atletico,
+      ciudad: user.ciudad || "",
+      pais: user.pais || "",
     });
   };
 
@@ -913,6 +990,8 @@ export default function Admin() {
       if (editForm.cuelloCm !== undefined) updateData.cuelloCm = editForm.cuelloCm ? Number(editForm.cuelloCm) : null;
       if (editForm.caderaCm !== undefined) updateData.caderaCm = editForm.caderaCm ? Number(editForm.caderaCm) : null;
       if (editForm.atletico !== undefined) updateData.atletico = Boolean(editForm.atletico);
+      if (editForm.ciudad !== undefined) updateData.ciudad = editForm.ciudad || null;
+      if (editForm.pais !== undefined) updateData.pais = editForm.pais || null;
 
       console.log("💾 Enviando cambios al API...");
       
@@ -1301,6 +1380,7 @@ export default function Admin() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Estado de Pago</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Edad</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Peso</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Estado</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Creado</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Acciones</th>
                 </tr>
@@ -1308,7 +1388,7 @@ export default function Admin() {
               <tbody className="divide-y divide-white/10">
                 {users.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-12 text-center">
+                    <td colSpan={9} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center gap-3">
                         <p className="text-white/60 text-sm">
                           La carga de usuarios está deshabilitada temporalmente
@@ -1320,7 +1400,7 @@ export default function Admin() {
                     </td>
                   </tr>
                 ) : (
-                  users.map((user, index) => {
+                  users.filter(user => user.email?.toLowerCase() !== "admin@fitplan-ai.com").map((user, index) => {
                     const paymentStatus = getPaymentStatus(user);
                     const isNewUser = newUserIds.includes(user.id);
                     return (
@@ -1422,14 +1502,25 @@ export default function Admin() {
                         ) : user.premium ? (
                           <div className="relative">
                             <span 
-                              onClick={() => {
-                                if (tooltipOpenUserId === user.id) {
-                                  setTooltipOpenUserId(null);
-                                } else {
-                                  setTooltipOpenUserId(user.id);
+                              onClick={async () => {
+                                setSelectedUserForPaymentHistory(user);
+                                setPaymentHistoryModalOpen(true);
+                                setLoadingPaymentHistory(true);
+                                try {
+                                  const auth = getAuthSafe();
+                                  if (!auth?.currentUser) return;
+                                  const response = await fetch(`/api/admin/payments?userId=${user.id}&adminUserId=${auth.currentUser.uid}`);
+                                  if (!response.ok) throw new Error("Error al cargar historial");
+                                  const data = await response.json();
+                                  setPaymentHistory(data.payments || []);
+                                } catch (error) {
+                                  console.error("Error al cargar historial de pagos:", error);
+                                  setPaymentHistory([]);
+                                } finally {
+                                  setLoadingPaymentHistory(false);
                                 }
                               }}
-                              className={`px-2 py-1 text-xs rounded-full border cursor-pointer touch-manipulation ${
+                              className={`px-2 py-1 text-xs rounded-full border cursor-pointer touch-manipulation hover:opacity-80 transition-opacity ${
                                 paymentStatus.status === "paid" 
                                   ? "bg-green-500/20 text-green-400 border-green-500/30"
                                   : paymentStatus.status === "expiring"
@@ -1539,6 +1630,11 @@ export default function Admin() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-white/80">
                         {user.peso ? `${user.peso} kg` : "N/A"}
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <div className="flex items-center justify-center">
+                          {getIMCStatus(user.peso, user.alturaCm).icon}
+                        </div>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-white/60">{formatDate(user.createdAt)}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <div className="flex items-center gap-2">
@@ -1595,7 +1691,7 @@ export default function Admin() {
                 </div>
               </div>
             ) : (
-              users.map((user, index) => {
+              users.filter(user => user.email?.toLowerCase() !== "admin@fitplan-ai.com").map((user, index) => {
                 const paymentStatus = getPaymentStatus(user);
                 const isNewUser = newUserIds.includes(user.id);
                 return (
@@ -1704,6 +1800,12 @@ export default function Admin() {
                         <p className="text-white font-medium">{user.peso ? `${user.peso} kg` : "N/A"}</p>
                       </div>
                       <div>
+                        <p className="text-white/60 text-xs mb-0.5">Estado</p>
+                        <div className="flex items-center">
+                          {getIMCStatus(user.peso, user.alturaCm).icon}
+                        </div>
+                      </div>
+                      <div>
                         <p className="text-white/60 text-xs mb-0.5">Estado de Pago</p>
                         {user.email?.toLowerCase() === "admin@fitplan-ai.com" ? (
                           <span className="px-2 py-1 text-xs rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/30">
@@ -1712,14 +1814,25 @@ export default function Admin() {
                         ) : user.premium ? (
                           <div className="relative inline-block">
                             <span 
-                              onClick={() => {
-                                if (tooltipOpenUserId === user.id) {
-                                  setTooltipOpenUserId(null);
-                                } else {
-                                  setTooltipOpenUserId(user.id);
+                              onClick={async () => {
+                                setSelectedUserForPaymentHistory(user);
+                                setPaymentHistoryModalOpen(true);
+                                setLoadingPaymentHistory(true);
+                                try {
+                                  const auth = getAuthSafe();
+                                  if (!auth?.currentUser) return;
+                                  const response = await fetch(`/api/admin/payments?userId=${user.id}&adminUserId=${auth.currentUser.uid}`);
+                                  if (!response.ok) throw new Error("Error al cargar historial");
+                                  const data = await response.json();
+                                  setPaymentHistory(data.payments || []);
+                                } catch (error) {
+                                  console.error("Error al cargar historial de pagos:", error);
+                                  setPaymentHistory([]);
+                                } finally {
+                                  setLoadingPaymentHistory(false);
                                 }
                               }}
-                              className={`px-2 py-1 text-xs rounded-full border cursor-pointer touch-manipulation ${
+                              className={`px-2 py-1 text-xs rounded-full border cursor-pointer touch-manipulation hover:opacity-80 transition-opacity ${
                                 paymentStatus.status === "paid" 
                                   ? "bg-green-500/20 text-green-400 border-green-500/30"
                                   : paymentStatus.status === "expiring"
@@ -2025,6 +2138,28 @@ export default function Admin() {
                     value={editForm.caderaCm ?? ""}
                     onChange={(e) => setEditForm({ ...editForm, caderaCm: e.target.value ? Number(e.target.value) : null })}
                     className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-white/60 mb-2">Ciudad</label>
+                  <input
+                    type="text"
+                    value={editForm.ciudad || ""}
+                    onChange={(e) => setEditForm({ ...editForm, ciudad: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Ej: Buenos Aires"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-white/60 mb-2">País</label>
+                  <input
+                    type="text"
+                    value={editForm.pais || ""}
+                    onChange={(e) => setEditForm({ ...editForm, pais: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Ej: Argentina"
                   />
                 </div>
               </div>
@@ -2454,6 +2589,392 @@ export default function Admin() {
               ) : (
                 <div className="p-6 rounded-lg bg-red-500/10 border border-red-500/30 text-center">
                   <p className="text-red-400">Error al cargar el historial</p>
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+
+        {/* Modal de Historial de Pagos */}
+        {paymentHistoryModalOpen && selectedUserForPaymentHistory && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-white">
+                    Historial de Pagos: {selectedUserForPaymentHistory.nombre || selectedUserForPaymentHistory.email}
+                  </h2>
+                  <p className="text-white/60 text-sm mt-1">{selectedUserForPaymentHistory.email}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      setShowAddPaymentForm(true);
+                      setNewPayment({
+                        amount: "",
+                        planType: "monthly",
+                        date: new Date().toISOString().split('T')[0],
+                        paymentMethod: "transferencia",
+                        notes: "",
+                      });
+                    }}
+                    className="px-4 py-2 rounded-lg bg-green-500/20 hover:bg-green-500/30 text-green-400 border border-green-500/30 transition-colors text-sm"
+                  >
+                    + Agregar Pago
+                  </button>
+                  <button
+                    onClick={() => {
+                      setPaymentHistoryModalOpen(false);
+                      setSelectedUserForPaymentHistory(null);
+                      setPaymentHistory([]);
+                      setEditingPaymentIndex(null);
+                      setEditingPayment(null);
+                      setShowAddPaymentForm(false);
+                    }}
+                    className="text-white/70 hover:text-white transition-colors"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-6 w-6">
+                      <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              {/* Formulario para agregar pago manual */}
+              {showAddPaymentForm && (
+                <div className="mb-6 p-4 rounded-lg bg-white/5 border border-white/10">
+                  <h3 className="text-lg font-semibold text-white mb-4">Agregar Pago Manual</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-white/60 mb-2">Monto (ARS)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={newPayment.amount}
+                        onChange={(e) => setNewPayment({ ...newPayment, amount: e.target.value })}
+                        className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="30000"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-white/60 mb-2">Tipo de Plan</label>
+                      <select
+                        value={newPayment.planType}
+                        onChange={(e) => setNewPayment({ ...newPayment, planType: e.target.value })}
+                        className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="monthly">Mensual</option>
+                        <option value="quarterly">Trimestral</option>
+                        <option value="annual">Anual</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-white/60 mb-2">Fecha de Pago</label>
+                      <input
+                        type="date"
+                        value={newPayment.date}
+                        onChange={(e) => setNewPayment({ ...newPayment, date: e.target.value })}
+                        className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-white/60 mb-2">Método de Pago</label>
+                      <select
+                        value={newPayment.paymentMethod}
+                        onChange={(e) => setNewPayment({ ...newPayment, paymentMethod: e.target.value })}
+                        className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="transferencia">Transferencia</option>
+                        <option value="efectivo">Efectivo</option>
+                        <option value="otro">Otro</option>
+                      </select>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-white/60 mb-2">Notas (opcional)</label>
+                      <input
+                        type="text"
+                        value={newPayment.notes}
+                        onChange={(e) => setNewPayment({ ...newPayment, notes: e.target.value })}
+                        className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Ej: Transferencia N° 12345, Comprobante adjunto"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2 mt-4">
+                    <button
+                      onClick={async () => {
+                        if (!newPayment.amount || !newPayment.planType || !newPayment.date || !newPayment.paymentMethod) {
+                          alert("Por favor completa todos los campos requeridos");
+                          return;
+                        }
+                        setSavingPayment(true);
+                        try {
+                          const auth = getAuthSafe();
+                          if (!auth?.currentUser) return;
+                          
+                          const response = await fetch("/api/admin/payments", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              adminUserId: auth.currentUser.uid,
+                              userId: selectedUserForPaymentHistory.id,
+                              amount: Number(newPayment.amount),
+                              planType: newPayment.planType,
+                              date: newPayment.date,
+                              paymentMethod: newPayment.paymentMethod,
+                              notes: newPayment.notes || null,
+                            }),
+                          });
+                          
+                          if (!response.ok) throw new Error("Error al crear pago");
+                          
+                          // Recargar historial
+                          const historyResponse = await fetch(`/api/admin/payments?userId=${selectedUserForPaymentHistory.id}&adminUserId=${auth.currentUser.uid}`);
+                          if (historyResponse.ok) {
+                            const data = await historyResponse.json();
+                            setPaymentHistory(data.payments || []);
+                          }
+                          
+                          setShowAddPaymentForm(false);
+                          setNewPayment({
+                            amount: "",
+                            planType: "monthly",
+                            date: new Date().toISOString().split('T')[0],
+                            paymentMethod: "transferencia",
+                            notes: "",
+                          });
+                        } catch (error) {
+                          console.error("Error al crear pago:", error);
+                          alert("Error al crear el pago");
+                        } finally {
+                          setSavingPayment(false);
+                        }
+                      }}
+                      disabled={savingPayment}
+                      className="px-4 py-2 rounded-lg bg-green-500/20 hover:bg-green-500/30 text-green-400 border border-green-500/30 transition-colors disabled:opacity-50"
+                    >
+                      {savingPayment ? "Guardando..." : "Guardar Pago"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowAddPaymentForm(false);
+                        setNewPayment({
+                          amount: "",
+                          planType: "monthly",
+                          date: new Date().toISOString().split('T')[0],
+                          paymentMethod: "transferencia",
+                          notes: "",
+                        });
+                      }}
+                      className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white border border-white/10 transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {loadingPaymentHistory ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400"></div>
+                </div>
+              ) : paymentHistory.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-white/60">No hay historial de pagos disponible</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {paymentHistory.map((payment, index) => {
+                    const isEditing = editingPaymentIndex === index;
+                    const paymentDate = payment.date instanceof Date ? payment.date : new Date(payment.date);
+                    const expiresDate = payment.expiresAt ? (payment.expiresAt instanceof Date ? payment.expiresAt : new Date(payment.expiresAt)) : null;
+                    
+                    return (
+                      <div key={index} className="p-4 rounded-lg bg-white/5 border border-white/10">
+                        {isEditing ? (
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-sm font-medium text-white/60 mb-2">Monto</label>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={editingPayment?.amount || payment.amount}
+                                  onChange={(e) => setEditingPayment({
+                                    ...editingPayment!,
+                                    amount: Number(e.target.value)
+                                  })}
+                                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-white/60 mb-2">Tipo de Plan</label>
+                                <select
+                                  value={editingPayment?.planType || payment.planType}
+                                  onChange={(e) => setEditingPayment({
+                                    ...editingPayment!,
+                                    planType: e.target.value
+                                  })}
+                                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                  <option value="monthly">Mensual</option>
+                                  <option value="quarterly">Trimestral</option>
+                                  <option value="annual">Anual</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-white/60 mb-2">Fecha de Pago</label>
+                                <input
+                                  type="date"
+                                  value={editingPayment?.date || paymentDate.toISOString().split('T')[0]}
+                                  onChange={(e) => setEditingPayment({
+                                    ...editingPayment!,
+                                    date: e.target.value
+                                  })}
+                                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-white/60 mb-2">Fecha de Vencimiento</label>
+                                <input
+                                  type="date"
+                                  value={editingPayment?.expiresAt || (expiresDate ? expiresDate.toISOString().split('T')[0] : '')}
+                                  onChange={(e) => setEditingPayment({
+                                    ...editingPayment!,
+                                    expiresAt: e.target.value
+                                  })}
+                                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={async () => {
+                                  if (!editingPayment) return;
+                                  try {
+                                    const auth = getAuthSafe();
+                                    if (!auth?.currentUser) return;
+                                    
+                                    // Nota: La edición de pagos existentes se puede implementar más adelante
+                                    // Por ahora, solo permitimos crear nuevos pagos manuales
+                                    alert("La edición de pagos existentes estará disponible próximamente. Puedes crear un nuevo pago manual para corregir información.");
+                                    setEditingPaymentIndex(null);
+                                    setEditingPayment(null);
+                                  } catch (error) {
+                                    console.error("Error al actualizar pago:", error);
+                                    alert("Error al actualizar el pago");
+                                  }
+                                }}
+                                className="px-4 py-2 rounded-lg bg-green-500/20 hover:bg-green-500/30 text-green-400 border border-green-500/30 transition-colors"
+                              >
+                                Guardar
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setEditingPaymentIndex(null);
+                                  setEditingPayment(null);
+                                }}
+                                className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white border border-white/10 transition-colors"
+                              >
+                                Cancelar
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1 grid grid-cols-2 md:grid-cols-6 gap-4 text-sm">
+                                <div>
+                                  <p className="text-white/60">Monto</p>
+                                  <p className="text-white font-medium">${payment.amount.toLocaleString('es-AR')} {payment.currency || 'ARS'}</p>
+                                </div>
+                                <div>
+                                  <p className="text-white/60">Plan</p>
+                                  <p className="text-white font-medium">
+                                    {payment.planType === "monthly" ? "Mensual" : payment.planType === "quarterly" ? "Trimestral" : "Anual"}
+                                  </p>
+                                </div>
+                                {payment.paymentMethod && (
+                                  <div>
+                                    <p className="text-white/60">Método</p>
+                                    <p className="text-white font-medium capitalize">
+                                      {payment.paymentMethod === "mercadopago" ? "MercadoPago" : payment.paymentMethod}
+                                      {payment.isManual && (
+                                        <span className="ml-2 text-xs text-blue-400">(Manual)</span>
+                                      )}
+                                    </p>
+                                  </div>
+                                )}
+                                <div>
+                                  <p className="text-white/60">Fecha de Pago</p>
+                                  <p className="text-white font-medium">
+                                    {paymentDate.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-white/60">Vencimiento</p>
+                                  <p className="text-white font-medium">
+                                    {expiresDate ? expiresDate.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'N/A'}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-white/60">Días restantes</p>
+                                  <p className={`font-medium ${
+                                    expiresDate 
+                                      ? (() => {
+                                          const now = new Date();
+                                          const diffTime = expiresDate.getTime() - now.getTime();
+                                          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                          if (diffDays < 0) return "text-red-400";
+                                          if (diffDays <= 7) return "text-yellow-400";
+                                          return "text-green-400";
+                                        })()
+                                      : "text-gray-400"
+                                  }`}>
+                                    {expiresDate 
+                                      ? (() => {
+                                          const now = new Date();
+                                          const diffTime = expiresDate.getTime() - now.getTime();
+                                          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                          if (diffDays < 0) return `${Math.abs(diffDays)} días vencido`;
+                                          return `${diffDays} día${diffDays !== 1 ? 's' : ''}`;
+                                        })()
+                                      : 'N/A'}
+                                  </p>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => {
+                                  setEditingPaymentIndex(index);
+                                  setEditingPayment({
+                                    amount: payment.amount,
+                                    date: paymentDate.toISOString().split('T')[0],
+                                    planType: payment.planType,
+                                    expiresAt: expiresDate ? expiresDate.toISOString().split('T')[0] : '',
+                                  });
+                                }}
+                                className="px-3 py-1.5 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30 transition-colors text-sm"
+                              >
+                                Editar
+                              </button>
+                            </div>
+                            <div className="flex items-center gap-4 text-xs text-white/40">
+                              {payment.paymentId && (
+                                <p>ID de Pago: {payment.paymentId}</p>
+                              )}
+                              {payment.notes && (
+                                <p>Notas: {payment.notes}</p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </motion.div>

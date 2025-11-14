@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getDbSafe } from "@/lib/firebase";
 import { collection, doc, updateDoc, serverTimestamp, getDoc, Timestamp } from "firebase/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
-import { FieldValue } from "firebase-admin/firestore";
+import { FieldValue, Timestamp as AdminTimestamp } from "firebase-admin/firestore";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -99,6 +99,41 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
 
         const wasPremium = userDoc.data()?.premium === true;
+        
+        // Usar Admin SDK para crear el pago en la colección pagos
+        const adminDb = getAdminDb();
+        
+        if (adminDb) {
+          // Crear el pago en la colección pagos
+          // Usar date_approved de MercadoPago o la fecha actual como fallback
+          const paymentDate = payment.date_approved ? new Date(payment.date_approved) : new Date();
+          
+          const paymentData = {
+            userId: userId,
+            amount: payment.transaction_amount,
+            currency: payment.currency_id || "ARS",
+            date: AdminTimestamp.fromDate(paymentDate),
+            planType: planType || "monthly",
+            expiresAt: AdminTimestamp.fromDate(expiresAt),
+            status: "approved",
+            paymentId: String(paymentId),
+            mercadopagoPaymentId: String(paymentId),
+            paymentMethod: "mercadopago",
+            isManual: false,
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          };
+          
+          try {
+            await adminDb.collection("pagos").add(paymentData);
+            console.log(`✅ Pago guardado en colección pagos. ID: ${paymentId}, Usuario: ${userId}, Monto: ${payment.transaction_amount} ${payment.currency_id || "ARS"}`);
+          } catch (paymentError) {
+            console.error(`❌ Error al guardar pago en colección pagos:`, paymentError);
+            // Continuar con la actualización del usuario aunque falle el guardado en pagos
+          }
+        } else {
+          console.warn("⚠️ Admin SDK no disponible, el pago no se guardará en la colección pagos");
+        }
         
         // Crear registro de pago premium bien estructurado
         const premiumData: {

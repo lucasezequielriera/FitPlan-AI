@@ -69,16 +69,82 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return timestamp;
     };
 
+    // Obtener todos los pagos de una vez para optimizar
+    const paymentsSnapshot = await db.collection("pagos").get();
+    const paymentsByUserId = new Map<string, Array<{
+      id: string;
+      amount: number;
+      currency: string;
+      date: unknown;
+      planType: string;
+      expiresAt: unknown;
+      status: string;
+      paymentMethod: string;
+      isManual: boolean;
+    }>>();
+    
+    paymentsSnapshot.docs.forEach((doc) => {
+      const paymentData = doc.data();
+      const userId = paymentData.userId;
+      if (userId) {
+        if (!paymentsByUserId.has(userId)) {
+          paymentsByUserId.set(userId, []);
+        }
+        paymentsByUserId.get(userId)!.push({
+          id: doc.id,
+          amount: paymentData.amount || 0,
+          currency: paymentData.currency || "ARS",
+          date: paymentData.date,
+          planType: paymentData.planType || "monthly",
+          expiresAt: paymentData.expiresAt,
+          status: paymentData.status || "approved",
+          paymentMethod: paymentData.paymentMethod || "mercadopago",
+          isManual: paymentData.isManual || false,
+        });
+      }
+    });
+    
+    // Ordenar pagos por fecha (más reciente primero) para cada usuario
+    paymentsByUserId.forEach((payments) => {
+      payments.sort((a, b) => {
+        const dateA = convertTimestamp(a.date);
+        const dateB = convertTimestamp(b.date);
+        const timeA = dateA instanceof Date ? dateA.getTime() : (typeof dateA === 'string' ? new Date(dateA).getTime() : 0);
+        const timeB = dateB instanceof Date ? dateB.getTime() : (typeof dateB === 'string' ? new Date(dateB).getTime() : 0);
+        return timeB - timeA;
+      });
+    });
+
     const users = usersSnapshot.docs.map((docSnapshot) => {
       const data = docSnapshot.data();
+      const userId = docSnapshot.id;
+      
+      // Obtener el último pago desde la colección pagos
+      const userPayments = paymentsByUserId.get(userId) || [];
+      const lastPayment = userPayments.length > 0 ? userPayments[0] : null;
+      
+      // Si hay un último pago, usar esos datos; si no, usar los datos del usuario como fallback
+      const premiumLastPay = lastPayment ? convertTimestamp(lastPayment.date) : convertTimestamp(data.premiumLastPay);
+      const premiumExpiresAt = lastPayment ? convertTimestamp(lastPayment.expiresAt) : convertTimestamp(data.premiumExpiresAt);
+      const premiumPlanType = lastPayment ? lastPayment.planType : (data.premiumPlanType || null);
+      const premiumPayment = lastPayment ? {
+        paymentId: lastPayment.id,
+        amount: lastPayment.amount,
+        currency: lastPayment.currency,
+        date: premiumLastPay,
+        method: lastPayment.paymentMethod,
+        status: lastPayment.status,
+        planType: lastPayment.planType,
+      } : (data.premiumPayment || null);
+      
       return {
-        id: docSnapshot.id,
+        id: userId,
         email: data.email || null,
         nombre: data.nombre || null,
         premium: data.premium === true,
         premiumStatus: data.premiumStatus || null,
         premiumSince: convertTimestamp(data.premiumSince),
-        premiumLastPay: convertTimestamp(data.premiumLastPay),
+        premiumLastPay,
         createdAt: convertTimestamp(data.createdAt),
         updatedAt: convertTimestamp(data.updatedAt),
         sexo: data.sexo || null,
@@ -90,9 +156,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         cuelloCm: data.cuelloCm || null,
         caderaCm: data.caderaCm || null,
         atletico: data.atletico || false,
-        premiumPayment: data.premiumPayment || null,
-        premiumExpiresAt: convertTimestamp(data.premiumExpiresAt),
-        premiumPlanType: data.premiumPlanType || null,
+        premiumPayment,
+        premiumExpiresAt,
+        premiumPlanType,
         ciudad: data.ciudad || null,
         pais: data.pais || null,
       };

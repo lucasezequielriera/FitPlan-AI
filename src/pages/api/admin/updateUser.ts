@@ -90,6 +90,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (dataToUpdate.cuelloCm !== undefined) updateFields.cuelloCm = dataToUpdate.cuelloCm ? Number(dataToUpdate.cuelloCm) : null;
     if (dataToUpdate.caderaCm !== undefined) updateFields.caderaCm = dataToUpdate.caderaCm ? Number(dataToUpdate.caderaCm) : null;
     if (dataToUpdate.atletico !== undefined) updateFields.atletico = Boolean(dataToUpdate.atletico);
+    if (dataToUpdate.ciudad !== undefined) updateFields.ciudad = dataToUpdate.ciudad || null;
+    if (dataToUpdate.pais !== undefined) updateFields.pais = dataToUpdate.pais || null;
 
     await userRef.update(updateFields);
 
