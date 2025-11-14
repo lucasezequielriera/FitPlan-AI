@@ -126,9 +126,9 @@ export default function CreatePlan() {
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<UserInput>({
     nombre: "",
-    edad: 25,
-    pesoKg: 70,
-    alturaCm: 175,
+    edad: 0,
+    pesoKg: 0,
+    alturaCm: 0,
     sexo: "masculino",
     actividad: 3, // días de actividad física por semana (0-7)
     objetivo: "mantener",
@@ -148,6 +148,40 @@ export default function CreatePlan() {
   const [isPremium, setIsPremium] = useState(false);
   const [canCreatePlan, setCanCreatePlan] = useState(true);
   const [planLimitMessage, setPlanLimitMessage] = useState<string | null>(null);
+  const [nombreError, setNombreError] = useState<string | null>(null);
+  const [edadError, setEdadError] = useState<string | null>(null);
+  const [alturaError, setAlturaError] = useState<string | null>(null);
+  const [pesoError, setPesoError] = useState<string | null>(null);
+  // Estados locales para inputs numéricos (permiten estar vacíos)
+  const [edadInput, setEdadInput] = useState<string>("");
+  const [alturaInput, setAlturaInput] = useState<string>("");
+  const [pesoInput, setPesoInput] = useState<string>("");
+  // Valores originales para restaurar si el usuario borra el campo
+  const [edadOriginal, setEdadOriginal] = useState<number>(0);
+  const [alturaOriginal, setAlturaOriginal] = useState<number>(0);
+  const [pesoOriginal, setPesoOriginal] = useState<number>(0);
+  const [userLocation, setUserLocation] = useState<{ ciudad: string | null; pais: string | null }>({ ciudad: null, pais: null });
+
+  // Obtener ubicación del usuario al cargar el componente
+  useEffect(() => {
+    const fetchUserLocation = async () => {
+      try {
+        const response = await fetch("/api/getUserLocation");
+        if (response.ok) {
+          const data = await response.json();
+          setUserLocation({
+            ciudad: data.ciudad || null,
+            pais: data.pais || null,
+          });
+        }
+      } catch (error) {
+        console.error("Error al obtener ubicación:", error);
+        // No bloquear el flujo si falla
+      }
+    };
+
+    fetchUserLocation();
+  }, []);
 
   // Cargar datos del usuario desde Firestore al montar el componente
   useEffect(() => {
@@ -165,25 +199,51 @@ export default function CreatePlan() {
         let userPremium = false;
         if (userDoc.exists()) {
           const userData = userDoc.data();
-          setForm((prev) => ({
-            ...prev,
-            nombre: userData.nombre || prev.nombre,
-            edad: userData.edad || prev.edad,
-            alturaCm: userData.alturaCm || prev.alturaCm,
-            sexo: userData.sexo || prev.sexo,
-            // Pre-cargar peso del perfil si existe
-            pesoKg: (typeof userData.peso === 'number' && userData.peso > 0) ? userData.peso : prev.pesoKg,
-            cinturaCm: userData.cinturaCm ?? prev.cinturaCm,
-            cuelloCm: userData.cuelloCm ?? prev.cuelloCm,
-            caderaCm: userData.caderaCm ?? prev.caderaCm,
-            atletico: userData.atletico ?? prev.atletico,
-            preferirRutina: userData.preferirRutina ?? prev.preferirRutina,
-            doloresLesiones: Array.isArray(userData.doloresLesiones) ? userData.doloresLesiones : prev.doloresLesiones,
-          }));
+          
+          setForm((prev) => {
+            const edadValue = userData.edad || prev.edad;
+            const alturaValue = userData.alturaCm || prev.alturaCm;
+            const pesoValue = (typeof userData.peso === 'number' && userData.peso > 0) ? userData.peso : prev.pesoKg;
+            
+            // Guardar valores originales para restaurar si el usuario borra el campo
+            setEdadOriginal(edadValue);
+            setAlturaOriginal(alturaValue);
+            setPesoOriginal(pesoValue);
+            
+            // Inicializar estados locales de inputs
+            setEdadInput(edadValue ? String(edadValue) : "");
+            setAlturaInput(alturaValue ? String(alturaValue) : "");
+            setPesoInput(pesoValue ? String(pesoValue) : "");
+            
+            return {
+              ...prev,
+              nombre: userData.nombre || prev.nombre,
+              edad: edadValue,
+              alturaCm: alturaValue,
+              sexo: userData.sexo || prev.sexo,
+              // Pre-cargar peso del perfil si existe
+              pesoKg: pesoValue,
+              cinturaCm: userData.cinturaCm ?? prev.cinturaCm,
+              cuelloCm: userData.cuelloCm ?? prev.cuelloCm,
+              caderaCm: userData.caderaCm ?? prev.caderaCm,
+              atletico: userData.atletico ?? prev.atletico,
+              preferirRutina: userData.preferirRutina ?? prev.preferirRutina,
+              doloresLesiones: Array.isArray(userData.doloresLesiones) ? userData.doloresLesiones : prev.doloresLesiones,
+            };
+          });
           
           // Verificar estado premium
           userPremium = userData.premium === true;
           setIsPremium(userPremium);
+        } else {
+          // Si no existe el documento, inicializar estados locales vacíos
+          setEdadOriginal(0);
+          setAlturaOriginal(0);
+          setPesoOriginal(0);
+          
+          setEdadInput("");
+          setAlturaInput("");
+          setPesoInput("");
         }
 
         // Verificar cantidad de planes existentes
@@ -504,6 +564,21 @@ export default function CreatePlan() {
             }
             userData.doloresLesiones = Array.isArray(formFinal.doloresLesiones) ? formFinal.doloresLesiones : [];
             
+            // Agregar ubicación del usuario (ciudad y país) solo si no existen ya
+            // Esto mantiene el país de origen donde creó su primer plan
+            if (userLocation.ciudad) {
+              // Solo guardar ciudad si no existe ya en el perfil
+              if (!userDoc.exists() || !userDoc.data()?.ciudad) {
+                userData.ciudad = userLocation.ciudad;
+              }
+            }
+            if (userLocation.pais) {
+              // Solo guardar país si no existe ya en el perfil
+              if (!userDoc.exists() || !userDoc.data()?.pais) {
+                userData.pais = userLocation.pais;
+              }
+            }
+            
             // Limpiar campos undefined antes de guardar
             const cleanUserData = Object.fromEntries(
               Object.entries(userData).filter(([, v]) => v !== undefined && v !== null)
@@ -605,8 +680,22 @@ export default function CreatePlan() {
             <>
               <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
                 <label className="flex flex-col gap-1">
-                  <span className="text-sm opacity-80">Nombre</span>
-                  <input className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.nombre} onChange={(e) => update("nombre", e.target.value)} placeholder="Tu nombre" />
+                  <span className="text-sm opacity-80">Nombre <span className="text-red-400">*</span></span>
+                  <input 
+                    className={`rounded-xl bg-white/5 px-3 py-2 outline-none ${nombreError ? "border border-red-500/50" : ""}`} 
+                    value={form.nombre} 
+                    onChange={(e) => {
+                      update("nombre", e.target.value);
+                      if (nombreError && e.target.value.trim()) {
+                        setNombreError(null);
+                      }
+                    }} 
+                    placeholder="Tu nombre"
+                    required
+                  />
+                  {nombreError && (
+                    <span className="text-xs text-red-400 mt-1">{nombreError}</span>
+                  )}
                 </label>
                 <label className="flex flex-col gap-1">
                   <span className="text-sm opacity-80">Sexo</span>
@@ -616,16 +705,131 @@ export default function CreatePlan() {
                   </select>
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-sm opacity-80">Edad</span>
-                  <input type="number" className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.edad} onChange={(e) => update("edad", Number(e.target.value))} />
+                  <span className="text-sm opacity-80">Edad <span className="text-red-400">*</span></span>
+                  <input 
+                    type="number" 
+                    className={`rounded-xl bg-white/5 px-3 py-2 outline-none ${edadError ? "border border-red-500/50" : ""}`} 
+                    value={edadInput} 
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setEdadInput(val);
+                      if (edadError && val.trim() && Number(val) > 0) {
+                        setEdadError(null);
+                      }
+                      if (val === "") {
+                        update("edad", 0);
+                      } else {
+                        const num = Number(val);
+                        if (!isNaN(num) && num >= 0) {
+                          update("edad", num);
+                        }
+                      }
+                    }}
+                    onBlur={(e) => {
+                      if (e.target.value === "" || Number(e.target.value) === 0) {
+                        if (edadOriginal > 0) {
+                          update("edad", edadOriginal);
+                          setEdadInput(String(edadOriginal));
+                        } else {
+                          setEdadInput("");
+                        }
+                      } else {
+                        setEdadInput(e.target.value);
+                      }
+                    }}
+                    placeholder="Tu edad"
+                    required
+                  />
+                  {edadError && (
+                    <span className="text-xs text-red-400 mt-1">{edadError}</span>
+                  )}
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-sm opacity-80">Altura (cm)</span>
-                  <input type="number" className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.alturaCm} onChange={(e) => update("alturaCm", Number(e.target.value))} />
+                  <span className="text-sm opacity-80">Altura (cm) <span className="text-red-400">*</span></span>
+                  <input 
+                    type="number" 
+                    step="1"
+                    className={`rounded-xl bg-white/5 px-3 py-2 outline-none ${alturaError ? "border border-red-500/50" : ""}`} 
+                    value={alturaInput} 
+                    onChange={(e) => {
+                      let val = e.target.value;
+                      // Eliminar puntos y comas para forzar valores enteros en centímetros
+                      val = val.replace(/[.,]/g, '');
+                      
+                      setAlturaInput(val);
+                      if (alturaError && val.trim() && Number(val) > 0) {
+                        setAlturaError(null);
+                      }
+                      if (val === "") {
+                        update("alturaCm", 0);
+                      } else {
+                        const num = Number(val);
+                        if (!isNaN(num) && num >= 0) {
+                          update("alturaCm", num);
+                        }
+                      }
+                    }}
+                    onBlur={(e) => {
+                      if (e.target.value === "" || Number(e.target.value) === 0) {
+                        if (alturaOriginal > 0) {
+                          update("alturaCm", alturaOriginal);
+                          setAlturaInput(String(alturaOriginal));
+                        } else {
+                          setAlturaInput("");
+                        }
+                      } else {
+                        setAlturaInput(e.target.value);
+                      }
+                    }}
+                    placeholder="Tu altura en centímetros"
+                    required
+                  />
+                  {alturaError && (
+                    <span className="text-xs text-red-400 mt-1">{alturaError}</span>
+                  )}
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-sm opacity-80">Peso (kg)</span>
-                  <input type="number" className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.pesoKg} onChange={(e) => update("pesoKg", Number(e.target.value))} />
+                  <span className="text-sm opacity-80">Peso (kg) <span className="text-red-400">*</span></span>
+                  <input 
+                    type="number" 
+                    className={`rounded-xl bg-white/5 px-3 py-2 outline-none ${pesoError ? "border border-red-500/50" : ""}`} 
+                    value={pesoInput} 
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setPesoInput(val);
+                      if (pesoError && val.trim() && Number(val) > 0) {
+                        setPesoError(null);
+                      }
+                      if (val === "") {
+                        update("pesoKg", 0);
+                      } else {
+                        const num = Number(val);
+                        if (!isNaN(num) && num >= 0) {
+                          update("pesoKg", num);
+                        }
+                      }
+                    }}
+                    onBlur={(e) => {
+                      if (e.target.value === "" || Number(e.target.value) === 0) {
+                        if (pesoOriginal > 0) {
+                          update("pesoKg", pesoOriginal);
+                          setPesoInput(String(pesoOriginal));
+                        } else {
+                          setPesoInput("");
+                        }
+                      } else {
+                        setPesoInput(e.target.value);
+                      }
+                    }}
+                    placeholder="Tu peso en kilogramos"
+                    required
+                  />
+                  {pesoError && (
+                    <span className="text-xs text-red-400 mt-1">{pesoError}</span>
+                  )}
+                  <p className="text-xs opacity-60 mt-1">
+                    Puede ser un valor estimativo. Es importante para calcular el IMC. Podés editarlo después si es necesario.
+                  </p>
                 </label>
               </div>
               
@@ -646,9 +850,14 @@ export default function CreatePlan() {
                     <input type="number" className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.caderaCm ?? ""} onChange={(e) => update("caderaCm", e.target.value ? Number(e.target.value) : undefined)} />
                   </label>
                 </div>
-                <label className="mt-3 flex items-center gap-2 text-sm">
-                  <input type="checkbox" className="h-4 w-4" checked={!!form.atletico} onChange={(e) => update("atletico", e.target.checked)} />
-                  <span className="opacity-80">Perfil atlético / mayor masa muscular</span>
+                <label className="mt-3 flex flex-col gap-1">
+                  <div className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" className="h-4 w-4" checked={!!form.atletico} onChange={(e) => update("atletico", e.target.checked)} />
+                    <span className="opacity-80">Perfil atlético / mayor masa muscular</span>
+                  </div>
+                  <p className="text-xs opacity-60 ml-6">
+                    Marca esta opción si ya sos deportista, fit o tenés un nivel de actividad física avanzado.
+                  </p>
                 </label>
               </div>
             </>
@@ -936,7 +1145,45 @@ export default function CreatePlan() {
                   background:
                     "linear-gradient(90deg, var(--brand-start), var(--brand-mid), var(--brand-end))",
                 }}
-                onClick={() => setStep((s) => Math.min(3, s + 1))}
+                onClick={() => {
+                  // Validar campos requeridos antes de avanzar
+                  if (step === 1) {
+                    let hasError = false;
+                    
+                    if (!form.nombre.trim()) {
+                      setNombreError("El nombre es requerido");
+                      hasError = true;
+                    } else {
+                      setNombreError(null);
+                    }
+                    
+                    if (!form.edad || form.edad === 0) {
+                      setEdadError("La edad es requerida");
+                      hasError = true;
+                    } else {
+                      setEdadError(null);
+                    }
+                    
+                    if (!form.alturaCm || form.alturaCm === 0) {
+                      setAlturaError("La altura es requerida");
+                      hasError = true;
+                    } else {
+                      setAlturaError(null);
+                    }
+                    
+                    if (!form.pesoKg || form.pesoKg === 0) {
+                      setPesoError("El peso es requerido");
+                      hasError = true;
+                    } else {
+                      setPesoError(null);
+                    }
+                    
+                    if (hasError) {
+                      return;
+                    }
+                  }
+                  setStep((s) => Math.min(3, s + 1));
+                }}
               >
                 Siguiente
               </button>
