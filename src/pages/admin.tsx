@@ -1361,19 +1361,14 @@ export default function Admin() {
                     }`}
                   >
                     {/* Header con nombre y badges */}
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h3 className="text-base font-semibold text-white">{user.nombre || "N/A"}</h3>
-                          {isNewUser && (
-                            <span className="px-2 py-0.5 text-[10px] uppercase tracking-wide rounded-full bg-green-500/30 text-green-100 border border-green-500/40">
-                              Nuevo
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-sm text-white/70">{user.email || "N/A"}</p>
-                      </div>
-                      <div className="flex flex-col gap-1 items-end">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-base font-semibold text-white">{user.nombre || "N/A"}</h3>
+                        {isNewUser && (
+                          <span className="px-2 py-0.5 text-[10px] uppercase tracking-wide rounded-full bg-green-500/30 text-green-100 border border-green-500/40">
+                            Nuevo
+                          </span>
+                        )}
                         {user.email?.toLowerCase() === "admin@fitplan-ai.com" ? (
                           <span className="px-2 py-1 text-xs rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30">
                             Admin
@@ -1401,6 +1396,7 @@ export default function Admin() {
                           </span>
                         )}
                       </div>
+                      <p className="text-sm text-white/70">{user.email || "N/A"}</p>
                     </div>
 
                     {/* Información del usuario */}
