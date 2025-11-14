@@ -1226,17 +1226,25 @@ export default function Admin() {
                                       } else if (paymentObj.transaction_amount && typeof paymentObj.transaction_amount === 'number') {
                                         amount = paymentObj.transaction_amount;
                                       }
-                                      
-                                      // Debug solo si no encontramos el amount
-                                      if (amount === null) {
-                                        console.log('🔍 Debug premiumPayment para', user.email, ':', paymentObj);
-                                      }
+                                    }
+                                    
+                                    // Fallback: calcular monto basado en el tipo de plan si premiumPayment es null
+                                    if (amount === null && user.premiumPlanType) {
+                                      const planPrices: Record<string, number> = {
+                                        monthly: 30000,
+                                        quarterly: 75000,
+                                        annual: 250000,
+                                      };
+                                      amount = planPrices[user.premiumPlanType] || null;
                                     }
                                     
                                     return amount !== null && !isNaN(amount) && amount > 0 ? (
                                       <p className="text-white/80">
                                         <span className="font-medium">Último pago:</span>{" "}
                                         ${amount.toLocaleString('es-AR')} ARS
+                                        {!payment && user.premiumPlanType && (
+                                          <span className="text-white/50 text-[10px] ml-1">(estimado)</span>
+                                        )}
                                       </p>
                                     ) : null;
                                   })()}
