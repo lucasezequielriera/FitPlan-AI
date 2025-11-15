@@ -59,28 +59,7 @@ export const useAuthStore = create<AuthState>((set) => ({
             updatedAt: serverTimestamp(),
           });
           console.log("✅ Documento de usuario creado en Firestore");
-          
-          // Enviar notificación a Telegram (no bloqueante)
-          try {
-            await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/notify/telegram`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                type: "new_user",
-                data: {
-                  userId: userCredential.user.uid,
-                  email: email.toLowerCase(),
-                  nombre: null,
-                  ciudad: null,
-                  pais: null,
-                },
-              }),
-            }).catch((err) => {
-              console.warn("⚠️ Error al enviar notificación de nuevo usuario a Telegram:", err);
-            });
-          } catch (telegramError) {
-            console.warn("⚠️ Error al enviar notificación de nuevo usuario a Telegram:", telegramError);
-          }
+          // Nota: La notificación de Telegram se enviará cuando se cree el perfil completo en saveUserProfile.ts
         } catch (firestoreError) {
           console.error("Error al crear documento en Firestore:", firestoreError);
           // No lanzamos error aquí para no bloquear el registro si falla Firestore

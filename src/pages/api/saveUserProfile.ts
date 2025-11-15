@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getDbSafe } from "@/lib/firebase";
 import { collection, doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
+import { sendTelegramMessage, formatNewUserMessage } from "@/lib/telegram";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -47,24 +48,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       
       // Enviar notificación a Telegram si es un nuevo usuario (no bloqueante)
       try {
-        const { getDoc: getDocAdmin } = await import("firebase/firestore");
-        const userDocForNotification = await getDocAdmin(userRef);
+        const userDocForNotification = await getDoc(userRef);
         const userDataForNotification = userDocForNotification.data();
         
-        await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/notify/telegram`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            type: "new_user",
-            data: {
-              userId: userId,
-              email: userDataForNotification?.email || null,
-              nombre: nombre || null,
-              ciudad: userDataForNotification?.ciudad || null,
-              pais: userDataForNotification?.pais || null,
-            },
-          }),
-        }).catch((err) => {
+        const message = formatNewUserMessage({
+          nombre: nombre || null,
+          email: userDataForNotification?.email || null,
+          createdAt: userDataForNotification?.createdAt?.toDate?.() || userDataForNotification?.createdAt || new Date(),
+          ciudad: userDataForNotification?.ciudad || null,
+          pais: userDataForNotification?.pais || null,
+        });
+        
+        await sendTelegramMessage(message).catch((err) => {
           console.warn("⚠️ Error al enviar notificación de nuevo usuario a Telegram:", err);
         });
       } catch (telegramError) {

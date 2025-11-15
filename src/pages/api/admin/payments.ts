@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
+import { sendTelegramMessage, formatPaymentMessage } from "@/lib/telegram";
 
 interface Payment {
   userId: string;
@@ -185,23 +186,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Enviar notificación a Telegram (no bloqueante)
       try {
         const userData = userDoc.data();
-        await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/notify/telegram`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            type: "payment",
-            data: {
-              nombre: userData?.nombre || null,
-              email: userData?.email || null,
-              amount: Number(amount),
-              currency: "ARS",
-              planType: planType,
-              paymentMethod: paymentMethod,
-              paymentId: paymentId,
-              date: paymentDate,
-            },
-          }),
-        }).catch((err) => {
+        const message = formatPaymentMessage({
+          nombre: userData?.nombre || null,
+          email: userData?.email || null,
+          amount: Number(amount),
+          currency: "ARS",
+          planType: planType,
+          paymentMethod: paymentMethod,
+          paymentId: paymentId,
+          date: paymentDate,
+        });
+        
+        await sendTelegramMessage(message).catch((err) => {
           console.warn("⚠️ Error al enviar notificación de pago manual a Telegram:", err);
         });
       } catch (telegramError) {

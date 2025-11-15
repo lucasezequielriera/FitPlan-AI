@@ -3,6 +3,7 @@ import { getDbSafe } from "@/lib/firebase";
 import { collection, doc, updateDoc, serverTimestamp, getDoc, Timestamp } from "firebase/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { FieldValue, Timestamp as AdminTimestamp } from "firebase-admin/firestore";
+import { sendTelegramMessage, formatPaymentMessage } from "@/lib/telegram";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -184,23 +185,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           // Enviar notificación a Telegram
           try {
             const userData = userDoc.data();
-            await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/notify/telegram`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                type: "payment",
-                data: {
-                  nombre: userData?.nombre || null,
-                  email: userData?.email || null,
-                  amount: payment.transaction_amount,
-                  currency: payment.currency_id || "ARS",
-                  planType: planType || "monthly",
-                  paymentMethod: "mercadopago",
-                  paymentId: String(paymentId),
-                  date: payment.date_approved || new Date(),
-                },
-              }),
-            }).catch((err) => {
+            const message = formatPaymentMessage({
+              nombre: userData?.nombre || null,
+              email: userData?.email || null,
+              amount: payment.transaction_amount,
+              currency: payment.currency_id || "ARS",
+              planType: planType || "monthly",
+              paymentMethod: "mercadopago",
+              paymentId: String(paymentId),
+              date: payment.date_approved || new Date(),
+            });
+            
+            await sendTelegramMessage(message).catch((err) => {
               console.warn("⚠️ Error al enviar notificación de pago a Telegram:", err);
             });
           } catch (telegramError) {
