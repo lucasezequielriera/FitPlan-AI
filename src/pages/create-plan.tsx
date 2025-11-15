@@ -592,6 +592,32 @@ export default function CreatePlan() {
                 createdAt: serverTimestamp(),
               });
               console.log("✅ Perfil de usuario creado con todos los campos");
+              
+              // Enviar notificación a Telegram para nuevo usuario (no bloqueante)
+              try {
+                // Obtener datos de ubicación si están disponibles
+                const userDataForNotification = await getDoc(userRef);
+                const userData = userDataForNotification.data();
+                
+                await fetch("/api/notify/telegram", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    type: "new_user",
+                    data: {
+                      userId: userId,
+                      email: userEmail,
+                      nombre: formFinal.nombre || null,
+                      ciudad: userData?.ciudad || null,
+                      pais: userData?.pais || null,
+                    },
+                  }),
+                }).catch((err) => {
+                  console.warn("⚠️ Error al enviar notificación de nuevo usuario a Telegram:", err);
+                });
+              } catch (telegramError) {
+                console.warn("⚠️ Error al enviar notificación de nuevo usuario a Telegram:", telegramError);
+              }
             } else {
               await setDoc(userRef, cleanUserData, { merge: true });
               console.log("✅ Perfil de usuario actualizado con datos del plan");
