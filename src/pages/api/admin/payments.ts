@@ -182,6 +182,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       await userRef.update(userUpdateData);
 
+      // Enviar notificación a Telegram (no bloqueante)
+      try {
+        const userData = userDoc.data();
+        await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/notify/telegram`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "payment",
+            data: {
+              nombre: userData?.nombre || null,
+              email: userData?.email || null,
+              amount: Number(amount),
+              currency: "ARS",
+              planType: planType,
+              paymentMethod: paymentMethod,
+              paymentId: paymentId,
+              date: paymentDate,
+            },
+          }),
+        }).catch((err) => {
+          console.warn("⚠️ Error al enviar notificación de pago manual a Telegram:", err);
+        });
+      } catch (telegramError) {
+        console.warn("⚠️ Error al enviar notificación de pago manual a Telegram:", telegramError);
+      }
+
       // Obtener el pago creado para retornarlo
       const createdPaymentDoc = await newPaymentRef.get();
       const createdPaymentData = createdPaymentDoc.data();

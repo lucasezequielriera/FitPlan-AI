@@ -181,6 +181,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           await updateDoc(userRef, premiumData);
           console.log(`✅ Usuario ${userId} actualizado a premium. Pago ID: ${paymentId}, Monto: ${payment.transaction_amount} ${payment.currency_id || "ARS"}`);
           
+          // Enviar notificación a Telegram
+          try {
+            const userData = userDoc.data();
+            await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/notify/telegram`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                type: "payment",
+                data: {
+                  nombre: userData?.nombre || null,
+                  email: userData?.email || null,
+                  amount: payment.transaction_amount,
+                  currency: payment.currency_id || "ARS",
+                  planType: planType || "monthly",
+                  paymentMethod: "mercadopago",
+                  paymentId: String(paymentId),
+                  date: payment.date_approved || new Date(),
+                },
+              }),
+            }).catch((err) => {
+              console.warn("⚠️ Error al enviar notificación de pago a Telegram:", err);
+            });
+          } catch (telegramError) {
+            console.warn("⚠️ Error al enviar notificación de pago a Telegram:", telegramError);
+          }
+          
           // Registrar ganancia mensual en la colección admin
           try {
             const adminDb = getAdminDb();

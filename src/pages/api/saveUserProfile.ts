@@ -44,6 +44,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ...userData,
         createdAt: serverTimestamp(),
       });
+      
+      // Enviar notificación a Telegram si es un nuevo usuario (no bloqueante)
+      try {
+        const { getDoc: getDocAdmin } = await import("firebase/firestore");
+        const userDocForNotification = await getDocAdmin(userRef);
+        const userDataForNotification = userDocForNotification.data();
+        
+        await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"}/api/notify/telegram`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "new_user",
+            data: {
+              userId: userId,
+              email: userDataForNotification?.email || null,
+              nombre: nombre || null,
+              ciudad: userDataForNotification?.ciudad || null,
+              pais: userDataForNotification?.pais || null,
+            },
+          }),
+        }).catch((err) => {
+          console.warn("⚠️ Error al enviar notificación de nuevo usuario a Telegram:", err);
+        });
+      } catch (telegramError) {
+        console.warn("⚠️ Error al enviar notificación de nuevo usuario a Telegram:", telegramError);
+      }
+      
       res.status(200).json({ message: "Perfil creado", created: true });
     } else {
       // Actualizar perfil existente
