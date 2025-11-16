@@ -367,6 +367,24 @@ export default function Navbar() {
               ) : authUser ? (
                 <button
                   onClick={async () => {
+                    // Si es admin, actualizar lastUsersCheck antes de desconectarse
+                    if (isAdmin && authUser) {
+                      try {
+                        const db = getDbSafe();
+                        if (db) {
+                          const { doc, updateDoc, serverTimestamp } = await import("firebase/firestore");
+                          const userRef = doc(db, "usuarios", authUser.uid);
+                          await updateDoc(userRef, {
+                            lastUsersCheck: serverTimestamp(),
+                            updatedAt: serverTimestamp(),
+                          });
+                          console.log("✅ Última conexión del admin actualizada al desconectarse");
+                        }
+                      } catch (error) {
+                        console.error("Error al actualizar lastUsersCheck en logout:", error);
+                        // Continuar con el logout aunque falle la actualización
+                      }
+                    }
                     await logout();
                     router.push("/");
                   }}
@@ -709,6 +727,7 @@ function MessagesModal({
     replied: boolean;
     closed: boolean;
     closedAt: string | null;
+    initiatedByAdmin?: boolean;
     replies: Array<{ message: string; senderName: string; senderType: string; createdAt: string | null }>;
     createdAt: string | null;
     lastReplyAt: string | null;
@@ -737,6 +756,19 @@ function MessagesModal({
     return () => clearInterval(interval);
   }, [isOpen, adminUserId, onMessagesUpdate]);
 
+  // Reordenar mensajes cuando cambian
+  useEffect(() => {
+    if (messages.length > 0) {
+      const sorted = sortMessagesByDate(messages);
+      // Solo actualizar si el orden cambió
+      const currentIds = messages.map(m => m.id).join(',');
+      const sortedIds = sorted.map(m => m.id).join(',');
+      if (currentIds !== sortedIds) {
+        setMessages(sorted);
+      }
+    }
+  }, [messages.length]); // Solo cuando cambia la cantidad de mensajes
+
   // Hacer scroll al final cuando se selecciona un mensaje o cambian las respuestas
   useEffect(() => {
     if (selectedMessage && messagesScrollRef.current) {
@@ -749,13 +781,60 @@ function MessagesModal({
     }
   }, [selectedMessage, messages]);
 
+  // Función para ordenar mensajes: primero no leídos, luego leídos, finalmente finalizados
+  const sortMessagesByDate = (msgs: Array<{
+    id: string;
+    userId: string;
+    userName: string | null;
+    userEmail: string | null;
+    subject: string;
+    message: string;
+    read: boolean;
+    replied: boolean;
+    closed: boolean;
+    closedAt: string | null;
+    initiatedByAdmin?: boolean;
+    replies: Array<{ message: string; senderName: string; senderType: string; createdAt: string | null }>;
+    createdAt: string | null;
+    lastReplyAt: string | null;
+  }>) => {
+    return [...msgs].sort((a, b) => {
+      // Primero: separar finalizados (van al final)
+      if (a.closed && !b.closed) return 1;  // a va después
+      if (!a.closed && b.closed) return -1; // a va primero
+      
+      // Si ambos están finalizados o ambos no están finalizados
+      if (a.closed && b.closed) {
+        // Ambos finalizados: ordenar por fecha de cierre (más reciente primero)
+        const dateA = a.closedAt ? new Date(a.closedAt).getTime() : (a.lastReplyAt ? new Date(a.lastReplyAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0));
+        const dateB = b.closedAt ? new Date(b.closedAt).getTime() : (b.lastReplyAt ? new Date(b.lastReplyAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0));
+        return dateB - dateA; // Más reciente primero
+      }
+      
+      // Si ninguno está finalizado: ordenar por no leídos primero
+      const aIsUnread = !a.read;
+      const bIsUnread = !b.read;
+      
+      if (aIsUnread && !bIsUnread) return -1; // a va primero
+      if (!aIsUnread && bIsUnread) return 1;  // b va primero
+      
+      // Si ambos tienen el mismo estado de lectura, ordenar por fecha
+      // Usar lastReplyAt si existe, sino createdAt
+      const dateA = a.lastReplyAt ? new Date(a.lastReplyAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+      const dateB = b.lastReplyAt ? new Date(b.lastReplyAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+      // Ordenar descendente (más reciente primero)
+      return dateB - dateA;
+    });
+  };
+
   const loadMessages = async () => {
     try {
       setLoading(true);
       const response = await fetch(`/api/admin/messages?adminUserId=${adminUserId}`);
       if (!response.ok) throw new Error("Error al cargar mensajes");
       const data = await response.json();
-      setMessages(data.messages || []);
+      const sortedMessages = sortMessagesByDate(data.messages || []);
+      setMessages(sortedMessages);
     } catch (error) {
       console.error("Error al cargar mensajes:", error);
     } finally {
@@ -804,7 +883,28 @@ function MessagesModal({
         throw new Error(errorData.error || errorData.detail || `Error ${response.status}`);
       }
 
-      // Recargar mensajes para obtener las respuestas actualizadas
+      // Actualizar el mensaje localmente primero para feedback inmediato
+      setMessages(prev => {
+        const updated = prev.map(m => 
+          m.id === messageId 
+            ? { 
+                ...m, 
+                replies: [...(m.replies || []), {
+                  message: replyText.trim(),
+                  senderName: "Equipo de FitPlan",
+                  senderType: "admin",
+                  createdAt: new Date().toISOString(),
+                }],
+                lastReplyAt: new Date().toISOString(),
+                replied: true,
+                read: true,
+              }
+            : m
+        );
+        return sortMessagesByDate(updated);
+      });
+      
+      // Recargar mensajes para obtener las respuestas actualizadas del servidor
       await loadMessages();
       setReplyText("");
       onMessagesUpdate();
@@ -927,6 +1027,14 @@ function MessagesModal({
                                 return (
                                   <span className="px-2 py-0.5 text-xs rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/30 whitespace-nowrap flex-shrink-0">
                                     Finalizado
+                                  </span>
+                                );
+                              }
+                              // Verificar si el mensaje fue iniciado por el admin
+                              if (msg.initiatedByAdmin) {
+                                return (
+                                  <span className="px-2 py-0.5 text-xs rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30 whitespace-nowrap flex-shrink-0">
+                                    Enviado
                                   </span>
                                 );
                               }
@@ -1093,6 +1201,21 @@ function MessagesModal({
                               </div>
                             );
                           })}
+                        </div>
+                      )}
+
+                      {/* Mensaje de finalización */}
+                      {selectedMsg.closed && selectedMsg.closedAt && (
+                        <div className="mt-4 p-3 rounded-lg bg-gray-500/10 border border-gray-500/30 text-center">
+                          <p className="text-xs text-gray-400">
+                            Chat finalizado el {new Date(selectedMsg.closedAt).toLocaleDateString('es-AR', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </p>
                         </div>
                       )}
                     </div>

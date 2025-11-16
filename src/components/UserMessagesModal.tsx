@@ -23,6 +23,7 @@ export default function UserMessagesModal({
     replied: boolean;
     closed: boolean;
     closedAt: string | null;
+    initiatedByAdmin?: boolean;
     replies: Array<{ message: string; senderName: string; senderType: string; createdAt: string | null }>;
     createdAt: string | null;
     lastReplyAt: string | null;
@@ -39,6 +40,19 @@ export default function UserMessagesModal({
       loadMessages();
     }
   }, [isOpen, userId]);
+
+  // Reordenar mensajes cuando cambian
+  useEffect(() => {
+    if (messages.length > 0) {
+      const sorted = sortMessagesByDate(messages);
+      // Solo actualizar si el orden cambió
+      const currentIds = messages.map(m => m.id).join(',');
+      const sortedIds = sorted.map(m => m.id).join(',');
+      if (currentIds !== sortedIds) {
+        setMessages(sorted);
+      }
+    }
+  }, [messages.length]); // Solo cuando cambia la cantidad de mensajes
 
   // Hacer scroll al final cuando se selecciona un mensaje o cambian las respuestas
   useEffect(() => {
@@ -63,13 +77,58 @@ export default function UserMessagesModal({
     }
   };
 
+  // Función para ordenar mensajes: primero no leídos, luego leídos, finalmente finalizados
+  const sortMessagesByDate = (msgs: Array<{
+    id: string;
+    subject: string;
+    message: string;
+    userName: string | null;
+    replied: boolean;
+    closed: boolean;
+    closedAt: string | null;
+    initiatedByAdmin?: boolean;
+    replies: Array<{ message: string; senderName: string; senderType: string; createdAt: string | null }>;
+    createdAt: string | null;
+    lastReplyAt: string | null;
+    userRead: boolean;
+  }>) => {
+    return [...msgs].sort((a, b) => {
+      // Primero: separar finalizados (van al final)
+      if (a.closed && !b.closed) return 1;  // a va después
+      if (!a.closed && b.closed) return -1; // a va primero
+      
+      // Si ambos están finalizados o ambos no están finalizados
+      if (a.closed && b.closed) {
+        // Ambos finalizados: ordenar por fecha de cierre (más reciente primero)
+        const dateA = a.closedAt ? new Date(a.closedAt).getTime() : (a.lastReplyAt ? new Date(a.lastReplyAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0));
+        const dateB = b.closedAt ? new Date(b.closedAt).getTime() : (b.lastReplyAt ? new Date(b.lastReplyAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0));
+        return dateB - dateA; // Más reciente primero
+      }
+      
+      // Si ninguno está finalizado: ordenar por no leídos primero
+      const aIsUnread = a.replied && !a.userRead;
+      const bIsUnread = b.replied && !b.userRead;
+      
+      if (aIsUnread && !bIsUnread) return -1; // a va primero
+      if (!aIsUnread && bIsUnread) return 1;  // b va primero
+      
+      // Si ambos tienen el mismo estado de lectura, ordenar por fecha
+      // Usar lastReplyAt si existe, sino createdAt
+      const dateA = a.lastReplyAt ? new Date(a.lastReplyAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+      const dateB = b.lastReplyAt ? new Date(b.lastReplyAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+      // Ordenar descendente (más reciente primero)
+      return dateB - dateA;
+    });
+  };
+
   const loadMessages = async () => {
     try {
       setLoading(true);
       const response = await fetch(`/api/user/messages?userId=${userId}`);
       if (!response.ok) throw new Error("Error al cargar mensajes");
       const data = await response.json();
-      setMessages(data.messages || []);
+      const sortedMessages = sortMessagesByDate(data.messages || []);
+      setMessages(sortedMessages);
     } catch (error) {
       console.error("Error al cargar mensajes:", error);
     } finally {
@@ -218,11 +277,40 @@ export default function UserMessagesModal({
                             // Verificar si hay respuestas y si la última es del admin
                             const replies = msg.replies || [];
                             if (replies.length === 0) return null;
+                            
                             const lastReply = replies[replies.length - 1];
                             const lastReplyIsAdmin = lastReply?.senderType === "admin";
-                            return lastReplyIsAdmin ? (
-                              <p className="text-xs text-green-400 mt-1">✓ Respondido</p>
-                            ) : null;
+                            
+                            if (lastReplyIsAdmin) {
+                              // Si la última respuesta es del admin, verificar si el usuario respondió después
+                              // Buscar la última respuesta del usuario
+                              let lastUserReplyIndex = -1;
+                              for (let i = replies.length - 1; i >= 0; i--) {
+                                if (replies[i].senderType === "user") {
+                                  lastUserReplyIndex = i;
+                                  break;
+                                }
+                              }
+                              
+                              // Si no hay respuesta del usuario, o la última respuesta del admin es más reciente que la del usuario
+                              if (lastUserReplyIndex === -1) {
+                                // El usuario nunca respondió, mostrar "Responder"
+                                return <p className="text-xs text-red-400 mt-1">Responder</p>;
+                              } else {
+                                // Verificar si la última respuesta del admin es más reciente que la última del usuario
+                                const lastAdminReplyIndex = replies.length - 1;
+                                if (lastAdminReplyIndex > lastUserReplyIndex) {
+                                  // El admin respondió después de la última respuesta del usuario
+                                  return <p className="text-xs text-blue-400 mt-1">Nuevo mensaje</p>;
+                                } else {
+                                  // El usuario respondió después de la última respuesta del admin
+                                  return <p className="text-xs text-green-400 mt-1">✓ Respondido</p>;
+                                }
+                              }
+                            } else {
+                              // La última respuesta es del usuario, mostrar "Respondido"
+                              return <p className="text-xs text-green-400 mt-1">✓ Respondido</p>;
+                            }
                           })()}
                           {msg.createdAt && (
                             <p className="text-xs text-white/40 mt-1">
@@ -266,13 +354,56 @@ export default function UserMessagesModal({
                         // Verificar si hay respuestas y si la última es del admin
                         const replies = selectedMsg.replies || [];
                         if (replies.length === 0) return null;
+                        
                         const lastReply = replies[replies.length - 1];
                         const lastReplyIsAdmin = lastReply?.senderType === "admin";
-                        return lastReplyIsAdmin ? (
-                          <span className="px-2 py-1 text-xs rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
-                            Respondido
-                          </span>
-                        ) : null;
+                        
+                        if (lastReplyIsAdmin) {
+                          // Si la última respuesta es del admin, verificar si el usuario respondió después
+                          // Buscar la última respuesta del usuario
+                          let lastUserReplyIndex = -1;
+                          for (let i = replies.length - 1; i >= 0; i--) {
+                            if (replies[i].senderType === "user") {
+                              lastUserReplyIndex = i;
+                              break;
+                            }
+                          }
+                          
+                          // Si no hay respuesta del usuario, o la última respuesta del admin es más reciente que la del usuario
+                          if (lastUserReplyIndex === -1) {
+                            // El usuario nunca respondió, mostrar "Responder"
+                            return (
+                              <span className="px-2 py-1 text-xs rounded-full bg-red-500/20 text-red-400 border border-red-500/30">
+                                Responder
+                              </span>
+                            );
+                          } else {
+                            // Verificar si la última respuesta del admin es más reciente que la última del usuario
+                            const lastAdminReplyIndex = replies.length - 1;
+                            if (lastAdminReplyIndex > lastUserReplyIndex) {
+                              // El admin respondió después de la última respuesta del usuario
+                              return (
+                                <span className="px-2 py-1 text-xs rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                                  Mensaje nuevo
+                                </span>
+                              );
+                            } else {
+                              // El usuario respondió después de la última respuesta del admin
+                              return (
+                                <span className="px-2 py-1 text-xs rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
+                                  Respondido
+                                </span>
+                              );
+                            }
+                          }
+                        } else {
+                          // La última respuesta es del usuario, mostrar "Respondido"
+                          return (
+                            <span className="px-2 py-1 text-xs rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
+                              Respondido
+                            </span>
+                          );
+                        }
                       })()}
                     </div>
                     {selectedMsg.createdAt && (
@@ -362,6 +493,21 @@ export default function UserMessagesModal({
                     </div>
                   )}
 
+                  {/* Mensaje de finalización */}
+                  {selectedMsg.closed && selectedMsg.closedAt && (
+                    <div className="mt-4 p-3 rounded-lg bg-gray-500/10 border border-gray-500/30 text-center">
+                      <p className="text-xs text-gray-400">
+                        Chat finalizado el {new Date(selectedMsg.closedAt).toLocaleDateString('es-AR', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </p>
+                    </div>
+                  )}
+
                     </div>
                   </div>
 
@@ -406,7 +552,27 @@ export default function UserMessagesModal({
                                 throw new Error(errorData.error || "Error al responder");
                               }
 
-                              // Recargar mensajes para ver la nueva respuesta
+                              // Actualizar el mensaje localmente primero para feedback inmediato
+                              setMessages(prev => {
+                                const updated = prev.map(m => 
+                                  m.id === selectedMsg.id 
+                                    ? { 
+                                        ...m, 
+                                        replies: [...(m.replies || []), {
+                                          message: replyText.trim(),
+                                          senderName: selectedMsg.userName || "Usuario",
+                                          senderType: "user",
+                                          createdAt: new Date().toISOString(),
+                                        }],
+                                        lastReplyAt: new Date().toISOString(),
+                                        replied: true,
+                                      }
+                                    : m
+                                );
+                                return sortMessagesByDate(updated);
+                              });
+                              
+                              // Recargar mensajes para obtener las respuestas actualizadas del servidor
                               await loadMessages();
                               setReplyText("");
                               onMessagesUpdate();

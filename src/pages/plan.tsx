@@ -7,9 +7,12 @@ import { calculateBMI, bmiCategory, calculateBodyFatUSNavy, bodyFatCategory, wai
 import jsPDF from "jspdf";
 import Navbar from "@/components/Navbar";
 import PremiumPlanModal from "@/components/PremiumPlanModal";
+import FoodTrackingModal from "@/components/FoodTrackingModal";
+import WeeklyStatsModal from "@/components/WeeklyStatsModal";
 import { getAuthSafe, getDbSafe } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { useAuthStore } from "@/store/authStore";
+import { FaUtensils, FaChartLine } from "react-icons/fa";
 
 interface TrainingWeek {
   week: number;
@@ -106,6 +109,8 @@ export default function PlanPage() {
   const [vistaPlan, setVistaPlan] = useState<'entrenamiento' | 'alimentacion'>('alimentacion');
   const [modalAlimentosAbierto, setModalAlimentosAbierto] = useState<null | { diaIdx: number }>(null);
   const [foodDetails, setFoodDetails] = useState<Record<string, { ingredientes?: string[]; pasos_preparacion?: string[]; loading?: boolean; error?: string }>>({});
+  const [foodTrackingModalOpen, setFoodTrackingModalOpen] = useState(false);
+  const [weeklyStatsModalOpen, setWeeklyStatsModalOpen] = useState(false);
 
   // Resumen de split de entrenamiento para el título
   const splitResumen = (() => {
@@ -1769,7 +1774,7 @@ export default function PlanPage() {
             <div className="relative group">
             <button
                 type="button"
-                onClick={() => {
+              onClick={() => {
                   if (isPremium) {
                     setVistaPlan('entrenamiento');
                   }
@@ -1821,7 +1826,70 @@ export default function PlanPage() {
           {/* Vista: Alimentación (resumen semanal) */}
           {vistaPlan === 'alimentacion' && plan?.plan_semanal && (
             <div className="mt-6 rounded-xl border border-white/10 p-4 bg-black/30">
-              <h2 className="text-lg font-semibold mb-3">🍽️ Plan de Alimentación (vista rápida)</h2>
+              <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
+                <h2 className="text-lg font-semibold">🍽️ Plan de Alimentación (vista rápida)</h2>
+                {/* Botones de seguimiento - Alineados a la derecha del título */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="relative group">
+                    <button
+                      onClick={() => {
+                        if (isPremium) {
+                          setWeeklyStatsModalOpen(true);
+                        }
+                      }}
+                      disabled={!isPremium}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all text-xs font-medium ${
+                        !isPremium
+                          ? 'bg-white/5 border-white/10 text-white/40 cursor-not-allowed opacity-50'
+                          : 'bg-gradient-to-r from-blue-500/20 to-cyan-500/20 border-blue-500/30 text-blue-300 hover:from-blue-500/30 hover:to-cyan-500/30'
+                      }`}
+                    >
+                      <FaChartLine className="h-3.5 w-3.5" />
+                      Ver estadísticas semanales
+                      {!isPremium && (
+                        <span className="ml-1 text-xs">🌟</span>
+                      )}
+                    </button>
+                    {!isPremium && (
+                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gradient-to-r from-yellow-500/95 to-orange-500/95 text-white text-xs font-medium rounded-lg shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 border border-yellow-400/50">
+                        💳 Requiere Premium
+                        <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                          <div className="w-2 h-2 bg-gradient-to-r from-yellow-500 to-orange-500 rotate-45 border-r border-b border-yellow-400/50"></div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="relative group">
+                    <button
+                      onClick={() => {
+                        if (isPremium) {
+                          setFoodTrackingModalOpen(true);
+                        }
+                      }}
+                      disabled={!isPremium}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all text-xs font-medium ${
+                        !isPremium
+                          ? 'bg-white/5 border-white/10 text-white/40 cursor-not-allowed opacity-50'
+                          : 'bg-gradient-to-r from-orange-500/20 to-pink-500/20 border-orange-500/30 text-orange-300 hover:from-orange-500/30 hover:to-pink-500/30'
+                      }`}
+                    >
+                      <FaUtensils className="h-3.5 w-3.5" />
+                      Registrar comida fuera del plan
+                      {!isPremium && (
+                        <span className="ml-1 text-xs">🌟</span>
+                      )}
+                    </button>
+                    {!isPremium && (
+                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gradient-to-r from-yellow-500/95 to-orange-500/95 text-white text-xs font-medium rounded-lg shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 border border-yellow-400/50">
+                        💳 Requiere Premium
+                        <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
+                          <div className="w-2 h-2 bg-gradient-to-r from-yellow-500 to-orange-500 rotate-45 border-r border-b border-yellow-400/50"></div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {plan.plan_semanal.map((dia, idx) => (
                   <div
@@ -1946,7 +2014,7 @@ export default function PlanPage() {
                 <button onClick={() => setModalAlimentosAbierto(null)} className="text-white/70 hover:text-white">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5"><path d="M18 6L6 18M6 6l12 12"/></svg>
             </button>
-              </div>
+          </div>
               {(() => {
                 const idx = modalAlimentosAbierto.diaIdx;
                 const dia = plan?.plan_semanal?.[idx];
@@ -2014,7 +2082,7 @@ export default function PlanPage() {
                   </div>
                 );
               })()}
-            </motion.div>
+        </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -2208,7 +2276,7 @@ export default function PlanPage() {
                     </span>
                   </span>
                 </label>
-    </div>
+      </div>
               
               <div className="flex gap-3 mt-6 justify-end">
             <button
@@ -2830,6 +2898,26 @@ export default function PlanPage() {
           onClose={() => setPremiumModalOpen(false)}
           userId={authUser.uid}
           userEmail={authUser.email || ""}
+        />
+      )}
+
+      {/* Modal de registro de comida fuera del plan */}
+      <FoodTrackingModal
+        isOpen={foodTrackingModalOpen}
+        onClose={() => setFoodTrackingModalOpen(false)}
+        planCalories={plan?.calorias_diarias || 2000}
+        userObjective={user?.objetivo}
+        planId={planId || undefined}
+        userId={authUser?.uid || undefined}
+      />
+
+      {/* Modal de estadísticas semanales */}
+      {planId && (
+        <WeeklyStatsModal
+          isOpen={weeklyStatsModalOpen}
+          onClose={() => setWeeklyStatsModalOpen(false)}
+          planId={planId}
+          userId={authUser?.uid || undefined}
         />
       )}
     </div>

@@ -4,7 +4,8 @@ import { motion } from "framer-motion";
 import { useAuthStore } from "@/store/authStore";
 import { getDbSafe, getAuthSafe } from "@/lib/firebase";
 import Navbar from "@/components/Navbar";
-import { FaArrowUp, FaArrowDown, FaCheck } from "react-icons/fa";
+import WeeklyStatsModal from "@/components/WeeklyStatsModal";
+import { FaArrowUp, FaArrowDown, FaCheck, FaChartLine, FaEnvelope, FaComment } from "react-icons/fa";
 
 interface User {
   id: string;
@@ -44,6 +45,7 @@ export default function Admin() {
   const [saving, setSaving] = useState(false);
   const [tooltipOpenUserId, setTooltipOpenUserId] = useState<string | null>(null);
   const [locationTooltipOpenUserId, setLocationTooltipOpenUserId] = useState<string | null>(null);
+  const [statusTooltipOpenUserId, setStatusTooltipOpenUserId] = useState<string | null>(null);
   const [paymentHistoryModalOpen, setPaymentHistoryModalOpen] = useState(false);
   const [selectedUserForPaymentHistory, setSelectedUserForPaymentHistory] = useState<User | null>(null);
   const [paymentHistory, setPaymentHistory] = useState<Array<{
@@ -83,6 +85,10 @@ export default function Admin() {
     notes: "",
   });
   const [savingPayment, setSavingPayment] = useState(false);
+  const [weeklyStatsModalOpen, setWeeklyStatsModalOpen] = useState(false);
+  const [selectedPlanIdForStats, setSelectedPlanIdForStats] = useState<string | null>(null);
+  const [sendMessageModalOpen, setSendMessageModalOpen] = useState(false);
+  const [selectedUserForMessage, setSelectedUserForMessage] = useState<User | null>(null);
   
   // Cerrar tooltips al hacer click fuera (solo en mobile)
   useEffect(() => {
@@ -99,9 +105,15 @@ export default function Admin() {
           setLocationTooltipOpenUserId(null);
         }
       }
+      if (statusTooltipOpenUserId) {
+        const target = event.target as HTMLElement;
+        if (!target.closest('.relative')) {
+          setStatusTooltipOpenUserId(null);
+        }
+      }
     };
     
-    if (tooltipOpenUserId || locationTooltipOpenUserId) {
+    if (tooltipOpenUserId || locationTooltipOpenUserId || statusTooltipOpenUserId) {
       document.addEventListener('mousedown', handleClickOutside);
       document.addEventListener('touchstart', handleClickOutside);
     }
@@ -110,7 +122,7 @@ export default function Admin() {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('touchstart', handleClickOutside);
     };
-  }, [tooltipOpenUserId, locationTooltipOpenUserId]);
+  }, [tooltipOpenUserId, locationTooltipOpenUserId, statusTooltipOpenUserId]);
   const [deleting, setDeleting] = useState(false);
   const [totalUsers, setTotalUsers] = useState<number>(0);
   const [premiumUsers, setPremiumUsers] = useState<number>(0);
@@ -251,7 +263,7 @@ export default function Admin() {
   };
 
   // Función para obtener el emoji de la bandera del país
-  const getIMCStatus = (peso: number | null, alturaCm: number | null): { status: "bajo" | "saludable" | "excedido"; icon: React.ReactElement; color: string } => {
+  const getIMCStatus = (peso: number | null, alturaCm: number | null): { status: "bajo" | "saludable" | "excedido"; icon: React.ReactElement; color: string; weightDifference?: number } => {
     if (!peso || !alturaCm || alturaCm === 0) {
       return {
         status: "saludable",
@@ -264,12 +276,19 @@ export default function Admin() {
     const alturaM = alturaCm / 100;
     const imc = peso / (alturaM * alturaM);
 
+    // Calcular límites del rango saludable (IMC 18.5-25)
+    const pesoMinimo = 18.5 * (alturaM * alturaM); // Límite inferior saludable
+    const pesoMaximo = 25 * (alturaM * alturaM); // Límite superior saludable
+
     // Clasificación IMC según OMS
     if (imc < 18.5) {
+      // Si está bajo peso, comparar con el límite inferior
+      const diferencia = pesoMinimo - peso;
       return {
         status: "bajo",
         icon: <FaArrowDown className="text-blue-400" />,
-        color: "text-blue-400"
+        color: "text-blue-400",
+        weightDifference: diferencia
       };
     } else if (imc >= 18.5 && imc < 25) {
       return {
@@ -278,10 +297,13 @@ export default function Admin() {
         color: "text-green-400"
       };
     } else {
+      // Si está excedido, comparar con el límite superior
+      const diferencia = peso - pesoMaximo;
       return {
         status: "excedido",
         icon: <FaArrowUp className="text-red-400" />,
-        color: "text-red-400"
+        color: "text-red-400",
+        weightDifference: diferencia
       };
     }
   };
@@ -635,7 +657,10 @@ export default function Admin() {
             }
 
             lastUsersCheckISO = convertTimestampToISO(userData.lastUsersCheck);
+            // NO actualizar automáticamente aquí - solo se actualiza al marcar como visto o al desconectarse
+            // Esto permite que el admin vea la notificación de usuarios nuevos al entrar
             if (!lastUsersCheckISO) {
+              // Solo inicializar si no existe
               const nowISO = new Date().toISOString();
               try {
                 await updateDoc(userRef, {
@@ -645,6 +670,7 @@ export default function Admin() {
                 lastUsersCheckISO = nowISO;
               } catch (updateError) {
                 console.error("Error al inicializar lastUsersCheck:", updateError);
+                lastUsersCheckISO = nowISO;
               }
             }
           }
@@ -663,7 +689,10 @@ export default function Admin() {
           
           if (isAdminUser) {
             lastUsersCheckISO = convertTimestampToISO(userData.lastUsersCheck);
+            // NO actualizar automáticamente aquí - solo se actualiza al marcar como visto o al desconectarse
+            // Esto permite que el admin vea la notificación de usuarios nuevos al entrar
             if (!lastUsersCheckISO) {
+              // Solo inicializar si no existe
               const nowISO = new Date().toISOString();
               try {
                 await updateDoc(userRef, {
@@ -672,7 +701,8 @@ export default function Admin() {
                 });
                 lastUsersCheckISO = nowISO;
               } catch (updateError) {
-                console.error("Error al actualizar lastUsersCheck para admin:", updateError);
+                console.error("Error al inicializar lastUsersCheck:", updateError);
+                lastUsersCheckISO = nowISO;
               }
             }
 
@@ -699,7 +729,7 @@ export default function Admin() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authUser, authLoading, router]);
 
-  // Actualización automática de usuarios - usando polling cada 10 segundos
+  // Actualización automática de usuarios - usando polling cada 60 segundos
   useEffect(() => {
     if (!isAdmin || !authUser) return;
 
@@ -1375,10 +1405,11 @@ export default function Admin() {
               <thead className="bg-white/5 border-b border-white/10">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Nombre</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Email</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Contacto</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Plan</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Estado de Pago</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Edad</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Altura</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Peso</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Estado</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Creado</th>
@@ -1388,7 +1419,7 @@ export default function Admin() {
               <tbody className="divide-y divide-white/10">
                 {users.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-6 py-12 text-center">
+                    <td colSpan={10} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center gap-3">
                         <p className="text-white/60 text-sm">
                           La carga de usuarios está deshabilitada temporalmente
@@ -1465,7 +1496,33 @@ export default function Admin() {
                           )}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-white/80">{user.email || "N/A"}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <div className="flex items-center gap-2">
+                          {user.email ? (
+                            <a
+                              href={`mailto:${user.email}`}
+                              className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-400 transition-colors"
+                              title={user.email}
+                            >
+                              <FaEnvelope className="text-sm" />
+                            </a>
+                          ) : (
+                            <span className="text-white/40">N/A</span>
+                          )}
+                          {user.email && user.email.toLowerCase() !== "admin@fitplan-ai.com" && (
+                            <button
+                              onClick={() => {
+                                setSelectedUserForMessage(user);
+                                setSendMessageModalOpen(true);
+                              }}
+                              className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 text-green-400 transition-colors"
+                              title={`Enviar mensaje a ${user.nombre || user.email}`}
+                            >
+                              <FaComment className="text-sm" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {user.email?.toLowerCase() === "admin@fitplan-ai.com" ? (
                           <span className="px-2 py-1 text-xs rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30">
@@ -1628,11 +1685,46 @@ export default function Admin() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-white/80">{user.edad || "N/A"}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-white/80">
+                        {user.alturaCm ? `${user.alturaCm} cm` : "N/A"}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-white/80">
                         {user.peso ? `${user.peso} kg` : "N/A"}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <div className="flex items-center justify-center">
-                          {getIMCStatus(user.peso, user.alturaCm).icon}
+                          <div className="relative group">
+                            <div
+                              onClick={() => {
+                                if (statusTooltipOpenUserId === user.id) {
+                                  setStatusTooltipOpenUserId(null);
+                                } else {
+                                  setStatusTooltipOpenUserId(user.id);
+                                }
+                              }}
+                              className="cursor-pointer"
+                            >
+                              {getIMCStatus(user.peso, user.alturaCm).icon}
+                            </div>
+                            {statusTooltipOpenUserId === user.id && (() => {
+                              const status = getIMCStatus(user.peso, user.alturaCm);
+                              if (status.status === "saludable") return null;
+                              return (
+                                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-[9999] px-3 py-2 rounded-lg bg-black/95 border border-white/20 shadow-xl text-sm whitespace-nowrap pointer-events-auto">
+                                  {status.status === "bajo" && status.weightDifference && (
+                                    <p className="text-blue-400">
+                                      {status.weightDifference.toFixed(1)} kg por debajo del peso ideal
+                                    </p>
+                                  )}
+                                  {status.status === "excedido" && status.weightDifference && (
+                                    <p className="text-red-400">
+                                      {status.weightDifference.toFixed(1)} kg por encima del peso ideal
+                                    </p>
+                                  )}
+                                  <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-white/20"></div>
+                                </div>
+                              );
+                            })()}
+                          </div>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-white/60">{formatDate(user.createdAt)}</td>
@@ -1786,7 +1878,33 @@ export default function Admin() {
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-white/70">{user.email || "N/A"}</p>
+                      <div className="flex items-center gap-2">
+                        {user.email ? (
+                          <>
+                            <a
+                              href={`mailto:${user.email}`}
+                              className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-400 transition-colors"
+                              title={user.email}
+                            >
+                              <FaEnvelope className="text-sm" />
+                            </a>
+                            {user.email.toLowerCase() !== "admin@fitplan-ai.com" && (
+                              <button
+                                onClick={() => {
+                                  setSelectedUserForMessage(user);
+                                  setSendMessageModalOpen(true);
+                                }}
+                                className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 text-green-400 transition-colors"
+                                title={`Enviar mensaje a ${user.nombre || user.email}`}
+                              >
+                                <FaComment className="text-sm" />
+                              </button>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-white/40 text-sm">N/A</span>
+                        )}
+                      </div>
                     </div>
 
                     {/* Información del usuario */}
@@ -1796,13 +1914,49 @@ export default function Admin() {
                         <p className="text-white font-medium">{user.edad || "N/A"} años</p>
                       </div>
                       <div>
+                        <p className="text-white/60 text-xs mb-0.5">Altura</p>
+                        <p className="text-white font-medium">{user.alturaCm ? `${user.alturaCm} cm` : "N/A"}</p>
+                      </div>
+                      <div>
                         <p className="text-white/60 text-xs mb-0.5">Peso</p>
                         <p className="text-white font-medium">{user.peso ? `${user.peso} kg` : "N/A"}</p>
                       </div>
                       <div>
                         <p className="text-white/60 text-xs mb-0.5">Estado</p>
                         <div className="flex items-center">
-                          {getIMCStatus(user.peso, user.alturaCm).icon}
+                          <div className="relative group">
+                            <div
+                              onClick={() => {
+                                if (statusTooltipOpenUserId === user.id) {
+                                  setStatusTooltipOpenUserId(null);
+                                } else {
+                                  setStatusTooltipOpenUserId(user.id);
+                                }
+                              }}
+                              className="cursor-pointer"
+                            >
+                              {getIMCStatus(user.peso, user.alturaCm).icon}
+                            </div>
+                            {statusTooltipOpenUserId === user.id && (() => {
+                              const status = getIMCStatus(user.peso, user.alturaCm);
+                              if (status.status === "saludable") return null;
+                              return (
+                                <div className="absolute left-0 top-full mt-2 z-[9999] px-3 py-2 rounded-lg bg-black/95 border border-white/20 shadow-xl text-sm whitespace-nowrap pointer-events-auto">
+                                  {status.status === "bajo" && status.weightDifference && (
+                                    <p className="text-blue-400">
+                                      {status.weightDifference.toFixed(1)} kg por debajo del peso ideal
+                                    </p>
+                                  )}
+                                  {status.status === "excedido" && status.weightDifference && (
+                                    <p className="text-red-400">
+                                      {status.weightDifference.toFixed(1)} kg por encima del peso ideal
+                                    </p>
+                                  )}
+                                  <div className="absolute left-4 top-0 -translate-y-full w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-white/20"></div>
+                                </div>
+                              );
+                            })()}
+                          </div>
                         </div>
                       </div>
                       <div>
@@ -2554,7 +2708,7 @@ export default function Admin() {
                           };
                           return (
                             <div key={idx} className="p-3 rounded-lg bg-white/5 border border-white/10 text-sm">
-                              <div className="flex items-center justify-between">
+                              <div className="flex items-center justify-between mb-2">
                                 <div>
                                   <p className="text-white font-medium">Plan #{idx + 1}</p>
                                   <p className="text-white/60 text-xs">
@@ -2570,6 +2724,18 @@ export default function Admin() {
                                   </p>
                                 </div>
                               </div>
+                              {p.id && (
+                                <button
+                                  onClick={() => {
+                                    setSelectedPlanIdForStats(p.id || null);
+                                    setWeeklyStatsModalOpen(true);
+                                  }}
+                                  className="w-full mt-2 px-3 py-1.5 rounded-lg bg-blue-500/20 border border-blue-500/30 text-blue-300 hover:bg-blue-500/30 transition-colors text-xs font-medium flex items-center justify-center gap-2"
+                                >
+                                  <FaChartLine className="h-3 w-3" />
+                                  Ver estadísticas semanales
+                                </button>
+                              )}
                             </div>
                           );
                         })}
@@ -2980,7 +3146,187 @@ export default function Admin() {
             </motion.div>
           </div>
         )}
+
+        {/* Modal de estadísticas semanales */}
+        {weeklyStatsModalOpen && selectedPlanIdForStats && (
+          <WeeklyStatsModal
+            isOpen={weeklyStatsModalOpen}
+            onClose={() => {
+              setWeeklyStatsModalOpen(false);
+              setSelectedPlanIdForStats(null);
+            }}
+            planId={selectedPlanIdForStats}
+            userId={undefined} // Admin puede ver sin userId
+          />
+        )}
+
+        {/* Modal para enviar mensaje a usuario */}
+        {sendMessageModalOpen && selectedUserForMessage && authUser && (
+          <AdminSendMessageModal
+            isOpen={sendMessageModalOpen}
+            onClose={() => {
+              setSendMessageModalOpen(false);
+              setSelectedUserForMessage(null);
+            }}
+            targetUser={selectedUserForMessage}
+            adminUserId={authUser.uid}
+          />
+        )}
       </div>
+    </div>
+  );
+}
+
+// Componente Modal para que el admin envíe mensajes a usuarios
+function AdminSendMessageModal({
+  isOpen,
+  onClose,
+  targetUser,
+  adminUserId
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  targetUser: User;
+  adminUserId: string;
+}) {
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!message.trim()) {
+      setError("El mensaje no puede estar vacío");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/admin/sendMessage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          adminUserId,
+          targetUserId: targetUser.id,
+          subject: subject.trim() || "Mensaje del equipo",
+          message: message.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Error al enviar mensaje");
+      }
+
+      setSuccess(true);
+      setSubject("");
+      setMessage("");
+      
+      // Cerrar modal después de 1.5 segundos
+      setTimeout(() => {
+        setSuccess(false);
+        onClose();
+      }, 1500);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al enviar mensaje");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div 
+      className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.9, y: 20 }}
+        className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-white flex items-center gap-2">
+            <FaComment className="text-green-400" />
+            Enviar mensaje a {targetUser.nombre || targetUser.email}
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-white/70 hover:text-white transition-colors"
+          >
+            ✕
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-white/80 mb-2">
+              Asunto (opcional)
+            </label>
+            <input
+              type="text"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder="Mensaje del equipo"
+              className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-green-500/50"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-white/80 mb-2">
+              Mensaje *
+            </label>
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="Escribe tu mensaje aquí..."
+              rows={6}
+              required
+              className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-green-500/50 resize-none"
+            />
+          </div>
+
+          {error && (
+            <div className="p-3 rounded-lg bg-red-500/20 border border-red-500/30 text-red-400 text-sm">
+              {error}
+            </div>
+          )}
+
+          {success && (
+            <div className="p-3 rounded-lg bg-green-500/20 border border-green-500/30 text-green-400 text-sm">
+              ✓ Mensaje enviado exitosamente
+            </div>
+          )}
+
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-white transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={loading || !message.trim()}
+              className="flex-1 px-4 py-2 rounded-lg bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 text-green-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? "Enviando..." : "Enviar mensaje"}
+            </button>
+          </div>
+        </form>
+      </motion.div>
     </div>
   );
 }
