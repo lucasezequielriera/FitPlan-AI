@@ -19,12 +19,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const { foodDescription, planCalories, userObjective, planId, userId, userTimezone, currentHour }: AnalyzeFoodRequest = req.body;
 
+  // Validar datos requeridos
+  if (!foodDescription || typeof foodDescription !== 'string' || foodDescription.trim().length === 0) {
+    return res.status(400).json({ error: "foodDescription es requerido y debe ser un texto válido" });
+  }
+
+  if (!planCalories || typeof planCalories !== 'number' || planCalories <= 0) {
+    return res.status(400).json({ error: "planCalories es requerido y debe ser un número positivo" });
+  }
+
   // Obtener hora actual si no se proporciona
   let hour = currentHour;
-  if (hour === undefined) {
+  if (hour === undefined || hour === null || isNaN(hour)) {
     const now = new Date();
     // Si hay timezone, convertir a esa zona, sino usar hora local del servidor
-    if (userTimezone) {
+    if (userTimezone && typeof userTimezone === 'string') {
       try {
         // Obtener la hora en la zona horaria del usuario
         const formatter = new Intl.DateTimeFormat("en-US", {
@@ -42,6 +51,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     } else {
       hour = now.getHours();
     }
+  }
+  
+  // Asegurar que hour esté en rango válido
+  if (hour < 0 || hour > 23) {
+    hour = new Date().getHours();
   }
 
   // Determinar momento del día
@@ -67,10 +81,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     timeOfDay,
     userTimezone,
   });
-
-  if (!foodDescription || !planCalories) {
-    return res.status(400).json({ error: "foodDescription y planCalories son requeridos" });
-  }
 
   // Obtener comidas previas del día si hay planId
   let previousFoodsToday: Array<{ description: string; calories: number; timestamp: any }> = [];

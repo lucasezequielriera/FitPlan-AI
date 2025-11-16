@@ -121,3 +121,17 @@ select.bg-transparent {
   background-color: transparent !important;
   background: transparent !important;
 }
+
+/* Animación shimmer para efectos de brillo */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.shimmer-animation {
+  animation: shimmer 3s infinite;
+}

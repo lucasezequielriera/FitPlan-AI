@@ -1832,7 +1832,7 @@ export default function PlanPage() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <div className="relative group">
                     <button
-                      onClick={() => {
+              onClick={() => {
                         if (isPremium) {
                           setWeeklyStatsModalOpen(true);
                         }
@@ -1849,7 +1849,7 @@ export default function PlanPage() {
                       {!isPremium && (
                         <span className="ml-1 text-xs">🌟</span>
                       )}
-                    </button>
+            </button>
                     {!isPremium && (
                       <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gradient-to-r from-yellow-500/95 to-orange-500/95 text-white text-xs font-medium rounded-lg shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 border border-yellow-400/50">
                         💳 Requiere Premium
@@ -1860,8 +1860,8 @@ export default function PlanPage() {
                     )}
                   </div>
                   <div className="relative group">
-                    <button
-                      onClick={() => {
+            <button
+              onClick={() => {
                         if (isPremium) {
                           setFoodTrackingModalOpen(true);
                         }
@@ -1878,13 +1878,13 @@ export default function PlanPage() {
                       {!isPremium && (
                         <span className="ml-1 text-xs">🌟</span>
                       )}
-                    </button>
+            </button>
                     {!isPremium && (
                       <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gradient-to-r from-yellow-500/95 to-orange-500/95 text-white text-xs font-medium rounded-lg shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 border border-yellow-400/50">
                         💳 Requiere Premium
                         <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
                           <div className="w-2 h-2 bg-gradient-to-r from-yellow-500 to-orange-500 rotate-45 border-r border-b border-yellow-400/50"></div>
-                        </div>
+          </div>
                       </div>
                     )}
                   </div>
@@ -2076,8 +2076,8 @@ export default function PlanPage() {
                               </ol>
                             </div>
                           )}
-                        </div>
-                      );
+    </div>
+  );
                     })}
                   </div>
                 );

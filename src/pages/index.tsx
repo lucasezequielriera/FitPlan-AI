@@ -96,24 +96,24 @@ export default function Home() {
   return (
     <div className="min-h-screen">
       <Head>
-        <title>FitPlan AI | Plan nutricional inteligente con IA</title>
-        <meta name="description" content="Crea tu plan nutricional inteligente con IA: comidas semanales con ingredientes exactos, macros por objetivo, entrenamiento y sueño recomendados, seguimiento y PDF." />
-        <meta name="keywords" content="plan nutricional, inteligencia artificial, dieta personalizada, macros, calorías, entrenamiento, bajar de peso, ganar masa, perder grasa, recomposición, alimentación saludable" />
+        <title>FitPlan AI | Plan de Alimentación y Entrenamiento Inteligente con IA</title>
+        <meta name="description" content="Crea tu plan de alimentación y entrenamiento inteligente con IA: planes nutricionales semanales con ingredientes exactos, rutinas de entrenamiento personalizadas, macros por objetivo, seguimiento y PDF. Desarrollado por nutricionistas y entrenadores profesionales." />
+        <meta name="keywords" content="plan nutricional, plan de entrenamiento, inteligencia artificial, dieta personalizada, rutina de gym, macros, calorías, entrenamiento personalizado, bajar de peso, ganar masa, perder grasa, recomposición, alimentación saludable, nutricionista, entrenador personal" />
         <meta name="robots" content="index,follow" />
         <link rel="canonical" href="https://www.fitplan-ai.com/" />
         {/* Open Graph */}
         <meta property="og:type" content="website" />
         <meta property="og:site_name" content="FitPlan AI" />
-        <meta property="og:title" content="FitPlan AI | Plan nutricional inteligente con IA" />
-        <meta property="og:description" content="Resultados en 30 días con nutrición + entrenamiento personalizados por IA." />
+        <meta property="og:title" content="FitPlan AI | Plan de Alimentación y Entrenamiento Inteligente con IA" />
+        <meta property="og:description" content="Planes de alimentación y entrenamiento personalizados por nutricionistas y entrenadores profesionales, potenciados con IA. Resultados en 30 días." />
         <meta property="og:url" content="https://www.fitplan-ai.com/" />
         <meta property="og:image" content="https://www.fitplan-ai.com/brand/icon-social.png" />
         <meta property="og:image:width" content="1080" />
         <meta property="og:image:height" content="1080" />
         {/* Twitter Card */}
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="FitPlan AI | Plan nutricional inteligente con IA" />
-        <meta name="twitter:description" content="Nutrición + entrenamiento personalizados por IA. Empieza gratis." />
+        <meta name="twitter:title" content="FitPlan AI | Plan de Alimentación y Entrenamiento Inteligente con IA" />
+        <meta name="twitter:description" content="Alimentación + entrenamiento personalizados por expertos y potenciados con IA. Empieza gratis." />
         <meta name="twitter:image" content="https://www.fitplan-ai.com/brand/icon-social.png" />
         {/* JSON-LD */}
         <script
@@ -141,7 +141,7 @@ export default function Home() {
               name: "FitPlan AI",
               applicationCategory: "HealthApplication",
               operatingSystem: "Web",
-              description: "Plan nutricional inteligente con IA, comidas semanales, macros, entrenamiento y seguimiento.",
+              description: "Plan de alimentación y entrenamiento inteligente con IA. Planes nutricionales y rutinas de entrenamiento personalizadas desarrollados por nutricionistas y entrenadores profesionales.",
               offers: {
                 "@type": "Offer",
                 price: "25000",
@@ -173,57 +173,19 @@ export default function Home() {
               FitPlan AI
             </h1>
             <p className="text-xl md:text-2xl opacity-80 mb-2">
-              Plan Nutricional Inteligente
+              Plan de Alimentación y Entrenamiento Inteligente
             </p>
             <p className="text-base md:text-lg opacity-60 max-w-2xl mx-auto">
-              Crea tu plan de alimentación personalizado con IA. Diseñado específicamente para tus objetivos, preferencias y necesidades.
+              Crea tu plan de alimentación y entrenamiento personalizado con IA. Diseñado específicamente para tus objetivos, preferencias y necesidades por nutricionistas y entrenadores profesionales.
             </p>
-          </motion.div>
-
-          {/* Características */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12"
-          >
-            {[
-              {
-                icon: "🤖",
-                title: "Potenciado por IA",
-                description: "Planes generados con inteligencia artificial para resultados óptimos",
-              },
-              {
-                icon: "📊",
-                title: "Totalmente Personalizado",
-                description: "Adaptado a tu cuerpo, objetivos y preferencias alimentarias",
-              },
-              {
-                icon: "📱",
-                title: "Fácil de Seguir",
-                description: "Planes detallados con ingredientes, preparación y listas de compras",
-              },
-            ].map((feature, idx) => (
-              <motion.div
-                key={idx}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 + idx * 0.1 }}
-                className="glass rounded-xl p-6 border border-white/10"
-              >
-                <div className="text-4xl mb-3">{feature.icon}</div>
-                <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
-                <p className="text-sm opacity-70">{feature.description}</p>
-              </motion.div>
-            ))}
           </motion.div>
 
           {/* Botones de acción */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.8 }}
-            className="flex flex-col sm:flex-row items-center justify-center gap-4"
+            transition={{ delay: 0.4 }}
+            className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12"
           >
             {!authUser ? (
               <>
@@ -232,7 +194,7 @@ export default function Home() {
                   className="px-8 py-4 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-semibold text-lg transition-all shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 transform hover:scale-105"
                 >
                   Comenzar ahora
-              </button>
+                </button>
                 <p className="text-sm opacity-60">
                   Inicia sesión para crear y guardar tus planes
                 </p>
@@ -247,6 +209,85 @@ export default function Home() {
             )}
           </motion.div>
 
+          {/* Sección destacada: Expertos + IA */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.6 }}
+            className="mb-12 w-full"
+          >
+            <div className="relative rounded-2xl p-8 md:p-10 bg-gradient-to-br from-emerald-500/20 via-cyan-500/20 to-blue-500/20 border-2 border-emerald-400/30 shadow-xl shadow-emerald-500/10 overflow-hidden">
+              {/* Efecto de brillo animado */}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent shimmer-animation"></div>
+              
+              <div className="relative z-10 text-center">
+                <div className="flex items-center justify-center gap-4 mb-4">
+                  <div className="text-5xl">👨‍⚕️</div>
+                  <div className="text-5xl">🤖</div>
+                  <div className="text-5xl">💪</div>
+                </div>
+                <h2 className="text-2xl md:text-3xl font-bold mb-3 bg-gradient-to-r from-emerald-300 via-cyan-300 to-blue-300 bg-clip-text text-transparent">
+                  Creado por Expertos, Potenciado por IA
+                </h2>
+                <p className="text-base md:text-lg opacity-90 max-w-2xl mx-auto leading-relaxed">
+                  Nuestros planes de <strong className="text-emerald-300">alimentación</strong> y <strong className="text-cyan-300">entrenamiento</strong> están desarrollados por <strong className="text-white">nutricionistas certificados</strong> y <strong className="text-white">entrenadores profesionales</strong>, y potenciados con <strong className="text-blue-300">inteligencia artificial</strong> para darte el plan más preciso y efectivo.
+                </p>
+                <div className="mt-6 flex flex-wrap items-center justify-center gap-4 text-sm md:text-base">
+                  <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500/20 border border-emerald-400/30">
+                    <span className="text-emerald-300">✓</span>
+                    <span className="opacity-90">Nutricionistas Certificados</span>
+                  </div>
+                  <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-500/20 border border-cyan-400/30">
+                    <span className="text-cyan-300">✓</span>
+                    <span className="opacity-90">Entrenadores Profesionales</span>
+                  </div>
+                  <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-500/20 border border-blue-400/30">
+                    <span className="text-blue-300">✓</span>
+                    <span className="opacity-90">Potenciado con IA</span>
+                  </div>
+                </div>
+            </div>
+            </div>
+          </motion.div>
+
+          {/* Características */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.8 }}
+            className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8"
+          >
+            {[
+              {
+                icon: "💬",
+                title: "Asistencia 24/7",
+                description: "Chat de ayuda disponible con asistente humano y asistencia de IA para resolver todas tus dudas",
+              },
+              {
+                icon: "📊",
+                title: "Totalmente Personalizado",
+                description: "Adaptado a tu cuerpo, objetivos, preferencias alimentarias y nivel de entrenamiento",
+              },
+              {
+                icon: "📱",
+                title: "Fácil de Seguir",
+                description: "Planes detallados con ingredientes, preparación, rutinas de entrenamiento y listas de compras",
+              },
+            ].map((feature, idx) => (
+              <motion.div
+                key={idx}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.9 + idx * 0.1 }}
+                className="glass rounded-xl p-6 border border-white/10"
+              >
+                <div className="text-4xl mb-3">{feature.icon}</div>
+                <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
+                <p className="text-sm opacity-70">{feature.description}</p>
+              </motion.div>
+            ))}
+          </motion.div>
+
           {/* Información adicional */}
           <motion.div
             initial={{ opacity: 0 }}
@@ -255,7 +296,7 @@ export default function Home() {
             className="mt-16 pt-8 border-t border-white/10"
           >
             <p className="text-sm opacity-50">
-              Diseñado para ayudarte a alcanzar tus objetivos de salud y fitness
+              Diseñado por expertos para ayudarte a alcanzar tus objetivos de salud y fitness con planes de alimentación y entrenamiento personalizados
             </p>
           </motion.div>
         </motion.div>

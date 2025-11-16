@@ -96,10 +96,17 @@ export default function FoodTrackingModal({ isOpen, onClose, planCalories, userO
     setLoading(true);
     setResult(null);
 
-    // Obtener hora actual y zona horaria del usuario
+    // Obtener hora actual y zona horaria del usuario (con manejo de errores para móviles)
     const now = new Date();
     const currentHour = now.getHours();
-    const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    let userTimezone: string | undefined;
+    
+    try {
+      userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    } catch (e) {
+      console.warn("No se pudo obtener timezone, usando hora local:", e);
+      // Si falla, no enviamos timezone y el servidor usará la hora local
+    }
 
     try {
       const response = await fetch("/api/analyzeFood", {
@@ -117,18 +124,25 @@ export default function FoodTrackingModal({ isOpen, onClose, planCalories, userO
       });
 
       if (!response.ok) {
-        throw new Error("Error al analizar la comida");
+        const errorData = await response.json().catch(() => ({ error: "Error desconocido" }));
+        throw new Error(errorData.error || errorData.detail || "Error al analizar la comida");
       }
 
       const data = await response.json();
+      
+      if (!data || !data.calories) {
+        throw new Error("Respuesta inválida del servidor");
+      }
+      
       setResult(data);
       // Recargar historial después de agregar
       if (planId) {
         await loadTodayFoods();
       }
     } catch (error) {
-      console.error("Error:", error);
-      alert("Error al analizar la comida. Intenta nuevamente.");
+      console.error("Error al analizar comida:", error);
+      const errorMessage = error instanceof Error ? error.message : "Error al analizar la comida. Intenta nuevamente.";
+      alert(errorMessage);
     } finally {
       setLoading(false);
     }

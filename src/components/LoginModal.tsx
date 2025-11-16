@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "@/store/authStore";
 import { getDbSafe, getAuthSafe } from "@/lib/firebase";
 import { collection, query, where, getDocs, limit } from "firebase/firestore";
+import { sendPasswordResetEmail } from "firebase/auth";
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -13,11 +14,15 @@ interface LoginModalProps {
 
 export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: LoginModalProps) {
   const [isSignUp, setIsSignUp] = useState(defaultMode === "signup");
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [resetEmailSent, setResetEmailSent] = useState(false);
   
   // Resetear al modo por defecto cuando se abre el modal
   useEffect(() => {
     if (isOpen) {
       setIsSignUp(defaultMode === "signup");
+      setIsForgotPassword(false);
+      setResetEmailSent(false);
       setEmail("");
       setPassword("");
       setError(null);
@@ -26,6 +31,7 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
   const { signIn, signUp } = useAuthStore();
@@ -82,9 +88,33 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
     }
   };
 
+  const handlePasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
+    setLoading(true);
+
+    try {
+      const auth = getAuthSafe();
+      if (!auth) {
+        throw new Error("Error de autenticación");
+      }
+
+      await sendPasswordResetEmail(auth, email);
+      setResetEmailSent(true);
+      setSuccess("Se ha enviado un email con las instrucciones para recuperar tu contraseña. Revisa tu bandeja de entrada.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Error al enviar el email de recuperación";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setSuccess(null);
     setLoading(true);
 
     try {
@@ -208,77 +238,158 @@ export default function LoginModal({ isOpen, onClose, defaultMode = "login" }: L
               </button>
 
               <h2 className="text-2xl font-semibold mb-2">
-                {isSignUp ? "Crear cuenta" : "Iniciar sesión"}
+                {isForgotPassword 
+                  ? "Recuperar contraseña" 
+                  : isSignUp 
+                    ? "Crear cuenta" 
+                    : "Iniciar sesión"}
               </h2>
               <p className="text-sm opacity-70 mb-6">
-                {isSignUp 
-                  ? "Crea una cuenta para guardar tus planes de alimentación" 
-                  : "Ingresa tus credenciales para acceder a tu cuenta"}
+                {isForgotPassword
+                  ? "Ingresa tu email y te enviaremos las instrucciones para recuperar tu contraseña"
+                  : isSignUp 
+                    ? "Crea una cuenta para guardar tus planes de alimentación" 
+                    : "Ingresa tus credenciales para acceder a tu cuenta"}
               </p>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2 opacity-80">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="tu@email.com"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2 opacity-80">
-                    Contraseña
-                  </label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    minLength={6}
-                    className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="••••••••"
-                  />
-                  {isSignUp && (
-                    <p className="mt-1 text-xs opacity-60">
-                      Mínimo 6 caracteres
-                    </p>
-                  )}
-                </div>
-
-                {error && (
-                  <div className="p-3 rounded-lg bg-red-500/20 border border-red-500/30 text-red-300 text-sm">
-                    {error}
+              {isForgotPassword ? (
+                <form onSubmit={handlePasswordReset} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2 opacity-80">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="tu@email.com"
+                    />
                   </div>
-                )}
 
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-medium transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? "Cargando..." : isSignUp ? "Crear cuenta" : "Iniciar sesión"}
-                </button>
-              </form>
+                  {error && (
+                    <div className="p-3 rounded-lg bg-red-500/20 border border-red-500/30 text-red-300 text-sm">
+                      {error}
+                    </div>
+                  )}
 
-              <div className="mt-4 text-center">
-                <button
-                  onClick={() => {
-                    setIsSignUp(!isSignUp);
-                    setError(null);
-                  }}
-                  className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
-                >
-                  {isSignUp 
-                    ? "¿Ya tienes cuenta? Inicia sesión" 
-                    : "¿No tienes cuenta? Regístrate"}
-                </button>
-              </div>
+                  {success && (
+                    <div className="p-3 rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-sm">
+                      {success}
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={loading || resetEmailSent}
+                    className="w-full px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-medium transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loading ? "Enviando..." : resetEmailSent ? "Email enviado" : "Enviar instrucciones"}
+                  </button>
+
+                  <div className="mt-4 text-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsForgotPassword(false);
+                        setError(null);
+                        setSuccess(null);
+                        setResetEmailSent(false);
+                      }}
+                      className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
+                    >
+                      ← Volver a iniciar sesión
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <>
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2 opacity-80">
+                        Email
+                      </label>
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                        className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="tu@email.com"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2 opacity-80">
+                        Contraseña
+                      </label>
+                      <input
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                        minLength={6}
+                        className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="••••••••"
+                      />
+                      {isSignUp && (
+                        <p className="mt-1 text-xs opacity-60">
+                          Mínimo 6 caracteres
+                        </p>
+                      )}
+                      {!isSignUp && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsForgotPassword(true);
+                            setError(null);
+                            setSuccess(null);
+                          }}
+                          className="mt-2 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                        >
+                          ¿Olvidaste tu contraseña?
+                        </button>
+                      )}
+                    </div>
+
+                    {error && (
+                      <div className="p-3 rounded-lg bg-red-500/20 border border-red-500/30 text-red-300 text-sm">
+                        {error}
+                      </div>
+                    )}
+
+                    {success && (
+                      <div className="p-3 rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-sm">
+                        {success}
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-medium transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {loading ? "Cargando..." : isSignUp ? "Crear cuenta" : "Iniciar sesión"}
+                    </button>
+                  </form>
+
+                  <div className="mt-4 text-center">
+                    <button
+                      onClick={() => {
+                        setIsSignUp(!isSignUp);
+                        setError(null);
+                        setSuccess(null);
+                      }}
+                      className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
+                    >
+                      {isSignUp 
+                        ? "¿Ya tienes cuenta? Inicia sesión" 
+                        : "¿No tienes cuenta? Regístrate"}
+                    </button>
+                  </div>
+                </>
+              )}
             </motion.div>
           </div>
         </>
