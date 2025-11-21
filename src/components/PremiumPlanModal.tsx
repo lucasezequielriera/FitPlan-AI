@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import { getPaymentProvider } from "@/lib/paymentUtils";
 
 interface PremiumPlanModalProps {
   isOpen: boolean;
@@ -14,12 +15,15 @@ interface Plan {
   type: PlanType;
   name: string;
   price: number;
+  priceEUR?: number;
   period: string;
   savings?: string;
+  savingsEUR?: string;
   popular?: boolean;
 }
 
-const plans: Plan[] = [
+// Planes en ARS (MercadoPago)
+const plansARS: Plan[] = [
   {
     type: "monthly",
     name: "Plan Mensual",
@@ -43,11 +47,65 @@ const plans: Plan[] = [
   },
 ];
 
+// Planes en EUR (Stripe)
+const plansEUR: Plan[] = [
+  {
+    type: "monthly",
+    name: "Plan Mensual",
+    price: 30,
+    priceEUR: 30,
+    period: "mes",
+  },
+  {
+    type: "quarterly",
+    name: "Plan Trimestral",
+    price: 75,
+    priceEUR: 75,
+    period: "3 meses",
+    savings: "Ahorrás €15",
+    savingsEUR: "Ahorrás €15",
+    popular: true,
+  },
+  {
+    type: "annual",
+    name: "Plan Anual",
+    price: 250,
+    priceEUR: 250,
+    period: "12 meses",
+    savings: "Ahorrás €110",
+    savingsEUR: "Ahorrás €110",
+  },
+];
+
 export default function PremiumPlanModal({ isOpen, onClose, userId, userEmail }: PremiumPlanModalProps) {
   const [selectedPlan, setSelectedPlan] = useState<PlanType | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [paymentProvider, setPaymentProvider] = useState<"stripe" | "mercadopago" | null>(null);
+  const [loadingProvider, setLoadingProvider] = useState(true);
+
+  // Detectar el proveedor de pago al abrir el modal
+  useEffect(() => {
+    if (isOpen) {
+      const detectProvider = async () => {
+        setLoadingProvider(true);
+        try {
+          const provider = await getPaymentProvider();
+          setPaymentProvider(provider);
+        } catch (error) {
+          console.error("Error al detectar proveedor de pago:", error);
+          // Fallback a MercadoPago si hay error
+          setPaymentProvider("mercadopago");
+        } finally {
+          setLoadingProvider(false);
+        }
+      };
+      detectProvider();
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
+
+  const plans = paymentProvider === "stripe" ? plansEUR : plansARS;
 
   const handleSelectPlan = async (planType: PlanType) => {
     if (!userId || !userEmail) {
@@ -55,15 +113,22 @@ export default function PremiumPlanModal({ isOpen, onClose, userId, userEmail }:
       return;
     }
 
+    if (!paymentProvider) {
+      alert("Cargando información de pago, por favor espera...");
+      return;
+    }
+
     setProcessing(true);
     try {
-      const response = await fetch("/api/createPayment", {
+      const endpoint = paymentProvider === "stripe" ? "/api/createStripePayment" : "/api/createPayment";
+      
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId,
           userEmail,
-          planType, // Agregar el tipo de plan
+          planType,
         }),
       });
 
@@ -74,7 +139,10 @@ export default function PremiumPlanModal({ isOpen, onClose, userId, userEmail }:
 
       const data = await response.json();
       
-      if (data.init_point) {
+      if (paymentProvider === "stripe" && data.url) {
+        // Redirigir al checkout de Stripe
+        window.location.href = data.url;
+      } else if (paymentProvider === "mercadopago" && data.init_point) {
         // Redirigir al checkout de MercadoPago
         window.location.href = data.init_point;
       } else {
@@ -150,13 +218,15 @@ export default function PremiumPlanModal({ isOpen, onClose, userId, userEmail }:
                 <h3 className="text-lg sm:text-xl font-bold text-white mb-2">{plan.name}</h3>
                 <div className="mb-4">
                   <span className="text-3xl sm:text-4xl font-bold text-white">
-                    ${plan.price.toLocaleString('es-AR')}
+                    {paymentProvider === "stripe" ? "€" : "$"}{plan.price.toLocaleString(paymentProvider === "stripe" ? "es-ES" : "es-AR")}
                   </span>
-                  <span className="text-white/60 text-sm ml-1">ARS</span>
+                  <span className="text-white/60 text-sm ml-1">{paymentProvider === "stripe" ? "EUR" : "ARS"}</span>
                 </div>
                 <p className="text-white/60 text-sm mb-4">{plan.period}</p>
-                {plan.savings && (
-                  <p className="text-green-400 text-sm font-medium mb-4">{plan.savings}</p>
+                {((paymentProvider === "stripe" && plan.savingsEUR) || (paymentProvider === "mercadopago" && plan.savings)) && (
+                  <p className="text-green-400 text-sm font-medium mb-4">
+                    {paymentProvider === "stripe" ? plan.savingsEUR : plan.savings}
+                  </p>
                 )}
 
                 <div className="space-y-2 text-left mb-6">
@@ -191,7 +261,7 @@ export default function PremiumPlanModal({ isOpen, onClose, userId, userEmail }:
                     e.stopPropagation();
                     handleSelectPlan(plan.type);
                   }}
-                  disabled={processing}
+                  disabled={processing || loadingProvider}
                   className={`w-full px-4 py-2.5 rounded-lg font-medium transition-all ${
                     selectedPlan === plan.type
                       ? "bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white"
@@ -200,7 +270,7 @@ export default function PremiumPlanModal({ isOpen, onClose, userId, userEmail }:
                       : "bg-white/10 hover:bg-white/20 text-white border border-white/20"
                   } disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
-                  {processing ? "Procesando..." : "Seleccionar Plan"}
+                  {loadingProvider ? "Cargando..." : processing ? "Procesando..." : "Seleccionar Plan"}
                 </button>
               </div>
             </div>

@@ -45,16 +45,51 @@ export default function PaymentSuccess() {
         }
 
         // Si no es premium, intentar verificar el pago desde los query params
-        const { payment_id, status } = router.query;
+        const { payment_id, session_id, provider } = router.query;
+        const paymentProvider = provider === "stripe" ? "stripe" : "mercadopago";
         
-        if (payment_id && typeof payment_id === 'string') {
+        if (paymentProvider === "stripe" && session_id && typeof session_id === "string") {
+          // Verificar el pago con Stripe
+          try {
+            const paymentCheck = await fetch(`/api/checkStripePayment?session_id=${session_id}`);
+            if (paymentCheck.ok) {
+              const paymentData = await paymentCheck.json();
+              
+              if (paymentData.status === "succeeded" && paymentData.userId === auth.currentUser.uid) {
+                // Actualizar el estado premium en la base de datos
+                const premiumData = {
+                  premium: true,
+                  premiumSince: serverTimestamp(),
+                  premiumStatus: "active",
+                  premiumPayment: {
+                    paymentId: session_id,
+                    amount: paymentData.amount,
+                    currency: paymentData.currency || "EUR",
+                    date: serverTimestamp(),
+                    method: "stripe",
+                    status: paymentData.status,
+                  },
+                  updatedAt: serverTimestamp(),
+                };
+                
+                await setDoc(userRef, premiumData, { merge: true });
+                console.log(`✅ Usuario ${auth.currentUser.uid} actualizado a premium desde success page (Stripe)`);
+                setPremium(true);
+                setLoading(false);
+                return;
+              }
+            }
+          } catch (error) {
+            console.error("Error al verificar pago de Stripe:", error);
+          }
+        } else if (paymentProvider === "mercadopago" && payment_id && typeof payment_id === "string") {
           // Verificar el pago con MercadoPago
           try {
             const paymentCheck = await fetch(`/api/checkPayment?payment_id=${payment_id}`);
             if (paymentCheck.ok) {
               const paymentData = await paymentCheck.json();
               
-              if (paymentData.status === "approved" && paymentData.external_reference === auth.currentUser.uid) {
+              if (paymentData.status === "approved" && paymentData.externalReference === auth.currentUser.uid) {
                 // Actualizar el estado premium en la base de datos
                 const premiumData = {
                   premium: true,
@@ -62,24 +97,24 @@ export default function PaymentSuccess() {
                   premiumStatus: "active",
                   premiumPayment: {
                     paymentId: payment_id,
-                    amount: paymentData.transaction_amount,
-                    currency: paymentData.currency_id || "ARS",
+                    amount: paymentData.transactionAmount,
+                    currency: paymentData.currencyId || "ARS",
                     date: serverTimestamp(),
-                    method: paymentData.payment_method_id || "unknown",
+                    method: paymentData.paymentMethodId || "unknown",
                     status: paymentData.status,
                   },
                   updatedAt: serverTimestamp(),
                 };
                 
                 await setDoc(userRef, premiumData, { merge: true });
-                console.log(`✅ Usuario ${auth.currentUser.uid} actualizado a premium desde success page`);
+                console.log(`✅ Usuario ${auth.currentUser.uid} actualizado a premium desde success page (MercadoPago)`);
                 setPremium(true);
                 setLoading(false);
                 return;
               }
             }
           } catch (error) {
-            console.error("Error al verificar pago:", error);
+            console.error("Error al verificar pago de MercadoPago:", error);
           }
         }
 

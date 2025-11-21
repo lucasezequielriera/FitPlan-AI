@@ -13,7 +13,9 @@ interface Payment {
   status: "approved" | "pending" | "cancelled";
   paymentId?: string | null;
   mercadopagoPaymentId?: string | null;
-  paymentMethod: "mercadopago" | "transferencia" | "efectivo" | "otro";
+  stripePaymentId?: string | null;
+  stripePaymentIntentId?: string | null;
+  paymentMethod: "mercadopago" | "stripe" | "transferencia" | "efectivo" | "otro";
   isManual: boolean;
   createdBy?: string;
   notes?: string;

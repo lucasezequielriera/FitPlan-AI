@@ -89,8 +89,29 @@ export const useAuthStore = create<AuthState>((set) => ({
       return;
     }
     
-    onAuthStateChanged(auth, (user) => {
+    onAuthStateChanged(auth, async (user) => {
       set({ user, loading: false });
+      
+      // Actualizar lastLogin cuando el usuario se conecta
+      if (user) {
+        try {
+          const response = await fetch("/api/updateLastLogin", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId: user.uid }),
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            console.warn("No se pudo actualizar lastLogin:", errorData);
+          } else {
+            console.log("✅ lastLogin actualizado correctamente");
+          }
+        } catch (error) {
+          // Silenciar errores de lastLogin para no bloquear el flujo
+          console.warn("Error al actualizar lastLogin:", error);
+        }
+      }
     });
   },
 }));

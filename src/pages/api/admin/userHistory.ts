@@ -125,6 +125,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       id: userDoc.id,
       ...userDoc.data(),
       createdAt: userDoc.data()?.createdAt?.toDate?.() ? userDoc.data()?.createdAt.toDate().toISOString() : null,
+      lastLogin: userDoc.data()?.lastLogin?.toDate?.() ? userDoc.data()?.lastLogin.toDate().toISOString() : null,
     } : null;
 
     return res.status(200).json({

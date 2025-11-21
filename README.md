@@ -55,9 +55,13 @@ NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
 NEXT_PUBLIC_FIREBASE_APP_ID=
 
-# MercadoPago (obligatorio para pagos Premium)
+# MercadoPago (obligatorio para pagos Premium fuera de Europa)
 MERCADOPAGO_ACCESS_TOKEN=
 NEXT_PUBLIC_BASE_URL=http://localhost:3000
+
+# Stripe (obligatorio para pagos Premium en Europa)
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
 ```
 
 **Nota:** 
@@ -84,6 +88,26 @@ NEXT_PUBLIC_BASE_URL=http://localhost:3000
 3. **URL Base:**
    - En desarrollo: `NEXT_PUBLIC_BASE_URL=http://localhost:3000` (o tu URL de ngrok)
    - En producción: `NEXT_PUBLIC_BASE_URL=https://tu-dominio.com`
+
+### Configuración de Stripe (para usuarios europeos)
+
+1. **Obtener Secret Key:**
+   - Crea una cuenta en [Stripe](https://stripe.com)
+   - Ve a Developers > API keys
+   - Copia tu **Secret key** (usar el de prueba para desarrollo, producción para producción)
+   - Agrégalo a `.env.local` como `STRIPE_SECRET_KEY`
+
+2. **Configurar Webhook (producción):**
+   - En Stripe Dashboard, ve a Developers > Webhooks
+   - Crea un nuevo endpoint: `https://tu-dominio.com/api/payment/stripe-webhook`
+   - Selecciona el evento: `checkout.session.completed`
+   - Copia el **Signing secret** y agrégalo a `.env.local` como `STRIPE_WEBHOOK_SECRET`
+   - Para desarrollo local, usa [Stripe CLI](https://stripe.com/docs/stripe-cli) para reenviar eventos:
+     ```bash
+     stripe listen --forward-to localhost:3000/api/payment/stripe-webhook
+     ```
+
+**Nota:** La aplicación detecta automáticamente si el usuario es de Europa basándose en su IP y redirige a Stripe o MercadoPago según corresponda.
 
 ## Despliegue
 

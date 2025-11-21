@@ -98,13 +98,16 @@ export function formatPaymentMessage(paymentData: {
   const email = paymentData.email || "Sin email";
   const monto = paymentData.amount.toLocaleString('es-AR');
   const moneda = paymentData.currency || "ARS";
+  const isEUR = moneda === "EUR";
   const planType = paymentData.planType === "monthly" 
-    ? "Mensual ($30.000 ARS)"
+    ? isEUR ? "Mensual (€30 EUR)" : "Mensual ($30.000 ARS)"
     : paymentData.planType === "quarterly"
-    ? "Trimestral ($75.000 ARS)"
-    : "Anual ($250.000 ARS)";
+    ? isEUR ? "Trimestral (€75 EUR)" : "Trimestral ($75.000 ARS)"
+    : isEUR ? "Anual (€250 EUR)" : "Anual ($250.000 ARS)";
   const metodo = paymentData.paymentMethod === "mercadopago"
     ? "💳 MercadoPago"
+    : paymentData.paymentMethod === "stripe"
+    ? "💳 Stripe"
     : paymentData.paymentMethod === "transferencia"
     ? "🏦 Transferencia"
     : paymentData.paymentMethod === "efectivo"
@@ -121,11 +124,13 @@ export function formatPaymentMessage(paymentData: {
     : new Date().toLocaleString('es-AR');
   const paymentId = paymentData.paymentId ? `\n🆔 <b>ID de Pago:</b> ${paymentData.paymentId}` : "";
 
+  const simboloMoneda = moneda === "EUR" ? "€" : "$";
+  
   return `💰 <b>Nuevo Pago Recibido</b>
 
 👤 <b>Usuario:</b> ${nombre}
 📧 <b>Email:</b> ${email}
-💵 <b>Monto:</b> $${monto} ${moneda}
+💵 <b>Monto:</b> ${simboloMoneda}${monto} ${moneda}
 📦 <b>Plan:</b> ${planType}
 ${metodo}
 📅 <b>Fecha:</b> ${fecha}${paymentId}`;

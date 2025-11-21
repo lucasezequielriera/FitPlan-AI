@@ -19,6 +19,7 @@ interface User {
   premiumPlanType?: string | null;
   createdAt: unknown;
   updatedAt: unknown;
+  lastLogin?: unknown;
   sexo: string | null;
   alturaCm: number | null;
   edad: number | null;
@@ -1112,6 +1113,49 @@ export default function Admin() {
     return "N/A";
   };
 
+  const formatDateTime = (timestamp: unknown) => {
+    if (!timestamp) {
+      return "Nunca";
+    }
+    
+    // Intentar convertir el timestamp a fecha
+    let date: Date | null = null;
+    
+    try {
+      if (timestamp instanceof Date) {
+        date = timestamp;
+      } else if (typeof timestamp === 'string') {
+        // Manejar string ISO (viene del servidor después de convertTimestamp)
+        date = new Date(timestamp);
+        if (isNaN(date.getTime())) {
+          return "Nunca";
+        }
+      } else if (timestamp && typeof timestamp === 'object' && 'toDate' in timestamp && typeof timestamp.toDate === 'function') {
+        date = (timestamp as { toDate: () => Date }).toDate();
+      } else if (timestamp && typeof timestamp === 'object' && 'seconds' in timestamp) {
+        // Firestore timestamp con formato { seconds: number, nanoseconds: number }
+        const firestoreTimestamp = timestamp as { seconds: number; nanoseconds?: number };
+        date = new Date(firestoreTimestamp.seconds * 1000 + (firestoreTimestamp.nanoseconds || 0) / 1000000);
+      } else {
+        return "Nunca";
+      }
+      
+      if (date && !isNaN(date.getTime())) {
+        return date.toLocaleString('es-AR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      }
+    } catch (error) {
+      console.error("❌ Error al formatear fecha con hora:", error, "timestamp:", timestamp);
+    }
+    
+    return "Nunca";
+  };
+
   const handleMarkNewUsersSeen = async () => {
     try {
       const auth = getAuthSafe();
@@ -1799,7 +1843,7 @@ export default function Admin() {
                     }`}
                   >
                     {/* Header con nombre y badges */}
-                    <div className="space-y-2">
+                    <div className="space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="text-base font-semibold text-white">{user.nombre || "N/A"}</h3>
                         {isNewUser && (
@@ -1878,33 +1922,36 @@ export default function Admin() {
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        {user.email ? (
-                          <>
-                            <a
-                              href={`mailto:${user.email}`}
-                              className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-400 transition-colors"
-                              title={user.email}
+                      <p className="text-white/40 text-xs">
+                        Última conexión: {formatDateTime(user.lastLogin)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {user.email ? (
+                        <>
+                          <a
+                            href={`mailto:${user.email}`}
+                            className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-400 transition-colors"
+                            title={user.email}
+                          >
+                            <FaEnvelope className="text-sm" />
+                          </a>
+                          {user.email.toLowerCase() !== "admin@fitplan-ai.com" && (
+                            <button
+                              onClick={() => {
+                                setSelectedUserForMessage(user);
+                                setSendMessageModalOpen(true);
+                              }}
+                              className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 text-green-400 transition-colors"
+                              title={`Enviar mensaje a ${user.nombre || user.email}`}
                             >
-                              <FaEnvelope className="text-sm" />
-                            </a>
-                            {user.email.toLowerCase() !== "admin@fitplan-ai.com" && (
-                              <button
-                                onClick={() => {
-                                  setSelectedUserForMessage(user);
-                                  setSendMessageModalOpen(true);
-                                }}
-                                className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 text-green-400 transition-colors"
-                                title={`Enviar mensaje a ${user.nombre || user.email}`}
-                              >
-                                <FaComment className="text-sm" />
-                              </button>
-                            )}
-                          </>
-                        ) : (
-                          <span className="text-white/40 text-sm">N/A</span>
-                        )}
-                      </div>
+                              <FaComment className="text-sm" />
+                            </button>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-white/40 text-sm">N/A</span>
+                      )}
                     </div>
 
                     {/* Información del usuario */}
@@ -2386,8 +2433,33 @@ export default function Admin() {
                 <div className="space-y-6">
                   {/* Resumen del usuario */}
                   {(() => {
-                    const user = userHistory.user as { peso?: number; alturaCm?: number; edad?: number; premium?: boolean; premiumPlanType?: string | null } | null;
+                    const user = userHistory.user as { 
+                      peso?: number; 
+                      alturaCm?: number; 
+                      edad?: number; 
+                      premium?: boolean; 
+                      premiumPlanType?: string | null;
+                      lastLogin?: string | Date | null;
+                    } | null;
                     if (!user) return null;
+                    
+                    const formatLastLogin = (lastLogin: string | Date | null | undefined): string => {
+                      if (!lastLogin) return "Nunca";
+                      try {
+                        const date = lastLogin instanceof Date ? lastLogin : new Date(lastLogin);
+                        if (isNaN(date.getTime())) return "Nunca";
+                        return date.toLocaleString('es-AR', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        });
+                      } catch {
+                        return "Nunca";
+                      }
+                    };
+                    
                     return (
                       <div className="p-4 rounded-lg bg-white/5 border border-white/10">
                         <h3 className="text-lg font-semibold text-white mb-3">Datos del Usuario</h3>
@@ -2424,6 +2496,12 @@ export default function Admin() {
                               </p>
                             </div>
                           )}
+                          <div className="col-span-2 md:col-span-1">
+                            <p className="text-white/60">Última conexión</p>
+                            <p className="text-white font-medium text-xs">
+                              {formatLastLogin(user.lastLogin)}
+                            </p>
+                          </div>
                         </div>
                       </div>
                     );
@@ -3068,7 +3146,7 @@ export default function Admin() {
                                   <div>
                                     <p className="text-white/60">Método</p>
                                     <p className="text-white font-medium capitalize">
-                                      {payment.paymentMethod === "mercadopago" ? "MercadoPago" : payment.paymentMethod}
+                                      {payment.paymentMethod === "mercadopago" ? "MercadoPago" : payment.paymentMethod === "stripe" ? "Stripe" : payment.paymentMethod}
                                       {payment.isManual && (
                                         <span className="ml-2 text-xs text-blue-400">(Manual)</span>
                                       )}

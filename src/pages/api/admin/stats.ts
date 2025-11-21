@@ -147,6 +147,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         premiumLastPay,
         createdAt: convertTimestamp(data.createdAt),
         updatedAt: convertTimestamp(data.updatedAt),
+        lastLogin: convertTimestamp(data.lastLogin),
         sexo: data.sexo || null,
         alturaCm: data.alturaCm || null,
         edad: data.edad || null,
