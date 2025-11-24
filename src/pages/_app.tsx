@@ -4,6 +4,7 @@ import Head from "next/head";
 import { Poppins } from "next/font/google";
 import { useEffect } from "react";
 import { useAuthStore } from "@/store/authStore";
+import Footer from "@/components/Footer";
 
 const poppins = Poppins({ subsets: ["latin"], weight: ["300","400","500","600","700"], variable: "--font-sans" });
 
@@ -24,8 +25,9 @@ export default function App({ Component, pageProps }: AppProps) {
         <meta name="color-scheme" content="dark light" />
         <link rel="manifest" href="/site.webmanifest" />
       </Head>
-      <div className={poppins.className}>
+      <div className={`${poppins.className} min-h-screen flex flex-col`}>
         <Component {...pageProps} />
+        <Footer />
       </div>
     </>
   );
