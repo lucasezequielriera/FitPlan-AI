@@ -150,7 +150,8 @@ export function whtrCategory(value?: number | null): "saludable" | "precaucion" 
 }
 
 // Obtener tiempo objetivo según intensidad
-export function getTiempoObjetivo(intensidad: "leve" | "moderada" | "intensa"): string {
+export function getTiempoObjetivo(intensidad: "leve" | "moderada" | "intensa" | "ultra"): string {
+  if (intensidad === "ultra") return "1-2 meses";
   if (intensidad === "intensa") return "1-3 meses";
   if (intensidad === "moderada") return "3 meses";
   return "3-5 meses";
@@ -159,7 +160,7 @@ export function getTiempoObjetivo(intensidad: "leve" | "moderada" | "intensa"): 
 // Sugerencias inteligentes de entrenamiento basadas en datos del usuario
 export function sugerirEntrenamiento(
   objetivo: Goal,
-  intensidad: "leve" | "moderada" | "intensa",
+  intensidad: "leve" | "moderada" | "intensa" | "ultra",
   edad: number,
   bmi: number,
   atletico?: boolean
@@ -169,10 +170,15 @@ export function sugerirEntrenamiento(
   let baseCardio = getSugerenciasEntrenamiento(objetivo).cardio;
   
   // Ajustar según intensidad para lograr tiempo objetivo
+  // Ultra (1-2 meses): máximo rendimiento para atletas comprometidos
   // Intensa (1-3 meses): más entrenamiento para resultados rápidos
   // Moderada (3 meses): entrenamiento equilibrado
   // Leve (3-5 meses): entrenamiento más conservador pero sostenible
-  if (intensidad === "intensa") {
+  if (intensidad === "ultra") {
+    // ULTRA: Máximo rendimiento para atletas
+    baseGym = Math.min(7, baseGym + 2); // Hasta 7 días posibles
+    baseCardio = Math.min(6, baseCardio + 2);
+  } else if (intensidad === "intensa") {
     baseGym = Math.min(6, baseGym + 1);
     baseCardio = Math.min(5, baseCardio + 1);
   } else if (intensidad === "leve") {
@@ -206,7 +212,10 @@ export function sugerirEntrenamiento(
   let minutosCaminata = baseCardio <= 2 ? 30 : baseCardio <= 4 ? 45 : 60;
   
   // Ajustar según intensidad para resultados en el tiempo objetivo
-  if (intensidad === "intensa") {
+  if (intensidad === "ultra") {
+    // ULTRA: Máxima actividad para atletas
+    minutosCaminata = Math.min(90, minutosCaminata + 30);
+  } else if (intensidad === "intensa") {
     // Más caminata para resultados rápidos
     minutosCaminata = Math.min(60, minutosCaminata + 15);
   } else if (intensidad === "leve") {
@@ -299,7 +308,7 @@ function getSugerenciasEntrenamiento(objetivo: Goal): { gym: number; cardio: num
 // Proyecciones motivacionales basadas en datos del usuario
 export function calcularProyeccionesMotivacionales(
   objetivo: Goal,
-  intensidad: "leve" | "moderada" | "intensa",
+  intensidad: "leve" | "moderada" | "intensa" | "ultra",
   edad: number,
   sexo: "masculino" | "femenino",
   bmi: number,
@@ -324,10 +333,13 @@ export function calcularProyeccionesMotivacionales(
   // Tiempos objetivo según intensidad (aplicable a todos los objetivos)
   const tiempoObjetivo = getTiempoObjetivo(intensidad);
   
-  if (objetivo === "ganar_masa" || objetivo === "volumen") {
+  if (objetivo === "ganar_masa" || objetivo === "volumen" || objetivo === "powerlifting") {
     // Ganancia de músculo - primero según nivel, luego ajustar por intensidad
     if (esPrincipiante) {
-      if (intensidad === "intensa") {
+      if (intensidad === "ultra") {
+        musculoGanancia = sexo === "masculino" ? "2-3 kg" : "1-1.5 kg";
+        proyecciones.push("🔥 ULTRA: Como principiante con máxima intensidad, podés ganar músculo extremadamente rápido (efecto novato + protocolo élite)");
+      } else if (intensidad === "intensa") {
         musculoGanancia = sexo === "masculino" ? "1.5-2.5 kg" : "0.75-1.25 kg";
         proyecciones.push("Como principiante con alta intensidad, podés ganar músculo muy rápido (efecto novato maximizado)");
       } else if (intensidad === "moderada") {
@@ -338,7 +350,10 @@ export function calcularProyeccionesMotivacionales(
         proyecciones.push("Como principiante con progresión gradual, ganancia sostenible a largo plazo");
       }
     } else if (esIntermedio) {
-      if (intensidad === "intensa") {
+      if (intensidad === "ultra") {
+        musculoGanancia = sexo === "masculino" ? "1-1.5 kg" : "0.5-0.8 kg";
+        proyecciones.push("🔥 ULTRA: Máximo protocolo de hipertrofia con entrenamiento de élite");
+      } else if (intensidad === "intensa") {
         musculoGanancia = sexo === "masculino" ? "0.75-1.25 kg" : "0.4-0.7 kg";
         proyecciones.push("Con alta intensidad y disciplina, maximizás tu potencial de crecimiento");
       } else if (intensidad === "moderada") {
@@ -349,7 +364,10 @@ export function calcularProyeccionesMotivacionales(
         proyecciones.push("Progresión gradual y sostenible, ideal para mantener a largo plazo");
       }
     } else {
-      if (intensidad === "intensa") {
+      if (intensidad === "ultra") {
+        musculoGanancia = sexo === "masculino" ? "0.6-1 kg" : "0.3-0.5 kg";
+        proyecciones.push("🔥 ULTRA: Protocolo de atleta élite, cada décima de músculo optimizada");
+      } else if (intensidad === "intensa") {
         musculoGanancia = sexo === "masculino" ? "0.4-0.7 kg" : "0.2-0.4 kg";
         proyecciones.push("Ganancia refinada con alta intensidad, cada gramo cuenta");
       } else if (intensidad === "moderada") {
@@ -361,13 +379,13 @@ export function calcularProyeccionesMotivacionales(
       }
     }
     tiempoEstimado = `${tiempoObjetivo} para ver resultados notables`;
-    proyecciones.push("Aumento de fuerza: +5-10% en levantamientos principales por mes");
+    proyecciones.push(intensidad === "ultra" ? "Aumento de fuerza: +10-15% en levantamientos principales por mes" : "Aumento de fuerza: +5-10% en levantamientos principales por mes");
     proyecciones.push("Mejora en composición corporal: reducción de % de grasa mientras ganás masa");
     
   } else if (objetivo === "perder_grasa" || objetivo === "corte") {
     // Pérdida de grasa
     musculoGanancia = undefined; // No mostrar ganancia de músculo para este objetivo
-    grasaPerdida = intensidad === "intensa" ? "1-2 kg" : intensidad === "moderada" ? "0.5-1 kg" : "0.3-0.7 kg";
+    grasaPerdida = intensidad === "ultra" ? "2-3 kg" : intensidad === "intensa" ? "1-2 kg" : intensidad === "moderada" ? "0.5-1 kg" : "0.3-0.7 kg";
     proyecciones.push("Preservación de masa muscular gracias al entrenamiento de fuerza");
     
     if (bmi > 30) {
@@ -384,7 +402,11 @@ export function calcularProyeccionesMotivacionales(
     proyecciones.push("Reducción de circunferencia de cintura: ~2-4 cm por mes");
     
   } else if (objetivo === "recomposicion") {
-    if (intensidad === "intensa") {
+    if (intensidad === "ultra") {
+      musculoGanancia = sexo === "masculino" ? "0.6-1 kg" : "0.35-0.6 kg";
+      proyecciones.push(`Ganancia de músculo: ${musculoGanancia} por mes`);
+      proyecciones.push("🔥 ULTRA: Transformación acelerada con protocolo élite");
+    } else if (intensidad === "intensa") {
       musculoGanancia = sexo === "masculino" ? "0.4-0.8 kg" : "0.25-0.5 kg";
       proyecciones.push(`Ganancia de músculo: ${musculoGanancia} por mes`);
       proyecciones.push("Con alta intensidad, transformación más rápida");
@@ -403,7 +425,7 @@ export function calcularProyeccionesMotivacionales(
   } else if (objetivo === "definicion") {
     // Pérdida de grasa para definición (más gradual que perder_grasa para preservar músculo)
     musculoGanancia = undefined; // No mostrar ganancia de músculo para este objetivo
-    grasaPerdida = intensidad === "intensa" ? "0.8-1.5 kg" : intensidad === "moderada" ? "0.5-1 kg" : "0.3-0.6 kg";
+    grasaPerdida = intensidad === "ultra" ? "1.5-2 kg" : intensidad === "intensa" ? "0.8-1.5 kg" : intensidad === "moderada" ? "0.5-1 kg" : "0.3-0.6 kg";
     proyecciones.push("Mantenimiento de masa muscular mientras reducís grasa");
     proyecciones.push("Definición muscular visible: abs y músculos más marcados");
     proyecciones.push("Reducción de % de grasa corporal: 1-2% por mes");

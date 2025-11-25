@@ -305,17 +305,6 @@ export default function Navbar() {
                         <line x1="8" y1="2" x2="8" y2="6" />
                         <line x1="3" y1="10" x2="21" y2="10" />
                       </svg>
-                      {currentMonthGymDays > 0 && (
-                        <motion.div
-                          initial={{ scale: 0 }}
-                          animate={{ scale: 1 }}
-                          className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 border-2 border-black flex items-center justify-center"
-                        >
-                          <span className="text-[10px] font-bold text-white">
-                            {currentMonthGymDays > 9 ? "9+" : currentMonthGymDays}
-                          </span>
-                        </motion.div>
-                      )}
                     </motion.div>
                   </motion.div>
                 )}

@@ -1,8 +1,8 @@
 export type ActivityLevel = "sedentario" | "ligero" | "moderado" | "alto" | "atleta"; // Legacy, mantener para compatibilidad
 
-export type Goal = "perder_grasa" | "mantener" | "ganar_masa" | "recomposicion" | "definicion" | "volumen" | "mantenimiento_avanzado" | "corte";
+export type Goal = "perder_grasa" | "mantener" | "ganar_masa" | "recomposicion" | "definicion" | "volumen" | "mantenimiento_avanzado" | "corte" | "rendimiento_deportivo" | "powerlifting" | "resistencia" | "atleta_elite";
 
-export type Intensidad = "leve" | "moderada" | "intensa";
+export type Intensidad = "leve" | "moderada" | "intensa" | "ultra";
 
 export type TipoDieta = "estandar" | "mediterranea" | "vegana" | "vegetariana" | "keto" | "paleo" | "low_carb" | "flexitariana" | "dash" | "pescatariana" | "atkins" | "sin_gluten" | "antiinflamatoria" | "mind" | "clinica_mayo" | "tlc" | "menopausia";
 

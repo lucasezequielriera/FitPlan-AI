@@ -297,11 +297,17 @@ ${(() => {
       superavitDeficit = caloriasEstimadas - tdee;
     } catch {
       // Si falla el cálculo, usar valores por defecto según intensidad
-      superavitDeficit = input.intensidad === "intensa" 
-        ? (input.objetivo === "ganar_masa" || input.objetivo === "volumen" ? 600 : input.objetivo === "perder_grasa" ? -600 : 0)
+      const esObjetivoGanancia = input.objetivo === "ganar_masa" || input.objetivo === "volumen" || input.objetivo === "powerlifting" || input.objetivo === "atleta_elite";
+      const esObjetivoPerdida = input.objetivo === "perder_grasa" || input.objetivo === "definicion" || input.objetivo === "corte";
+      const esObjetivoResistencia = input.objetivo === "resistencia" || input.objetivo === "rendimiento_deportivo";
+      
+      superavitDeficit = input.intensidad === "ultra"
+        ? (esObjetivoGanancia ? 1000 : esObjetivoPerdida ? -900 : esObjetivoResistencia ? 400 : 200)
+        : input.intensidad === "intensa" 
+        ? (esObjetivoGanancia ? 700 : esObjetivoPerdida ? -700 : esObjetivoResistencia ? 300 : 0)
         : input.intensidad === "moderada"
-        ? (input.objetivo === "ganar_masa" || input.objetivo === "volumen" ? 400 : input.objetivo === "perder_grasa" ? -400 : 0)
-        : (input.objetivo === "ganar_masa" || input.objetivo === "volumen" ? 250 : input.objetivo === "perder_grasa" ? -250 : 0);
+        ? (esObjetivoGanancia ? 450 : esObjetivoPerdida ? -450 : esObjetivoResistencia ? 200 : 0)
+        : (esObjetivoGanancia ? 250 : esObjetivoPerdida ? -250 : esObjetivoResistencia ? 100 : 0);
     }
     
     // Calcular volumen total de entrenamiento
@@ -717,8 +723,9 @@ REGLAS GENERALES LESIONES:
 - Incluir "safety_notes" en training_plan con precauciones específicas`
   : "- Sin lesiones reportadas. Calentamiento estándar: 5-10 min. RPE: según nivel. Tempo: según objetivo."}
 
-5. TIEMPO OBJETIVO PARA RESULTADOS: El usuario debe ver resultados notables en ${input.intensidad === "intensa" ? "1-3 meses" : input.intensidad === "moderada" ? "3 meses" : "3-5 meses"}. 
+5. TIEMPO OBJETIVO PARA RESULTADOS: El usuario debe ver resultados notables en ${input.intensidad === "ultra" ? "1-2 meses" : input.intensidad === "intensa" ? "1-3 meses" : input.intensidad === "moderada" ? "3 meses" : "3-5 meses"}. 
    TODO el plan (calorías, macros, distribución de comidas) debe estar diseñado para lograr resultados VISIBLES en ese tiempo.
+   - Si intensidad es "ultra": el plan debe ser EXTREMO para atletas que buscan resultados muy rápidos (1-2 meses). Requiere compromiso total.
    - Si intensidad es "intensa": el plan debe ser AGRESIVO para resultados rápidos (1-3 meses)
    - Si intensidad es "moderada": el plan debe ser EQUILIBRADO para resultados en 3 meses exactos
    - Si intensidad es "leve": el plan debe ser GRADUAL para resultados sostenibles en 3-5 meses
@@ -727,6 +734,44 @@ REGLAS GENERALES LESIONES:
 - Leve: cambios graduales y sostenibles (déficit/superávit pequeño: ~200-300 kcal) - Objetivo: resultados en 3-5 meses
 - Moderada: progresión equilibrada (déficit/superávit medio: ~400-500 kcal) - Objetivo: resultados en 3 meses
 - Intensa: cambios más agresivos (déficit/superávit alto: ~600-800 kcal) - Objetivo: resultados en 1-3 meses
+- Ultra: MÁXIMO RENDIMIENTO para atletas (déficit/superávit extremo: ~800-1200 kcal) - Objetivo: resultados en 1-2 meses. Entrenamiento 5-7 días/semana, posibles dobles sesiones. Macros optimizados para rendimiento élite.
+
+${input.intensidad === "ultra" ? `⚠️ INTENSIDAD ULTRA ACTIVADA - PROTOCOLO ATLETA:
+- Entrenamiento: 5-7 días/semana, sesiones de 75-120 min
+- Posibilidad de dobles sesiones (AM cardio/movilidad + PM pesas)
+- Proteína muy alta: 2.2-2.8g/kg de peso corporal
+- Timing nutricional preciso: pre/intra/post entrenamiento
+- Suplementación recomendada: proteína, creatina, electrolitos
+- Periodización avanzada: semanas de descarga cada 3-4 semanas
+- Recuperación estricta: 8-9 horas de sueño, manejo del estrés
+- Este nivel es SOLO para personas con experiencia previa en entrenamiento` : ""}
+
+${["rendimiento_deportivo", "powerlifting", "resistencia", "atleta_elite"].includes(input.objetivo) ? `⚠️ OBJETIVO PARA ATLETAS - CONSIDERACIONES ESPECIALES:
+${input.objetivo === "rendimiento_deportivo" ? `- RENDIMIENTO DEPORTIVO:
+  * Periodización nutricional según calendario competitivo
+  * Carga de carbohidratos pre-competencia
+  * Énfasis en timing de nutrientes pre/post entrenamiento
+  * Hidratación avanzada con electrolitos
+  * Proteína: 1.6-2.2g/kg para reparación muscular` : ""}
+${input.objetivo === "powerlifting" ? `- POWERLIFTING/FUERZA:
+  * Alto consumo calórico para soportar levantamientos pesados
+  * Proteína muy alta: 2.0-2.5g/kg
+  * Carbohidratos estratégicos pre-sesión para energía máxima
+  * Entrenamiento enfocado en sentadilla, press banca, peso muerto
+  * Periodización por bloques: hipertrofia → fuerza → peaking` : ""}
+${input.objetivo === "resistencia" ? `- RESISTENCIA/ENDURANCE:
+  * Alto consumo de carbohidratos (6-10g/kg/día)
+  * Carga de glucógeno antes de eventos largos
+  * Nutrición durante ejercicio (>90 min): geles, bebidas deportivas
+  * Proteína moderada: 1.4-1.8g/kg
+  * Énfasis en hierro, electrolitos y antioxidantes` : ""}
+${input.objetivo === "atleta_elite" ? `- ATLETA ELITE:
+  * Nutrición de precisión: macros exactos al gramo
+  * Timing nutricional estricto: ventanas anabólicas
+  * Suplementación completa: proteína, creatina, omega-3, vitamina D
+  * Periodización nutricional mensual según fase de entrenamiento
+  * Monitoreo de composición corporal semanal
+  * Protocolo de recuperación élite: sueño, masaje, crioterapia` : ""}` : ""}
 
 7. El tipo de dieta "${input.tipoDieta || "estandar"}" debe aplicarse ESTRICTAMENTE en todas las comidas. NO HAY EXCEPCIONES:
 ${input.tipoDieta === "mediterranea" ? "- Mediterránea: Enfocarse en aceite de oliva, pescados, vegetales, frutas, legumbres y granos integrales. Limitar carnes rojas y procesados." : ""}

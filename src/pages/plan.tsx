@@ -318,6 +318,10 @@ export default function PlanPage() {
       volumen: "Hipertrofia Máxima",
       corte: "Corte Avanzado",
       mantenimiento_avanzado: "Mantenimiento Elite",
+      rendimiento_deportivo: "Rendimiento Deportivo",
+      powerlifting: "Powerlifting/Fuerza",
+      resistencia: "Resistencia/Endurance",
+      atleta_elite: "Atleta Elite",
     };
     return textos[objetivo] || objetivo;
   };

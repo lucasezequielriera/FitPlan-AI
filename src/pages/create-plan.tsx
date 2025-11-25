@@ -24,7 +24,16 @@ const objetivoDescripciones: Record<Goal, string> = {
   
   corte: "Reducción agresiva de grasa corporal para alcanzar un porcentaje muy bajo. Usado típicamente antes de competencias o eventos. Requiere disciplina estricta y monitoreo cuidadoso. No es recomendable mantener por períodos prolongados sin supervisión profesional.",
   
-  mantenimiento_avanzado: "Optimiza tu nutrición para mantener tu composición corporal ideal mientras maximizas el rendimiento. Para personas experimentadas que buscan mantener un estado físico avanzado con precisión nutricional. Incluye estrategias avanzadas de timing de nutrientes y distribución."
+  mantenimiento_avanzado: "Optimiza tu nutrición para mantener tu composición corporal ideal mientras maximizas el rendimiento. Para personas experimentadas que buscan mantener un estado físico avanzado con precisión nutricional. Incluye estrategias avanzadas de timing de nutrientes y distribución.",
+  
+  // Objetivos para atletas y personas dedicadas al gym
+  rendimiento_deportivo: "Optimiza tu rendimiento atlético con nutrición periodizada según tu deporte. Incluye timing estratégico de nutrientes pre/post entrenamiento, carga de carbohidratos para competencias, y recuperación acelerada. Ideal para atletas amateurs y semi-profesionales que buscan mejorar su performance.",
+  
+  powerlifting: "Maximiza tu fuerza en los tres grandes levantamientos (sentadilla, press de banca, peso muerto). Nutrición enfocada en fuerza máxima con alto consumo proteico, timing de carbohidratos para sesiones pesadas, y periodización según fases de entrenamiento. Ideal para powerlifters y entusiastas de la fuerza.",
+  
+  resistencia: "Optimiza tu capacidad aeróbica y resistencia para deportes de larga duración (running, ciclismo, triatlón, natación). Incluye estrategias de carga de glucógeno, hidratación avanzada, y nutrición durante el ejercicio prolongado. Alto énfasis en carbohidratos de calidad y recuperación.",
+  
+  atleta_elite: "El nivel más exigente para atletas de alto rendimiento y competidores. Nutrición de precisión con macros exactos, suplementación estratégica, periodización nutricional avanzada y protocolos de recuperación élite. Requiere compromiso total y es ideal para quienes entrenan 2+ horas diarias."
 };
 
 const dietaDescripciones: Record<TipoDieta, string> = {
@@ -66,7 +75,8 @@ const dietaDescripciones: Record<TipoDieta, string> = {
 const intensidadDescripciones: Record<Intensidad, string> = {
   leve: "Cambios graduales y sostenibles. Déficit o superávit calórico pequeño (200-300 kcal/día). Ideal para principiantes o quienes buscan cambios a largo plazo sin sacrificios extremos.",
   moderada: "Progresión equilibrada. Déficit o superávit calórico medio (400-500 kcal/día). Balance entre resultados y sostenibilidad. Recomendada para la mayoría de personas.",
-  intensa: "Cambios más agresivos para resultados más rápidos. Déficit o superávit calórico alto (600-800 kcal/día). Requiere mayor disciplina y puede ser más difícil de mantener a largo plazo."
+  intensa: "Cambios más agresivos para resultados más rápidos. Déficit o superávit calórico alto (600-800 kcal/día). Requiere mayor disciplina y puede ser más difícil de mantener a largo plazo.",
+  ultra: "🔥 MÁXIMO RENDIMIENTO: Para atletas y personas comprometidas al 100%. Déficit o superávit extremo (800-1200 kcal/día). Entrenamiento de alta frecuencia (5-7 días/semana), dobles sesiones permitidas. Requiere experiencia previa, excelente recuperación y compromiso total. NO recomendado para principiantes."
 };
 
 
@@ -950,6 +960,12 @@ export default function CreatePlan() {
                       <option value="corte" disabled={!isPremium}>⚡ Corte Avanzado - Reducción de grasa preservando masa muscular (más preciso que perder peso)</option>
                       <option value="mantenimiento_avanzado" disabled={!isPremium}>🎯 Mantenimiento Elite - Optimización avanzada para atletas experimentados</option>
                     </optgroup>
+                    <optgroup label={isPremium ? "🏆 PREMIUM - Para Atletas y Deportistas (Activos)" : "🏆 PREMIUM - Para Atletas y Deportistas (Desbloquea con suscripción)"}>
+                      <option value="rendimiento_deportivo" disabled={!isPremium}>🏃 Rendimiento Deportivo - Nutrición periodizada para tu deporte específico</option>
+                      <option value="powerlifting" disabled={!isPremium}>🏋️ Powerlifting/Fuerza - Maximiza tu fuerza en los levantamientos principales</option>
+                      <option value="resistencia" disabled={!isPremium}>🚴 Resistencia/Endurance - Running, ciclismo, triatlón y deportes de larga duración</option>
+                      <option value="atleta_elite" disabled={!isPremium}>👑 Atleta Elite - El nivel más exigente para competidores de alto rendimiento</option>
+                    </optgroup>
                   </select>
                 </label>
                 {form.objetivo && objetivoDescripciones[form.objetivo] && (
@@ -1053,13 +1069,18 @@ export default function CreatePlan() {
                     value={form.intensidad} 
                     onChange={(e) => update("intensidad", e.target.value as UserInput["intensidad"])}
                   >
-                    <option value="leve">Leve</option>
+                    <option value="leve">Leve - Cambios graduales y sostenibles</option>
                     <optgroup label={isPremium ? "🌟 PREMIUM (Activas)" : "🌟 PREMIUM (Desbloquea con suscripción)"}>
                       <option value="moderada" disabled={!isPremium || esObjetivoBasico}>
-                        Moderada
+                        Moderada - Balance entre resultados y sostenibilidad
                       </option>
                       <option value="intensa" disabled={!isPremium || esObjetivoBasico}>
-                        Intensa
+                        Intensa - Resultados más rápidos, mayor disciplina
+                      </option>
+                    </optgroup>
+                    <optgroup label={isPremium ? "🔥 ULTRA - Para Atletas (Activo)" : "🔥 ULTRA - Para Atletas (Desbloquea con suscripción)"}>
+                      <option value="ultra" disabled={!isPremium || esObjetivoBasico}>
+                        🔥 Ultra - Máximo rendimiento, solo atletas comprometidos
                       </option>
                     </optgroup>
                 </select>
