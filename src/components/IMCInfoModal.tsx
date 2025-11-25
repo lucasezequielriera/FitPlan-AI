@@ -38,31 +38,51 @@ export default function IMCInfoModal({
   
   // Peso objetivo y diferencia
   let pesoObjetivo: number;
+  let pesoMinimoSaludable: number; // Para mostrar el mínimo también
   let diferenciaPeso: number;
+  let diferenciaPesoMinimo: number; // Diferencia para llegar al mínimo saludable
   let tiempoEstimadoMeses: number;
+  let tiempoMinimoMeses: number; // Tiempo para llegar al mínimo
   
   if (estaBajoPeso) {
-    // Objetivo: llegar al mínimo saludable + un poco de margen (IMC 19.5)
-    pesoObjetivo = Math.round(19.5 * (alturaM * alturaM));
-    diferenciaPeso = pesoObjetivo - pesoActual;
+    // Peso mínimo para IMC 18.5
+    pesoMinimoSaludable = Math.round((IMC_MIN_SALUDABLE * (alturaM * alturaM)) * 10) / 10;
+    diferenciaPesoMinimo = Math.round((pesoMinimoSaludable - pesoActual) * 10) / 10;
+    
+    // Objetivo recomendado: IMC 20 (punto medio saludable, más sostenible)
+    // Pero si está muy cerca (IMC > 18), usar objetivo más cercano (IMC 19)
+    const imcObjetivo = imc >= 18 ? 19 : 20;
+    pesoObjetivo = Math.round((imcObjetivo * (alturaM * alturaM)) * 10) / 10;
+    diferenciaPeso = Math.round((pesoObjetivo - pesoActual) * 10) / 10;
+    
     // Ganancia saludable: 0.25-0.5 kg/semana (1-2 kg/mes)
     const gananciaMinMes = 1; // kg/mes (conservador)
     const gananciaMaxMes = sexo === "masculino" ? 2 : 1.5; // kg/mes
     const tasaPromedio = intensidad === "intensa" ? gananciaMaxMes : intensidad === "leve" ? gananciaMinMes : (gananciaMinMes + gananciaMaxMes) / 2;
-    tiempoEstimadoMeses = Math.ceil(diferenciaPeso / tasaPromedio);
+    
+    tiempoEstimadoMeses = Math.max(1, Math.ceil(diferenciaPeso / tasaPromedio));
+    tiempoMinimoMeses = diferenciaPesoMinimo > 0 ? Math.max(1, Math.ceil(diferenciaPesoMinimo / tasaPromedio)) : 0;
   } else if (estaSobrepeso) {
-    // Objetivo: llegar al máximo saludable
-    pesoObjetivo = Math.round(pesoMaxSaludable);
-    diferenciaPeso = pesoActual - pesoObjetivo;
+    pesoMinimoSaludable = 0;
+    diferenciaPesoMinimo = 0;
+    tiempoMinimoMeses = 0;
+    
+    // Objetivo: llegar al máximo saludable (IMC 24.9)
+    pesoObjetivo = Math.round(pesoMaxSaludable * 10) / 10;
+    diferenciaPeso = Math.round((pesoActual - pesoObjetivo) * 10) / 10;
+    
     // Pérdida saludable: 0.5-1 kg/semana (2-4 kg/mes)
     const perdidaMinMes = 2; // kg/mes (conservador)
     const perdidaMaxMes = 4; // kg/mes (más agresivo pero seguro)
     const tasaPromedio = intensidad === "intensa" ? perdidaMaxMes : intensidad === "leve" ? perdidaMinMes : (perdidaMinMes + perdidaMaxMes) / 2;
-    tiempoEstimadoMeses = Math.ceil(diferenciaPeso / tasaPromedio);
+    tiempoEstimadoMeses = Math.max(1, Math.ceil(diferenciaPeso / tasaPromedio));
   } else {
     pesoObjetivo = pesoActual;
+    pesoMinimoSaludable = 0;
     diferenciaPeso = 0;
+    diferenciaPesoMinimo = 0;
     tiempoEstimadoMeses = 0;
+    tiempoMinimoMeses = 0;
   }
   
   // Clasificación detallada del IMC
@@ -226,40 +246,84 @@ export default function IMCInfoModal({
                 </div>
               </div>
               
-              {/* Información de peso */}
-              {!estaEnRangoSaludable && (
+              {/* Información de peso - Bajo peso */}
+              {estaBajoPeso && (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.2 }}
-                  className={`p-4 rounded-xl border ${
-                    estaBajoPeso 
-                      ? "bg-yellow-500/10 border-yellow-500/20" 
-                      : "bg-orange-500/10 border-orange-500/20"
-                  }`}
+                  className="space-y-3"
+                >
+                  {/* Mínimo para entrar en rango saludable */}
+                  <div className="p-4 rounded-xl border bg-green-500/10 border-green-500/20">
+                    <div className="flex items-center gap-3 mb-3">
+                      <FaArrowUp className="text-xl text-green-400" />
+                      <div>
+                        <p className="font-semibold text-white text-sm">Mínimo para IMC saludable (18.5)</p>
+                        <p className="text-xs text-white/60">Peso mínimo: {pesoMinimoSaludable} kg</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 text-center">
+                      <div className="p-2 bg-white/5 rounded-lg">
+                        <p className="text-xl font-bold text-green-400">+{diferenciaPesoMinimo} kg</p>
+                        <p className="text-xs text-white/50">Para ganar</p>
+                      </div>
+                      <div className="p-2 bg-white/5 rounded-lg">
+                        <p className="text-xl font-bold text-green-400">
+                          {tiempoMinimoMeses > 0 ? `~${tiempoMinimoMeses} ${tiempoMinimoMeses === 1 ? "mes" : "meses"}` : "< 1 mes"}
+                        </p>
+                        <p className="text-xs text-white/50">Tiempo est.</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Objetivo recomendado (más sostenible) */}
+                  <div className="p-4 rounded-xl border bg-yellow-500/10 border-yellow-500/20">
+                    <div className="flex items-center gap-3 mb-3">
+                      <FaArrowUp className="text-xl text-yellow-400" />
+                      <div>
+                        <p className="font-semibold text-white text-sm">Objetivo recomendado (IMC {imc >= 18 ? "19" : "20"})</p>
+                        <p className="text-xs text-white/60">Más sostenible y saludable a largo plazo</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 text-center">
+                      <div className="p-2 bg-white/5 rounded-lg">
+                        <p className="text-xl font-bold text-yellow-400">+{diferenciaPeso} kg</p>
+                        <p className="text-xs text-white/50">Para ganar</p>
+                      </div>
+                      <div className="p-2 bg-white/5 rounded-lg">
+                        <p className="text-xl font-bold text-yellow-400">
+                          ~{tiempoEstimadoMeses} {tiempoEstimadoMeses === 1 ? "mes" : "meses"}
+                        </p>
+                        <p className="text-xs text-white/50">Tiempo est.</p>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+              
+              {/* Información de peso - Sobrepeso */}
+              {estaSobrepeso && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="p-4 rounded-xl border bg-orange-500/10 border-orange-500/20"
                 >
                   <div className="flex items-center gap-3 mb-3">
-                    {estaBajoPeso ? (
-                      <FaArrowUp className="text-2xl text-yellow-400" />
-                    ) : (
-                      <FaArrowDown className="text-2xl text-orange-400" />
-                    )}
+                    <FaArrowDown className="text-2xl text-orange-400" />
                     <div>
-                      <p className="font-semibold text-white">
-                        {estaBajoPeso ? "Necesitás ganar peso" : "Necesitás perder peso"}
-                      </p>
+                      <p className="font-semibold text-white">Necesitás perder peso</p>
                       <p className="text-sm text-white/60">
-                        Para alcanzar un IMC saludable
+                        Para alcanzar IMC saludable (24.9)
                       </p>
                     </div>
                   </div>
                   
                   <div className="grid grid-cols-2 gap-4 text-center">
                     <div className="p-3 bg-white/5 rounded-lg">
-                      <p className="text-2xl font-bold text-white">
-                        {estaBajoPeso ? "+" : "-"}{diferenciaPeso.toFixed(1)} kg
-                      </p>
-                      <p className="text-xs text-white/50">Meta de cambio</p>
+                      <p className="text-2xl font-bold text-white">-{diferenciaPeso} kg</p>
+                      <p className="text-xs text-white/50">Para perder</p>
                     </div>
                     <div className="p-3 bg-white/5 rounded-lg">
                       <p className="text-2xl font-bold text-white">{pesoObjetivo} kg</p>
@@ -269,8 +333,8 @@ export default function IMCInfoModal({
                 </motion.div>
               )}
               
-              {/* Tiempo estimado */}
-              {!estaEnRangoSaludable && tiempoEstimadoMeses > 0 && (
+              {/* Tiempo estimado - Solo para sobrepeso (bajo peso ya lo tiene inline) */}
+              {estaSobrepeso && tiempoEstimadoMeses > 0 && (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
