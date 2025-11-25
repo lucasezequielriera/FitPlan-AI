@@ -104,6 +104,7 @@ ESQUEMA OBLIGATORIO (ORDEN IMPORTANTE - GENERAR plan_semanal PRIMERO):
           }
         ] (número de días según recomendaciones calculadas, PERO AJUSTADO SEGÚN LESIONES: ${(() => {
           try {
+            // eslint-disable-next-line @typescript-eslint/no-require-imports
             const { sugerirEntrenamiento } = require("@/utils/calculations");
             const bmi = input.alturaCm && input.pesoKg ? (input.pesoKg / Math.pow(input.alturaCm / 100, 2)) : 25;
             const recomendaciones = sugerirEntrenamiento(input.objetivo, input.intensidad || "moderada", input.edad, bmi, input.atletico || false);
@@ -294,7 +295,7 @@ ${(() => {
         ? Math.round(tdee * 0.8) // ~20% déficit para perder grasa
         : tdee; // Mantener
       superavitDeficit = caloriasEstimadas - tdee;
-    } catch (e) {
+    } catch {
       // Si falla el cálculo, usar valores por defecto según intensidad
       superavitDeficit = input.intensidad === "intensa" 
         ? (input.objetivo === "ganar_masa" || input.objetivo === "volumen" ? 600 : input.objetivo === "perder_grasa" ? -600 : 0)
@@ -966,7 +967,7 @@ Ajusta las calorías, macros y selección de alimentos según la intensidad y ti
                 const opcionesFinales = opcionesValidas.slice(0, 3);
                 // Si tenemos menos de 3, rellenar con las primeras opciones que no son placeholders obvios
                 while (opcionesFinales.length < 3 && opcionesRaw.length > opcionesFinales.length) {
-                  const siguiente = opcionesRaw.find((o, idx) => 
+                  const siguiente = opcionesRaw.find((o) => 
                     typeof o === "string" && 
                     o.trim().length > 5 && 
                     !opcionesFinales.includes(o) &&
@@ -988,25 +989,23 @@ Ajusta las calorías, macros y selección de alimentos según la intensidad y ti
                   }
                 }
                 
-                const obj: any = {
+                return {
                   hora: typeof m.hora === "string" ? m.hora : obtenerHoraPorDefecto(nombreNormalizado),
                   nombre: nombreNormalizado,
                   opciones: opcionesFinales.slice(0, 3),
                   calorias_kcal: typeof m.calorias_kcal === "number" ? m.calorias_kcal : 0,
                   cantidad_gramos: typeof m.cantidad_gramos === "number" ? m.cantidad_gramos : 0,
                 };
-                return obj;
               }
             }
             
-            const obj: any = {
+            return {
               hora: typeof m.hora === "string" ? m.hora : obtenerHoraPorDefecto(nombreNormalizado),
               nombre: nombreNormalizado,
               opciones: opcionesValidas.slice(0, 3), // Asegurar exactamente 3 opciones válidas
               calorias_kcal: typeof m.calorias_kcal === "number" ? m.calorias_kcal : 0,
               cantidad_gramos: typeof m.cantidad_gramos === "number" ? m.cantidad_gramos : 0,
             };
-            return obj;
           });
           
           // Asegurar que hay al menos 4 comidas por día
@@ -1075,7 +1074,7 @@ Ajusta las calorías, macros y selección de alimentos según la intensidad y ti
         // Crear un mapa de días existentes
         const diasMap = new Map<string, Record<string, unknown>>();
         for (const day of planSemanalArray) {
-          const diaNombre = normalizarDia((day as any).dia);
+          const diaNombre = normalizarDia((day as Record<string, unknown>).dia);
           diasMap.set(diaNombre, day);
         }
         
@@ -1428,7 +1427,7 @@ Ejemplo de estructura:
       }
     }
     
-    if (!parsedFinal || !Array.isArray((parsedFinal as any).plan_semanal)) {
+    if (!parsedFinal || !Array.isArray((parsedFinal as Record<string, unknown>).plan_semanal)) {
       const detailContent = typeof content === 'string' && content.length > 0 
         ? content.slice(0, 1000) 
         : "Respuesta inválida o vacía de OpenAI";
@@ -1615,7 +1614,6 @@ Ejemplo de estructura:
         }
       }
       
-      const minutosSesion = Number((out as Record<string, unknown>)?.minutos_sesion_gym) || (diasGym >= 5 ? 75 : diasGym >= 3 ? 60 : 45);
       const diasSemana = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
       const targetDays = Math.min(7, Math.max(1, diasGym));
       
@@ -1753,20 +1751,20 @@ Ejemplo de estructura:
         };
       };
 
-      const tp: any = (out as any).training_plan;
+      const tp = (out as Record<string, unknown>).training_plan as Record<string, unknown> | undefined;
       if (!tp || !Array.isArray(tp.weeks) || tp.weeks.length === 0) {
-        (out as any).training_plan = { weeks: [0,1,2,3].map(ensureWeek) };
+        (out as Record<string, unknown>).training_plan = { weeks: [0,1,2,3].map(ensureWeek) };
       } else if (tp.weeks.length < 4) {
         // Completar hasta 4 semanas clonando y variando mínimo
-        const current = tp.weeks.slice(0);
+        const current = (tp.weeks as unknown[]).slice(0);
         for (let i = current.length; i < 4; i++) {
           current.push(ensureWeek(i));
         }
-        (out as any).training_plan.weeks = current;
+        ((out as Record<string, unknown>).training_plan as Record<string, unknown>).weeks = current;
       }
 
       // Ajustar duración y cantidad de días por semana si desalineado
-      const weeks: any[] = (out as any).training_plan.weeks || [];
+      const weeks = ((out as Record<string, unknown>).training_plan as Record<string, unknown>)?.weeks as Array<Record<string, unknown>> || [];
       const expectedDays = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
       const normalizeDayName = (name: unknown): string => {
         if (typeof name !== 'string') return '';
@@ -2087,7 +2085,7 @@ Ejemplo de estructura:
         
         const minutosSesion = Number((parsedFinal as Record<string, unknown>)?.minutos_sesion_gym) || (diasGym >= 5 ? 75 : diasGym >= 3 ? 60 : 45);
         volumenTotal = diasGym * minutosSesion;
-      } catch (e) {
+      } catch {
         console.warn("⚠️ No se pudo calcular superávit real, usando estimado");
       }
       
