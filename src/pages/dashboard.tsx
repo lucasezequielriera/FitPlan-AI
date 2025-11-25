@@ -15,6 +15,22 @@ interface RegistroPeso {
   timestamp?: Timestamp | Date | { seconds: number; nanoseconds?: number } | number | null;
 }
 
+interface PlanMultiFaseData {
+  pesoInicial: number;
+  pesoObjetivoFinal: number;
+  mesActual: number;
+  totalMeses: number;
+  faseActual: "BULK" | "CUT" | "LEAN_BULK" | "MANTENIMIENTO";
+  pesoMetaEsteMes: number;
+  fases?: Array<{
+    nombre: string;
+    meses: number[];
+    objetivoFase: string;
+    pesoInicio: number;
+    pesoFin: number;
+  }>;
+}
+
 interface SavedPlan {
   id: string;
   userId: string;
@@ -22,6 +38,7 @@ interface SavedPlan {
     plan: Record<string, unknown>;
     user: Record<string, unknown>;
   };
+  planMultiFase?: PlanMultiFaseData; // Al mismo nivel que plan (así se guarda en Firebase)
   createdAt: Timestamp;
   isOldest?: boolean;
 }
@@ -468,30 +485,87 @@ export default function Dashboard() {
                           ? "Plan: Corte"
                           : plan.plan?.user?.objetivo === "mantenimiento_avanzado"
                           ? "Plan: Mantenimiento Avanzado"
+                          : plan.plan?.user?.objetivo === "bulk_cut"
+                          ? "Plan: Bulk + Cut"
+                          : plan.plan?.user?.objetivo === "lean_bulk"
+                          ? "Plan: Lean Bulk"
+                          : plan.plan?.user?.objetivo === "rendimiento_deportivo"
+                          ? "Plan: Rendimiento Deportivo"
+                          : plan.plan?.user?.objetivo === "powerlifting"
+                          ? "Plan: Powerlifting"
+                          : plan.plan?.user?.objetivo === "resistencia"
+                          ? "Plan: Resistencia"
+                          : plan.plan?.user?.objetivo === "atleta_elite"
+                          ? "Plan: Atleta Elite"
                           : String(plan.plan?.user?.nombre || "Plan sin nombre")}
                       </h3>
-                      {(() => {
-                        const dificultad = plan.plan?.plan?.dificultad;
-                        return dificultad && String(dificultad) ? true : false;
-                      })() && (
-                        <div
-                          className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md border"
-                          style={{
-                            backgroundColor: 'rgba(255,255,255,0.05)',
-                            borderColor: plan.plan.plan.dificultad === 'dificil' ? 'rgba(248,113,113,0.4)' : plan.plan.plan.dificultad === 'media' ? 'rgba(250,204,21,0.4)' : 'rgba(52,211,153,0.4)'
-                          }}
-                        >
-                          <span className="text-[11px] opacity-70">Dificultad</span>
-                          <span
-                            className="text-xs font-medium capitalize"
+                      <div className="flex flex-wrap gap-2 items-center">
+                        {/* Badge de fase para planes multi-fase */}
+                        {plan.planMultiFase && (
+                          <div
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border"
                             style={{
-                              color: plan.plan.plan.dificultad === 'dificil' ? '#fecaca' : plan.plan.plan.dificultad === 'media' ? '#fde68a' : '#a7f3d0'
+                              backgroundColor: plan.planMultiFase.faseActual === 'BULK' 
+                                ? 'rgba(245,158,11,0.15)' 
+                                : plan.planMultiFase.faseActual === 'CUT' 
+                                ? 'rgba(6,182,212,0.15)' 
+                                : plan.planMultiFase.faseActual === 'LEAN_BULK'
+                                ? 'rgba(16,185,129,0.15)'
+                                : 'rgba(139,92,246,0.15)',
+                              borderColor: plan.planMultiFase.faseActual === 'BULK' 
+                                ? 'rgba(245,158,11,0.4)' 
+                                : plan.planMultiFase.faseActual === 'CUT' 
+                                ? 'rgba(6,182,212,0.4)' 
+                                : plan.planMultiFase.faseActual === 'LEAN_BULK'
+                                ? 'rgba(16,185,129,0.4)'
+                                : 'rgba(139,92,246,0.4)'
                             }}
                           >
-                            {String(plan.plan.plan.dificultad || "")}
-                          </span>
-                        </div>
-                      )}
+                            <span 
+                              className="text-xs font-semibold"
+                              style={{
+                                color: plan.planMultiFase.faseActual === 'BULK' 
+                                  ? '#fcd34d' 
+                                  : plan.planMultiFase.faseActual === 'CUT' 
+                                  ? '#67e8f9' 
+                                  : plan.planMultiFase.faseActual === 'LEAN_BULK'
+                                  ? '#6ee7b7'
+                                  : '#c4b5fd'
+                              }}
+                            >
+                              {plan.planMultiFase.faseActual === 'BULK' && '🏋️'}
+                              {plan.planMultiFase.faseActual === 'CUT' && '✂️'}
+                              {plan.planMultiFase.faseActual === 'LEAN_BULK' && '💎'}
+                              {plan.planMultiFase.faseActual === 'MANTENIMIENTO' && '⚖️'}
+                              {' '}Mes {plan.planMultiFase.mesActual || 1}/{plan.planMultiFase.totalMeses || 1}
+                            </span>
+                          </div>
+                        )}
+                        
+                        {/* Badge de dificultad */}
+                        {(() => {
+                          const dificultad = plan.plan?.plan?.dificultad;
+                          return dificultad && String(dificultad) ? true : false;
+                        })() && (
+                          <div
+                            className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md border"
+                            style={{
+                              backgroundColor: 'rgba(255,255,255,0.05)',
+                              borderColor: plan.plan.plan.dificultad === 'dificil' ? 'rgba(248,113,113,0.4)' : plan.plan.plan.dificultad === 'media' ? 'rgba(250,204,21,0.4)' : 'rgba(52,211,153,0.4)'
+                            }}
+                          >
+                            <span className="text-[11px] opacity-70">Dificultad</span>
+                            <span
+                              className="text-xs font-medium capitalize"
+                              style={{
+                                color: plan.plan.plan.dificultad === 'dificil' ? '#fecaca' : plan.plan.plan.dificultad === 'media' ? '#fde68a' : '#a7f3d0'
+                              }}
+                            >
+                              {String(plan.plan.plan.dificultad || "")}
+                            </span>
+                          </div>
+                        )}
+                      </div>
                       <p className="text-xs sm:text-sm opacity-70 mt-3 font-small">
                         Creación: {(() => {
                           const d = plan.createdAt?.toDate?.() || (plan.createdAt?.seconds ? new Date(plan.createdAt.seconds * 1000) : null);
@@ -520,6 +594,12 @@ export default function Dashboard() {
                               volumen: "Volumen",
                               corte: "Corte",
                               mantenimiento_avanzado: "Mantenimiento avanzado",
+                              bulk_cut: "Bulk + Cut",
+                              lean_bulk: "Lean Bulk",
+                              rendimiento_deportivo: "Rendimiento Deportivo",
+                              powerlifting: "Powerlifting",
+                              resistencia: "Resistencia",
+                              atleta_elite: "Atleta Elite",
                             };
                             if (map[obj]) return map[obj];
                             // Fallback: reemplazar guiones bajos y capitalizar primera letra
@@ -571,19 +651,43 @@ export default function Dashboard() {
                             {String(plan.plan.user.pesoKg)} kg
                             {(() => {
                               const objetivo = plan.plan?.user?.objetivo;
-                              return Boolean(objetivo && String(objetivo) !== "mantener");
+                              return Boolean(objetivo && String(objetivo) !== "mantener" && String(objetivo) !== "mantenimiento_avanzado");
                             })() ? (
                               <span className="ml-2 opacity-70">
                                 → {
                                   (() => {
                                     const pesoKg = typeof plan.plan.user.pesoKg === 'number' ? plan.plan.user.pesoKg : Number(plan.plan.user.pesoKg) || 0;
                                     const objetivo = String(plan.plan.user.objetivo || "");
+                                    
+                                    // Para planes multi-fase, usar el peso objetivo del planMultiFase
+                                    if (objetivo === "bulk_cut" || objetivo === "lean_bulk") {
+                                      const pesoObjetivo = plan.planMultiFase?.pesoObjetivoFinal 
+                                        || (plan.plan?.user as Record<string, unknown>)?.pesoObjetivoKg;
+                                      if (pesoObjetivo) return `${pesoObjetivo} kg`;
+                                      // Fallback si no hay pesoObjetivo guardado
+                                      return objetivo === "bulk_cut" 
+                                        ? `${Math.round(pesoKg * 1.1)} kg` 
+                                        : `${Math.round(pesoKg * 1.08)} kg`;
+                                    }
+                                    
+                                    // Objetivos de pérdida
                                     if (objetivo === "perder_grasa") return `${Math.max(1, Math.round(pesoKg * 0.95))} kg`;
-                                    if (objetivo === "ganar_masa") return `${Math.round(pesoKg * 1.05)} kg`;
-                                    if (objetivo === "recomposicion") return `${Math.round(pesoKg * 0.98)} kg`;
                                     if (objetivo === "definicion") return `${Math.max(1, Math.round(pesoKg * 0.92))} kg`;
-                                    if (objetivo === "volumen") return `${Math.round(pesoKg * 1.08)} kg`;
                                     if (objetivo === "corte") return `${Math.max(1, Math.round(pesoKg * 0.90))} kg`;
+                                    
+                                    // Objetivos de ganancia
+                                    if (objetivo === "ganar_masa") return `${Math.round(pesoKg * 1.05)} kg`;
+                                    if (objetivo === "volumen") return `${Math.round(pesoKg * 1.08)} kg`;
+                                    if (objetivo === "powerlifting") return `${Math.round(pesoKg * 1.1)} kg`;
+                                    
+                                    // Objetivos atléticos (mantienen peso similar)
+                                    if (objetivo === "rendimiento_deportivo") return `${pesoKg} kg`;
+                                    if (objetivo === "atleta_elite") return `${pesoKg} kg`;
+                                    if (objetivo === "resistencia") return `${Math.round(pesoKg * 0.98)} kg`;
+                                    
+                                    // Recomposición (peso similar)
+                                    if (objetivo === "recomposicion") return `${pesoKg} kg`;
+                                    
                                     return `${pesoKg} kg`;
                                   })()
                                 }
@@ -603,7 +707,57 @@ export default function Dashboard() {
                       )}
                     </div>
                     
-                    {/* Barra de progreso */}
+                    {/* Sección de Fases para planes multi-fase (bulk_cut, lean_bulk) */}
+                    {plan.planMultiFase && (
+                      <div className="mt-4 pt-4 border-t border-white/10">
+                        {(() => {
+                          const pmf = plan.planMultiFase;
+                          const faseActual = pmf.faseActual;
+                          const mesActual = pmf.mesActual || 1;
+                          const totalMeses = pmf.totalMeses || 1;
+                          const progresoTotal = Math.round((mesActual / totalMeses) * 100);
+                          
+                          // Colores según fase
+                          const faseColors: Record<string, { bg: string; text: string; border: string; gradient: string }> = {
+                            BULK: { bg: "bg-amber-500/20", text: "text-amber-300", border: "border-amber-500/40", gradient: "linear-gradient(90deg, #f59e0b, #fbbf24)" },
+                            CUT: { bg: "bg-cyan-500/20", text: "text-cyan-300", border: "border-cyan-500/40", gradient: "linear-gradient(90deg, #06b6d4, #22d3ee)" },
+                            LEAN_BULK: { bg: "bg-emerald-500/20", text: "text-emerald-300", border: "border-emerald-500/40", gradient: "linear-gradient(90deg, #10b981, #34d399)" },
+                            MANTENIMIENTO: { bg: "bg-purple-500/20", text: "text-purple-300", border: "border-purple-500/40", gradient: "linear-gradient(90deg, #8b5cf6, #a78bfa)" },
+                          };
+                          const colors = faseColors[faseActual] || faseColors.MANTENIMIENTO;
+                          
+                          // Texto de fase
+                          const faseTexto: Record<string, string> = {
+                            BULK: "🏋️ Fase BULK",
+                            CUT: "✂️ Fase CUT",
+                            LEAN_BULK: "💎 Lean Bulk",
+                            MANTENIMIENTO: "⚖️ Mantenimiento",
+                          };
+                          
+                          return (
+                            <div className="space-y-3">
+                              {/* Badge de fase actual */}
+                              <div className="flex items-center justify-between">
+                                <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg ${colors.bg} border ${colors.border}`}>
+                                  <span className={`text-sm font-semibold ${colors.text}`}>
+                                    {faseTexto[faseActual] || faseActual}
+                                  </span>
+                                </div>
+                                <div className="text-right">
+                                  <span className="text-xs opacity-60">Mes </span>
+                                  <span className="text-sm font-bold">{mesActual}</span>
+                                  <span className="text-xs opacity-60"> de </span>
+                                  <span className="text-sm font-bold">{totalMeses}</span>
+                                </div>
+                              </div>
+                              
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    )}
+                    
+                    {/* Barra de progreso del mes (días restantes) */}
                     <div className="mt-4 pt-4 border-t border-white/10">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-xs opacity-60">Progreso del plan</span>

@@ -1,14 +1,69 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { UserInput } from "@/types/plan";
 
+// Interface para contexto multi-fase
+interface ContextoMultiFase {
+  mesActual: number;
+  totalMeses: number;
+  faseActual: "BULK" | "CUT" | "LEAN_BULK" | "MANTENIMIENTO";
+  pesoInicial: number;
+  pesoObjetivoFinal: number;
+  ajustesRecomendados: string[];
+  feedbackUsuario?: string;
+  cambiaFase: boolean;
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const input = req.body as UserInput;
+  const input = req.body as UserInput & { 
+    _contextoMultiFase?: ContextoMultiFase;
+    _tdeeCalculado?: number;
+    _caloriasObjetivo?: number;
+    _bmrCalculado?: number;
+    _macrosObjetivo?: {
+      proteinas: string;
+      grasas: string;
+      carbohidratos: string;
+      _detalles?: {
+        proteinaPorKg: number;
+        proteinasKcal: number;
+        grasasPct: number;
+        grasasKcal: number;
+        carbsKcal: number;
+      };
+    };
+  };
+  const contextoMultiFase = input._contextoMultiFase;
+  
+  // Valores precalculados del frontend (para consistencia con proyección)
+  const tdeeDelFrontend = input._tdeeCalculado;
+  const caloriasObjetivoDelFrontend = input._caloriasObjetivo;
+  const macrosDelFrontend = input._macrosObjetivo;
+  
+  // Log de valores precalculados
+  if (tdeeDelFrontend || caloriasObjetivoDelFrontend) {
+    console.log("📊 [NUTRICIÓN] Valores precalculados del frontend:");
+    console.log("📊 [NUTRICIÓN] TDEE:", tdeeDelFrontend, "kcal");
+    console.log("📊 [NUTRICIÓN] Calorías objetivo:", caloriasObjetivoDelFrontend, "kcal");
+    if (macrosDelFrontend) {
+      console.log("📊 [NUTRICIÓN] Macros:", macrosDelFrontend.proteinas, "proteína,", macrosDelFrontend.carbohidratos, "carbos,", macrosDelFrontend.grasas, "grasa");
+    }
+  }
   
   // Asegurar valores por defecto
   input.duracionDias = 30; // Siempre 30 días (plan mensual)
   input.intensidad = input.intensidad || "moderada";
+  
+  // Log para planes multi-fase
+  if (contextoMultiFase) {
+    console.log("📋 [MULTI-FASE] Generando mes", contextoMultiFase.mesActual, "de", contextoMultiFase.totalMeses);
+    console.log("📋 [MULTI-FASE] Fase:", contextoMultiFase.faseActual);
+    console.log("📋 [MULTI-FASE] Ajustes recomendados:", contextoMultiFase.ajustesRecomendados);
+    if (contextoMultiFase.cambiaFase) {
+      console.log("📋 [MULTI-FASE] ⚠️ CAMBIO DE FASE DETECTADO");
+    }
+  }
 
   // Log detallado para diagnóstico de "definicion"
   const isDefinicion = input.objetivo === "definicion";
@@ -47,9 +102,31 @@ ${input.restricciones.map(r => `- ${r}`).join('\n')}
 ANTES de generar CUALQUIER opción de comida, VERIFICA que NO contenga NINGUNA de estas restricciones. Si una restricción es "pescados", NO incluir atún, salmón, merluza, ni NINGÚN pescado. Si es "gluten", NO incluir trigo, cebada, ni derivados. Si es "lácteos", NO incluir leche, queso, yogurt, ni derivados.`
   : ''}
 
+${caloriasObjetivoDelFrontend ? `⚠️⚠️⚠️ NUTRICIÓN PRECALCULADA - OBLIGATORIO USAR:
+El sistema ha calculado los valores nutricionales basándose en los datos exactos del usuario.
+
+📊 VALORES OBLIGATORIOS:
+- TDEE (mantenimiento): ${tdeeDelFrontend} kcal/día
+- CALORÍAS OBJETIVO: ${caloriasObjetivoDelFrontend} kcal/día
+${macrosDelFrontend ? `- PROTEÍNAS: ${macrosDelFrontend.proteinas} (${macrosDelFrontend._detalles?.proteinaPorKg || 2}g/kg)
+- CARBOHIDRATOS: ${macrosDelFrontend.carbohidratos}
+- GRASAS: ${macrosDelFrontend.grasas} (${macrosDelFrontend._detalles?.grasasPct || 28}% de calorías)` : ''}
+
+⚠️ DEBES usar EXACTAMENTE estos valores en tu respuesta:
+- "calorias_diarias": ${caloriasObjetivoDelFrontend}
+${macrosDelFrontend ? `- "macros": { "proteinas": "${macrosDelFrontend.proteinas}", "grasas": "${macrosDelFrontend.grasas}", "carbohidratos": "${macrosDelFrontend.carbohidratos}" }` : ''}
+
+NO calcules las calorías ni macros por tu cuenta. Estos valores ya consideran:
+- Peso, altura, edad y sexo del usuario
+- Objetivo específico (${input.objetivo})
+- Intensidad seleccionada (${input.intensidad})
+- Días de actividad física
+
+Las comidas deben distribuirse para alcanzar EXACTAMENTE este total diario y macros.
+` : ''}
 ESQUEMA OBLIGATORIO (ORDEN IMPORTANTE - GENERAR plan_semanal PRIMERO):
 {
-  "calorias_diarias": number,
+  "calorias_diarias": ${caloriasObjetivoDelFrontend || 'number'},
   "macros": { "proteinas": "Ng", "grasas": "Ng", "carbohidratos": "Ng" },
   "distribucion_diaria_pct": { "desayuno": number, "almuerzo": number, "snacks": number, "cena": number },
   "plan_semanal": [
@@ -246,7 +323,14 @@ REGLAS CRÍTICAS:
         - ⚠️ SUPERÁVIT/DÉFICIT CALÓRICO: TÚ (OpenAI) calcularás el superávit/déficit en "calorias_diarias" según el objetivo e intensidad del usuario. Este superávit/déficit es un FACTOR CRÍTICO que DEBES considerar al calcular las proyecciones de ganancia muscular. Si generaste un superávit alto (>200 kcal) para ganar masa, las proyecciones deben reflejar mayor ganancia muscular. Si generaste un déficit para perder grasa, las proyecciones deben reflejar pérdida de grasa.
         - ⚠️ VOLUMEN TOTAL DE ENTRENAMIENTO: ${(() => {
           const diasGym = (input as unknown as Record<string, unknown>)?.diasGym as number | undefined ?? 3;
-          const minutosSesion = diasGym >= 5 ? 75 : diasGym >= 3 ? 60 : 45;
+          const baseMinutos = diasGym >= 5 ? 75 : diasGym >= 3 ? 60 : 45;
+          const minutosSesion = input.intensidad === "ultra" 
+            ? Math.min(baseMinutos + 30, 120) 
+            : input.intensidad === "intensa" 
+            ? Math.min(baseMinutos + 15, 90) 
+            : input.intensidad === "leve" 
+            ? Math.max(baseMinutos - 15, 30) 
+            : baseMinutos;
           const volumen = diasGym * minutosSesion;
           return `${volumen} minutos/semana (${diasGym} días × ${minutosSesion} min)`;
         })()} - Este volumen también afecta las proyecciones de ganancia muscular.
@@ -281,7 +365,15 @@ ${(() => {
       input.atletico || false
     );
     const diasGym = (input as unknown as Record<string, unknown>)?.diasGym as number | undefined ?? recomendaciones.diasGym;
-    const minutosSesion = diasGym >= 5 ? 75 : diasGym >= 3 ? 60 : 45;
+    // Minutos por sesión según intensidad Y días de gym
+    const baseMinutos = diasGym >= 5 ? 75 : diasGym >= 3 ? 60 : 45;
+    const minutosSesion = input.intensidad === "ultra" 
+      ? Math.min(baseMinutos + 30, 120) // Ultra: +30 min, máx 120
+      : input.intensidad === "intensa"
+      ? Math.min(baseMinutos + 15, 90) // Intensa: +15 min, máx 90
+      : input.intensidad === "leve"
+      ? Math.max(baseMinutos - 15, 30) // Leve: -15 min, mín 30
+      : baseMinutos; // Moderada: base
     
     // Calcular superávit/déficit calórico estimado
     let superavitDeficit = 0;
@@ -425,31 +517,191 @@ ${(() => {
   * "description": string detallada del calentamiento específico para ese día, incluyendo movilidad para zonas afectadas si hay lesiones reportadas
 - Estiramiento: 5 min al final de cada sesión (enfocado en músculos trabajados y zonas con lesiones si aplica).
 - Finisher (opcional): según objetivo (HIIT para pérdida de grasa, ligero para volumen, movilidad para lesiones).
-- ${input.objetivo === "perder_grasa" || input.objetivo === "definicion" || input.objetivo === "corte" ? "ENFOQUE: Más densidad, circuitos, finishers de cardio. Priorizar quema de calorías. Split recomendado: Push/Pull/Legs para mayor frecuencia y quema calórica. RPE: 7-9. Descanso: 45-60s." : ""}
-- ${input.objetivo === "ganar_masa" || input.objetivo === "volumen" ? "ENFOQUE: Más volumen, series pesadas, ejercicios compuestos. Priorizar hipertrofia. Split recomendado: Bro Split o Push/Pull/Legs especializado para mayor volumen por músculo. RPE: 7-9. Descanso: 60-90s. Tempo: control excéntrico 2-3s." : ""}
-- ${input.objetivo === "recomposicion" || input.objetivo === "mantener" ? "ENFOQUE: Balance entre fuerza e hipertrofia. Progresión gradual. Split recomendado: Upper/Lower o Push/Pull/Legs equilibrado. RPE: 7-8. Descanso: 60-90s." : ""}
 
-⚠️ DETALLES TÉCNICOS OBLIGATORIOS PARA DIFERENTES NIVELES:
+⚠️ ENFOQUE DE ENTRENAMIENTO SEGÚN OBJETIVO "${input.objetivo}":
+${input.objetivo === "perder_grasa" || input.objetivo === "definicion" || input.objetivo === "corte" ? `- PÉRDIDA DE GRASA/DEFINICIÓN/CORTE:
+  * Alta densidad de entrenamiento (poco descanso)
+  * Circuitos y superseries para mantener frecuencia cardíaca elevada
+  * Finishers de cardio: HIIT 10-15 min o circuito metabólico
+  * Priorizar ejercicios compuestos que quemen más calorías
+  * Split: Push/Pull/Legs para mayor frecuencia y quema calórica
+  * RPE: 7-9, Descanso: 45-60s entre series` : ""}
+${input.objetivo === "ganar_masa" || input.objetivo === "volumen" ? `- GANAR MASA/VOLUMEN (Hipertrofia Máxima):
+  * Alto volumen por grupo muscular (16-20 series/semana)
+  * Series pesadas en ejercicios compuestos (6-10 reps)
+  * Series de hipertrofia en aislados (10-15 reps)
+  * Tempo: Control excéntrico 2-3s para máxima tensión mecánica
+  * Técnicas de intensidad: Drop sets, rest-pause en últimas series
+  * Split: Bro Split o PPL especializado para mayor volumen por músculo
+  * RPE: 7-9, Descanso: 60-90s hipertrofia, 2-3min fuerza` : ""}
+${input.objetivo === "recomposicion" ? `- RECOMPOSICIÓN CORPORAL:
+  * Balance entre fuerza e hipertrofia
+  * Énfasis en ejercicios compuestos para mantener músculo en déficit ligero
+  * Cardio moderado para quemar grasa sin afectar recuperación
+  * Progresión gradual en fuerza como indicador de preservación muscular
+  * Split: Upper/Lower o PPL equilibrado
+  * RPE: 7-8, Descanso: 60-90s` : ""}
+${input.objetivo === "mantener" ? `- MANTENIMIENTO:
+  * Volumen suficiente para mantener adaptaciones (10-14 series/grupo/semana)
+  * Mantener intensidad (RPE 7-8) pero sin técnicas avanzadas
+  * Balance entre todos los grupos musculares
+  * Cardio opcional para salud cardiovascular
+  * Split: Flexible según preferencia
+  * RPE: 7-8, Descanso: 60-90s` : ""}
+${input.objetivo === "bulk_cut" ? `- BULK + CUT (Fase Actual: BULK):
+  * Máximo volumen para hipertrofia agresiva
+  * Series pesadas en compuestos (4-6 reps) + series de volumen (8-12 reps)
+  * Progresión de fuerza como prioridad principal
+  * Cardio mínimo (solo para salud cardiovascular)
+  * Técnicas de intensidad: Drop sets, rest-pause, series mecánicas
+  * Split: Bro Split o PPL de alto volumen
+  * RPE: 8-10, Descanso: 90-120s compuestos, 60-90s aislados
+  * Objetivo: Ganar fuerza y masa rápidamente (algo de grasa es esperado)` : ""}
+${input.objetivo === "lean_bulk" ? `- LEAN BULK (Ganancia Limpia):
+  * Volumen moderado-alto para hipertrofia controlada
+  * Progresión constante en ejercicios principales
+  * Incluir cardio estratégico (2-3x/semana) para mantener definición
+  * Evitar exceso de técnicas de intensidad que aumenten apetito
+  * Split: Upper/Lower o PPL con frecuencia 2x/semana
+  * RPE: 7-9, Descanso: 60-90s
+  * Objetivo: Ganar músculo minimizando grasa (progreso más lento pero limpio)` : ""}
+${input.objetivo === "powerlifting" ? `- POWERLIFTING/FUERZA MÁXIMA:
+  * Enfoque en los 3 levantamientos principales: Sentadilla, Press Banca, Peso Muerto
+  * Periodización por bloques: Hipertrofia → Fuerza → Peaking
+  * Rangos de repeticiones bajos en principales (1-5 reps)
+  * Accesorios para debilidades específicas
+  * Descansos largos para recuperación completa (3-5 min en principales)
+  * Técnica perfecta sobre todo: posición de pies, agarre, respiración
+  * Split: Upper/Lower o Full Body de alta frecuencia
+  * RPE: 7-9 en accesorios, 8-10 en principales` : ""}
+${input.objetivo === "resistencia" ? `- RESISTENCIA/ENDURANCE:
+  * Menor énfasis en hipertrofia, más en resistencia muscular
+  * Series de altas repeticiones (15-20+)
+  * Circuitos y superseries para mejorar capacidad de trabajo
+  * Descansos cortos para simular demanda cardiovascular
+  * Incluir ejercicios unilaterales para estabilidad
+  * Cardio prioritario: sesiones largas de baja intensidad (LISS)
+  * Split: Full Body o Upper/Lower de alta frecuencia
+  * RPE: 6-8, Descanso: 30-60s` : ""}
+${input.objetivo === "rendimiento_deportivo" ? `- RENDIMIENTO DEPORTIVO:
+  * Entrenamiento funcional y específico del deporte
+  * Ejercicios de potencia: Cleans, Snatches, saltos, lanzamientos
+  * Trabajo pliométrico para explosividad
+  * Core funcional: anti-rotación, estabilidad dinámica
+  * Periodización según calendario competitivo
+  * Evitar fatiga excesiva que afecte práctica deportiva
+  * Split: Según demandas del deporte y calendario
+  * RPE: Variable según proximidad a competencia` : ""}
+${input.objetivo === "atleta_elite" ? `- ATLETA ÉLITE:
+  * Periodización avanzada: mesociclos y microciclos planificados
+  * Técnicas de intensidad avanzadas: cluster sets, CAT, wave loading
+  * Monitoreo de fatiga y recuperación (HRV, percepción de esfuerzo)
+  * Trabajo específico de debilidades con análisis biomecánico
+  * Sesiones dobles si la recuperación lo permite
+  * Incluir trabajo de movilidad, prehab y recuperación activa
+  * Split: Altamente individualizado según objetivos específicos
+  * RPE: 8-10 con autoregulación según estado del día` : ""}
+
+⚠️⚠️⚠️ INTENSIDAD SELECCIONADA: "${input.intensidad || 'moderada'}" - OBLIGATORIO APLICAR ESTOS PARÁMETROS:
+${input.intensidad === "ultra" ? `
+🔥🔥🔥 INTENSIDAD ULTRA - PROTOCOLO ATLETA ÉLITE 🔥🔥🔥
+- SERIES POR EJERCICIO: 4-5 series (ejercicios compuestos pueden tener 5-6)
+- REPS: Según objetivo:
+  * Hipertrofia: 8-15 reps con técnicas de intensidad (dropsets, rest-pause, cluster sets)
+  * Fuerza: 3-6 reps con peso máximo
+  * Mixto: 6-12 reps con progresión dentro de la sesión
+- RPE OBLIGATORIO: 9-10 en series principales (al fallo muscular o cerca)
+- TEMPO: Variable avanzado:
+  * Compuestos: 2-0-1-0 (control excéntrico, explosivo concéntrico)
+  * Aislados: 3-1-2-0 (énfasis en tensión y contracción)
+- DESCANSO: 
+  * Entre series compuestas: 90-180s
+  * Entre series aislados: 60-90s
+  * Supersets/gigantes: 30-45s entre ejercicios, 120s entre rounds
+- TÉCNICAS AVANZADAS OBLIGATORIAS (incluir al menos 2-3 por sesión):
+  * Dropsets en último ejercicio de cada grupo muscular
+  * Rest-pause en ejercicios compuestos (3-5 respiraciones y continuar)
+  * Supersets antagonistas (ej: bíceps + tríceps)
+  * Giant sets para grupos grandes (ej: pecho: press + aperturas + cruces)
+  * Técnica 21s en bíceps/tríceps
+- VOLUMEN TOTAL: 20-25 series por grupo muscular por semana
+- DURACIÓN SESIÓN: 75-120 minutos
+- CARDIO HIIT: 15-20 min post-entrenamiento o en día separado
+- PROGRESIÓN: Aumentar peso 5-10kg cada 2 semanas o añadir técnica de intensidad
+` : input.intensidad === "intensa" ? `
+💪 INTENSIDAD INTENSA - PROTOCOLO ALTO RENDIMIENTO 💪
+- SERIES POR EJERCICIO: 4 series (puede variar 3-5 según ejercicio)
+- REPS: Según objetivo:
+  * Hipertrofia: 8-12 reps con alta tensión
+  * Fuerza: 4-8 reps
+  * Mixto: 6-10 reps
+- RPE OBLIGATORIO: 8-9 (cerca del fallo, 1-2 reps en reserva)
+- TEMPO: 2-0-1-0 o 2-1-2-0 según ejercicio
+- DESCANSO:
+  * Entre series compuestas: 90-120s
+  * Entre series aislados: 60-90s
+- TÉCNICAS AVANZADAS (incluir 1-2 por sesión):
+  * Dropsets ocasionales
+  * Superseries
+  * Pausa de 2s en contracción máxima
+- VOLUMEN TOTAL: 16-20 series por grupo muscular por semana
+- DURACIÓN SESIÓN: 60-75 minutos
+- CARDIO: 20-30 min moderado post-entrenamiento
+- PROGRESIÓN: Aumentar peso 2.5-5kg cada 1-2 semanas
+` : input.intensidad === "moderada" ? `
+⚡ INTENSIDAD MODERADA - PROTOCOLO EQUILIBRADO ⚡
+- SERIES POR EJERCICIO: 3-4 series
+- REPS: Según objetivo:
+  * Hipertrofia: 10-15 reps
+  * Fuerza: 6-10 reps
+  * General: 8-12 reps
+- RPE OBLIGATORIO: 7-8 (2-3 reps en reserva)
+- TEMPO: 2-1-2-0 (controlado en todas las fases)
+- DESCANSO:
+  * Entre series: 60-90s
+  * Entre ejercicios: 90-120s
+- TÉCNICAS: 
+  * Foco en conexión mente-músculo
+  * Técnica perfecta sobre peso
+- VOLUMEN TOTAL: 12-16 series por grupo muscular por semana
+- DURACIÓN SESIÓN: 45-60 minutos
+- CARDIO: Opcional, 15-20 min caminata rápida
+- PROGRESIÓN: Aumentar peso cuando puedas hacer todas las reps con buena forma
+` : `
+🌱 INTENSIDAD LEVE - PROTOCOLO PROGRESIVO 🌱
+- SERIES POR EJERCICIO: 2-3 series
+- REPS: 
+  * General: 12-15 reps (enfocado en técnica)
+  * Nunca cargar al máximo
+- RPE OBLIGATORIO: 6-7 (3-4 reps en reserva, NUNCA al fallo)
+- TEMPO: 3-1-3-0 (muy controlado, 3s bajar, 1s pausa, 3s subir)
+- DESCANSO:
+  * Entre series: 90-120s (recuperación completa)
+  * Entre ejercicios: 120-150s
+- TÉCNICAS:
+  * Priorizar aprendizaje de movimientos
+  * Evitar ejercicios complejos (no peso muerto, no sentadilla profunda)
+  * Usar máquinas antes que peso libre cuando sea posible
+- VOLUMEN TOTAL: 8-12 series por grupo muscular por semana
+- DURACIÓN SESIÓN: 30-45 minutos (incluido calentamiento)
+- CARDIO: Caminata suave 20-30 min
+- PROGRESIÓN: Aumentar reps primero, luego peso muy gradual (1-2.5kg)
+- ENFOQUE: Sostenibilidad, crear hábito, evitar lesiones
+`}
+
+⚠️ DETALLES TÉCNICOS POR NIVEL DE EXPERIENCIA (complementario a la intensidad):
 - PRINCIPIANTES (no atlético, <2 días gym/semana): 
-  * RPE: 6-8 (no al fallo, priorizar técnica)
-  * Tempo: controlado 2-1-2-0 (2s bajar, 1s pausa, 2s subir)
-  * Descanso: 60-90s (suficiente para recuperación)
-  * Técnica: Explicaciones simples, puntos clave básicos, evitar ejercicios complejos
-  * Progresión: Semana 1-2 aprender técnica, semana 3-4 aumentar peso ligero (2.5-5kg)
+  * Ajustar RPE: Restar 1-2 puntos del RPE de la intensidad elegida
+  * Técnica: Explicaciones simples, puntos clave básicos
   * Cues: Enfocados en seguridad y forma básica (ej: "Espalda recta", "Core activo")
+  * Si intensidad "ultra" o "intensa": Reducir volumen pero mantener calidad
 - INTERMEDIOS (2-4 días gym/semana):
-  * RPE: 7-9 (cerca del fallo en últimas series)
-  * Tempo: 2-0-1-0 (control excéntrico, explosivo concéntrico)
-  * Descanso: 60-90s hipertrofia, 2-3min fuerza
+  * Usar RPE de la intensidad elegida directamente
   * Técnica: Puntos avanzados, activación muscular, conexión mente-músculo
-  * Progresión: Aumentar peso 2.5-5kg cada 2 semanas o aumentar reps
   * Cues: Enfocados en activación y tensión (ej: "Aprieta glúteos", "Tensión constante")
 - AVANZADOS (atlético o ≥5 días gym/semana):
-  * RPE: 8-10 (al fallo o cerca en últimas series)
-  * Tempo: Variable según objetivo (1-0-1-0 fuerza, 2-0-1-0 hipertrofia, 3-1-1-0 tiempo bajo tensión)
-  * Descanso: 90-120s hipertrofia, 3-5min fuerza máxima
-  * Técnica: Técnica avanzada, variaciones, técnicas de intensidad (dropsets, rest-pause)
-  * Progresión: Periodización avanzada, aumentar peso 5-10kg cada 2 semanas, variaciones de ejercicios
+  * Ajustar RPE: Pueden sumar 0.5-1 punto si la recuperación lo permite
+  * Técnica: Técnica avanzada, variaciones, técnicas de intensidad adicionales
   * Cues: Enfocados en máxima activación y técnica perfecta (ej: "Máxima tensión", "Contracción pico")
 
 ⚠️ ADAPTACIÓN PARA LESIONES (CRÍTICO):
@@ -472,10 +724,17 @@ ${(() => {
 `;
   } catch {
     const diasGym = (input as unknown as Record<string, unknown>)?.diasGym as number | undefined ?? 3;
-    const minutosSesion = diasGym >= 5 ? 75 : diasGym >= 3 ? 60 : 45;
+    const baseMinutos = diasGym >= 5 ? 75 : diasGym >= 3 ? 60 : 45;
+    const minutosSesion = input.intensidad === "ultra" 
+      ? Math.min(baseMinutos + 30, 120) 
+      : input.intensidad === "intensa" 
+      ? Math.min(baseMinutos + 15, 90) 
+      : input.intensidad === "leve" 
+      ? Math.max(baseMinutos - 15, 30) 
+      : baseMinutos;
     return `⚠️ PLAN DE ENTRENAMIENTO:
 - Días de gym por semana: ${diasGym} días
-- Duración por sesión: ${minutosSesion} minutos
+- Duración por sesión: ${minutosSesion} minutos (ajustado por intensidad "${input.intensidad}")
 - Debe incluir EXACTAMENTE 4 semanas con ${diasGym} días cada una.
 - Cada día debe tener un array "ejercicios" con MÍNIMO 6-8 ejercicios.
 - Cada ejercicio: name, sets, reps, muscle_group (OBLIGATORIO - músculo trabajado).
@@ -504,13 +763,27 @@ Datos del usuario: ${JSON.stringify({
       minutos_sesion_gym: (() => {
         const diasGym = (input as unknown as Record<string, unknown>)?.diasGym as number | undefined;
         if (typeof diasGym === 'number') {
-          return diasGym >= 5 ? 75 : diasGym >= 3 ? 60 : 45;
+          const baseMinutos = diasGym >= 5 ? 75 : diasGym >= 3 ? 60 : 45;
+          return input.intensidad === "ultra" 
+            ? Math.min(baseMinutos + 30, 120) 
+            : input.intensidad === "intensa" 
+            ? Math.min(baseMinutos + 15, 90) 
+            : input.intensidad === "leve" 
+            ? Math.max(baseMinutos - 15, 30) 
+            : baseMinutos;
         }
         return 60; // Default
       })(),
       volumen_total_semanal: (() => {
         const diasGym = (input as unknown as Record<string, unknown>)?.diasGym as number | undefined ?? 3;
-        const minutosSesion = diasGym >= 5 ? 75 : diasGym >= 3 ? 60 : 45;
+        const baseMinutos = diasGym >= 5 ? 75 : diasGym >= 3 ? 60 : 45;
+        const minutosSesion = input.intensidad === "ultra" 
+          ? Math.min(baseMinutos + 30, 120) 
+          : input.intensidad === "intensa" 
+          ? Math.min(baseMinutos + 15, 90) 
+          : input.intensidad === "leve" 
+          ? Math.max(baseMinutos - 15, 30) 
+          : baseMinutos;
         return diasGym * minutosSesion;
       })(),
       // NOTA: El superávit/déficit lo calculará OpenAI en calorias_diarias según objetivo e intensidad
@@ -868,6 +1141,37 @@ ${input.tipoDieta === "clinica_mayo" ? "- Clínica Mayo: Enfoque en hábitos sal
 ${input.tipoDieta === "menopausia" ? "- Menopausia: Rica en calcio (lácteos, vegetales de hoja verde), fitoestrógenos (soja, legumbres), proteínas magras y granos integrales. Limitar azúcares refinados, cafeína y alcohol. Enfocada en densidad ósea y equilibrio hormonal." : ""}
 ${input.tipoDieta === "sin_gluten" ? "- Sin Gluten: Eliminar completamente trigo, cebada, centeno y sus derivados. Usar arroz, maíz, quinoa, avena certificada sin gluten. Incluir carnes, pescados, huevos, frutas y verduras naturales." : ""}
 ${!input.tipoDieta || input.tipoDieta === "estandar" ? "- Estándar: Sin restricciones específicas, incluir todos los grupos alimentarios de forma equilibrada." : ""}
+
+${contextoMultiFase ? `
+🔄 CONTEXTO PLAN MULTI-FASE (MES ${contextoMultiFase.mesActual} de ${contextoMultiFase.totalMeses}):
+
+📊 PROGRESO DEL PLAN:
+- Fase actual: ${contextoMultiFase.faseActual}
+- Peso inicial del plan: ${contextoMultiFase.pesoInicial} kg
+- Peso objetivo final: ${contextoMultiFase.pesoObjetivoFinal} kg
+- Peso actual: ${input.pesoKg} kg
+${contextoMultiFase.cambiaFase ? `
+⚠️ CAMBIO DE FASE: El usuario está pasando a una nueva fase del plan.
+Ajustar calorías, macros y entrenamiento según la nueva fase ${contextoMultiFase.faseActual}.` : ''}
+
+📝 AJUSTES RECOMENDADOS BASADOS EN FEEDBACK DEL MES ANTERIOR:
+${contextoMultiFase.ajustesRecomendados.length > 0 
+  ? contextoMultiFase.ajustesRecomendados.map(a => `- ${a}`).join('\n')
+  : '- Sin ajustes específicos (progreso según lo esperado)'
+}
+
+${contextoMultiFase.feedbackUsuario ? `
+💬 COMENTARIOS DEL USUARIO:
+"${contextoMultiFase.feedbackUsuario}"
+Considerar estos comentarios al generar el plan de este mes.` : ''}
+
+⚠️ IMPORTANTE - APLICAR ESTOS AJUSTES:
+1. Si hay ajustes de calorías recomendados, aplicarlos al calcular calorias_diarias
+2. Si se menciona reducir volumen de entrenamiento, generar menos ejercicios o días
+3. Si hay lesiones nuevas, adaptar ejercicios y agregar alternativas seguras
+4. Si la adherencia fue baja, simplificar el plan (menos opciones, comidas más simples)
+5. Variar las comidas respecto al mes anterior para evitar monotonía
+` : ''}
 
 Ajusta las calorías, macros y selección de alimentos según la intensidad y tipo de dieta seleccionados.`;
 
@@ -1392,13 +1696,40 @@ Ajusta las calorías, macros y selección de alimentos según la intensidad y ti
     // Intenta auto-corregir estructura mínima faltante antes de devolver 422
     if (parsedFinal && typeof parsedFinal === 'object') {
       const out = parsedFinal as Record<string, unknown>;
-      // Fallback calorías
+      // Fallback calorías - usar valor precalculado del frontend si está disponible
       if (typeof out.calorias_diarias !== 'number' || !isFinite(out.calorias_diarias as number)) {
-        out.calorias_diarias = 2200;
+        out.calorias_diarias = caloriasObjetivoDelFrontend || 2200;
+        console.log(`⚠️ Calorías no válidas de OpenAI, usando fallback: ${out.calorias_diarias}`);
+      } else if (caloriasObjetivoDelFrontend) {
+        // Si tenemos calorías del frontend y OpenAI generó algo muy diferente (>15% diferencia), preferir el frontend
+        const diferencia = Math.abs((out.calorias_diarias as number) - caloriasObjetivoDelFrontend);
+        const porcentajeDiferencia = (diferencia / caloriasObjetivoDelFrontend) * 100;
+        if (porcentajeDiferencia > 15) {
+          console.log(`⚠️ Calorías de OpenAI (${out.calorias_diarias}) difieren mucho del objetivo (${caloriasObjetivoDelFrontend}). Usando valor del frontend.`);
+          out.calorias_diarias = caloriasObjetivoDelFrontend;
+        }
       }
-      // Fallback macros
+      // Fallback macros - usar valores precalculados del frontend si están disponibles
       if (!out.macros || typeof out.macros !== 'object') {
-        out.macros = { proteinas: '150g', grasas: '70g', carbohidratos: '240g' };
+        out.macros = macrosDelFrontend 
+          ? { proteinas: macrosDelFrontend.proteinas, grasas: macrosDelFrontend.grasas, carbohidratos: macrosDelFrontend.carbohidratos }
+          : { proteinas: '150g', grasas: '70g', carbohidratos: '240g' };
+        console.log(`⚠️ Macros no válidos de OpenAI, usando fallback:`, out.macros);
+      } else if (macrosDelFrontend) {
+        // Verificar si los macros de OpenAI son muy diferentes a los calculados
+        const proteinasOpenAI = parseInt(String((out.macros as Record<string, string>).proteinas || '0'));
+        const proteinasCalculadas = parseInt(macrosDelFrontend.proteinas);
+        const diferenciaProteinas = Math.abs(proteinasOpenAI - proteinasCalculadas);
+        
+        // Si la diferencia en proteínas es mayor a 30g, usar los valores calculados
+        if (diferenciaProteinas > 30) {
+          console.log(`⚠️ Macros de OpenAI (${proteinasOpenAI}g prot) difieren mucho de los calculados (${proteinasCalculadas}g prot). Usando valores del frontend.`);
+          out.macros = { 
+            proteinas: macrosDelFrontend.proteinas, 
+            grasas: macrosDelFrontend.grasas, 
+            carbohidratos: macrosDelFrontend.carbohidratos 
+          };
+        }
       }
       // Fallback distribución diaria
       if (!out.distribucion_diaria_pct || typeof out.distribucion_diaria_pct !== 'object') {
@@ -1810,60 +2141,261 @@ Ejemplo de estructura:
       ) || false;
       
       const ensureWeek = (weekIndex: number) => {
-        // Ejercicios base seguros (evitar ejercicios problemáticos para lesiones comunes)
-        const ejerciciosBaseInicial = [
-          { name: "Press de banca", sets: 3, reps: "8-12", muscle_group: "Pecho" },
-          { name: "Curl de bíceps", sets: 3, reps: "10-12", muscle_group: "Bíceps" },
-          { name: "Fondos en paralelas", sets: 3, reps: "8-10", muscle_group: "Tríceps" },
-          { name: "Plancha", sets: 3, reps: "30-45s", muscle_group: "Abdominales" }
-        ];
+        // Parámetros según INTENSIDAD
+        const intensidadActual = input.intensidad || "moderada";
+        const objetivoActual = input.objetivo || "mantener";
         
-        // Agregar ejercicios según lesiones (evitar los problemáticos)
-        const ejerciciosBase: Array<{ name: string; sets: number; reps: string; muscle_group: string }> = [...ejerciciosBaseInicial];
+        // Clasificar objetivo
+        const esObjetivoPerdida = ["perder_grasa", "definicion", "corte"].includes(objetivoActual);
+        const esObjetivoVolumen = ["ganar_masa", "volumen", "bulk_cut"].includes(objetivoActual);
+        const esObjetivoFuerza = ["powerlifting", "atleta_elite"].includes(objetivoActual);
+        const esObjetivoResistencia = ["resistencia", "rendimiento_deportivo"].includes(objetivoActual);
+        const esLeanBulk = objetivoActual === "lean_bulk";
+        // esRecomposicion usa parámetros similares a mantenimiento
         
-        // Para espalda: usar ejercicios seguros si hay hernia/lumbar
-        if (tieneHerniaDisco || tieneDolorLumbar) {
-          ejerciciosBase.push({ name: "Remo en máquina sentado", sets: 3, reps: "10-12", muscle_group: "Espalda" });
-          ejerciciosBase.push({ name: "Jalón al pecho en polea", sets: 3, reps: "10-12", muscle_group: "Espalda" });
+        // SERIES según intensidad + objetivo
+        let seriesBase: number;
+        if (intensidadActual === "ultra") {
+          seriesBase = esObjetivoVolumen || esObjetivoFuerza ? 5 : esObjetivoPerdida ? 4 : 5;
+        } else if (intensidadActual === "intensa") {
+          seriesBase = esObjetivoVolumen ? 4 : esObjetivoPerdida ? 4 : 4;
+        } else if (intensidadActual === "leve") {
+          seriesBase = 2;
         } else {
-          ejerciciosBase.push({ name: "Remo con barra", sets: 3, reps: "8-12", muscle_group: "Espalda" });
+          seriesBase = 3;
         }
         
-        if (!tieneHerniaDisco && !tieneDolorLumbar) {
-          ejerciciosBase.push({ name: "Peso muerto", sets: 3, reps: "6-10", muscle_group: "Isquiotibiales" });
-        }
-        if (!tieneHerniaDisco && !tieneDolorLumbar && !tieneDolorRodilla) {
-          ejerciciosBase.push({ name: "Sentadilla goblet", sets: 3, reps: "8-10", muscle_group: "Cuádriceps" });
-        } else if (tieneHerniaDisco || tieneDolorLumbar) {
-          // Alternativas seguras para hernia/lumbar
-          ejerciciosBase.push({ name: "Prensa 45° (rango medio)", sets: 3, reps: "10-12", muscle_group: "Cuádriceps" });
-          ejerciciosBase.push({ name: "Extensión de piernas en máquina", sets: 3, reps: "10-12", muscle_group: "Cuádriceps" });
-        }
-        if (!tieneDolorHombro) {
-          ejerciciosBase.push({ name: "Press militar", sets: 3, reps: "8-12", muscle_group: "Hombros" });
+        // RPE según intensidad + objetivo
+        let rpeBase: string;
+        if (intensidadActual === "ultra") {
+          rpeBase = esObjetivoFuerza ? "9-10" : esObjetivoPerdida ? "8-9" : "9-10";
+        } else if (intensidadActual === "intensa") {
+          rpeBase = "8-9";
+        } else if (intensidadActual === "leve") {
+          rpeBase = "6-7";
         } else {
-          ejerciciosBase.push({ name: "Elevaciones laterales con mancuernas (carga ligera)", sets: 3, reps: "12-15", muscle_group: "Hombros" });
+          rpeBase = "7-8";
         }
         
-        // Rotar ejercicios según la semana
-        const offset = weekIndex % ejerciciosBase.length;
-        const ejerciciosRotados = [...ejerciciosBase.slice(offset), ...ejerciciosBase.slice(0, offset)];
+        // DESCANSO según intensidad + objetivo (pérdida = menos descanso, fuerza = más descanso)
+        let descansoBase: number;
+        if (esObjetivoPerdida) {
+          descansoBase = intensidadActual === "ultra" ? 45 : intensidadActual === "intensa" ? 45 : intensidadActual === "leve" ? 60 : 45;
+        } else if (esObjetivoFuerza) {
+          descansoBase = intensidadActual === "ultra" ? 180 : intensidadActual === "intensa" ? 150 : intensidadActual === "leve" ? 120 : 120;
+        } else if (esObjetivoResistencia) {
+          descansoBase = intensidadActual === "ultra" ? 30 : intensidadActual === "intensa" ? 45 : 45;
+        } else {
+          descansoBase = intensidadActual === "ultra" ? 90 : intensidadActual === "intensa" ? 75 : intensidadActual === "leve" ? 90 : 60;
+        }
+        
+        // REPS según objetivo
+        const getReps = (tipoEjercicio: "compuesto" | "aislado" | "core"): string => {
+          if (esObjetivoFuerza) {
+            return tipoEjercicio === "compuesto" ? (intensidadActual === "ultra" ? "3-5" : "4-6") : "6-10";
+          } else if (esObjetivoPerdida) {
+            return tipoEjercicio === "compuesto" ? "10-15" : "12-20";
+          } else if (esObjetivoResistencia) {
+            return tipoEjercicio === "compuesto" ? "15-20" : "15-25";
+          } else if (esObjetivoVolumen || esLeanBulk) {
+            return tipoEjercicio === "compuesto" ? (intensidadActual === "ultra" ? "6-8" : "8-10") : "10-12";
+          } else {
+            return tipoEjercicio === "compuesto" ? "8-12" : "10-15";
+          }
+        };
+        
+        // TEMPO según objetivo
+        const getTempo = (tipoEjercicio: "compuesto" | "aislado"): string => {
+          if (esObjetivoFuerza) {
+            return "1-0-X-0"; // Explosivo
+          } else if (esObjetivoPerdida) {
+            return "2-0-1-0"; // Rápido
+          } else if (esObjetivoVolumen || esLeanBulk) {
+            return tipoEjercicio === "compuesto" ? "2-1-1-0" : "3-1-2-0"; // Control excéntrico
+          } else {
+            return "2-0-1-0";
+          }
+        };
+        
+        // Ejercicios completos según INTENSIDAD + OBJETIVO
+        const generarEjerciciosCompletos = () => {
+          const ejercicios: Array<{ name: string; sets: number; reps: string; muscle_group: string; rpe?: string; rest_seconds?: number; tempo?: string; technique?: string; superset_with?: string }> = [];
+          
+          // === PECHO ===
+          ejercicios.push({ 
+            name: esObjetivoFuerza ? "Press de banca con barra (fuerza)" : "Press de banca con barra", 
+            sets: esObjetivoFuerza ? seriesBase + 1 : seriesBase, 
+            reps: getReps("compuesto"), 
+            muscle_group: "Pecho", 
+            rpe: rpeBase, 
+            rest_seconds: descansoBase, 
+            tempo: getTempo("compuesto"), 
+            technique: esObjetivoFuerza ? "Pausa en pecho 1s, empuje explosivo, leg drive" : "Retrae escápulas, pies firmes, arco natural" 
+          });
+          ejercicios.push({ name: "Press inclinado con mancuernas", sets: seriesBase, reps: getReps("aislado"), muscle_group: "Pecho", rpe: rpeBase, rest_seconds: descansoBase - 15, tempo: getTempo("aislado") });
+          if (intensidadActual === "ultra" || intensidadActual === "intensa") {
+            ejercicios.push({ name: "Aperturas en banco plano", sets: seriesBase - 1, reps: esObjetivoPerdida ? "15-20" : "10-15", muscle_group: "Pecho", rpe: "7-8", rest_seconds: esObjetivoPerdida ? 30 : 60, tempo: "3-1-1-0", superset_with: esObjetivoPerdida ? "Flexiones" : undefined });
+            ejercicios.push({ name: "Cruces en polea (cable crossover)", sets: seriesBase - 1, reps: esObjetivoPerdida ? "15-20" : "12-15", muscle_group: "Pecho", rpe: "8", rest_seconds: esObjetivoPerdida ? 30 : 45, tempo: "2-1-2-0", technique: "Squeeze al final, control total" });
+            if (esObjetivoVolumen) {
+              ejercicios.push({ name: "Press declinado o Dips de pecho", sets: seriesBase, reps: "8-12", muscle_group: "Pecho", rpe: "8-9", rest_seconds: 75, technique: "Énfasis en pecho bajo" });
+            }
+          }
+          if (esObjetivoPerdida && intensidadActual !== "leve") {
+            ejercicios.push({ name: "Flexiones (al fallo)", sets: 3, reps: "Max", muscle_group: "Pecho", rpe: "9", rest_seconds: 30, technique: "Finisher metabólico" });
+          }
+          
+          // === ESPALDA ===
+          if (tieneHerniaDisco || tieneDolorLumbar) {
+            ejercicios.push({ name: "Remo en máquina sentado", sets: seriesBase, reps: getReps("compuesto"), muscle_group: "Espalda", rpe: rpeBase, rest_seconds: descansoBase });
+            ejercicios.push({ name: "Jalón al pecho en polea", sets: seriesBase, reps: getReps("compuesto"), muscle_group: "Espalda", rpe: rpeBase, rest_seconds: descansoBase - 15 });
+            ejercicios.push({ name: "Remo con mancuerna a 1 brazo (apoyado)", sets: seriesBase, reps: getReps("aislado"), muscle_group: "Espalda", rpe: "7-8", rest_seconds: 60 });
+          } else {
+            if (esObjetivoFuerza) {
+              ejercicios.push({ name: "Peso muerto convencional", sets: seriesBase + 1, reps: getReps("compuesto"), muscle_group: "Espalda/Piernas", rpe: rpeBase, rest_seconds: descansoBase + 60, tempo: "1-1-X-0", technique: "Pilar de fuerza: setup perfecto, tracción vertical" });
+            }
+            ejercicios.push({ name: "Remo con barra", sets: seriesBase, reps: getReps("compuesto"), muscle_group: "Espalda", rpe: rpeBase, rest_seconds: descansoBase, tempo: getTempo("compuesto"), technique: "Espalda neutra, tire con codos" });
+            ejercicios.push({ name: "Dominadas o Jalón al pecho", sets: seriesBase, reps: esObjetivoResistencia ? "12-15" : getReps("compuesto"), muscle_group: "Espalda", rpe: rpeBase, rest_seconds: descansoBase });
+            if (intensidadActual === "ultra" || intensidadActual === "intensa") {
+              ejercicios.push({ name: "Remo con mancuerna a 1 brazo", sets: seriesBase - 1, reps: getReps("aislado"), muscle_group: "Espalda", rpe: "8", rest_seconds: 60 });
+              ejercicios.push({ name: "Face pulls", sets: 3, reps: "15-20", muscle_group: "Espalda/Hombros", rpe: "7", rest_seconds: 45, technique: "Rotación externa al final" });
+              if (esObjetivoVolumen) {
+                ejercicios.push({ name: "Pullover con mancuerna", sets: seriesBase, reps: "10-12", muscle_group: "Espalda", rpe: "7-8", rest_seconds: 60, tempo: "3-1-2-0" });
+              }
+            }
+          }
+          
+          // === PIERNAS ===
+          if (!tieneHerniaDisco && !tieneDolorLumbar && !tieneDolorRodilla) {
+            ejercicios.push({ 
+              name: esObjetivoFuerza ? "Sentadilla con barra (fuerza)" : "Sentadilla con barra", 
+              sets: esObjetivoFuerza ? seriesBase + 1 : seriesBase, 
+              reps: getReps("compuesto"), 
+              muscle_group: "Cuádriceps", 
+              rpe: rpeBase, 
+              rest_seconds: esObjetivoFuerza ? descansoBase + 60 : descansoBase + 30, 
+              tempo: esObjetivoFuerza ? "2-1-X-0" : getTempo("compuesto"), 
+              technique: esObjetivoFuerza ? "Barra baja, profundidad competitiva, drive de cadera" : "Profundidad paralela, rodillas hacia afuera" 
+            });
+            if (!tieneHerniaDisco && !tieneDolorLumbar) {
+              ejercicios.push({ name: esObjetivoFuerza ? "Peso muerto rumano" : "Peso muerto rumano", sets: seriesBase, reps: getReps("compuesto"), muscle_group: "Isquiotibiales", rpe: rpeBase, rest_seconds: descansoBase + 15, technique: "Bisagra de cadera, espalda neutra" });
+            }
+            if (esObjetivoVolumen || intensidadActual === "ultra") {
+              ejercicios.push({ name: "Sentadilla frontal o Hack squat", sets: seriesBase, reps: "8-12", muscle_group: "Cuádriceps", rpe: "8", rest_seconds: 90, technique: "Énfasis en cuádriceps" });
+            }
+          } else {
+            ejercicios.push({ name: "Prensa 45° (rango controlado)", sets: seriesBase, reps: getReps("compuesto"), muscle_group: "Cuádriceps", rpe: "7-8", rest_seconds: descansoBase });
+          }
+          ejercicios.push({ name: "Extensión de cuádriceps en máquina", sets: seriesBase, reps: getReps("aislado"), muscle_group: "Cuádriceps", rpe: "8", rest_seconds: esObjetivoPerdida ? 30 : 60, superset_with: esObjetivoPerdida ? "Curl femoral" : undefined });
+          ejercicios.push({ name: "Curl femoral acostado", sets: seriesBase, reps: getReps("aislado"), muscle_group: "Isquiotibiales", rpe: "8", rest_seconds: esObjetivoPerdida ? 30 : 60 });
+          if (intensidadActual === "ultra" || intensidadActual === "intensa") {
+            ejercicios.push({ name: "Elevación de gemelos de pie", sets: 4, reps: esObjetivoResistencia ? "20-30" : "12-20", muscle_group: "Gemelos", rpe: "8-9", rest_seconds: 45, tempo: "2-2-1-0", technique: "Rango completo, squeeze arriba" });
+            ejercicios.push({ name: "Hip thrust con barra", sets: seriesBase, reps: getReps("aislado"), muscle_group: "Glúteos", rpe: "8", rest_seconds: 60 });
+            if (esObjetivoVolumen) {
+              ejercicios.push({ name: "Zancadas caminando", sets: 3, reps: "12-16 por pierna", muscle_group: "Piernas", rpe: "8", rest_seconds: 60 });
+            }
+          }
+          
+          // === HOMBROS ===
+          if (!tieneDolorHombro) {
+            ejercicios.push({ 
+              name: esObjetivoFuerza ? "Press militar con barra (fuerza)" : "Press militar con barra", 
+              sets: esObjetivoFuerza ? seriesBase + 1 : seriesBase, 
+              reps: getReps("compuesto"), 
+              muscle_group: "Hombros", 
+              rpe: rpeBase, 
+              rest_seconds: descansoBase, 
+              technique: esObjetivoFuerza ? "Strict press, core braced, sin impulso" : "Core apretado, sin arquear espalda" 
+            });
+            ejercicios.push({ name: "Elevaciones laterales", sets: seriesBase, reps: esObjetivoPerdida ? "15-20" : "12-15", muscle_group: "Hombros", rpe: "8", rest_seconds: esObjetivoPerdida ? 30 : 45, tempo: getTempo("aislado") });
+            if (intensidadActual === "ultra" || intensidadActual === "intensa") {
+              ejercicios.push({ name: "Elevaciones frontales", sets: seriesBase - 1, reps: getReps("aislado"), muscle_group: "Hombros", rpe: "7-8", rest_seconds: 45 });
+              ejercicios.push({ name: "Pájaros (rear delt flies)", sets: seriesBase - 1, reps: "15-20", muscle_group: "Hombros", rpe: "7", rest_seconds: 45 });
+              if (esObjetivoVolumen) {
+                ejercicios.push({ name: "Press Arnold", sets: seriesBase, reps: "10-12", muscle_group: "Hombros", rpe: "8", rest_seconds: 60 });
+              }
+            }
+          } else {
+            ejercicios.push({ name: "Elevaciones laterales (carga ligera)", sets: 3, reps: "15-20", muscle_group: "Hombros", rpe: "6-7", rest_seconds: 60 });
+          }
+          
+          // === BRAZOS ===
+          // Para pérdida de grasa: superseries antagonistas
+          if (esObjetivoPerdida) {
+            ejercicios.push({ name: "Curl con barra Z + Extensión triceps (Superserie)", sets: seriesBase, reps: "12-15 cada uno", muscle_group: "Bíceps/Tríceps", rpe: "8", rest_seconds: 30, technique: "Sin descanso entre ejercicios" });
+            ejercicios.push({ name: "Curl martillo + Press francés (Superserie)", sets: seriesBase, reps: "12-15 cada uno", muscle_group: "Bíceps/Tríceps", rpe: "8", rest_seconds: 30 });
+          } else {
+            ejercicios.push({ name: "Curl con barra Z", sets: seriesBase, reps: getReps("aislado"), muscle_group: "Bíceps", rpe: rpeBase, rest_seconds: 60, technique: "Codos fijos, sin balanceo" });
+            ejercicios.push({ name: "Curl martillo", sets: seriesBase, reps: getReps("aislado"), muscle_group: "Bíceps", rpe: "8", rest_seconds: 45 });
+            ejercicios.push({ name: "Press francés (extensión triceps)", sets: seriesBase, reps: getReps("aislado"), muscle_group: "Tríceps", rpe: rpeBase, rest_seconds: 60 });
+            ejercicios.push({ name: "Extensión de tríceps en polea", sets: seriesBase, reps: getReps("aislado"), muscle_group: "Tríceps", rpe: "8", rest_seconds: 45 });
+          }
+          if ((intensidadActual === "ultra" || intensidadActual === "intensa") && !esObjetivoPerdida) {
+            ejercicios.push({ name: "Curl concentrado", sets: 3, reps: "10-12", muscle_group: "Bíceps", rpe: "8-9", rest_seconds: 45, technique: "Contracción máxima arriba" });
+            ejercicios.push({ name: "Fondos en paralelas (triceps)", sets: seriesBase, reps: getReps("aislado"), muscle_group: "Tríceps", rpe: "8-9", rest_seconds: 60 });
+            if (esObjetivoVolumen) {
+              ejercicios.push({ name: "Curl predicador", sets: seriesBase, reps: "10-12", muscle_group: "Bíceps", rpe: "8", rest_seconds: 60 });
+              ejercicios.push({ name: "Extensión overhead con mancuerna", sets: seriesBase, reps: "10-12", muscle_group: "Tríceps", rpe: "8", rest_seconds: 60 });
+            }
+          }
+          
+          // === CORE ===
+          ejercicios.push({ name: "Plancha frontal", sets: 3, reps: esObjetivoResistencia ? "60-90s" : "30-60s", muscle_group: "Abdominales", rpe: "7-8", rest_seconds: 45 });
+          if (intensidadActual === "ultra" || intensidadActual === "intensa") {
+            ejercicios.push({ name: "Crunch en polea alta", sets: 3, reps: esObjetivoPerdida ? "20-25" : "15-20", muscle_group: "Abdominales", rpe: "8", rest_seconds: esObjetivoPerdida ? 30 : 45 });
+            ejercicios.push({ name: "Elevación de piernas colgado", sets: 3, reps: esObjetivoPerdida ? "15-20" : "10-15", muscle_group: "Abdominales", rpe: "8-9", rest_seconds: 60 });
+            if (esObjetivoPerdida) {
+              ejercicios.push({ name: "Mountain climbers", sets: 3, reps: "30-45s", muscle_group: "Core/Cardio", rpe: "9", rest_seconds: 30, technique: "Finisher metabólico" });
+            }
+          }
+          
+          // === CARDIO/FINISHER según objetivo ===
+          if (esObjetivoPerdida && intensidadActual !== "leve") {
+            ejercicios.push({ name: "HIIT en bici/remo (Finisher)", sets: 1, reps: "10-15 min", muscle_group: "Cardio", rpe: "9", rest_seconds: 0, technique: "30s sprint / 30s recovery" });
+          } else if (esObjetivoResistencia) {
+            ejercicios.push({ name: "Circuito metabólico", sets: 3, reps: "5 ejercicios x 45s", muscle_group: "Full Body", rpe: "8-9", rest_seconds: 60, technique: "Burpees, box jumps, battle ropes, etc." });
+          }
+          
+          return ejercicios;
+        };
+        
+        const todosLosEjercicios = generarEjerciciosCompletos();
+        
+        // Filtrar ejercicios peligrosos y seleccionar según el día
+        const ejerciciosFiltrados = filtrarEjerciciosPeligrosos(todosLosEjercicios as Array<{ name: string; [key: string]: unknown }>, tieneHerniaDisco, tieneDolorLumbar);
+        
+        // Cantidad de ejercicios por día según intensidad
+        const ejerciciosPorDia = intensidadActual === "ultra" ? 12 : intensidadActual === "intensa" ? 10 : intensidadActual === "leve" ? 6 : 8;
+        
+        // Rotar ejercicios según la semana para variación
+        const offset = (weekIndex * 3) % ejerciciosFiltrados.length;
+        const ejerciciosRotados = [...ejerciciosFiltrados.slice(offset), ...ejerciciosFiltrados.slice(0, offset)];
         
         return {
           week: weekIndex + 1,
-          days: diasDistribuidos.map((d) => ({
-            day: d,
-            split: targetDays <= 2 ? "Full Body" : "",
-            warmup: {
-              duration_minutes: tieneHerniaDisco ? 15 : (input.doloresLesiones && input.doloresLesiones.length > 0 ? 12 : 8),
-              description: tieneHerniaDisco 
-                ? "Calentamiento específico para hernia de disco: 5 min caminata suave, 5 min movilidad de cadera (cat-cow, estiramientos de isquiotibiales), 5 min activación de core (plancha isométrica, dead bug). Evitar flexión/extensión excesiva de columna."
-                : (input.doloresLesiones && input.doloresLesiones.length > 0
-                  ? `Calentamiento adaptado para lesiones: movilidad de zonas afectadas, activación de músculos estabilizadores, estiramientos suaves y progresivos.`
-                  : "Calentamiento general: 3-5 min cardio ligero, movilidad articular, activación muscular específica para los ejercicios del día.")
-            },
-            ejercicios: filtrarEjerciciosPeligrosos(ejerciciosRotados.slice(0, 8) as Array<{ name: string; [key: string]: unknown }>, tieneHerniaDisco, tieneDolorLumbar) // Mínimo 6-8 ejercicios, filtrados por seguridad
-          }))
+          days: diasDistribuidos.map((d, dayIdx) => {
+            // Seleccionar ejercicios diferentes para cada día
+            const startIdx = (dayIdx * ejerciciosPorDia) % ejerciciosRotados.length;
+            const ejerciciosDelDia = [];
+            for (let i = 0; i < ejerciciosPorDia; i++) {
+              ejerciciosDelDia.push(ejerciciosRotados[(startIdx + i) % ejerciciosRotados.length]);
+            }
+            
+            return {
+              day: d,
+              split: targetDays <= 2 ? "Full Body" : targetDays <= 4 ? "Upper/Lower" : "Push/Pull/Legs",
+              warmup: {
+                duration_minutes: tieneHerniaDisco ? 15 : (input.doloresLesiones && input.doloresLesiones.length > 0 ? 12 : intensidadActual === "ultra" ? 10 : 8),
+                description: tieneHerniaDisco 
+                  ? "Calentamiento específico para hernia de disco: 5 min caminata suave, 5 min movilidad de cadera (cat-cow, estiramientos de isquiotibiales), 5 min activación de core (plancha isométrica, dead bug). Evitar flexión/extensión excesiva de columna."
+                  : (input.doloresLesiones && input.doloresLesiones.length > 0
+                    ? `Calentamiento adaptado para lesiones: movilidad de zonas afectadas, activación de músculos estabilizadores, estiramientos suaves y progresivos.`
+                    : intensidadActual === "ultra" 
+                    ? "Calentamiento completo: 5 min cardio ligero, 3 min movilidad articular dinámica, 2 min activación muscular específica con bandas. Incluir series de aproximación ligeras antes de ejercicios pesados."
+                    : "Calentamiento general: 3-5 min cardio ligero, movilidad articular, activación muscular específica para los ejercicios del día.")
+              },
+              ejercicios: ejerciciosDelDia
+            };
+          })
         };
       };
 

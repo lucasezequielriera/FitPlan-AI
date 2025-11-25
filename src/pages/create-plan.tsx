@@ -6,8 +6,9 @@ import { usePlanStore } from "@/store/planStore";
 import { useAuthStore } from "@/store/authStore";
 import { getAuthSafe, getDbSafe } from "@/lib/firebase";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
-import type { UserInput, Goal, TipoDieta, Intensidad } from "@/types/plan";
+import type { UserInput, Goal, TipoDieta, Intensidad, PlanMultiFase, FaseMultiFase, HistorialMes, Suplemento, PlanAIResponse } from "@/types/plan";
 import Navbar from "@/components/Navbar";
+import { calculateBMR, calculateTDEE } from "@/utils/calculations";
 
 const objetivoDescripciones: Record<Goal, string> = {
   perder_grasa: "Reduce tu porcentaje de grasa corporal mediante un déficit calórico controlado. Ideal si buscás perder peso de forma saludable, mejorando tu composición corporal y salud general. El plan incluirá un déficit moderado de calorías mientras mantiene tus músculos.",
@@ -84,10 +85,219 @@ const intensidadDescripciones: Record<Intensidad, string> = {
   ultra: "🔥 MÁXIMO RENDIMIENTO: Para atletas y personas comprometidas al 100%. Déficit o superávit extremo (800-1200 kcal/día). Entrenamiento de alta frecuencia (5-7 días/semana), dobles sesiones permitidas. Requiere experiencia previa, excelente recuperación y compromiso total. NO recomendado para principiantes."
 };
 
+// Helper para crear estructura de plan multi-fase
+function crearPlanMultiFase(
+  user: UserInput,
+  plan: PlanAIResponse,
+  objetivo: "bulk_cut" | "lean_bulk" | "simple"
+): PlanMultiFase {
+  const pesoInicial = user.pesoKg;
+  const pesoObjetivoFinal = user.pesoObjetivoKg || Math.round(pesoInicial * 1.1);
+  const intensidad = user.intensidad || "moderada";
+  const sexo = user.sexo || "masculino";
+  const edad = user.edad || 25;
+  const esAtletico = user.atletico || false;
+  
+  // Factores de ajuste según perfil (SINCRONIZADOS con la proyección del formulario)
+  const factorSexo = sexo === "femenino" ? 0.5 : 1;
+  const factorEdad = edad > 40 ? 0.85 : edad > 30 ? 0.95 : 1;
+  const factorExperiencia = esAtletico ? 0.7 : 1; // Atletas ya avanzados ganan más lento
+  
+  // Velocidades base según intensidad
+  const velocidadBaseGanancia: Record<string, number> = { ultra: 1.5, intensa: 1.2, moderada: 0.9, leve: 0.6 };
+  const velocidadBasePerdida: Record<string, number> = { ultra: 2.0, intensa: 1.5, moderada: 1.0, leve: 0.6 };
+  
+  // Aplicar factores a las velocidades
+  const velocidadGanancia = (velocidadBaseGanancia[intensidad] || 0.9) * factorSexo * factorEdad * factorExperiencia;
+  const velocidadPerdida = (velocidadBasePerdida[intensidad] || 1.0) * factorEdad;
+  
+  // Calcular meses según objetivo e intensidad
+  const calcularMesesYFases = (): { totalMeses: number; fases: FaseMultiFase[] } => {
+    const diferenciaPeso = pesoObjetivoFinal - pesoInicial;
+    
+    if (objetivo === "bulk_cut") {
+      // BULK + CUT: Primero bulk agresivo, luego cut
+      // Peso de bulk = peso objetivo + 8-10% (grasa que se ganará)
+      const pesoBulk = Math.round(pesoObjetivoFinal * 1.08);
+      const pesoAGanarBulk = pesoBulk - pesoInicial;
+      const pesoAPerderCut = pesoBulk - pesoObjetivoFinal;
+      
+      const mesesBulk = Math.ceil(pesoAGanarBulk / velocidadGanancia);
+      const mesesCut = Math.ceil(pesoAPerderCut / velocidadPerdida);
+      const totalMeses = mesesBulk + mesesCut;
+      
+      // Crear array de meses para cada fase
+      const mesesBulkArray = Array.from({ length: mesesBulk }, (_, i) => i + 1);
+      const mesesCutArray = Array.from({ length: mesesCut }, (_, i) => mesesBulk + i + 1);
+      
+      return {
+        totalMeses,
+        fases: [
+          {
+            nombre: "BULK",
+            mesesIncluidos: mesesBulkArray,
+            pesoMeta: pesoBulk,
+            descripcion: `Fase de volumen: Ganar masa muscular hasta ~${pesoBulk}kg con superávit calórico controlado`
+          },
+          {
+            nombre: "CUT",
+            mesesIncluidos: mesesCutArray,
+            pesoMeta: pesoObjetivoFinal,
+            descripcion: `Fase de definición: Perder grasa hasta ${pesoObjetivoFinal}kg manteniendo músculo`
+          }
+        ]
+      };
+    } else if (objetivo === "lean_bulk") {
+      // LEAN BULK: Ganancia lenta y constante (60% de velocidad del bulk normal)
+      const velocidadLeanBulk = velocidadGanancia * 0.6;
+      const totalMeses = Math.ceil(diferenciaPeso / velocidadLeanBulk);
+      
+      return {
+        totalMeses,
+        fases: [
+          {
+            nombre: "LEAN_BULK",
+            mesesIncluidos: Array.from({ length: totalMeses }, (_, i) => i + 1),
+            pesoMeta: pesoObjetivoFinal,
+            descripcion: `Volumen limpio: Ganar músculo minimizando grasa hasta ${pesoObjetivoFinal}kg`
+          }
+        ]
+      };
+    }
+    
+    // Plan simple (1 mes)
+    return {
+      totalMeses: 1,
+      fases: [
+        {
+          nombre: "MANTENIMIENTO",
+          mesesIncluidos: [1],
+          pesoMeta: pesoObjetivoFinal || pesoInicial,
+          descripcion: "Plan mensual estándar"
+        }
+      ]
+    };
+  };
+  
+  const { totalMeses, fases } = calcularMesesYFases();
+  
+  // Suplementos base recomendados según objetivo
+  const suplementosBase: Suplemento[] = [
+    {
+      nombre: "Proteína Whey",
+      dosis: "25-30g",
+      momento: "post-entreno",
+      motivo: "Optimizar síntesis proteica y recuperación muscular",
+      prioridad: "esencial",
+      duracion: "todo el plan"
+    },
+    {
+      nombre: "Creatina Monohidrato",
+      dosis: "5g",
+      momento: "mañana",
+      motivo: "Aumentar fuerza, potencia y volumen muscular",
+      prioridad: "esencial",
+      duracion: "todo el plan"
+    },
+    {
+      nombre: "Vitamina D3",
+      dosis: "2000-4000 UI",
+      momento: "mañana",
+      motivo: "Optimizar testosterona, inmunidad y salud ósea",
+      prioridad: "recomendado",
+      duracion: "todo el plan"
+    },
+    {
+      nombre: "Omega-3 (EPA/DHA)",
+      dosis: "2-3g",
+      momento: "mañana",
+      motivo: "Antiinflamatorio, salud cardiovascular y recuperación",
+      prioridad: "recomendado",
+      duracion: "todo el plan"
+    }
+  ];
+  
+  // Agregar suplementos específicos según fase
+  if (objetivo === "bulk_cut" || objetivo === "lean_bulk") {
+    suplementosBase.push({
+      nombre: "Zinc + Magnesio (ZMA)",
+      dosis: "30mg Zn / 450mg Mg",
+      momento: "noche",
+      motivo: "Optimizar recuperación, sueño y niveles hormonales",
+      prioridad: "recomendado",
+      duracion: "todo el plan"
+    });
+  }
+  
+  if (intensidad === "ultra" || intensidad === "intensa") {
+    suplementosBase.push({
+      nombre: "Cafeína",
+      dosis: "200-300mg",
+      momento: "pre-entreno",
+      motivo: "Aumentar energía, foco y rendimiento en entrenamiento",
+      prioridad: "opcional",
+      duracion: "según necesidad"
+    });
+  }
+  
+  // Crear primer mes del historial
+  const primerMes: HistorialMes = {
+    mesNumero: 1,
+    faseEnEsteMes: fases[0].nombre,
+    fechaGeneracion: new Date().toISOString(),
+    datosAlIniciar: {
+      peso: pesoInicial,
+      cintura: user.cinturaCm,
+      fechaRegistro: new Date().toISOString()
+    },
+    planAlimentacion: plan.plan_semanal || [],
+    caloriasObjetivo: plan.calorias_diarias || 2200,
+    macros: plan.macros || { proteinas: "150g", grasas: "70g", carbohidratos: "240g" },
+    planEntrenamiento: plan.training_plan,
+    suplementos: suplementosBase,
+    dificultad: plan.dificultad,
+    mensajeMotivacional: plan.mensaje_motivacional
+  };
+  
+  const fechaInicio = new Date();
+  const fechaFinEstimada = new Date(fechaInicio);
+  fechaFinEstimada.setMonth(fechaFinEstimada.getMonth() + totalMeses);
+  
+  return {
+    tipo: objetivo,
+    estado: "activo",
+    fechaInicio: fechaInicio.toISOString(),
+    fechaFinEstimada: fechaFinEstimada.toISOString(),
+    datosIniciales: {
+      pesoInicial,
+      pesoObjetivoFinal,
+      cinturaInicial: user.cinturaCm,
+      alturaCm: user.alturaCm,
+      edad: user.edad,
+      sexo: user.sexo,
+      intensidad: user.intensidad,
+      objetivo: user.objetivo,
+      tipoDieta: user.tipoDieta,
+      restricciones: user.restricciones,
+      preferencias: user.preferencias,
+      patologias: user.patologias,
+      doloresLesiones: user.doloresLesiones,
+      diasGym: user.diasGym,
+      diasCardio: user.diasCardio
+    },
+    fases,
+    totalMeses,
+    mesActual: 1,
+    faseActual: fases[0].nombre,
+    suplementosBase,
+    historialMeses: [primerMes]
+  };
+}
+
 
 export default function CreatePlan() {
   const router = useRouter();
-  const { setUser, setPlan, setPlanId } = usePlanStore();
+  const { setUser, setPlan, setPlanId, setPlanMultiFase } = usePlanStore();
   const { user: authUser, loading: authLoading } = useAuthStore();
 
   useEffect(() => {
@@ -455,7 +665,126 @@ export default function CreatePlan() {
           updateChecklistStep('enviar', 'in_progress');
         }
         
-        const payload = { ...formFinal, firstPlan: isFirstPlan };
+        // Calcular TDEE para enviarlo a OpenAI (asegura calorías consistentes con la proyección)
+        const pesoActual = formFinal.pesoKg || 70;
+        const altura = formFinal.alturaCm || 170;
+        const edad = formFinal.edad || 25;
+        const sexo = formFinal.sexo || "masculino";
+        const actividad = formFinal.actividad || 3;
+        const intensidad = formFinal.intensidad || "moderada";
+        
+        const bmrCalculado = calculateBMR(pesoActual, altura, edad, sexo);
+        const diasGymEstimado = intensidad === "ultra" ? 6 : intensidad === "intensa" ? 5 : intensidad === "moderada" ? 4 : 3;
+        const tdeeCalculado = calculateTDEE(bmrCalculado, actividad, diasGymEstimado, 0);
+        
+        // Calcular superávit/déficit según objetivo e intensidad
+        let caloriasObjetivo = tdeeCalculado;
+        const objetivo = formFinal.objetivo;
+        
+        // Objetivos de GANANCIA (superávit calórico)
+        if (objetivo === "bulk_cut" || objetivo === "volumen" || objetivo === "powerlifting") {
+          // Superávit alto para máxima ganancia/fuerza
+          const superavit = intensidad === "ultra" ? 1000 : intensidad === "intensa" ? 750 : intensidad === "moderada" ? 500 : 350;
+          caloriasObjetivo = tdeeCalculado + superavit;
+        } else if (objetivo === "lean_bulk" || objetivo === "ganar_masa") {
+          // Superávit moderado para ganancia controlada
+          const superavit = intensidad === "ultra" ? 500 : intensidad === "intensa" ? 400 : intensidad === "moderada" ? 300 : 200;
+          caloriasObjetivo = tdeeCalculado + superavit;
+        } 
+        // Objetivos de PÉRDIDA (déficit calórico)
+        else if (objetivo === "perder_grasa" || objetivo === "corte") {
+          // Déficit alto para pérdida rápida
+          const deficit = intensidad === "ultra" ? 800 : intensidad === "intensa" ? 650 : intensidad === "moderada" ? 500 : 350;
+          caloriasObjetivo = tdeeCalculado - deficit;
+        } else if (objetivo === "definicion") {
+          // Déficit moderado para preservar músculo
+          const deficit = intensidad === "ultra" ? 600 : intensidad === "intensa" ? 500 : intensidad === "moderada" ? 400 : 250;
+          caloriasObjetivo = tdeeCalculado - deficit;
+        }
+        // Objetivos de RECOMPOSICIÓN (cercano a mantenimiento)
+        else if (objetivo === "recomposicion") {
+          // Pequeño déficit o mantenimiento para recomp
+          const ajuste = intensidad === "ultra" ? -100 : intensidad === "intensa" ? -50 : 0;
+          caloriasObjetivo = tdeeCalculado + ajuste;
+        }
+        // Objetivos ATLÉTICOS (superávit moderado para rendimiento)
+        else if (objetivo === "rendimiento_deportivo" || objetivo === "atleta_elite") {
+          // Superávit para soportar entrenamiento intenso
+          const superavit = intensidad === "ultra" ? 600 : intensidad === "intensa" ? 450 : intensidad === "moderada" ? 300 : 150;
+          caloriasObjetivo = tdeeCalculado + superavit;
+        } else if (objetivo === "resistencia") {
+          // Alto en carbohidratos pero superávit moderado
+          const superavit = intensidad === "ultra" ? 500 : intensidad === "intensa" ? 400 : intensidad === "moderada" ? 250 : 150;
+          caloriasObjetivo = tdeeCalculado + superavit;
+        }
+        // MANTENIMIENTO (TDEE exacto)
+        else if (objetivo === "mantener" || objetivo === "mantenimiento_avanzado") {
+          caloriasObjetivo = tdeeCalculado; // Sin ajuste
+        }
+        // Default: mantenimiento
+        else {
+          caloriasObjetivo = tdeeCalculado;
+        }
+        
+        // Calcular macros basados en objetivo y peso
+        const calcularMacros = () => {
+          // Proteína según objetivo (g por kg de peso corporal)
+          let proteinaPorKg = 1.8; // Default
+          if (objetivo === "bulk_cut" || objetivo === "volumen" || objetivo === "powerlifting" || objetivo === "lean_bulk" || objetivo === "ganar_masa") {
+            proteinaPorKg = intensidad === "ultra" ? 2.5 : intensidad === "intensa" ? 2.2 : 2.0;
+          } else if (objetivo === "perder_grasa" || objetivo === "definicion" || objetivo === "corte") {
+            proteinaPorKg = intensidad === "ultra" ? 2.8 : intensidad === "intensa" ? 2.5 : 2.2; // Más alta para preservar músculo
+          } else if (objetivo === "resistencia") {
+            proteinaPorKg = 1.6; // Resistencia necesita menos proteína
+          } else if (objetivo === "recomposicion") {
+            proteinaPorKg = 2.2;
+          }
+          
+          const proteinasG = Math.round(proteinaPorKg * pesoActual);
+          const kcalFromProtein = proteinasG * 4;
+          
+          // Grasas: 25-30% de las calorías según objetivo
+          let grasasPct = 0.28; // Default 28%
+          if (objetivo === "resistencia") {
+            grasasPct = 0.22; // Menos grasa para más carbos
+          } else if (objetivo === "perder_grasa" || objetivo === "definicion" || objetivo === "corte") {
+            grasasPct = 0.30; // Más grasa para saciedad
+          } else if (objetivo === "bulk_cut" || objetivo === "volumen") {
+            grasasPct = 0.25; // Menos grasa para más carbos
+          }
+          
+          const grasasG = Math.round((grasasPct * caloriasObjetivo) / 9);
+          const kcalFromFat = grasasG * 9;
+          
+          // Carbohidratos: el resto de las calorías
+          const remainingKcal = Math.max(caloriasObjetivo - (kcalFromProtein + kcalFromFat), 0);
+          const carbsG = Math.round(remainingKcal / 4);
+          
+          return {
+            proteinas: `${proteinasG}g`,
+            grasas: `${grasasG}g`,
+            carbohidratos: `${carbsG}g`,
+            _detalles: {
+              proteinaPorKg,
+              proteinasKcal: kcalFromProtein,
+              grasasPct: Math.round(grasasPct * 100),
+              grasasKcal: kcalFromFat,
+              carbsKcal: remainingKcal
+            }
+          };
+        };
+        
+        const macrosCalculados = calcularMacros();
+        
+        const payload = { 
+          ...formFinal, 
+          firstPlan: isFirstPlan,
+          // Datos calculados para que OpenAI use valores consistentes
+          _tdeeCalculado: tdeeCalculado,
+          _caloriasObjetivo: caloriasObjetivo,
+          _bmrCalculado: bmrCalculado,
+          _macrosObjetivo: macrosCalculados,
+        };
 
         // Usar streaming para mostrar progreso real (temporalmente desactivado)
         resp = await fetch("/api/generatePlan", {
@@ -687,14 +1016,40 @@ export default function CreatePlan() {
             
             const cleanPlan = JSON.parse(JSON.stringify({ plan, user: cleanUser })); // Eliminar undefined recursivamente
             
+            // Determinar si es un plan multi-fase
+            const esMultiFase = formFinal.objetivo === "bulk_cut" || formFinal.objetivo === "lean_bulk";
+            
+            // Crear estructura multi-fase si aplica
+            let planMultiFase: PlanMultiFase | null = null;
+            if (esMultiFase) {
+              planMultiFase = crearPlanMultiFase(
+                formFinal,
+                plan as PlanAIResponse,
+                formFinal.objetivo as "bulk_cut" | "lean_bulk"
+              );
+              console.log("📋 Plan multi-fase creado:", {
+                tipo: planMultiFase.tipo,
+                totalMeses: planMultiFase.totalMeses,
+                fases: planMultiFase.fases.map(f => `${f.nombre} (${f.mesesIncluidos.length} meses)`),
+                pesoInicial: planMultiFase.datosIniciales.pesoInicial,
+                pesoObjetivo: planMultiFase.datosIniciales.pesoObjetivoFinal
+              });
+            }
+            
+            // Guardar en Firebase
             const docRef = await addDoc(collection(db, "planes"), {
               userId,
               plan: cleanPlan,
+              ...(planMultiFase && { planMultiFase: JSON.parse(JSON.stringify(planMultiFase)) }),
               createdAt: serverTimestamp(),
             });
             console.log("Plan guardado automáticamente con ID:", docRef.id);
             // Guardar el planId en el store para que se pueda actualizar después
             setPlanId(docRef.id);
+            // Si es multi-fase, guardar también en el store
+            if (planMultiFase) {
+              setPlanMultiFase(planMultiFase);
+            }
             updateChecklistStep('plan', 'completed');
           } catch (savePlanError) {
             updateChecklistStep('plan', 'error');
@@ -911,43 +1266,6 @@ export default function CreatePlan() {
                   </p>
                 </label>
               </div>
-
-              {/* Peso objetivo - Solo visible para bulk_cut y lean_bulk */}
-              {(form.objetivo === "bulk_cut" || form.objetivo === "lean_bulk") && (
-                <div className="mt-4 p-4 rounded-xl border border-amber-500/30 bg-amber-500/10">
-                  <label className="flex flex-col gap-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-amber-300">🎯 Peso Objetivo (kg)</span>
-                      <span className="text-xs opacity-60">(Opcional pero recomendado)</span>
-                    </div>
-                    <input 
-                      type="number" 
-                      className="rounded-xl bg-white/5 px-3 py-2 outline-none border border-amber-500/20 focus:border-amber-500/50"
-                      value={form.pesoObjetivoKg ?? ""} 
-                      onChange={(e) => update("pesoObjetivoKg", e.target.value ? Number(e.target.value) : undefined)}
-                      placeholder={`Ej: ${form.pesoKg ? Math.round(form.pesoKg * 1.15) : 90} kg`}
-                    />
-                    <p className="text-xs opacity-70 mt-1">
-                      {form.objetivo === "bulk_cut" 
-                        ? "¿A qué peso querés llegar DEFINIDO (con abs marcados)? El plan calculará el peso de bulk necesario y las fases."
-                        : "¿A qué peso querés llegar manteniendo definición? El plan ajustará el superávit para minimizar grasa."
-                      }
-                    </p>
-                    {form.pesoObjetivoKg && form.pesoKg && form.pesoObjetivoKg > form.pesoKg && (
-                      <div className="mt-2 p-2 rounded-lg bg-white/5 text-xs">
-                        <p className="text-amber-300 font-medium">📊 Estimación:</p>
-                        <p className="opacity-80">
-                          Músculo a ganar: ~{Math.round((form.pesoObjetivoKg - form.pesoKg) * 0.85)} kg
-                          {form.objetivo === "bulk_cut" && ` (Peso de bulk: ~${Math.round(form.pesoObjetivoKg * 1.08)} kg)`}
-                        </p>
-                        <p className="opacity-80">
-                          Tiempo estimado (ULTRA): ~{Math.ceil((form.pesoObjetivoKg - form.pesoKg) / 1.5)} meses
-                        </p>
-                      </div>
-                    )}
-                  </label>
-                </div>
-              )}
               
               {/* Datos opcionales para mayor precisión */}
               <div className="mt-6 rounded-xl border border-white/10 p-4">
@@ -1034,6 +1352,217 @@ export default function CreatePlan() {
                         {objetivoDescripciones[form.objetivo]}
                       </p>
                     </div>
+                  </motion.div>
+                )}
+                
+                {/* Peso objetivo - Solo visible para objetivos que requieren peso meta */}
+                {(form.objetivo === "bulk_cut" || form.objetivo === "lean_bulk" || form.objetivo === "volumen" || form.objetivo === "ganar_masa") && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2, delay: 0.1 }}
+                    className="mt-3 p-4 rounded-xl border border-amber-500/30 bg-amber-500/10"
+                  >
+                    <label className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-amber-300">🎯 Peso Objetivo Final (kg)</span>
+                        <span className="text-xs opacity-60">{(form.objetivo === "bulk_cut" || form.objetivo === "lean_bulk") ? "(Recomendado)" : "(Opcional)"}</span>
+                      </div>
+                      <input 
+                        type="number" 
+                        className="rounded-xl bg-white/5 px-3 py-2 outline-none border border-amber-500/20 focus:border-amber-500/50"
+                        value={form.pesoObjetivoKg ?? ""} 
+                        onChange={(e) => update("pesoObjetivoKg", e.target.value ? Number(e.target.value) : undefined)}
+                        placeholder={`Ej: ${form.pesoKg ? Math.round(form.pesoKg * 1.15) : 90} kg`}
+                      />
+                      <p className="text-xs opacity-70 mt-1">
+                        {form.objetivo === "bulk_cut" 
+                          ? "¿A qué peso querés llegar DEFINIDO (con abs marcados)? El plan calculará el peso de bulk necesario y las fases."
+                          : form.objetivo === "lean_bulk"
+                          ? "¿A qué peso querés llegar manteniendo definición? El plan ajustará el superávit para minimizar grasa."
+                          : "¿A qué peso querés llegar? Esto ayuda a calcular mejor tu plan."
+                        }
+                      </p>
+                      
+                      {/* Estimación detallada basada en todos los datos */}
+                      {form.pesoObjetivoKg && form.pesoKg && form.pesoObjetivoKg > form.pesoKg && form.intensidad && (
+                        <motion.div 
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          className="mt-3 p-3 rounded-xl bg-gradient-to-r from-white/5 to-white/10 border border-white/10"
+                        >
+                          <p className="text-amber-300 font-semibold mb-2 flex items-center gap-2">
+                            📊 Proyección Personalizada
+                            <span className="text-xs font-normal opacity-70">basada en tus datos</span>
+                          </p>
+                          
+                          {(() => {
+                            const pesoActual = form.pesoKg;
+                            const pesoObjetivo = form.pesoObjetivoKg;
+                            const diferencia = pesoObjetivo - pesoActual;
+                            const intensidad = form.intensidad || "moderada";
+                            const sexo = form.sexo || "masculino";
+                            const edad = form.edad || 25;
+                            const esAtletico = form.atletico || false;
+                            const altura = form.alturaCm || 170;
+                            const actividad = form.actividad || 3;
+                            
+                            // Factores de ajuste según perfil
+                            const factorSexo = sexo === "femenino" ? 0.5 : 1;
+                            const factorEdad = edad > 40 ? 0.85 : edad > 30 ? 0.95 : 1;
+                            const factorExperiencia = esAtletico ? 0.7 : 1;
+                            
+                            // Velocidad base de ganancia muscular (kg/mes)
+                            const velocidadBase = { ultra: 1.5, intensa: 1.2, moderada: 0.9, leve: 0.6 };
+                            const velocidadCutBase = { ultra: 2.0, intensa: 1.5, moderada: 1.0, leve: 0.6 };
+                            
+                            const velocidadGanancia = velocidadBase[intensidad] * factorSexo * factorEdad * factorExperiencia;
+                            const velocidadPerdida = velocidadCutBase[intensidad] * factorEdad;
+                            
+                            // Calcular TDEE real basado en datos del usuario (más preciso que peso * 30)
+                            const bmr = calculateBMR(pesoActual, altura, edad, sexo);
+                            // Ajustar el multiplicador según intensidad del objetivo
+                            const diasGymEstimado = intensidad === "ultra" ? 6 : intensidad === "intensa" ? 5 : intensidad === "moderada" ? 4 : 3;
+                            const tdeeReal = calculateTDEE(bmr, actividad, diasGymEstimado, 0);
+                            
+                            if (form.objetivo === "bulk_cut") {
+                              const pesoBulk = Math.round(pesoObjetivo * 1.08);
+                              const pesoAGanarBulk = pesoBulk - pesoActual;
+                              const pesoAPerderCut = pesoBulk - pesoObjetivo;
+                              
+                              const mesesBulk = Math.ceil(pesoAGanarBulk / velocidadGanancia);
+                              const mesesCut = Math.ceil(pesoAPerderCut / velocidadPerdida);
+                              const totalMeses = mesesBulk + mesesCut;
+                              
+                              // Superávit más agresivo para BULK real (500-1000 kcal según intensidad)
+                              const superavitBulk = intensidad === "ultra" ? 1000 : intensidad === "intensa" ? 750 : intensidad === "moderada" ? 500 : 350;
+                              const caloriasBulk = Math.round(tdeeReal + superavitBulk);
+                              
+                              // Déficit para CUT (fase posterior - calorías sobre el TDEE del peso de bulk)
+                              const bmrBulk = calculateBMR(pesoBulk, altura, edad, sexo);
+                              const tdeeBulk = calculateTDEE(bmrBulk, actividad, diasGymEstimado, 2); // Más cardio en cut
+                              const deficitCut = intensidad === "ultra" ? 800 : intensidad === "intensa" ? 650 : intensidad === "moderada" ? 500 : 350;
+                              const caloriasCut = Math.round(tdeeBulk - deficitCut);
+                              
+                              return (
+                                <div className="space-y-3 text-sm">
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                                      <p className="text-xs opacity-70">Fase BULK</p>
+                                      <p className="font-bold text-amber-300">{mesesBulk} meses</p>
+                                      <p className="text-xs opacity-70">{pesoActual}kg → {pesoBulk}kg</p>
+                                      <p className="text-xs opacity-60">~{caloriasBulk} kcal/día</p>
+                                    </div>
+                                    <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
+                                      <p className="text-xs opacity-70">Fase CUT</p>
+                                      <p className="font-bold text-cyan-300">{mesesCut} meses</p>
+                                      <p className="text-xs opacity-70">{pesoBulk}kg → {pesoObjetivo}kg</p>
+                                      <p className="text-xs opacity-60">~{caloriasCut} kcal/día</p>
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="p-2 rounded-lg bg-gradient-to-r from-amber-500/20 to-cyan-500/20 border border-white/10">
+                                    <div className="flex justify-between items-center">
+                                      <div>
+                                        <p className="text-xs opacity-70">Tiempo total estimado</p>
+                                        <p className="font-bold text-lg">{totalMeses} meses</p>
+                                      </div>
+                                      <div className="text-right">
+                                        <p className="text-xs opacity-70">Músculo neto a ganar</p>
+                                        <p className="font-bold text-emerald-400">~{Math.round(diferencia * 0.85)} kg</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="text-xs opacity-60 space-y-1">
+                                    <p>
+                                      📊 Tu TDEE (mantenimiento): ~{tdeeReal} kcal/día
+                                      {superavitBulk > 0 && ` (+${superavitBulk} en bulk)`}
+                                    </p>
+                                    <p>
+                                      {sexo === "femenino" && "⚡ Ajustado para metabolismo femenino. "}
+                                      {edad > 35 && "⚡ Ajustado para tu edad. "}
+                                      {esAtletico && "⚡ Progresión de avanzado. "}
+                                      Intensidad: {intensidad.toUpperCase()}
+                                    </p>
+                                  </div>
+                                </div>
+                              );
+                            } else if (form.objetivo === "lean_bulk") {
+                              const velocidadLeanBulk = velocidadGanancia * 0.6;
+                              const mesesTotal = Math.ceil(diferencia / velocidadLeanBulk);
+                              
+                              // Superávit moderado para LEAN BULK (ganancia limpia)
+                              const superavitLeanBulk = intensidad === "ultra" ? 500 : intensidad === "intensa" ? 400 : intensidad === "moderada" ? 300 : 200;
+                              const caloriasLeanBulk = Math.round(tdeeReal + superavitLeanBulk);
+                              
+                              return (
+                                <div className="space-y-3 text-sm">
+                                  <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                                    <div className="flex justify-between items-center">
+                                      <div>
+                                        <p className="text-xs opacity-70">Fase LEAN BULK continua</p>
+                                        <p className="font-bold text-emerald-300">{mesesTotal} meses</p>
+                                      </div>
+                                      <div className="text-right">
+                                        <p className="text-xs opacity-70">Ganancia/mes</p>
+                                        <p className="font-medium">~{velocidadLeanBulk.toFixed(1)} kg</p>
+                                      </div>
+                                    </div>
+                                    <p className="text-xs opacity-70 mt-1">{pesoActual}kg → {pesoObjetivo}kg</p>
+                                    <p className="text-xs opacity-60">~{caloriasLeanBulk} kcal/día</p>
+                                  </div>
+                                  
+                                  <div className="p-2 rounded-lg bg-white/5">
+                                    <div className="flex justify-between items-center">
+                                      <div>
+                                        <p className="text-xs opacity-70">Peso a ganar</p>
+                                        <p className="font-bold">{diferencia} kg</p>
+                                      </div>
+                                      <div className="text-right">
+                                        <p className="text-xs opacity-70">Músculo estimado</p>
+                                        <p className="font-bold text-emerald-400">~{Math.round(diferencia * 0.9)} kg</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="text-xs opacity-60 space-y-1">
+                                    <p>
+                                      📊 Tu TDEE (mantenimiento): ~{tdeeReal} kcal/día (+{superavitLeanBulk} superávit controlado)
+                                    </p>
+                                    <p>
+                                      💎 Lean bulk minimiza grasa (~10% vs ~20% en bulk tradicional).
+                                      {sexo === "femenino" && " Ajustado para metabolismo femenino."}
+                                    </p>
+                                  </div>
+                                </div>
+                              );
+                            } else {
+                              const mesesTotal = Math.ceil(diferencia / velocidadGanancia);
+                              
+                              return (
+                                <div className="space-y-2 text-sm">
+                                  <div className="flex justify-between items-center">
+                                    <div>
+                                      <p className="text-xs opacity-70">Tiempo estimado</p>
+                                      <p className="font-bold text-lg">{mesesTotal} meses</p>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className="text-xs opacity-70">Ganancia/mes</p>
+                                      <p className="font-medium">~{velocidadGanancia.toFixed(1)} kg</p>
+                                    </div>
+                                  </div>
+                                  <p className="text-xs opacity-60">
+                                    Con intensidad {intensidad.toUpperCase()}.
+                                    {sexo === "femenino" && " Ajustado para metabolismo femenino."}
+                                  </p>
+                                </div>
+                              );
+                            }
+                          })()}
+                        </motion.div>
+                      )}
+                    </label>
                   </motion.div>
                 )}
               </div>
@@ -1350,9 +1879,9 @@ export default function CreatePlan() {
             <p className="mt-3 text-sm text-red-300">{error}</p>
           ) : null}
         </motion.div>
-        </div>
-      </div>
-      
+                </div>
+              </div>
+              
       {/* Overlay oscuro con spinner y tiempo estimado */}
       {loading && (
         <motion.div
@@ -1396,7 +1925,7 @@ export default function CreatePlan() {
                     strokeLinecap="round"
                     strokeDasharray="200 100"
                   />
-                </svg>
+                          </svg>
               </motion.div>
               
               {/* Icono central - Manzana de FitPlan */}
@@ -1407,9 +1936,9 @@ export default function CreatePlan() {
               >
                 <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center shadow-lg shadow-blue-500/30">
                   <FaAppleAlt className="text-white text-3xl" />
-                </div>
+                      </div>
               </motion.div>
-            </div>
+                </div>
             
             {/* Texto de generación */}
             <motion.div
@@ -1445,7 +1974,7 @@ export default function CreatePlan() {
                 </p>
               </motion.div>
             )}
-          </div>
+              </div>
         </motion.div>
       )}
     </div>

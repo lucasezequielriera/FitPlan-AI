@@ -2,7 +2,8 @@ import { useRouter } from "next/router";
 import React, { useEffect, useState, useRef } from "react";
 import { usePlanStore } from "@/store/planStore";
 import { motion, AnimatePresence } from "framer-motion";
-import type { Goal, TipoDieta, Intensidad, UserInput } from "@/types/plan";
+import type { Goal, TipoDieta, Intensidad, UserInput, PlanMultiFase } from "@/types/plan";
+import { obtenerInfoFaseActual, calcularProgresoTotal } from "@/types/plan";
 import { calculateBMI, bmiCategory, calculateBodyFatUSNavy, bodyFatCategory, waistToHeightRatio, whtrCategory, calculateBMR, calculateTDEE, sugerirEntrenamiento, calcularProyeccionesMotivacionales, analizarCambiosEntrenamiento } from "@/utils/calculations";
 import jsPDF from "jspdf";
 import Navbar from "@/components/Navbar";
@@ -68,7 +69,7 @@ interface TrainingPlan {
 
 export default function PlanPage() {
   const router = useRouter();
-  const { plan, user, planId, setUser, setPlan, setPlanId } = usePlanStore();
+  const { plan, user, planId, planMultiFase, setUser, setPlan, setPlanId, setPlanMultiFase } = usePlanStore();
   const { user: authUser } = useAuthStore();
 
   useEffect(() => {
@@ -113,6 +114,21 @@ export default function PlanPage() {
   const [foodTrackingModalOpen, setFoodTrackingModalOpen] = useState(false);
   const [weeklyStatsModalOpen, setWeeklyStatsModalOpen] = useState(false);
   const [imcModalOpen, setImcModalOpen] = useState(false);
+  
+  // Estados para modal de siguiente mes (plan multi-fase)
+  const [modalSiguienteMesAbierto, setModalSiguienteMesAbierto] = useState(false);
+  const [datosSiguienteMes, setDatosSiguienteMes] = useState({
+    pesoActual: 0,
+    cinturaActual: 0,
+    energia: "normal" as "muy_baja" | "baja" | "normal" | "alta" | "muy_alta",
+    recuperacion: "normal" as "mala" | "regular" | "normal" | "buena" | "excelente",
+    adherenciaComida: ">80%" as "<50%" | "50-70%" | "70-80%" | ">80%",
+    adherenciaEntreno: ">80%" as "<50%" | "50-70%" | "70-80%" | ">80%",
+    lesionesNuevas: "",
+    comentarios: ""
+  });
+  const [generandoSiguienteMes, setGenerandoSiguienteMes] = useState(false);
+  const [errorSiguienteMes, setErrorSiguienteMes] = useState<string | null>(null);
 
   // Mostrar modal de IMC solo la primera vez que el usuario ve su plan
   useEffect(() => {
@@ -769,6 +785,206 @@ export default function PlanPage() {
     activeRangeStart = p30; activeRangeEnd = 100;
   }
 
+  // Función para generar el siguiente mes del plan multi-fase
+  const handleGenerarSiguienteMes = async () => {
+    if (!planMultiFase || !planId || !user || !authUser || !datosSiguienteMes.pesoActual) return;
+    
+    setGenerandoSiguienteMes(true);
+    setErrorSiguienteMes(null);
+    
+    try {
+      const db = getDbSafe();
+      if (!db) throw new Error("Base de datos no disponible");
+      
+      // Obtener info de la fase actual
+      const infoFase = obtenerInfoFaseActual(planMultiFase);
+      const siguienteMes = planMultiFase.mesActual + 1;
+      
+      // Determinar si cambia de fase
+      const siguienteFase = planMultiFase.fases.find(f => f.mesesIncluidos.includes(siguienteMes));
+      const cambiaFase = siguienteFase && siguienteFase.nombre !== planMultiFase.faseActual;
+      
+      // Calcular ajustes basados en feedback
+      const ajustes: string[] = [];
+      const pesoAnterior = planMultiFase.historialMeses[planMultiFase.mesActual - 1]?.datosAlIniciar.peso || planMultiFase.datosIniciales.pesoInicial;
+      const cambioPeso = datosSiguienteMes.pesoActual - pesoAnterior;
+      
+      // Ajustes de calorías basados en progreso
+      if (planMultiFase.faseActual === "BULK" || planMultiFase.faseActual === "LEAN_BULK") {
+        if (cambioPeso < 0.5) {
+          ajustes.push("Aumentar calorías +150-200 kcal (ganancia muy lenta)");
+        } else if (cambioPeso > 1.5) {
+          ajustes.push("Reducir calorías -100-150 kcal (ganancia muy rápida, posible grasa excesiva)");
+        }
+      } else if (planMultiFase.faseActual === "CUT") {
+        if (cambioPeso > -0.3) {
+          ajustes.push("Aumentar déficit -150-200 kcal (pérdida muy lenta)");
+        } else if (cambioPeso < -1.5) {
+          ajustes.push("Reducir déficit +100-150 kcal (pérdida muy rápida, riesgo de pérdida muscular)");
+        }
+      }
+      
+      // Ajustes basados en energía
+      if (datosSiguienteMes.energia === "muy_baja" || datosSiguienteMes.energia === "baja") {
+        ajustes.push("Considerar subir carbohidratos o revisar sueño/estrés");
+        if (planMultiFase.faseActual === "CUT") {
+          ajustes.push("Posible día de recarga con más carbohidratos 1x/semana");
+        }
+      }
+      
+      // Ajustes basados en recuperación
+      if (datosSiguienteMes.recuperacion === "mala" || datosSiguienteMes.recuperacion === "regular") {
+        ajustes.push("Reducir volumen de entrenamiento o agregar día de descanso");
+        ajustes.push("Revisar proteína y sueño para mejorar recuperación");
+      }
+      
+      // Ajustes basados en adherencia
+      if (datosSiguienteMes.adherenciaComida === "<50%" || datosSiguienteMes.adherenciaComida === "50-70%") {
+        ajustes.push("Simplificar comidas y agregar opciones más flexibles");
+      }
+      if (datosSiguienteMes.adherenciaEntreno === "<50%" || datosSiguienteMes.adherenciaEntreno === "50-70%") {
+        ajustes.push("Reducir días de entrenamiento o duración de sesiones");
+      }
+      
+      // Lesiones nuevas
+      if (datosSiguienteMes.lesionesNuevas) {
+        ajustes.push(`Adaptar ejercicios para lesión: ${datosSiguienteMes.lesionesNuevas}`);
+      }
+      
+      // Preparar input para generar el nuevo plan
+      const userInput = {
+        ...user,
+        pesoKg: datosSiguienteMes.pesoActual,
+        cinturaCm: datosSiguienteMes.cinturaActual || user.cinturaCm,
+        doloresLesiones: [
+          ...(user.doloresLesiones || []),
+          ...(datosSiguienteMes.lesionesNuevas ? [datosSiguienteMes.lesionesNuevas] : [])
+        ].filter(Boolean),
+        // Ajustar objetivo según la nueva fase
+        objetivo: cambiaFase && siguienteFase ? 
+          (siguienteFase.nombre === "CUT" ? "corte" : siguienteFase.nombre === "LEAN_BULK" ? "lean_bulk" : "volumen") as typeof user.objetivo
+          : user.objetivo
+      };
+      
+      // Generar nuevo plan
+      const response = await fetch("/api/generatePlan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...userInput,
+          // Contexto adicional para el siguiente mes
+          _contextoMultiFase: {
+            mesActual: siguienteMes,
+            totalMeses: planMultiFase.totalMeses,
+            faseActual: siguienteFase?.nombre || planMultiFase.faseActual,
+            pesoInicial: planMultiFase.datosIniciales.pesoInicial,
+            pesoObjetivoFinal: planMultiFase.datosIniciales.pesoObjetivoFinal,
+            ajustesRecomendados: ajustes,
+            feedbackUsuario: datosSiguienteMes.comentarios,
+            cambiaFase
+          }
+        })
+      });
+      
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: "Error desconocido" }));
+        throw new Error(error.error || "Error al generar el plan");
+      }
+      
+      const nuevoPlan = await response.json();
+      
+      // Actualizar datos del mes anterior con datos finales
+      const mesAnteriorActualizado = {
+        ...planMultiFase.historialMeses[planMultiFase.mesActual - 1],
+        fechaFin: new Date().toISOString(),
+        datosAlFinalizar: {
+          peso: datosSiguienteMes.pesoActual,
+          cintura: datosSiguienteMes.cinturaActual || undefined,
+          energia: datosSiguienteMes.energia,
+          recuperacion: datosSiguienteMes.recuperacion,
+          adherenciaComida: datosSiguienteMes.adherenciaComida,
+          adherenciaEntreno: datosSiguienteMes.adherenciaEntreno,
+          lesionesNuevas: datosSiguienteMes.lesionesNuevas || undefined,
+          comentarios: datosSiguienteMes.comentarios || undefined,
+          fechaRegistro: new Date().toISOString()
+        }
+      };
+      
+      // Crear nuevo mes en historial
+      const nuevoMesHistorial = {
+        mesNumero: siguienteMes,
+        faseEnEsteMes: siguienteFase?.nombre || planMultiFase.faseActual,
+        fechaGeneracion: new Date().toISOString(),
+        datosAlIniciar: {
+          peso: datosSiguienteMes.pesoActual,
+          cintura: datosSiguienteMes.cinturaActual || undefined,
+          fechaRegistro: new Date().toISOString()
+        },
+        planAlimentacion: nuevoPlan.plan_semanal || [],
+        caloriasObjetivo: nuevoPlan.calorias_diarias || 2200,
+        macros: nuevoPlan.macros || { proteinas: "150g", grasas: "70g", carbohidratos: "240g" },
+        planEntrenamiento: nuevoPlan.training_plan,
+        suplementos: planMultiFase.suplementosBase, // Mantener los mismos suplementos base
+        ajustesAplicados: ajustes,
+        dificultad: nuevoPlan.dificultad,
+        mensajeMotivacional: nuevoPlan.mensaje_motivacional
+      };
+      
+      // Actualizar planMultiFase
+      const planMultiFaseActualizado: PlanMultiFase = {
+        ...planMultiFase,
+        mesActual: siguienteMes,
+        faseActual: siguienteFase?.nombre || planMultiFase.faseActual,
+        historialMeses: [
+          ...planMultiFase.historialMeses.slice(0, planMultiFase.mesActual - 1),
+          mesAnteriorActualizado,
+          nuevoMesHistorial
+        ]
+      };
+      
+      // Guardar en Firebase
+      const { doc, updateDoc, serverTimestamp } = await import("firebase/firestore");
+      const planRef = doc(db, "planes", planId);
+      
+      const cleanUser = Object.fromEntries(
+        Object.entries(userInput).filter(([, v]) => v !== undefined && v !== null)
+      );
+      const cleanPlan = JSON.parse(JSON.stringify({ plan: nuevoPlan, user: cleanUser }));
+      
+      await updateDoc(planRef, {
+        plan: cleanPlan,
+        planMultiFase: JSON.parse(JSON.stringify(planMultiFaseActualizado)),
+        updatedAt: serverTimestamp()
+      });
+      
+      // Actualizar store
+      setUser(userInput);
+      setPlan(nuevoPlan);
+      setPlanMultiFase(planMultiFaseActualizado);
+      
+      // Cerrar modal y resetear datos
+      setModalSiguienteMesAbierto(false);
+      setDatosSiguienteMes({
+        pesoActual: 0,
+        cinturaActual: 0,
+        energia: "normal",
+        recuperacion: "normal",
+        adherenciaComida: ">80%",
+        adherenciaEntreno: ">80%",
+        lesionesNuevas: "",
+        comentarios: ""
+      });
+      
+      console.log("✅ Plan del mes", siguienteMes, "generado exitosamente");
+      
+    } catch (err) {
+      console.error("Error al generar siguiente mes:", err);
+      setErrorSiguienteMes(err instanceof Error ? err.message : "Error al generar el plan");
+    } finally {
+      setGenerandoSiguienteMes(false);
+    }
+  };
+
   // Renderizar recomendaciones de entrenamiento como ReactNode
   const renderRecomendacionesEntrenamiento = (): React.ReactNode => {
     if (!sugerenciaEntrenamientoAjustada) return null;
@@ -956,6 +1172,100 @@ export default function PlanPage() {
           className="glass rounded-2xl p-6 md:p-8"
         >
           <div className="flex flex-col gap-2">
+            {/* Banner de Plan Multi-Fase */}
+            {planMultiFase && planMultiFase.tipo !== "simple" && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`mb-4 p-4 rounded-xl border ${
+                  planMultiFase.faseActual === "BULK" 
+                    ? "bg-gradient-to-r from-amber-500/20 to-orange-500/20 border-amber-500/30" 
+                    : planMultiFase.faseActual === "CUT"
+                    ? "bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border-cyan-500/30"
+                    : planMultiFase.faseActual === "LEAN_BULK"
+                    ? "bg-gradient-to-r from-emerald-500/20 to-teal-500/20 border-emerald-500/30"
+                    : "bg-gradient-to-r from-purple-500/20 to-pink-500/20 border-purple-500/30"
+                }`}
+              >
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className={`px-3 py-1 rounded-lg text-sm font-bold ${
+                      planMultiFase.faseActual === "BULK" 
+                        ? "bg-amber-500/30 text-amber-200" 
+                        : planMultiFase.faseActual === "CUT"
+                        ? "bg-cyan-500/30 text-cyan-200"
+                        : planMultiFase.faseActual === "LEAN_BULK"
+                        ? "bg-emerald-500/30 text-emerald-200"
+                        : "bg-purple-500/30 text-purple-200"
+                    }`}>
+                      {planMultiFase.faseActual === "BULK" && "🔥 BULK"}
+                      {planMultiFase.faseActual === "CUT" && "✨ CUT"}
+                      {planMultiFase.faseActual === "LEAN_BULK" && "💎 LEAN BULK"}
+                      {planMultiFase.faseActual === "MANTENIMIENTO" && "⚡ MANTENIMIENTO"}
+                    </div>
+                    <div className="text-sm">
+                      <span className="font-semibold">Mes {planMultiFase.mesActual}</span>
+                      <span className="opacity-70"> de {planMultiFase.totalMeses}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-4 text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="opacity-70">Peso actual:</span>
+                      <span className="font-semibold">
+                        {planMultiFase.historialMeses[planMultiFase.mesActual - 1]?.datosAlIniciar.peso || planMultiFase.datosIniciales.pesoInicial} kg
+                      </span>
+                    </div>
+                    <div className="text-white/30">→</div>
+                    <div className="flex items-center gap-2">
+                      <span className="opacity-70">Meta fase:</span>
+                      <span className="font-semibold">
+                        {(() => {
+                          const infoFase = obtenerInfoFaseActual(planMultiFase);
+                          return infoFase.fase?.pesoMeta || planMultiFase.datosIniciales.pesoObjetivoFinal;
+                        })()} kg
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Barra de progreso del plan completo */}
+                <div className="mt-3">
+                  <div className="flex justify-between text-xs opacity-70 mb-1">
+                    <span>{planMultiFase.datosIniciales.pesoInicial} kg (inicio)</span>
+                    <span>{planMultiFase.datosIniciales.pesoObjetivoFinal} kg (meta final)</span>
+                  </div>
+                  <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                    <motion.div 
+                      initial={{ width: 0 }}
+                      animate={{ width: `${(planMultiFase.mesActual / planMultiFase.totalMeses) * 100}%` }}
+                      transition={{ duration: 1, ease: "easeOut" }}
+                      className={`h-full rounded-full ${
+                        planMultiFase.faseActual === "BULK" 
+                          ? "bg-gradient-to-r from-amber-500 to-orange-500" 
+                          : planMultiFase.faseActual === "CUT"
+                          ? "bg-gradient-to-r from-cyan-500 to-blue-500"
+                          : planMultiFase.faseActual === "LEAN_BULK"
+                          ? "bg-gradient-to-r from-emerald-500 to-teal-500"
+                          : "bg-gradient-to-r from-purple-500 to-pink-500"
+                      }`}
+                    />
+                  </div>
+                  <div className="flex justify-between mt-1">
+                    {planMultiFase.fases.map((fase, idx) => (
+                      <div 
+                        key={idx} 
+                        className={`text-xs ${fase.nombre === planMultiFase.faseActual ? "font-semibold" : "opacity-50"}`}
+                        style={{ width: `${(fase.mesesIncluidos.length / planMultiFase.totalMeses) * 100}%` }}
+                      >
+                        {fase.nombre} ({fase.mesesIncluidos.length}m)
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+            
             <div className="flex items-center justify-between gap-4 flex-wrap">
             <h1 className="text-2xl md:text-3xl font-semibold">Tu plan inteligente</h1>
               <div className="flex gap-3">
@@ -1290,6 +1600,25 @@ export default function PlanPage() {
                   </div>
                 )}
                 </div>
+                
+                {/* Botón Generar Siguiente Mes - Solo para planes multi-fase */}
+                {planMultiFase && planMultiFase.tipo !== "simple" && planMultiFase.mesActual < planMultiFase.totalMeses && (
+                  <button
+                    className={`rounded-xl px-4 py-2 text-sm font-medium border transition-colors ${
+                      planMultiFase.faseActual === "BULK" 
+                        ? "bg-amber-500/20 border-amber-500/30 hover:bg-amber-500/30 text-amber-200" 
+                        : planMultiFase.faseActual === "CUT"
+                        ? "bg-cyan-500/20 border-cyan-500/30 hover:bg-cyan-500/30 text-cyan-200"
+                        : planMultiFase.faseActual === "LEAN_BULK"
+                        ? "bg-emerald-500/20 border-emerald-500/30 hover:bg-emerald-500/30 text-emerald-200"
+                        : "bg-purple-500/20 border-purple-500/30 hover:bg-purple-500/30 text-purple-200"
+                    }`}
+                    onClick={() => setModalSiguienteMesAbierto(true)}
+                  >
+                    🚀 Generar Mes {planMultiFase.mesActual + 1} de {planMultiFase.totalMeses}
+                  </button>
+                )}
+                
                 {!isPremium && (
                   <button
                     className="rounded-xl px-4 py-2 text-sm font-medium bg-blue-500/20 border border-blue-500/30 hover:bg-blue-500/30 transition-colors"
@@ -1863,7 +2192,80 @@ export default function PlanPage() {
             </div>
           )}
 
-          
+          {/* Sección de Suplementos - Solo para planes multi-fase */}
+          {planMultiFase && planMultiFase.suplementosBase && planMultiFase.suplementosBase.length > 0 && (
+            <div className="mt-8">
+              <h2 className="text-xl font-semibold mb-3 flex items-center gap-2">
+                💊 Suplementación Recomendada
+                <span className={`px-2 py-0.5 text-xs rounded-lg ${
+                  planMultiFase.faseActual === "BULK" 
+                    ? "bg-amber-500/20 text-amber-300" 
+                    : planMultiFase.faseActual === "CUT"
+                    ? "bg-cyan-500/20 text-cyan-300"
+                    : "bg-emerald-500/20 text-emerald-300"
+                }`}>
+                  Fase {planMultiFase.faseActual}
+                </span>
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {planMultiFase.suplementosBase.map((sup, idx) => (
+                  <div 
+                    key={`sup-${idx}-${sup.nombre}`}
+                    className={`rounded-xl border p-4 ${
+                      sup.prioridad === "esencial" 
+                        ? "bg-emerald-500/10 border-emerald-500/30" 
+                        : sup.prioridad === "recomendado"
+                        ? "bg-blue-500/10 border-blue-500/30"
+                        : "bg-white/5 border-white/10"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h3 className="font-medium flex items-center gap-2">
+                          {sup.nombre}
+                          {sup.prioridad === "esencial" && (
+                            <span className="px-1.5 py-0.5 text-xs bg-emerald-500/30 text-emerald-300 rounded">
+                              Esencial
+                            </span>
+                          )}
+                          {sup.prioridad === "recomendado" && (
+                            <span className="px-1.5 py-0.5 text-xs bg-blue-500/30 text-blue-300 rounded">
+                              Recomendado
+                            </span>
+                          )}
+                          {sup.prioridad === "opcional" && (
+                            <span className="px-1.5 py-0.5 text-xs bg-white/20 text-white/70 rounded">
+                              Opcional
+                            </span>
+                          )}
+                        </h3>
+                        <p className="text-sm opacity-70 mt-1">{sup.motivo}</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-3 mt-3 text-xs">
+                      <span className="px-2 py-1 rounded-lg bg-white/10">
+                        💪 {sup.dosis}
+                      </span>
+                      <span className="px-2 py-1 rounded-lg bg-white/10">
+                        ⏰ {sup.momento === "mañana" ? "Por la mañana" : 
+                           sup.momento === "pre-entreno" ? "Pre-entreno" :
+                           sup.momento === "post-entreno" ? "Post-entreno" :
+                           sup.momento === "noche" ? "Antes de dormir" : sup.momento}
+                      </span>
+                      {sup.duracion && (
+                        <span className="px-2 py-1 rounded-lg bg-white/10">
+                          📅 {sup.duracion}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs opacity-50 mt-3">
+                * La suplementación es complementaria a una buena alimentación. Consulta con un profesional de la salud antes de comenzar cualquier régimen de suplementos.
+              </p>
+            </div>
+          )}
 
           {plan.lista_compras?.length ? (
             <div className="mt-8">
@@ -1892,6 +2294,243 @@ export default function PlanPage() {
               </div>
             </div>
           ) : null}
+          
+          {/* Sección de Historial y Progreso - Solo para planes multi-fase con historial */}
+          {planMultiFase && planMultiFase.tipo !== "simple" && planMultiFase.historialMeses.length > 0 && (
+            <div className="mt-8">
+              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                📈 Historial y Progreso
+                {planMultiFase.estado === "activo" && (
+                  <span className="px-2 py-0.5 text-xs rounded-lg bg-emerald-500/20 text-emerald-300">
+                    Plan Activo
+                  </span>
+                )}
+              </h2>
+              
+              {/* Resumen de Progreso */}
+              {(() => {
+                const progreso = calcularProgresoTotal(planMultiFase);
+                return (
+                  <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-white/5 to-white/10 border border-white/10">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                      <div>
+                        <p className="text-2xl font-bold text-emerald-400">
+                          {progreso.mesesCompletados}/{planMultiFase.totalMeses}
+                        </p>
+                        <p className="text-xs opacity-70">Meses completados</p>
+                      </div>
+                      <div>
+                        <p className={`text-2xl font-bold ${progreso.cambioNeto > 0 ? "text-amber-400" : progreso.cambioNeto < 0 ? "text-cyan-400" : "text-white"}`}>
+                          {progreso.cambioNeto > 0 ? "+" : ""}{progreso.cambioNeto.toFixed(1)} kg
+                        </p>
+                        <p className="text-xs opacity-70">Cambio neto</p>
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold text-blue-400">
+                          {progreso.adherenciaPromedio.toFixed(0)}%
+                        </p>
+                        <p className="text-xs opacity-70">Adherencia promedio</p>
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold text-purple-400">
+                          {progreso.porcentajeCompletado.toFixed(0)}%
+                        </p>
+                        <p className="text-xs opacity-70">Progreso total</p>
+                      </div>
+                    </div>
+                    
+                    {/* Barra de progreso */}
+                    <div className="mt-4">
+                      <div className="flex justify-between text-xs opacity-70 mb-1">
+                        <span>Inicio: {planMultiFase.datosIniciales.pesoInicial} kg</span>
+                        <span>Meta: {planMultiFase.datosIniciales.pesoObjetivoFinal} kg</span>
+                      </div>
+                      <div className="h-3 bg-white/10 rounded-full overflow-hidden">
+                        {planMultiFase.fases.map((fase, idx) => (
+                          <motion.div
+                            key={`fase-prog-${idx}`}
+                            initial={{ width: 0 }}
+                            animate={{ 
+                              width: `${(fase.mesesIncluidos.filter(m => m <= planMultiFase.mesActual).length / planMultiFase.totalMeses) * 100}%` 
+                            }}
+                            transition={{ duration: 1, ease: "easeOut", delay: idx * 0.2 }}
+                            className={`h-full inline-block ${
+                              fase.nombre === "BULK" 
+                                ? "bg-gradient-to-r from-amber-500 to-orange-500" 
+                                : fase.nombre === "CUT"
+                                ? "bg-gradient-to-r from-cyan-500 to-blue-500"
+                                : fase.nombre === "LEAN_BULK"
+                                ? "bg-gradient-to-r from-emerald-500 to-teal-500"
+                                : "bg-gradient-to-r from-purple-500 to-pink-500"
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+              
+              {/* Lista de Meses del Historial */}
+              <div className="space-y-3">
+                {planMultiFase.historialMeses.slice().reverse().map((mes, idx) => {
+                  const esActual = mes.mesNumero === planMultiFase.mesActual;
+                  const completado = !!mes.datosAlFinalizar;
+                  
+                  return (
+                    <motion.div
+                      key={`historial-mes-${mes.mesNumero}`}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: idx * 0.1 }}
+                      className={`p-4 rounded-xl border ${
+                        esActual 
+                          ? "bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-blue-500/30" 
+                          : completado
+                          ? "bg-white/5 border-white/10"
+                          : "bg-white/3 border-white/5 opacity-70"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-4 flex-wrap">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${
+                            esActual 
+                              ? "bg-blue-500/30 text-blue-200" 
+                              : completado
+                              ? "bg-emerald-500/30 text-emerald-200"
+                              : "bg-white/10 text-white/50"
+                          }`}>
+                            {esActual ? "📍" : completado ? "✓" : mes.mesNumero}
+                          </div>
+                          <div>
+                            <p className="font-medium flex items-center gap-2">
+                              Mes {mes.mesNumero}
+                              <span className={`px-2 py-0.5 text-xs rounded ${
+                                mes.faseEnEsteMes === "BULK" 
+                                  ? "bg-amber-500/20 text-amber-300" 
+                                  : mes.faseEnEsteMes === "CUT"
+                                  ? "bg-cyan-500/20 text-cyan-300"
+                                  : "bg-emerald-500/20 text-emerald-300"
+                              }`}>
+                                {mes.faseEnEsteMes}
+                              </span>
+                              {esActual && (
+                                <span className="px-2 py-0.5 text-xs rounded bg-blue-500/20 text-blue-300">
+                                  Actual
+                                </span>
+                              )}
+                            </p>
+                            <p className="text-xs opacity-60">
+                              {new Date(mes.fechaGeneracion).toLocaleDateString('es-AR', { 
+                                day: 'numeric', 
+                                month: 'short', 
+                                year: 'numeric' 
+                              })}
+                              {mes.fechaFin && ` - ${new Date(mes.fechaFin).toLocaleDateString('es-AR', { 
+                                day: 'numeric', 
+                                month: 'short'
+                              })}`}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-4 text-sm">
+                          <div className="text-center">
+                            <p className="font-medium">{mes.datosAlIniciar.peso} kg</p>
+                            <p className="text-xs opacity-50">Inicio</p>
+                          </div>
+                          {mes.datosAlFinalizar && (
+                            <>
+                              <div className="text-white/30">→</div>
+                              <div className="text-center">
+                                <p className={`font-medium ${
+                                  mes.datosAlFinalizar.peso > mes.datosAlIniciar.peso 
+                                    ? "text-amber-400" 
+                                    : mes.datosAlFinalizar.peso < mes.datosAlIniciar.peso
+                                    ? "text-cyan-400"
+                                    : "text-white"
+                                }`}>
+                                  {mes.datosAlFinalizar.peso} kg
+                                  <span className="text-xs ml-1 opacity-70">
+                                    ({mes.datosAlFinalizar.peso > mes.datosAlIniciar.peso ? "+" : ""}
+                                    {(mes.datosAlFinalizar.peso - mes.datosAlIniciar.peso).toFixed(1)})
+                                  </span>
+                                </p>
+                                <p className="text-xs opacity-50">Fin</p>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Detalles adicionales si el mes está completado */}
+                      {mes.datosAlFinalizar && (
+                        <div className="mt-3 pt-3 border-t border-white/10 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                          <div className="flex items-center gap-1">
+                            <span className="opacity-50">Energía:</span>
+                            <span>{
+                              mes.datosAlFinalizar.energia === "muy_alta" ? "🔥 Muy alta" :
+                              mes.datosAlFinalizar.energia === "alta" ? "💪 Alta" :
+                              mes.datosAlFinalizar.energia === "normal" ? "😊 Normal" :
+                              mes.datosAlFinalizar.energia === "baja" ? "😕 Baja" :
+                              "😴 Muy baja"
+                            }</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="opacity-50">Recuperación:</span>
+                            <span>{
+                              mes.datosAlFinalizar.recuperacion === "excelente" ? "🌟" :
+                              mes.datosAlFinalizar.recuperacion === "buena" ? "💪" :
+                              mes.datosAlFinalizar.recuperacion === "normal" ? "😊" :
+                              mes.datosAlFinalizar.recuperacion === "regular" ? "😐" :
+                              "😓"
+                            } {mes.datosAlFinalizar.recuperacion}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="opacity-50">Adherencia alimentación:</span>
+                            <span className={
+                              mes.datosAlFinalizar.adherenciaComida === ">80%" ? "text-emerald-400" :
+                              mes.datosAlFinalizar.adherenciaComida === "70-80%" ? "text-blue-400" :
+                              mes.datosAlFinalizar.adherenciaComida === "50-70%" ? "text-amber-400" :
+                              "text-red-400"
+                            }>{mes.datosAlFinalizar.adherenciaComida}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="opacity-50">Adherencia entreno:</span>
+                            <span className={
+                              mes.datosAlFinalizar.adherenciaEntreno === ">80%" ? "text-emerald-400" :
+                              mes.datosAlFinalizar.adherenciaEntreno === "70-80%" ? "text-blue-400" :
+                              mes.datosAlFinalizar.adherenciaEntreno === "50-70%" ? "text-amber-400" :
+                              "text-red-400"
+                            }>{mes.datosAlFinalizar.adherenciaEntreno}</span>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Ajustes aplicados */}
+                      {mes.ajustesAplicados && mes.ajustesAplicados.length > 0 && (
+                        <div className="mt-2 text-xs">
+                          <span className="opacity-50">Ajustes aplicados:</span>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {mes.ajustesAplicados.slice(0, 3).map((ajuste, i) => (
+                              <span key={i} className="px-2 py-0.5 rounded bg-white/10">
+                                {ajuste.length > 40 ? ajuste.substring(0, 40) + "..." : ajuste}
+                              </span>
+                            ))}
+                            {mes.ajustesAplicados.length > 3 && (
+                              <span className="px-2 py-0.5 rounded bg-white/10 opacity-50">
+                                +{mes.ajustesAplicados.length - 3} más
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </motion.div>
       </div>
       
@@ -2840,6 +3479,218 @@ export default function PlanPage() {
           sexo={user.sexo}
         />
       )}
+      
+      {/* Modal de Generar Siguiente Mes */}
+      <AnimatePresence>
+        {modalSiguienteMesAbierto && planMultiFase && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => !generandoSiguienteMes && setModalSiguienteMesAbierto(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-slate-900 border border-white/10 rounded-2xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold">
+                  🚀 Generar Mes {planMultiFase.mesActual + 1}
+                </h2>
+                <button
+                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                  onClick={() => !generandoSiguienteMes && setModalSiguienteMesAbierto(false)}
+                  disabled={generandoSiguienteMes}
+                >
+                  ✕
+                </button>
+              </div>
+              
+              <p className="text-sm opacity-70 mb-4">
+                Ingresá tus datos actuales para generar el plan del próximo mes con ajustes personalizados.
+              </p>
+              
+              {/* Info de fase actual */}
+              <div className={`mb-4 p-3 rounded-xl ${
+                planMultiFase.faseActual === "BULK" 
+                  ? "bg-amber-500/10 border border-amber-500/20" 
+                  : planMultiFase.faseActual === "CUT"
+                  ? "bg-cyan-500/10 border border-cyan-500/20"
+                  : "bg-emerald-500/10 border border-emerald-500/20"
+              }`}>
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="font-semibold">Fase actual: {planMultiFase.faseActual}</span>
+                  <span className="opacity-70">• Mes {planMultiFase.mesActual} de {planMultiFase.totalMeses}</span>
+                </div>
+                <p className="text-xs opacity-70 mt-1">
+                  {(() => {
+                    const infoFase = obtenerInfoFaseActual(planMultiFase);
+                    return infoFase.fase?.descripcion || "";
+                  })()}
+                </p>
+              </div>
+              
+              <div className="space-y-4">
+                {/* Peso Actual (OBLIGATORIO) */}
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Peso Actual (kg) <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
+                    value={datosSiguienteMes.pesoActual || ""}
+                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, pesoActual: parseFloat(e.target.value) || 0 }))}
+                    placeholder="Ej: 82.5"
+                  />
+                  {planMultiFase.historialMeses[planMultiFase.mesActual - 1] && (
+                    <p className="text-xs opacity-50 mt-1">
+                      Peso al iniciar este mes: {planMultiFase.historialMeses[planMultiFase.mesActual - 1].datosAlIniciar.peso} kg
+                    </p>
+                  )}
+                </div>
+                
+                {/* Cintura Actual (Opcional) */}
+                <div>
+                  <label className="block text-sm font-medium mb-1">Cintura Actual (cm) <span className="text-xs opacity-50">(opcional)</span></label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
+                    value={datosSiguienteMes.cinturaActual || ""}
+                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, cinturaActual: parseFloat(e.target.value) || 0 }))}
+                    placeholder="Ej: 84"
+                  />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Energía */}
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Energía</label>
+                    <select
+                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
+                      value={datosSiguienteMes.energia}
+                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, energia: e.target.value as typeof prev.energia }))}
+                    >
+                      <option value="muy_baja">😴 Muy baja</option>
+                      <option value="baja">😕 Baja</option>
+                      <option value="normal">😊 Normal</option>
+                      <option value="alta">💪 Alta</option>
+                      <option value="muy_alta">🔥 Muy alta</option>
+                    </select>
+                  </div>
+                  
+                  {/* Recuperación */}
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Recuperación</label>
+                    <select
+                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
+                      value={datosSiguienteMes.recuperacion}
+                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, recuperacion: e.target.value as typeof prev.recuperacion }))}
+                    >
+                      <option value="mala">😓 Mala</option>
+                      <option value="regular">😐 Regular</option>
+                      <option value="normal">😊 Normal</option>
+                      <option value="buena">💪 Buena</option>
+                      <option value="excelente">🌟 Excelente</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Adherencia Comida */}
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Adherencia Alimentación</label>
+                    <select
+                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
+                      value={datosSiguienteMes.adherenciaComida}
+                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, adherenciaComida: e.target.value as typeof prev.adherenciaComida }))}
+                    >
+                      <option value="<50%">{"<50%"} - Muy baja</option>
+                      <option value="50-70%">50-70% - Regular</option>
+                      <option value="70-80%">70-80% - Buena</option>
+                      <option value=">80%">{">80%"} - Excelente</option>
+                    </select>
+                  </div>
+                  
+                  {/* Adherencia Entreno */}
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Adherencia Entreno</label>
+                    <select
+                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
+                      value={datosSiguienteMes.adherenciaEntreno}
+                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, adherenciaEntreno: e.target.value as typeof prev.adherenciaEntreno }))}
+                    >
+                      <option value="<50%">{"<50%"} - Muy baja</option>
+                      <option value="50-70%">50-70% - Regular</option>
+                      <option value="70-80%">70-80% - Buena</option>
+                      <option value=">80%">{">80%"} - Excelente</option>
+                    </select>
+                  </div>
+                </div>
+                
+                {/* Lesiones nuevas */}
+                <div>
+                  <label className="block text-sm font-medium mb-1">Lesiones o molestias nuevas <span className="text-xs opacity-50">(opcional)</span></label>
+                  <input
+                    type="text"
+                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
+                    value={datosSiguienteMes.lesionesNuevas}
+                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, lesionesNuevas: e.target.value }))}
+                    placeholder="Ej: Dolor en hombro derecho, molestia en rodilla..."
+                  />
+                </div>
+                
+                {/* Comentarios */}
+                <div>
+                  <label className="block text-sm font-medium mb-1">Ajustes o comentarios <span className="text-xs opacity-50">(opcional)</span></label>
+                  <textarea
+                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30 resize-none"
+                    rows={2}
+                    value={datosSiguienteMes.comentarios}
+                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, comentarios: e.target.value }))}
+                    placeholder="Ej: Quisiera más variedad en desayunos, menos cardio..."
+                  />
+                </div>
+              </div>
+              
+              {errorSiguienteMes && (
+                <div className="mt-4 p-3 rounded-xl bg-red-500/20 border border-red-500/30 text-red-200 text-sm">
+                  {errorSiguienteMes}
+                </div>
+              )}
+              
+              <div className="flex gap-3 mt-6">
+                <button
+                  className="flex-1 rounded-xl px-4 py-3 bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+                  onClick={() => setModalSiguienteMesAbierto(false)}
+                  disabled={generandoSiguienteMes}
+                >
+                  Cancelar
+                </button>
+                <button
+                  className={`flex-1 rounded-xl px-4 py-3 font-medium transition-colors disabled:opacity-50 ${
+                    planMultiFase.faseActual === "BULK" 
+                      ? "bg-amber-500/20 border border-amber-500/30 hover:bg-amber-500/30 text-amber-200" 
+                      : planMultiFase.faseActual === "CUT"
+                      ? "bg-cyan-500/20 border border-cyan-500/30 hover:bg-cyan-500/30 text-cyan-200"
+                      : "bg-emerald-500/20 border border-emerald-500/30 hover:bg-emerald-500/30 text-emerald-200"
+                  }`}
+                  onClick={handleGenerarSiguienteMes}
+                  disabled={!datosSiguienteMes.pesoActual || generandoSiguienteMes}
+                >
+                  {generandoSiguienteMes ? "⏳ Generando..." : "🚀 Generar Siguiente Mes"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

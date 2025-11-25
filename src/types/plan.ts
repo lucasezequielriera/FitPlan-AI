@@ -126,3 +126,202 @@ export interface TrainingPlan {
   sync_with_nutrition?: string[];
 }
 
+// ============================================
+// SISTEMA DE PLAN MULTI-FASE (Bulk+Cut, etc.)
+// ============================================
+
+export interface Suplemento {
+  nombre: string;
+  dosis: string;
+  momento: string; // "mañana", "pre-entreno", "post-entreno", "noche"
+  motivo: string;
+  prioridad: "esencial" | "recomendado" | "opcional";
+  duracion?: string; // "todo el plan", "solo fase bulk", "primeros 2 meses"
+}
+
+export interface DatosInicioMes {
+  peso: number;
+  cintura?: number;
+  fechaRegistro: string;
+}
+
+export interface DatosFinMes {
+  peso: number;
+  cintura?: number;
+  energia: "muy_baja" | "baja" | "normal" | "alta" | "muy_alta";
+  recuperacion: "mala" | "regular" | "normal" | "buena" | "excelente";
+  adherenciaComida: "<50%" | "50-70%" | "70-80%" | ">80%";
+  adherenciaEntreno: "<50%" | "50-70%" | "70-80%" | ">80%";
+  lesionesNuevas?: string;
+  comentarios?: string;
+  fechaRegistro: string;
+}
+
+export interface HistorialMes {
+  mesNumero: number;
+  faseEnEsteMes: "BULK" | "CUT" | "LEAN_BULK" | "MANTENIMIENTO";
+  fechaGeneracion: string;
+  fechaFin?: string;
+  
+  datosAlIniciar: DatosInicioMes;
+  datosAlFinalizar?: DatosFinMes;
+  
+  // Plan generado para este mes
+  planAlimentacion: DiaPlan[];
+  caloriasObjetivo: number;
+  macros: Macros;
+  planEntrenamiento?: TrainingPlan;
+  suplementos: Suplemento[];
+  
+  // Ajustes que se aplicaron basados en el mes anterior
+  ajustesAplicados?: string[];
+  
+  // Datos adicionales del plan
+  dificultad?: "facil" | "media" | "dificil";
+  mensajeMotivacional?: string;
+}
+
+export interface FaseMultiFase {
+  nombre: "BULK" | "CUT" | "LEAN_BULK" | "MANTENIMIENTO";
+  mesesIncluidos: number[]; // [1, 2, 3, 4, 5, 6] para BULK, [7, 8] para CUT
+  pesoMeta: number;
+  descripcion: string;
+}
+
+export interface PlanMultiFase {
+  // Identificador único del plan
+  id?: string;
+  
+  // Tipo de plan
+  tipo: "bulk_cut" | "lean_bulk" | "simple"; // simple = plan normal de 1 mes
+  
+  // Estado del plan
+  estado: "activo" | "completado" | "pausado" | "abandonado";
+  
+  // Fechas
+  fechaInicio: string;
+  fechaFinEstimada?: string;
+  fechaFinReal?: string;
+  
+  // Datos iniciales del usuario
+  datosIniciales: {
+    pesoInicial: number;
+    pesoObjetivoFinal: number;
+    cinturaInicial?: number;
+    alturaCm: number;
+    edad: number;
+    sexo: "masculino" | "femenino";
+    intensidad: Intensidad;
+    objetivo: Goal;
+    tipoDieta?: TipoDieta;
+    restricciones?: string[];
+    preferencias?: string[];
+    patologias?: string[];
+    doloresLesiones?: string[];
+    diasGym?: number;
+    diasCardio?: number;
+  };
+  
+  // Estructura de fases
+  fases: FaseMultiFase[];
+  totalMeses: number;
+  
+  // Progreso actual
+  mesActual: number;
+  faseActual: "BULK" | "CUT" | "LEAN_BULK" | "MANTENIMIENTO";
+  
+  // Suplementos recomendados para todo el plan
+  suplementosBase: Suplemento[];
+  
+  // Historial de todos los meses generados
+  historialMeses: HistorialMes[];
+}
+
+// Helper para obtener info de fase actual
+export function obtenerInfoFaseActual(plan: PlanMultiFase): {
+  fase: FaseMultiFase | undefined;
+  mesEnFase: number;
+  mesesRestantesFase: number;
+  esPrimerMesFase: boolean;
+  esUltimoMesFase: boolean;
+} {
+  const faseActual = plan.fases.find(f => f.mesesIncluidos.includes(plan.mesActual));
+  if (!faseActual) {
+    return {
+      fase: undefined,
+      mesEnFase: 0,
+      mesesRestantesFase: 0,
+      esPrimerMesFase: false,
+      esUltimoMesFase: false,
+    };
+  }
+  
+  const indexEnFase = faseActual.mesesIncluidos.indexOf(plan.mesActual);
+  return {
+    fase: faseActual,
+    mesEnFase: indexEnFase + 1,
+    mesesRestantesFase: faseActual.mesesIncluidos.length - indexEnFase - 1,
+    esPrimerMesFase: indexEnFase === 0,
+    esUltimoMesFase: indexEnFase === faseActual.mesesIncluidos.length - 1,
+  };
+}
+
+// Helper para calcular progreso total
+export function calcularProgresoTotal(plan: PlanMultiFase): {
+  porcentajeCompletado: number;
+  pesoGanado: number;
+  pesoPerdido: number;
+  cambioNeto: number;
+  mesesCompletados: number;
+  adherenciaPromedio: number;
+} {
+  const mesesCompletados = plan.historialMeses.filter(m => m.datosAlFinalizar).length;
+  const porcentajeCompletado = (mesesCompletados / plan.totalMeses) * 100;
+  
+  let pesoGanado = 0;
+  let pesoPerdido = 0;
+  
+  plan.historialMeses.forEach((mes, idx) => {
+    if (mes.datosAlFinalizar && mes.datosAlIniciar) {
+      const cambio = mes.datosAlFinalizar.peso - mes.datosAlIniciar.peso;
+      if (cambio > 0) pesoGanado += cambio;
+      else pesoPerdido += Math.abs(cambio);
+    }
+  });
+  
+  const pesoActual = plan.historialMeses.length > 0 
+    ? (plan.historialMeses[plan.historialMeses.length - 1].datosAlFinalizar?.peso 
+       || plan.historialMeses[plan.historialMeses.length - 1].datosAlIniciar.peso)
+    : plan.datosIniciales.pesoInicial;
+  
+  const cambioNeto = pesoActual - plan.datosIniciales.pesoInicial;
+  
+  // Calcular adherencia promedio
+  const adherencias = plan.historialMeses
+    .filter(m => m.datosAlFinalizar)
+    .map(m => {
+      const comida = m.datosAlFinalizar!.adherenciaComida;
+      const entreno = m.datosAlFinalizar!.adherenciaEntreno;
+      const mapAdherencia = (s: string) => {
+        if (s === ">80%") return 85;
+        if (s === "70-80%") return 75;
+        if (s === "50-70%") return 60;
+        return 40;
+      };
+      return (mapAdherencia(comida) + mapAdherencia(entreno)) / 2;
+    });
+  
+  const adherenciaPromedio = adherencias.length > 0 
+    ? adherencias.reduce((a, b) => a + b, 0) / adherencias.length 
+    : 0;
+  
+  return {
+    porcentajeCompletado,
+    pesoGanado,
+    pesoPerdido,
+    cambioNeto,
+    mesesCompletados,
+    adherenciaPromedio,
+  };
+}
+
