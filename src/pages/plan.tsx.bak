@@ -12,7 +12,6 @@ import FoodTrackingModal from "@/components/FoodTrackingModal";
 import WeeklyStatsModal from "@/components/WeeklyStatsModal";
 import IMCInfoModal from "@/components/IMCInfoModal";
 import PlanContinuityModal from "@/components/PlanContinuityModal";
-import MonthChangesModal from "@/components/MonthChangesModal";
 import { getAuthSafe, getDbSafe } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { useAuthStore } from "@/store/authStore";
@@ -135,10 +134,6 @@ export default function PlanPage() {
   // Estados para modal de continuidad (planes simples)
   const [continuityModalOpen, setContinuityModalOpen] = useState(false);
   const [registrosPeso, setRegistrosPeso] = useState<Array<{ fecha: string; peso: number }>>([]);
-  
-  // Estados para modal de cambios (planes multi-fase)
-  const [monthChangesModalOpen, setMonthChangesModalOpen] = useState(false);
-  const [monthChangesData, setMonthChangesData] = useState<any>(null);
 
   // Cargar registros de peso para el modal de continuidad
   useEffect(() => {
@@ -831,14 +826,6 @@ export default function PlanPage() {
     setGenerandoSiguienteMes(true);
     setErrorSiguienteMes(null);
     
-    // Guardar datos del mes anterior para comparación
-    const mesAnteriorIndex = planMultiFase.mesActual - 1;
-    const datosNutricionAnterior = {
-      calorias: planMultiFase.historialMeses[mesAnteriorIndex]?.caloriasObjetivo || plan.calorias_diarias,
-      macros: planMultiFase.historialMeses[mesAnteriorIndex]?.macros || plan.macros
-    };
-    const mesAnteriorCompleto = planMultiFase.historialMeses[mesAnteriorIndex];
-    
     try {
       const db = getDbSafe();
       if (!db) throw new Error("Base de datos no disponible");
@@ -1009,160 +996,8 @@ export default function PlanPage() {
       setPlan(nuevoPlan);
       setPlanMultiFase(planMultiFaseActualizado);
       
-      // Calcular cambios entre meses para mostrar en modal
-      const calcularCambiosEntrenamiento = () => {
-        const diasGymAnterior = mesAnteriorCompleto?.planEntrenamiento?.weeks?.[0]?.days?.length || user.diasGym || 4;
-        const diasGymNuevo = nuevoPlan.training_plan?.weeks?.[0]?.days?.length || user.diasGym || 4;
-        
-        // Contar ejercicios totales
-        const ejerciciosAnterior = mesAnteriorCompleto?.planEntrenamiento?.weeks?.reduce((acc: number, week: any) => 
-          acc + (week.days?.reduce((dayAcc: number, day: any) => dayAcc + (day.ejercicios?.length || 0), 0) || 0), 0) || 0;
-        const ejerciciosNuevo = nuevoPlan.training_plan?.weeks?.reduce((acc: number, week: any) => 
-          acc + (week.days?.reduce((dayAcc: number, day: any) => dayAcc + (day.ejercicios?.length || 0), 0) || 0), 0) || 0;
-        
-        let cambioVolumen: "aumentado" | "reducido" | "mantenido" = "mantenido";
-        if (ejerciciosNuevo > ejerciciosAnterior + 2) cambioVolumen = "aumentado";
-        else if (ejerciciosNuevo < ejerciciosAnterior - 2) cambioVolumen = "reducido";
-        
-        let descripcion = "";
-        if (cambioVolumen === "aumentado") {
-          descripcion = "Se ha incrementado el volumen de entrenamiento para progresar según tus capacidades actuales.";
-        } else if (cambioVolumen === "reducido") {
-          descripcion = "Se ha reducido el volumen para mejorar la recuperación según tu feedback del mes anterior.";
-        } else {
-          descripcion = "El volumen de entrenamiento se mantiene para consolidar adaptaciones.";
-        }
-        
-        return {
-          diasGymAnterior,
-          diasGymNuevo,
-          cambioVolumen,
-          ejerciciosNuevos: Math.max(0, ejerciciosNuevo - ejerciciosAnterior),
-          descripcionCambios: descripcion
-        };
-      };
-      
-      const extraerGramos = (str: string): number => {
-        const match = str.match(/(\d+(\.\d+)?)/);
-        return match ? parseFloat(match[1]) : 0;
-      };
-      
-      // Calcular progreso del usuario
-      const calcularProgresoUsuario = () => {
-        const pesoInicial = planMultiFase.datosIniciales.pesoInicial;
-        const pesoActual = datosSiguienteMes.pesoActual;
-        const pesoObjetivo = planMultiFase.datosIniciales.pesoObjetivoFinal;
-        
-        const cambioPesoTotal = pesoActual - pesoInicial;
-        const cambioPesoUltimoMes = datosSiguienteMes.pesoActual - (mesAnteriorCompleto?.datosAlIniciar?.peso || pesoInicial);
-        
-        // Calcular porcentaje hacia objetivo
-        const pesoARecorrer = pesoObjetivo - pesoInicial;
-        const pesoRecorrido = pesoActual - pesoInicial;
-        const porcentajeHaciaObjetivo = pesoARecorrer !== 0 ? (pesoRecorrido / pesoARecorrer) * 100 : 0;
-        
-        // Calcular adherencia promedio de todos los meses
-        const mapAdherencia = (s: string) => {
-          if (s === ">80%") return 85;
-          if (s === "70-80%") return 75;
-          if (s === "50-70%") return 60;
-          return 40;
-        };
-        
-        const mesesConDatos = planMultiFaseActualizado.historialMeses.filter(m => m.datosAlFinalizar);
-        const adherencias = mesesConDatos.map(m => {
-          const comida = m.datosAlFinalizar!.adherenciaComida;
-          const entreno = m.datosAlFinalizar!.adherenciaEntreno;
-          return (mapAdherencia(comida) + mapAdherencia(entreno)) / 2;
-        });
-        const adherenciaPromedio = adherencias.length > 0 
-          ? adherencias.reduce((a, b) => a + b, 0) / adherencias.length 
-          : 0;
-        
-        // Calcular tendencias de energía y recuperación
-        const mapEnergia = (e: string): number => {
-          if (e === "muy_alta") return 5;
-          if (e === "alta") return 4;
-          if (e === "normal") return 3;
-          if (e === "baja") return 2;
-          return 1;
-        };
-        
-        const mapRecuperacion = (r: string): number => {
-          if (r === "excelente") return 5;
-          if (r === "buena") return 4;
-          if (r === "normal") return 3;
-          if (r === "regular") return 2;
-          return 1;
-        };
-        
-        const energias = mesesConDatos.map(m => mapEnergia(m.datosAlFinalizar!.energia));
-        const recuperaciones = mesesConDatos.map(m => mapRecuperacion(m.datosAlFinalizar!.recuperacion));
-        
-        let tendenciaEnergia: "mejorando" | "estable" | "empeorando" = "estable";
-        if (energias.length >= 2) {
-          const ultimaDos = energias.slice(-2);
-          if (ultimaDos[1] > ultimaDos[0]) tendenciaEnergia = "mejorando";
-          else if (ultimaDos[1] < ultimaDos[0]) tendenciaEnergia = "empeorando";
-        }
-        
-        let tendenciaRecuperacion: "mejorando" | "estable" | "empeorando" = "estable";
-        if (recuperaciones.length >= 2) {
-          const ultimaDos = recuperaciones.slice(-2);
-          if (ultimaDos[1] > ultimaDos[0]) tendenciaRecuperacion = "mejorando";
-          else if (ultimaDos[1] < ultimaDos[0]) tendenciaRecuperacion = "empeorando";
-        }
-        
-        return {
-          pesoInicial,
-          pesoActual,
-          pesoObjetivo,
-          cambioPesoTotal,
-          cambioPesoUltimoMes,
-          porcentajeHaciaObjetivo,
-          mesesCompletados: planMultiFase.mesActual, // El mes que acaba de completar
-          totalMeses: planMultiFase.totalMeses,
-          adherenciaPromedio,
-          tendenciaEnergia,
-          tendenciaRecuperacion
-        };
-      };
-      
-      const cambiosData = {
-        mesAnterior: planMultiFase.mesActual,
-        mesNuevo: siguienteMes,
-        faseAnterior: planMultiFase.faseActual,
-        faseNueva: siguienteFase?.nombre || planMultiFase.faseActual,
-        cambioFase,
-        nutricion: {
-          caloriasAnterior: datosNutricionAnterior.calorias,
-          caloriasNueva: nuevoPlan.calorias_diarias,
-          diferenciaCalorias: nuevoPlan.calorias_diarias - datosNutricionAnterior.calorias,
-          macrosAnterior: datosNutricionAnterior.macros,
-          macrosNuevo: nuevoPlan.macros,
-          cambioMacros: {
-            proteinas: extraerGramos(nuevoPlan.macros.proteinas) - extraerGramos(datosNutricionAnterior.macros.proteinas),
-            carbohidratos: extraerGramos(nuevoPlan.macros.carbohidratos) - extraerGramos(datosNutricionAnterior.macros.carbohidratos),
-            grasas: extraerGramos(nuevoPlan.macros.grasas) - extraerGramos(datosNutricionAnterior.macros.grasas),
-          }
-        },
-        entrenamiento: calcularCambiosEntrenamiento(),
-        ajustesAplicados: ajustes,
-        razonCambios: ajustes.length > 0 
-          ? "Los ajustes se realizaron para optimizar tu progreso basándose en los resultados del mes anterior."
-          : cambiaFase
-          ? `Cambio de fase automático según tu plan multi-fase. Tu fase ${planMultiFase.faseActual} ha finalizado y ahora comienza la fase ${siguienteFase.nombre}.`
-          : "El plan se mantiene consistente con tu progreso actual. Continuarás con la misma estructura para consolidar adaptaciones.",
-        progresoUsuario: calcularProgresoUsuario()
-      };
-      
-      setMonthChangesData(cambiosData);
-      
-      // Cerrar modal de datos y abrir modal de cambios
+      // Cerrar modal y resetear datos
       setModalSiguienteMesAbierto(false);
-      setMonthChangesModalOpen(true);
-      
-      // Resetear datos del formulario
       setDatosSiguienteMes({
         pesoActual: 0,
         cinturaActual: 0,
@@ -1544,20 +1379,10 @@ export default function PlanPage() {
                 const [fechaInicioMesActual, setFechaInicioMesActual] = useState<Date | null>(null);
                 
                 useEffect(() => {
-                  console.log("🔍 DEBUG MultiPhase Banner:", {
-                    planMultiFase: planMultiFase,
-                    mesActual: planMultiFase?.mesActual,
-                    totalMeses: planMultiFase?.totalMeses,
-                    historialLength: planMultiFase?.historialMeses?.length
-                  });
-                  
                   const loadData = async () => {
                     try {
                       const db = getDbSafe();
-                      if (!db) {
-                        console.log("🔍 DEBUG: No hay DB");
-                        return;
-                      }
+                      if (!db) return;
                       
                       const planRef = doc(db, "planes", planId);
                       const planDoc = await getDoc(planRef);
@@ -1589,17 +1414,8 @@ export default function PlanPage() {
                   loadData();
                 }, []);
                 
-                console.log("🔍 DEBUG: Verificando si mostrar banner:", {
-                  fechaInicioMesActual,
-                  mesProgress,
-                  mesActual: planMultiFase.mesActual,
-                  totalMeses: planMultiFase.totalMeses,
-                  mostrar: fechaInicioMesActual && mesProgress >= 5 && planMultiFase.mesActual < planMultiFase.totalMeses
-                });
-                
                 // Solo mostrar si el mes actual está al 90-100% Y no es el último mes
-                // TEMPORAL: Usando 5% para testing
-                if (!fechaInicioMesActual || mesProgress < 5 || planMultiFase.mesActual >= planMultiFase.totalMeses) {
+                if (!fechaInicioMesActual || mesProgress < 90 || planMultiFase.mesActual >= planMultiFase.totalMeses) {
                   return null;
                 }
                 
@@ -2065,17 +1881,17 @@ export default function PlanPage() {
                   <span className="text-sm font-medium text-white whitespace-nowrap max-w-[150px] md:max-w-none truncate">
                     {getObjetivoTexto(user.objetivo)}
                   </span>
-                      </div>
+                </div>
                 {/* Intensidad - Solo lectura */}
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
                   <span className="text-xs opacity-70 whitespace-nowrap">Intensidad:</span>
                   <span className="text-sm font-medium text-white capitalize">
                     {getIntensidadTexto(user.intensidad)}
-                    </span>
-                        </div>
+                  </span>
+                </div>
                 {/* Dieta - Solo lectura */}
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
-                    <span className="text-xs opacity-70 whitespace-nowrap">Dieta:</span>
+                  <span className="text-xs opacity-70 whitespace-nowrap">Dieta:</span>
                   <span className="text-sm font-medium text-white">
                     {getDietaTexto(user.tipoDieta)}
                   </span>
@@ -3880,20 +3696,6 @@ export default function PlanPage() {
           userId={authUser.uid}
         />
       )}
-
-      {/* Modal de Cambios del Nuevo Mes (planes multi-fase) */}
-      <AnimatePresence>
-        {monthChangesModalOpen && monthChangesData && (
-          <MonthChangesModal
-            isOpen={monthChangesModalOpen}
-            onClose={() => {
-              setMonthChangesModalOpen(false);
-              setMonthChangesData(null);
-            }}
-            cambios={monthChangesData}
-          />
-        )}
-      </AnimatePresence>
 
       {/* Modal de registro de comida fuera del plan */}
       <FoodTrackingModal

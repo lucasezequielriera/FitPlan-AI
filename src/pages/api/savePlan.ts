@@ -8,7 +8,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const db = getDbSafe();
   if (!db) return res.status(501).json({ error: "Firestore no configurado" });
   
-  const { plan, userId } = req.body;
+  const { plan, userId, planAnteriorId } = req.body;
   
   if (!userId) {
     return res.status(401).json({ error: "Usuario no autenticado" });
@@ -19,11 +19,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
   
   try {
-    const docRef = await addDoc(collection(db, "planes"), {
+    const planData: Record<string, unknown> = {
       userId,
       plan,
       createdAt: serverTimestamp(),
-    });
+    };
+
+    // Si hay un plan anterior (continuidad), guardar referencia
+    if (planAnteriorId) {
+      planData.planAnteriorId = planAnteriorId;
+      planData.esContinuacion = true;
+    }
+
+    const docRef = await addDoc(collection(db, "planes"), planData);
     res.status(200).json({ id: docRef.id });
   } catch (e) {
     console.error("Error al guardar plan:", e);
