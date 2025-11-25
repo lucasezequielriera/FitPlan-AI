@@ -1133,7 +1133,7 @@ export default function PlanPage() {
         mesNuevo: siguienteMes,
         faseAnterior: planMultiFase.faseActual,
         faseNueva: siguienteFase?.nombre || planMultiFase.faseActual,
-        cambioFase,
+        cambioFase: cambiaFase,
         nutricion: {
           caloriasAnterior: datosNutricionAnterior.calorias,
           caloriasNueva: nuevoPlan.calorias_diarias,

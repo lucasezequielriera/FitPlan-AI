@@ -30,6 +30,23 @@ interface PlanMultiFaseData {
     pesoInicio: number;
     pesoFin: number;
   }>;
+  historialMeses?: Array<{
+    mesNumero: number;
+    fechaGeneracion?: string;
+    datosAlIniciar?: {
+      peso: number;
+      fechaRegistro?: string;
+      cintura?: number;
+    };
+    datosAlFinalizar?: {
+      peso?: number;
+      fechaRegistro?: string;
+      adherenciaComida: "<50%" | "50-70%" | "70-80%" | ">80%";
+      adherenciaEntreno: "<50%" | "50-70%" | "70-80%" | ">80%";
+      energia: "muy_baja" | "baja" | "normal" | "alta" | "muy_alta";
+      recuperacion: "mala" | "regular" | "normal" | "buena" | "excelente";
+    };
+  }>;
 }
 
 interface SavedPlan {
@@ -732,7 +749,7 @@ export default function Dashboard() {
                           const calcularProgresoMes = () => {
                             try {
                               // Buscar la fecha de inicio del mes actual en el historial
-                              const historialMeses = (pmf as any).historialMeses || [];
+                              const historialMeses = pmf.historialMeses ?? [];
                               const mesActualIndex = mesActual - 1;
                               const mesActualData = historialMeses[mesActualIndex];
                               
