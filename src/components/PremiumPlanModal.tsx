@@ -22,58 +22,59 @@ interface Plan {
   popular?: boolean;
 }
 
-// Planes en ARS (MercadoPago)
+// Planes en ARS (MercadoPago) - Tasa ~1050 ARS/USD
+// Mensual: $10 USD | Trimestral: $7/mes | Anual: $5/mes
 const plansARS: Plan[] = [
   {
     type: "monthly",
     name: "Plan Mensual",
-    price: 30000,
+    price: 10500, // ~$10 USD
     period: "mes",
   },
   {
     type: "quarterly",
     name: "Plan Trimestral",
-    price: 75000,
+    price: 22000, // ~$7 USD/mes x 3
     period: "3 meses",
-    savings: "Ahorrás $15.000",
+    savings: "Ahorrás 30% ($7/mes)",
     popular: true,
   },
   {
     type: "annual",
     name: "Plan Anual",
-    price: 250000,
+    price: 63000, // ~$5 USD/mes x 12
     period: "12 meses",
-    savings: "Ahorrás $110.000",
+    savings: "Ahorrás 50% ($5/mes)",
   },
 ];
 
-// Planes en EUR (Stripe)
+// Planes en USD (Stripe) - Precio internacional
 const plansEUR: Plan[] = [
   {
     type: "monthly",
     name: "Plan Mensual",
-    price: 30,
-    priceEUR: 30,
+    price: 10, // $10 USD/mes
+    priceEUR: 10,
     period: "mes",
   },
   {
     type: "quarterly",
     name: "Plan Trimestral",
-    price: 75,
-    priceEUR: 75,
+    price: 21, // $7 USD/mes x 3 = $21
+    priceEUR: 21,
     period: "3 meses",
-    savings: "Ahorrás €15",
-    savingsEUR: "Ahorrás €15",
+    savings: "Ahorrás 30%",
+    savingsEUR: "$7/mes",
     popular: true,
   },
   {
     type: "annual",
     name: "Plan Anual",
-    price: 250,
-    priceEUR: 250,
+    price: 60, // $5 USD/mes x 12 = $60
+    priceEUR: 60,
     period: "12 meses",
-    savings: "Ahorrás €110",
-    savingsEUR: "Ahorrás €110",
+    savings: "Ahorrás 50%",
+    savingsEUR: "$5/mes",
   },
 ];
 
@@ -218,9 +219,9 @@ export default function PremiumPlanModal({ isOpen, onClose, userId, userEmail }:
                 <h3 className="text-lg sm:text-xl font-bold text-white mb-2">{plan.name}</h3>
                 <div className="mb-4">
                   <span className="text-3xl sm:text-4xl font-bold text-white">
-                    {paymentProvider === "stripe" ? "€" : "$"}{plan.price.toLocaleString(paymentProvider === "stripe" ? "es-ES" : "es-AR")}
+                    ${plan.price.toLocaleString(paymentProvider === "stripe" ? "en-US" : "es-AR")}
                   </span>
-                  <span className="text-white/60 text-sm ml-1">{paymentProvider === "stripe" ? "EUR" : "ARS"}</span>
+                  <span className="text-white/60 text-sm ml-1">{paymentProvider === "stripe" ? "USD" : "ARS"}</span>
                 </div>
                 <p className="text-white/60 text-sm mb-4">{plan.period}</p>
                 {((paymentProvider === "stripe" && plan.savingsEUR) || (paymentProvider === "mercadopago" && plan.savings)) && (

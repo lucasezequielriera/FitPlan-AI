@@ -17,22 +17,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: "userId y userEmail son requeridos" });
   }
 
-  // Definir precios según el tipo de plan (en EUR para usuarios europeos)
+  // Definir precios según el tipo de plan (en USD para usuarios internacionales)
+  // Mensual: $10/mes | Trimestral: $7/mes ($21 total) | Anual: $5/mes ($60 total)
   const planPrices: Record<string, { price: number; title: string; description: string }> = {
     monthly: {
-      price: 30, // 30 EUR
+      price: 10, // $10 USD/mes
       title: "Plan Premium Mensual - FitPlan AI",
       description: "Acceso premium mensual a objetivos avanzados, dietas personalizadas y análisis avanzado",
     },
     quarterly: {
-      price: 75, // 75 EUR
+      price: 21, // $7 USD/mes x 3 = $21 USD total (30% ahorro)
       title: "Plan Premium Trimestral - FitPlan AI",
-      description: "Acceso premium trimestral (3 meses) a objetivos avanzados, dietas personalizadas y análisis avanzado",
+      description: "Acceso premium trimestral (3 meses) - $7/mes - Ahorrás 30%",
     },
     annual: {
-      price: 250, // 250 EUR
+      price: 60, // $5 USD/mes x 12 = $60 USD total (50% ahorro)
       title: "Plan Premium Anual - FitPlan AI",
-      description: "Acceso premium anual (12 meses) a objetivos avanzados, dietas personalizadas y análisis avanzado",
+      description: "Acceso premium anual (12 meses) - $5/mes - Ahorrás 50%",
     },
   };
 
@@ -57,7 +58,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       line_items: [
         {
           price_data: {
-            currency: "eur",
+            currency: "usd",
             product_data: {
               name: selectedPlan.title,
               description: selectedPlan.description,
