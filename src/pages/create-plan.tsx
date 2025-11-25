@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import { motion } from "framer-motion";
+import { FaAppleAlt } from "react-icons/fa";
 import { usePlanStore } from "@/store/planStore";
 import { useAuthStore } from "@/store/authStore";
 import { getAuthSafe, getDbSafe } from "@/lib/firebase";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import type { UserInput, Goal, TipoDieta, Intensidad } from "@/types/plan";
 import Navbar from "@/components/Navbar";
-import { FaAppleAlt } from "react-icons/fa";
 
 const objetivoDescripciones: Record<Goal, string> = {
   perder_grasa: "Reduce tu porcentaje de grasa corporal mediante un déficit calórico controlado. Ideal si buscás perder peso de forma saludable, mejorando tu composición corporal y salud general. El plan incluirá un déficit moderado de calorías mientras mantiene tus músculos.",
@@ -253,6 +253,7 @@ export default function CreatePlan() {
         );
         const querySnapshot = await getDocs(q);
         const planCount = querySnapshot.size;
+        setIsFirstPlan(planCount === 0);
 
         // Si no es premium y ya tiene 1 plan, no puede crear más
         if (!userPremium && planCount >= 1) {
@@ -308,6 +309,9 @@ export default function CreatePlan() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
+  const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState<number | null>(null);
+  const [startTime, setStartTime] = useState<number | null>(null);
+  const [isFirstPlan, setIsFirstPlan] = useState(true);
   
   // Checklist de progreso
   type StepStatus = 'pending' | 'in_progress' | 'completed' | 'error';
@@ -317,12 +321,12 @@ export default function CreatePlan() {
     status: StepStatus;
   }
   const [checklistSteps, setChecklistSteps] = useState<ChecklistStep[]>([
-    { id: 'preparar', label: 'Preparando datos del formulario', status: 'pending' },
-    { id: 'enviar', label: 'Enviando solicitud a OpenAI', status: 'pending' },
-    { id: 'recibir', label: 'Recibiendo respuesta de OpenAI', status: 'pending' },
-    { id: 'validar', label: 'Validando estructura del plan', status: 'pending' },
-    { id: 'perfil', label: 'Guardando perfil de usuario', status: 'pending' },
-    { id: 'plan', label: 'Guardando plan en base de datos', status: 'pending' },
+    { id: 'preparar', label: 'Chequeando datos', status: 'pending' },
+    { id: 'enviar', label: 'Revisando por nuestros profesionales', status: 'pending' },
+    { id: 'recibir', label: 'Generando planes personalizados', status: 'pending' },
+    { id: 'validar', label: 'Validando calidad del plan', status: 'pending' },
+    { id: 'perfil', label: 'Guardando tu perfil', status: 'pending' },
+    { id: 'plan', label: 'Finalizando tu plan', status: 'pending' },
     { id: 'completo', label: '¡Plan generado exitosamente!', status: 'pending' },
   ]);
   
@@ -400,9 +404,21 @@ export default function CreatePlan() {
     setLoading(true);
     setError(null);
     setProgress(0);
+    const start = Date.now();
+    setStartTime(start);
+    setEstimatedTimeRemaining(null);
+    
+    // Tiempo estimado total: 45-60 segundos (ajustable según experiencia)
+    const estimatedTotalTime = 55000; // 55 segundos en milisegundos
+    
     // Progreso asintótico: avanza rápido al principio y se frena cerca de 95%
     let p = 0;
-    const timer = setInterval(() => {
+    let timer: NodeJS.Timeout | null = null;
+    timer = setInterval(() => {
+      const elapsed = Date.now() - start;
+      const estimatedRemaining = Math.max(0, (estimatedTotalTime - elapsed) / 1000); // en segundos
+      setEstimatedTimeRemaining(Math.ceil(estimatedRemaining));
+      
       p = p + Math.max(1, Math.round((95 - p) * 0.08));
       p = Math.min(p, 95);
       setProgress(p);
@@ -424,10 +440,15 @@ export default function CreatePlan() {
           updateChecklistStep('enviar', 'in_progress');
         }
         
+        const payload = { ...formFinal, firstPlan: isFirstPlan };
+
+        // Usar streaming para mostrar progreso real (temporalmente desactivado)
         resp = await fetch("/api/generatePlan", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formFinal),
+          headers: { 
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload),
         });
         updateChecklistStep('enviar', 'completed');
         
@@ -450,6 +471,15 @@ export default function CreatePlan() {
           // Log extendido para diagnóstico
           console.error('generatePlan error', { status: resp.status, data, attempt: attempts });
           updateChecklistStep('recibir', 'error');
+          
+          // Mensaje más descriptivo para errores 422
+          if (resp.status === 422) {
+            const errorMsg = data?.error || "Error al generar el plan";
+            const detailMsg = data?.detail || "";
+            const debugInfo = data?.debug ? `\n\nInformación de debug: ${JSON.stringify(data.debug, null, 2)}` : "";
+            throw new Error(`${errorMsg}${detailMsg ? `: ${detailMsg}` : ""}${debugInfo}\n\nPor favor, intenta nuevamente. Si el problema persiste, puede ser un problema temporal con OpenAI.`);
+          }
+          
           throw new Error(msg);
         }
         
@@ -479,6 +509,8 @@ export default function CreatePlan() {
     
     // Parsear respuesta
     const plan = await resp.json();
+    if (timer) clearInterval(timer);
+    setProgress(100);
     updateChecklistStep('recibir', 'completed');
     
     try {
@@ -662,7 +694,8 @@ export default function CreatePlan() {
       
     setUser(formFinal);
     setPlan(plan);
-      clearInterval(timer);
+    setIsFirstPlan(false);
+        // Timer ya no es necesario con streaming real
       setProgress(100);
       updateChecklistStep('completo', 'completed');
       // Esperar un momento para mostrar el checklist completo antes de redirigir
@@ -678,7 +711,12 @@ export default function CreatePlan() {
           : step
       ));
     } finally {
-      setTimeout(() => setProgress(0), 600);
+      if (timer) clearInterval(timer);
+      setTimeout(() => {
+        setProgress(0);
+        setEstimatedTimeRemaining(null);
+        setStartTime(null);
+      }, 600);
       setLoading(false);
     }
   }
@@ -1241,86 +1279,108 @@ export default function CreatePlan() {
               </>
             )}
           </div>
-          {loading ? (
-            <div className="mt-6 space-y-4">
-              {/* Barra de progreso */}
-              <div>
-                <div className="h-2 w-full rounded-full bg-white/10">
-                  <div
-                    className="h-2 rounded-full"
-                    style={{
-                      width: `${progress}%`,
-                      background: "linear-gradient(90deg, var(--brand-start), var(--brand-mid), var(--brand-end))",
-                      transition: "width 200ms ease",
-                    }}
-                  />
-                </div>
-                <div className="mt-2 flex items-center gap-2">
-                  <FaAppleAlt className="h-4 w-4 text-white animate-spin" />
-                  <p className="text-xs opacity-80">
-                    {progress >= 95 
-                      ? "Finalizando plan..." 
-                      : `Generando plan: ${progress}%`}
-                  </p>
-                </div>
-              </div>
-              
-              {/* Checklist de progreso */}
-              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                <h3 className="text-sm font-semibold mb-3 opacity-90">Progreso de generación</h3>
-                <div className="space-y-2">
-                  {checklistSteps.map((step) => {
-                    const getIcon = () => {
-                      if (step.status === 'completed') {
-                        return (
-                          <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                        );
-                      }
-                      if (step.status === 'in_progress') {
-                        return (
-                          <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-                        );
-                      }
-                      if (step.status === 'error') {
-                        return (
-                          <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        );
-                      }
-                      return (
-                        <div className="w-5 h-5 border-2 border-white/30 rounded-full" />
-                      );
-                    };
-                    
-                    const getTextColor = () => {
-                      if (step.status === 'completed') return 'text-green-400';
-                      if (step.status === 'in_progress') return 'text-blue-400';
-                      if (step.status === 'error') return 'text-red-400';
-                      return 'text-white/50';
-                    };
-                    
-                    return (
-                      <div key={step.id} className="flex items-center gap-3">
-                        {getIcon()}
-                        <span className={`text-sm ${getTextColor()}`}>
-                          {step.label}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          ) : null}
           {error ? (
             <p className="mt-3 text-sm text-red-300">{error}</p>
           ) : null}
         </motion.div>
         </div>
       </div>
+      
+      {/* Overlay oscuro con spinner y tiempo estimado */}
+      {loading && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.5 }}
+          className="fixed inset-0 bg-gradient-to-br from-black/95 via-blue-950/90 to-black/95 backdrop-blur-md z-[9999] flex flex-col items-center justify-center"
+        >
+          <div className="flex flex-col items-center gap-10">
+            {/* Logo animado con estilo fitness */}
+            <div className="relative w-32 h-32">
+              {/* Anillo exterior pulsante */}
+              <motion.div
+                className="absolute inset-0 rounded-full border-2 border-blue-500/30"
+                animate={{ scale: [1, 1.15, 1], opacity: [0.3, 0.1, 0.3] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+              />
+              
+              {/* Anillo de progreso giratorio */}
+              <motion.div
+                className="absolute inset-2"
+                animate={{ rotate: 360 }}
+                transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+              >
+                <svg className="w-full h-full" viewBox="0 0 100 100">
+                  <defs>
+                    <linearGradient id="spinnerGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#3B82F6" />
+                      <stop offset="50%" stopColor="#06B6D4" />
+                      <stop offset="100%" stopColor="#3B82F6" stopOpacity="0" />
+                    </linearGradient>
+                  </defs>
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r="45"
+                    fill="none"
+                    stroke="url(#spinnerGradient)"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeDasharray="200 100"
+                  />
+                </svg>
+              </motion.div>
+              
+              {/* Icono central - Manzana de FitPlan */}
+              <motion.div
+                className="absolute inset-0 flex items-center justify-center"
+                animate={{ scale: [1, 1.05, 1] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+              >
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center shadow-lg shadow-blue-500/30">
+                  <FaAppleAlt className="text-white text-3xl" />
+                </div>
+              </motion.div>
+            </div>
+            
+            {/* Texto de generación */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="text-center space-y-3"
+            >
+              <h3 className="text-white text-xl font-semibold tracking-wide">
+                Generando tu plan personalizado
+              </h3>
+              <motion.div 
+                className="flex items-center justify-center gap-1"
+                animate={{ opacity: [0.5, 1, 0.5] }}
+                transition={{ duration: 1.5, repeat: Infinity }}
+              >
+                <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+                <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
+                <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+              </motion.div>
+            </motion.div>
+            
+            {/* Tiempo estimado */}
+            {estimatedTimeRemaining !== null && estimatedTimeRemaining > 0 && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.5 }}
+                className="px-6 py-3 rounded-full bg-white/5 border border-white/10"
+              >
+                <p className="text-white/70 text-sm">
+                  Tiempo restante: <span className="text-blue-400 font-semibold ml-1">{estimatedTimeRemaining}s</span>
+                </p>
+              </motion.div>
+            )}
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 }

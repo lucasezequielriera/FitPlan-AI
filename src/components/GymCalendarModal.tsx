@@ -17,7 +17,6 @@ export default function GymCalendarModal({ isOpen, onClose }: GymCalendarModalPr
   const [saving, setSaving] = useState(false);
   const [currentMonthGymDays, setCurrentMonthGymDays] = useState(0);
   const [allGymDays, setAllGymDays] = useState<string[]>([]);
-  const [weeklyAverage, setWeeklyAverage] = useState(0);
   const [yearTotal, setYearTotal] = useState(0);
   const [monthlyData, setMonthlyData] = useState<{ month: string; days: number }[]>([]);
 
@@ -109,30 +108,16 @@ export default function GymCalendarModal({ isOpen, onClose }: GymCalendarModalPr
   };
 
   const calculateStats = (gymDaysArray: string[]) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    // Calcular promedio semanal (últimas 4 semanas)
-    const fourWeeksAgo = new Date(today);
-    fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
-    const recentDays = gymDaysArray.filter(date => {
-      const dateObj = new Date(date);
-      dateObj.setHours(0, 0, 0, 0);
-      return dateObj >= fourWeeksAgo && dateObj <= today;
-    });
-    setWeeklyAverage(Math.round((recentDays.length / 4) * 10) / 10);
-    
-    // Calcular total del año
-    const currentYear = today.getFullYear();
-    const yearDays = gymDaysArray.filter(date => date.startsWith(`${currentYear}-`));
+    // Calcular total del año SELECCIONADO (no siempre el año actual)
+    const yearDays = gymDaysArray.filter(date => date.startsWith(`${selectedYear}-`));
     setYearTotal(yearDays.length);
     
-    // Calcular datos mensuales del año actual
+    // Calcular datos mensuales del año SELECCIONADO (no siempre el año actual)
     const monthNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
     const monthlyStats: { month: string; days: number }[] = [];
     
     for (let month = 0; month < 12; month++) {
-      const monthKey = `${currentYear}-${String(month + 1).padStart(2, '0')}`;
+      const monthKey = `${selectedYear}-${String(month + 1).padStart(2, '0')}`;
       const monthDays = gymDaysArray.filter(date => date.startsWith(monthKey));
       monthlyStats.push({
         month: monthNames[month],
@@ -393,17 +378,12 @@ export default function GymCalendarModal({ isOpen, onClose }: GymCalendarModalPr
               })}
             </div>
 
-            {/* Estadísticas - 3 contadores arriba */}
-            <div className="grid grid-cols-3 gap-2 mb-4">
+            {/* Estadísticas - 2 contadores arriba */}
+            <div className="grid grid-cols-2 gap-2 mb-4">
               <div className="bg-gradient-to-br from-blue-500/20 to-cyan-500/20 rounded-lg p-3 border border-blue-500/30">
                 <p className="text-[10px] text-white/60 mb-1">Este mes</p>
                 <p className="text-xl font-bold text-white">{gymDays.size}</p>
                 <p className="text-[10px] text-blue-400 mt-0.5">días</p>
-              </div>
-              <div className="bg-white/5 rounded-lg p-3 border border-white/10">
-                <p className="text-[10px] text-white/60 mb-1">Promedio</p>
-                <p className="text-xl font-bold text-white">{weeklyAverage}</p>
-                <p className="text-[10px] text-white/40 mt-0.5">semanal</p>
               </div>
               <div className="bg-white/5 rounded-lg p-3 border border-white/10">
                 <p className="text-[10px] text-white/60 mb-1">Total año</p>
