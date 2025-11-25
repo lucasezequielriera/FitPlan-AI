@@ -9,6 +9,7 @@ import Navbar from "@/components/Navbar";
 import PremiumPlanModal from "@/components/PremiumPlanModal";
 import FoodTrackingModal from "@/components/FoodTrackingModal";
 import WeeklyStatsModal from "@/components/WeeklyStatsModal";
+import IMCInfoModal from "@/components/IMCInfoModal";
 import { getAuthSafe, getDbSafe } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { useAuthStore } from "@/store/authStore";
@@ -111,6 +112,26 @@ export default function PlanPage() {
   const [foodDetails, setFoodDetails] = useState<Record<string, { ingredientes?: string[]; pasos_preparacion?: string[]; loading?: boolean; error?: string }>>({});
   const [foodTrackingModalOpen, setFoodTrackingModalOpen] = useState(false);
   const [weeklyStatsModalOpen, setWeeklyStatsModalOpen] = useState(false);
+  const [imcModalOpen, setImcModalOpen] = useState(false);
+
+  // Mostrar modal de IMC solo la primera vez que el usuario ve su plan
+  useEffect(() => {
+    if (!user || !planId) return;
+    
+    // Verificar si ya se mostró el modal para este plan
+    const imcModalShownKey = `imc_modal_shown_${planId}`;
+    const alreadyShown = localStorage.getItem(imcModalShownKey);
+    
+    if (!alreadyShown) {
+      // Esperar un poco para que el usuario vea el plan primero
+      const timer = setTimeout(() => {
+        setImcModalOpen(true);
+        localStorage.setItem(imcModalShownKey, 'true');
+      }, 1500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [user, planId]);
 
   // Resumen de split de entrenamiento para el título
   const splitResumen = (() => {
@@ -2797,6 +2818,20 @@ export default function PlanPage() {
           onClose={() => setWeeklyStatsModalOpen(false)}
           planId={planId}
           userId={authUser?.uid || undefined}
+        />
+      )}
+
+      {/* Modal de información del IMC - se muestra la primera vez que el usuario ve su plan */}
+      {user && (
+        <IMCInfoModal
+          isOpen={imcModalOpen}
+          onClose={() => setImcModalOpen(false)}
+          imc={bmi}
+          pesoActual={user.pesoKg}
+          alturaCm={user.alturaCm}
+          objetivo={user.objetivo}
+          intensidad={user.intensidad}
+          sexo={user.sexo}
         />
       )}
     </div>
