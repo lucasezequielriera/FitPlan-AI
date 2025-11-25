@@ -322,6 +322,8 @@ export default function PlanPage() {
       powerlifting: "Powerlifting/Fuerza",
       resistencia: "Resistencia/Endurance",
       atleta_elite: "Atleta Elite",
+      bulk_cut: "Bulk + Cut",
+      lean_bulk: "Lean Bulk",
     };
     return textos[objetivo] || objetivo;
   };

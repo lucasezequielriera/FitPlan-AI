@@ -1,6 +1,6 @@
 export type ActivityLevel = "sedentario" | "ligero" | "moderado" | "alto" | "atleta"; // Legacy, mantener para compatibilidad
 
-export type Goal = "perder_grasa" | "mantener" | "ganar_masa" | "recomposicion" | "definicion" | "volumen" | "mantenimiento_avanzado" | "corte" | "rendimiento_deportivo" | "powerlifting" | "resistencia" | "atleta_elite";
+export type Goal = "perder_grasa" | "mantener" | "ganar_masa" | "recomposicion" | "definicion" | "volumen" | "mantenimiento_avanzado" | "corte" | "rendimiento_deportivo" | "powerlifting" | "resistencia" | "atleta_elite" | "bulk_cut" | "lean_bulk";
 
 export type Intensidad = "leve" | "moderada" | "intensa" | "ultra";
 
@@ -10,6 +10,7 @@ export interface UserInput {
   nombre: string;
   edad: number;
   pesoKg: number;
+  pesoObjetivoKg?: number; // Peso objetivo para objetivos como bulk_cut o lean_bulk
   alturaCm: number;
   sexo: "masculino" | "femenino";
   actividad: ActivityLevel | number; // number = días de actividad física por semana (0-7) - Legacy, mantener para compatibilidad

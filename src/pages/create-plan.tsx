@@ -33,7 +33,12 @@ const objetivoDescripciones: Record<Goal, string> = {
   
   resistencia: "Optimiza tu capacidad aeróbica y resistencia para deportes de larga duración (running, ciclismo, triatlón, natación). Incluye estrategias de carga de glucógeno, hidratación avanzada, y nutrición durante el ejercicio prolongado. Alto énfasis en carbohidratos de calidad y recuperación.",
   
-  atleta_elite: "El nivel más exigente para atletas de alto rendimiento y competidores. Nutrición de precisión con macros exactos, suplementación estratégica, periodización nutricional avanzada y protocolos de recuperación élite. Requiere compromiso total y es ideal para quienes entrenan 2+ horas diarias."
+  atleta_elite: "El nivel más exigente para atletas de alto rendimiento y competidores. Nutrición de precisión con macros exactos, suplementación estratégica, periodización nutricional avanzada y protocolos de recuperación élite. Requiere compromiso total y es ideal para quienes entrenan 2+ horas diarias.",
+  
+  // Objetivos de transformación con fases
+  bulk_cut: "🔄 BULK + CUT: El método clásico para ganar músculo y quedar definido. FASE 1 (Bulk): Superávit calórico para maximizar ganancia muscular, aceptando algo de grasa. FASE 2 (Cut): Déficit controlado para eliminar la grasa y revelar los músculos. Incluye señales claras de cuándo cambiar de fase y ajustes automáticos. Ideal si querés ganar mucho músculo y luego quedar con abs marcados.",
+  
+  lean_bulk: "💎 LEAN BULK / Volumen Limpio: Gana músculo minimizando la grasa al máximo. Superávit calórico controlado (+300-400 kcal), cardio estratégico 2-3x/semana, y mini-cuts de 2-3 semanas si acumulás grasa. Proceso más lento que bulk+cut pero evitás la fase de corte agresivo. Ideal si querés progresar sin perder definición."
 };
 
 const dietaDescripciones: Record<TipoDieta, string> = {
@@ -906,6 +911,43 @@ export default function CreatePlan() {
                   </p>
                 </label>
               </div>
+
+              {/* Peso objetivo - Solo visible para bulk_cut y lean_bulk */}
+              {(form.objetivo === "bulk_cut" || form.objetivo === "lean_bulk") && (
+                <div className="mt-4 p-4 rounded-xl border border-amber-500/30 bg-amber-500/10">
+                  <label className="flex flex-col gap-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-amber-300">🎯 Peso Objetivo (kg)</span>
+                      <span className="text-xs opacity-60">(Opcional pero recomendado)</span>
+                    </div>
+                    <input 
+                      type="number" 
+                      className="rounded-xl bg-white/5 px-3 py-2 outline-none border border-amber-500/20 focus:border-amber-500/50"
+                      value={form.pesoObjetivoKg ?? ""} 
+                      onChange={(e) => update("pesoObjetivoKg", e.target.value ? Number(e.target.value) : undefined)}
+                      placeholder={`Ej: ${form.pesoKg ? Math.round(form.pesoKg * 1.15) : 90} kg`}
+                    />
+                    <p className="text-xs opacity-70 mt-1">
+                      {form.objetivo === "bulk_cut" 
+                        ? "¿A qué peso querés llegar DEFINIDO (con abs marcados)? El plan calculará el peso de bulk necesario y las fases."
+                        : "¿A qué peso querés llegar manteniendo definición? El plan ajustará el superávit para minimizar grasa."
+                      }
+                    </p>
+                    {form.pesoObjetivoKg && form.pesoKg && form.pesoObjetivoKg > form.pesoKg && (
+                      <div className="mt-2 p-2 rounded-lg bg-white/5 text-xs">
+                        <p className="text-amber-300 font-medium">📊 Estimación:</p>
+                        <p className="opacity-80">
+                          Músculo a ganar: ~{Math.round((form.pesoObjetivoKg - form.pesoKg) * 0.85)} kg
+                          {form.objetivo === "bulk_cut" && ` (Peso de bulk: ~${Math.round(form.pesoObjetivoKg * 1.08)} kg)`}
+                        </p>
+                        <p className="opacity-80">
+                          Tiempo estimado (ULTRA): ~{Math.ceil((form.pesoObjetivoKg - form.pesoKg) / 1.5)} meses
+                        </p>
+                      </div>
+                    )}
+                  </label>
+                </div>
+              )}
               
               {/* Datos opcionales para mayor precisión */}
               <div className="mt-6 rounded-xl border border-white/10 p-4">
@@ -965,6 +1007,10 @@ export default function CreatePlan() {
                       <option value="powerlifting" disabled={!isPremium}>🏋️ Powerlifting/Fuerza - Maximiza tu fuerza en los levantamientos principales</option>
                       <option value="resistencia" disabled={!isPremium}>🚴 Resistencia/Endurance - Running, ciclismo, triatlón y deportes de larga duración</option>
                       <option value="atleta_elite" disabled={!isPremium}>👑 Atleta Elite - El nivel más exigente para competidores de alto rendimiento</option>
+                    </optgroup>
+                    <optgroup label={isPremium ? "🔄 PREMIUM - Transformación con Fases (Activos)" : "🔄 PREMIUM - Transformación con Fases (Desbloquea con suscripción)"}>
+                      <option value="bulk_cut" disabled={!isPremium}>🔄 Bulk + Cut - Gana músculo máximo, luego corta para quedar definido con abs</option>
+                      <option value="lean_bulk" disabled={!isPremium}>💎 Lean Bulk - Gana músculo limpio minimizando grasa (más lento pero sin corte)</option>
                     </optgroup>
                   </select>
                 </label>

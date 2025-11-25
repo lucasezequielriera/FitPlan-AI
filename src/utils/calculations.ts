@@ -249,7 +249,7 @@ export function sugerirEntrenamiento(
   // Moderada se mantiene en valores estándar
   
   // Ajustar según objetivo (ganar masa necesita más recuperación)
-  if (objetivo === "ganar_masa" || objetivo === "volumen" || objetivo === "recomposicion") {
+  if (objetivo === "ganar_masa" || objetivo === "volumen" || objetivo === "recomposicion" || objetivo === "bulk_cut" || objetivo === "lean_bulk") {
     horasSueno += 0.5; // Más tiempo para síntesis de proteínas y crecimiento
   }
   
@@ -266,8 +266,10 @@ export function sugerirEntrenamiento(
   let descripcion = "";
   if (objetivo === "perder_grasa" || objetivo === "corte") {
     descripcion = "Enfoque en quema de grasa: entrenamiento de fuerza para mantener músculo y caminata para acelerar el déficit calórico.";
-  } else if (objetivo === "ganar_masa" || objetivo === "volumen") {
+  } else if (objetivo === "ganar_masa" || objetivo === "volumen" || objetivo === "bulk_cut") {
     descripcion = "Priorizar crecimiento muscular con entrenamiento de fuerza. Cardio mínimo para no interferir con la recuperación y ganancia.";
+  } else if (objetivo === "lean_bulk") {
+    descripcion = "Ganancia muscular controlada con cardio estratégico para mantener definición. Superávit moderado y progresión constante.";
   } else if (objetivo === "recomposicion") {
     descripcion = "Balance entre construcción muscular y quema de grasa. Entrenamiento de fuerza regular con cardio moderado.";
   } else {
@@ -333,7 +335,7 @@ export function calcularProyeccionesMotivacionales(
   // Tiempos objetivo según intensidad (aplicable a todos los objetivos)
   const tiempoObjetivo = getTiempoObjetivo(intensidad);
   
-  if (objetivo === "ganar_masa" || objetivo === "volumen" || objetivo === "powerlifting") {
+  if (objetivo === "ganar_masa" || objetivo === "volumen" || objetivo === "powerlifting" || objetivo === "bulk_cut" || objetivo === "lean_bulk") {
     // Ganancia de músculo - primero según nivel, luego ajustar por intensidad
     if (esPrincipiante) {
       if (intensidad === "ultra") {

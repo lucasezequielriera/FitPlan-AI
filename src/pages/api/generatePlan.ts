@@ -773,6 +773,77 @@ ${input.objetivo === "atleta_elite" ? `- ATLETA ELITE:
   * Monitoreo de composición corporal semanal
   * Protocolo de recuperación élite: sueño, masaje, crioterapia` : ""}` : ""}
 
+${["bulk_cut", "lean_bulk"].includes(input.objetivo) ? `⚠️ OBJETIVO DE TRANSFORMACIÓN CON FASES - ${input.objetivo === "bulk_cut" ? "BULK + CUT" : "LEAN BULK"}:
+${(() => {
+  const pesoActual = input.pesoKg;
+  const pesoObjetivo = (input as unknown as Record<string, unknown>)?.pesoObjetivoKg as number | undefined;
+  const diferencia = pesoObjetivo ? pesoObjetivo - pesoActual : 0;
+  
+  if (input.objetivo === "bulk_cut") {
+    const pesoBulk = pesoObjetivo ? Math.round(pesoObjetivo * 1.08) : Math.round(pesoActual * 1.15);
+    const pesoFinal = pesoObjetivo || Math.round(pesoActual * 1.1);
+    return `
+🔄 BULK + CUT - Plan de 2 fases para máxima ganancia muscular + definición:
+
+📊 DATOS DEL USUARIO:
+- Peso actual: ${pesoActual} kg
+- Peso objetivo final (cortado): ${pesoFinal} kg
+- Peso de bulk estimado: ${pesoBulk} kg
+- Músculo a ganar: ~${diferencia > 0 ? Math.round(diferencia * 0.85) : Math.round(pesoActual * 0.1)} kg
+
+📅 FASE 1 - BULK (Este mes y siguientes hasta llegar a ${pesoBulk} kg):
+- Superávit calórico: +500-700 kcal/día
+- Proteína: 2.0-2.2g/kg de peso corporal
+- Carbohidratos: 4-6g/kg para energía y recuperación
+- Entrenamiento: Alta intensidad, progresión de fuerza, volumen moderado-alto
+- Cardio: Mínimo (2x/semana, 20 min) para mantener salud cardiovascular
+- Meta: Ganar 0.5-1 kg/semana (músculo + algo de grasa inevitable)
+
+⚠️ SEÑALES PARA PASAR A FASE CUT:
+- Llegaste a ${pesoBulk} kg
+- Tu cintura aumentó más de 10 cm
+- Tu % de grasa supera 18-20%
+- Perdiste definición de abs completamente
+
+📅 FASE 2 - CUT (Cuando se cumplan las señales):
+- Déficit calórico: -500-700 kcal/día
+- Proteína: 2.2-2.5g/kg (más alta para preservar músculo)
+- Carbohidratos: Reducidos, timing estratégico pre/post entreno
+- Entrenamiento: Mantener intensidad, reducir volumen levemente
+- Cardio: Aumentar a 3-4x/semana, 30-45 min
+- Meta: Perder 0.5-1 kg/semana hasta llegar a ${pesoFinal} kg definido
+
+⚠️ EL PLAN DE ESTE MES ES FASE BULK - Generar plan de alimentación y entrenamiento para BULK`;
+  } else {
+    // lean_bulk
+    return `
+💎 LEAN BULK - Ganancia muscular minimizando grasa:
+
+📊 DATOS DEL USUARIO:
+- Peso actual: ${pesoActual} kg
+- Peso objetivo: ${pesoObjetivo || Math.round(pesoActual * 1.1)} kg
+- Músculo a ganar: ~${diferencia > 0 ? Math.round(diferencia * 0.9) : Math.round(pesoActual * 0.08)} kg
+
+📅 PROTOCOLO LEAN BULK CONTINUO:
+- Superávit calórico CONTROLADO: +300-400 kcal/día (NO más)
+- Proteína muy alta: 2.2-2.5g/kg de peso corporal
+- Carbohidratos: Moderados, concentrados alrededor del entrenamiento
+- Grasas: Saludables, 0.8-1g/kg
+- Entrenamiento: Alta intensidad, progresión de fuerza, volumen moderado
+- Cardio estratégico: 2-3x/semana, 20-30 min para mantener definición
+- Meta: Ganar 0.3-0.5 kg/semana (casi todo músculo)
+
+⚠️ MINI-CUTS (Cada 2-3 meses si es necesario):
+- Si tu cintura aumenta más de 5 cm
+- Si perdés visibilidad de abs superiores
+- Duración: 2-3 semanas de déficit moderado (-400 kcal)
+- Luego volver a lean bulk
+
+📊 VENTAJA: Progreso más lento pero sin necesidad de corte agresivo al final
+📊 RESULTADO: Llegas a tu peso objetivo ya definido, no "gordo"`;
+  }
+})()}` : ""}
+
 7. El tipo de dieta "${input.tipoDieta || "estandar"}" debe aplicarse ESTRICTAMENTE en todas las comidas. NO HAY EXCEPCIONES:
 ${input.tipoDieta === "mediterranea" ? "- Mediterránea: Enfocarse en aceite de oliva, pescados, vegetales, frutas, legumbres y granos integrales. Limitar carnes rojas y procesados." : ""}
 ${input.tipoDieta === "vegana" ? `- ⚠️ VEGANA (CRÍTICO - ABSOLUTAMENTE ESTRICTO):
