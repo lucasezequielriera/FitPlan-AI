@@ -1284,147 +1284,26 @@ export default function PlanPage() {
             ) : null}
             {user && (
               <div className="flex flex-wrap items-center gap-3 mt-2">
-                <div className={`relative inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors max-w-full group ${!isPremium ? 'bg-white/5 border-white/10 opacity-50' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}>
+                {/* Objetivo - Solo lectura */}
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
                   <span className="text-xs opacity-70 whitespace-nowrap flex-shrink-0">Objetivo:</span>
                   <span className="text-sm font-medium text-white whitespace-nowrap max-w-[150px] md:max-w-none truncate">
                     {getObjetivoTexto(user.objetivo)}
                   </span>
-                  <select
-                    value={user.objetivo}
-                    onChange={(e) => {
-                      if (!isPremium) return;
-                      const nuevoObjetivo = e.target.value as Goal;
-                      const nuevoEsBasico = nuevoObjetivo === "perder_grasa" || nuevoObjetivo === "mantener" || nuevoObjetivo === "ganar_masa";
-                      // Si cambia a objetivo básico, fijar intensidad a leve
-                      const nuevaIntensidad = nuevoEsBasico ? "leve" : user.intensidad;
-                      setUser({ ...user, objetivo: nuevoObjetivo, intensidad: nuevaIntensidad });
-                    }}
-                    disabled={!isPremium}
-                    className={`absolute inset-0 w-full h-full opacity-0 ${!isPremium ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-                    style={{ 
-                      backgroundImage: 'none',
-                      backgroundColor: 'transparent',
-                      color: '#e6f6ff'
-                    }}
-                  >
-                    <optgroup label="Objetivos básicos - Para empezar">
-                      <option value="perder_grasa">Perder peso - Reducción simple de peso corporal</option>
-                      <option value="mantener">Mantener peso - Conservar tu peso actual</option>
-                      <option value="ganar_masa">Aumentar peso - Ganancia simple de peso</option>
-                    </optgroup>
-                    <optgroup label={isPremium ? "🌟 PREMIUM - Objetivos avanzados (Activos)" : "🌟 PREMIUM - Objetivos avanzados (Desbloquea todo el potencial)"}>
-                      <option value="recomposicion" disabled={!isPremium}>🔥 Transformación Total - Quema grasa y construye músculo simultáneamente</option>
-                      <option value="definicion" disabled={!isPremium}>💎 Definición Extrema - Logra músculos marcados con bajo % de grasa corporal</option>
-                      <option value="volumen" disabled={!isPremium}>💪 Hipertrofia Máxima - Maximiza el crecimiento muscular con periodización avanzada</option>
-                      <option value="corte" disabled={!isPremium}>⚡ Corte Avanzado - Reducción de grasa preservando masa muscular (más preciso que perder peso)</option>
-                      <option value="mantenimiento_avanzado" disabled={!isPremium}>🎯 Mantenimiento Elite - Optimización avanzada para atletas experimentados</option>
-                    </optgroup>
-                  </select>
-                  {!isPremium && (
-                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gradient-to-r from-yellow-500/95 to-orange-500/95 text-white text-xs font-medium rounded-lg shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 border border-yellow-400/50">
-                      💳 Requiere Premium para cambiar el objetivo
-                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
-                        <div className="w-2 h-2 bg-gradient-to-r from-yellow-500 to-orange-500 rotate-45 border-r border-b border-yellow-400/50"></div>
-                      </div>
-                    </div>
-                  )}
-                  <svg className={`w-4 h-4 flex-shrink-0 ml-1 ${!isPremium ? 'opacity-30' : 'opacity-50'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
                 </div>
-                <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors w-fit relative ${!isPremium ? 'bg-white/5 border-white/10 opacity-50' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}>
-                  <div className="relative group">
-                    <span className="text-xs opacity-70 whitespace-nowrap">
-                      Intensidad:
-                      {!isPremium && !esObjetivoBasico && (
-                        <span className="text-[10px] opacity-50 ml-1">(Premium)</span>
-                      )}
-                    </span>
-                    <select
-                      value={user.intensidad}
-                      onChange={(e) => {
-                        const nuevaIntensidad = e.target.value as Intensidad;
-                        if (!isPremium && (nuevaIntensidad === "moderada" || nuevaIntensidad === "intensa")) {
-                          return;
-                        }
-                        setUser({ ...user, intensidad: nuevaIntensidad });
-                      }}
-                      disabled={!isPremium}
-                      className={`text-sm font-medium bg-transparent border-none outline-none capitalize appearance-none w-auto text-white ${!isPremium ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-                      style={{ 
-                        backgroundColor: 'transparent',
-                        color: '#e6f6ff',
-                        minWidth: `${getIntensidadTexto(user.intensidad).length * 0.6}ch`
-                      }}
-                    >
-                    <option value="leve">Leve</option>
-                    <optgroup label={isPremium ? "🌟 PREMIUM (Activas)" : "🌟 PREMIUM (Desbloquea con suscripción)"}>
-                      <option value="moderada" disabled={!isPremium || esObjetivoBasico}>
-                        Moderada
-                      </option>
-                      <option value="intensa" disabled={!isPremium || esObjetivoBasico}>
-                        Intensa
-                      </option>
-                    </optgroup>
-                    </select>
-                    {!isPremium && (
-                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gradient-to-r from-yellow-500/95 to-orange-500/95 text-white text-xs font-medium rounded-lg shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 border border-yellow-400/50">
-                        💳 Requiere Premium para cambiar la intensidad
-                        <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
-                          <div className="w-2 h-2 bg-gradient-to-r from-yellow-500 to-orange-500 rotate-45 border-r border-b border-yellow-400/50"></div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                {/* Intensidad - Solo lectura */}
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
+                  <span className="text-xs opacity-70 whitespace-nowrap">Intensidad:</span>
+                  <span className="text-sm font-medium text-white capitalize">
+                    {getIntensidadTexto(user.intensidad)}
+                  </span>
                 </div>
-                <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors w-fit relative ${!isPremium ? 'bg-white/5 border-white/10 opacity-50' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}>
-                  <div className="relative group">
-                    <span className="text-xs opacity-70 whitespace-nowrap">Dieta:</span>
-                    <select
-                      value={user.tipoDieta || "estandar"}
-                      onChange={(e) => {
-                        const nuevaDieta = e.target.value === "estandar" ? undefined : (e.target.value as TipoDieta);
-                        setUser({ ...user, tipoDieta: nuevaDieta });
-                      }}
-                      disabled={!isPremium}
-                      className={`text-sm font-medium bg-transparent border-none outline-none appearance-none w-auto text-white ${!isPremium ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-                      style={{ 
-                        backgroundColor: 'transparent',
-                        color: '#e6f6ff',
-                        minWidth: `${getDietaTexto(user.tipoDieta).length * 0.6}ch`
-                      }}
-                    >
-                    <optgroup label="Dietas básicas">
-                      <option value="estandar">Estándar</option>
-                      <option value="mediterranea">Mediterránea</option>
-                      <option value="vegetariana">Vegetariana</option>
-                      <option value="vegana">Vegana</option>
-                      <option value="low_carb">Low Carb</option>
-                    </optgroup>
-                    <optgroup label={isPremium ? "🌟 PREMIUM (Activas)" : "🌟 PREMIUM"}>
-                      <option value="antiinflamatoria" disabled={!isPremium}>🔥 Antiinflamatoria</option>
-                      <option value="atkins" disabled={!isPremium}>⚡ Atkins</option>
-                      <option value="clinica_mayo" disabled={!isPremium}>🏥 Clínica Mayo</option>
-                      <option value="dash" disabled={!isPremium}>❤️ DASH</option>
-                      <option value="flexitariana" disabled={!isPremium}>🌱 Flexitariana</option>
-                      <option value="keto" disabled={!isPremium}>💪 Keto</option>
-                      <option value="mind" disabled={!isPremium}>🧠 MIND</option>
-                      <option value="menopausia" disabled={!isPremium}>🌸 Menopausia</option>
-                      <option value="paleo" disabled={!isPremium}>🏃 Paleo</option>
-                      <option value="pescatariana" disabled={!isPremium}>🐟 Pescatariana</option>
-                      <option value="sin_gluten" disabled={!isPremium}>🌾 Sin Gluten</option>
-                      <option value="tlc" disabled={!isPremium}>📊 TLC</option>
-                    </optgroup>
-                    </select>
-                    {!isPremium && (
-                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gradient-to-r from-yellow-500/95 to-orange-500/95 text-white text-xs font-medium rounded-lg shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 border border-yellow-400/50">
-                        💳 Requiere Premium para cambiar la dieta
-                        <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
-                          <div className="w-2 h-2 bg-gradient-to-r from-yellow-500 to-orange-500 rotate-45 border-r border-b border-yellow-400/50"></div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                {/* Dieta - Solo lectura */}
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
+                  <span className="text-xs opacity-70 whitespace-nowrap">Dieta:</span>
+                  <span className="text-sm font-medium text-white">
+                    {getDietaTexto(user.tipoDieta)}
+                  </span>
                 </div>
                 {plan?.dificultad && (
                   <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors w-fit"
