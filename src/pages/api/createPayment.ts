@@ -18,20 +18,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   // Definir precios según el tipo de plan (en ARS para Argentina)
   // Equivalente a: Mensual $10 USD | Trimestral $7/mes | Anual $5/mes
-  // Tasa aproximada: 1 USD = 1050 ARS
+  // Tasa aproximada: 1 USD = 1440 ARS
   const planPrices: Record<string, { price: number; title: string; description: string }> = {
     monthly: {
-      price: 10500, // ~$10 USD/mes
+      price: 14400, // ~$10 USD/mes
       title: "Plan Premium Mensual - FitPlan AI",
       description: "Acceso premium mensual a objetivos avanzados, dietas personalizadas y análisis avanzado",
     },
     quarterly: {
-      price: 22000, // ~$7 USD/mes x 3 = $21 USD (~$22.000 ARS) - 30% ahorro
+      price: 30000, // ~$7 USD/mes x 3 = $21 USD (~$30.000 ARS) - 30% ahorro
       title: "Plan Premium Trimestral - FitPlan AI",
       description: "Acceso premium trimestral (3 meses) - Ahorrás 30%",
     },
     annual: {
-      price: 63000, // ~$5 USD/mes x 12 = $60 USD (~$63.000 ARS) - 50% ahorro
+      price: 85000, // ~$5 USD/mes x 12 = $60 USD (~$85.000 ARS) - 50% ahorro
       title: "Plan Premium Anual - FitPlan AI",
       description: "Acceso premium anual (12 meses) - Ahorrás 50%",
     },

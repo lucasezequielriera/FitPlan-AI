@@ -22,19 +22,19 @@ interface Plan {
   popular?: boolean;
 }
 
-// Planes en ARS (MercadoPago) - Tasa ~1050 ARS/USD
+// Planes en ARS (MercadoPago) - Tasa ~1440 ARS/USD
 // Mensual: $10 USD | Trimestral: $7/mes | Anual: $5/mes
 const plansARS: Plan[] = [
   {
     type: "monthly",
     name: "Plan Mensual",
-    price: 10500, // ~$10 USD
+    price: 14400, // ~$10 USD
     period: "mes",
   },
   {
     type: "quarterly",
     name: "Plan Trimestral",
-    price: 22000, // ~$7 USD/mes x 3
+    price: 30000, // ~$7 USD/mes x 3
     period: "3 meses",
     savings: "Ahorrás 30% ($7/mes)",
     popular: true,
@@ -42,7 +42,7 @@ const plansARS: Plan[] = [
   {
     type: "annual",
     name: "Plan Anual",
-    price: 63000, // ~$5 USD/mes x 12
+    price: 85000, // ~$5 USD/mes x 12
     period: "12 meses",
     savings: "Ahorrás 50% ($5/mes)",
   },
