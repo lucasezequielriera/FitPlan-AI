@@ -197,16 +197,21 @@ export default function IMCInfoModal({
               </div>
               
               {/* Barra visual del IMC */}
+              {/* La barra representa IMC de 16 a 40 (rango de 24 unidades) */}
               <div className="space-y-2">
                 <div className="relative h-4 bg-gray-700 rounded-full overflow-hidden">
-                  <div className="absolute inset-y-0 left-0 w-[18.5%] bg-yellow-500/30"></div>
-                  <div className="absolute inset-y-0 left-[18.5%] w-[25%] bg-green-500/30"></div>
-                  <div className="absolute inset-y-0 left-[43.5%] w-[20%] bg-yellow-500/30"></div>
-                  <div className="absolute inset-y-0 left-[63.5%] w-[36.5%] bg-red-500/30"></div>
-                  {/* Indicador de posición */}
+                  {/* Bajo peso: IMC 16-18.5 → 0% a 10.4% */}
+                  <div className="absolute inset-y-0 left-0 w-[10.4%] bg-yellow-500/40"></div>
+                  {/* Saludable: IMC 18.5-25 → 10.4% a 37.5% (ancho 27.1%) */}
+                  <div className="absolute inset-y-0 left-[10.4%] w-[27.1%] bg-green-500/40"></div>
+                  {/* Sobrepeso: IMC 25-30 → 37.5% a 58.3% (ancho 20.8%) */}
+                  <div className="absolute inset-y-0 left-[37.5%] w-[20.8%] bg-yellow-500/40"></div>
+                  {/* Obesidad: IMC 30-40 → 58.3% a 100% (ancho 41.7%) */}
+                  <div className="absolute inset-y-0 left-[58.3%] w-[41.7%] bg-red-500/40"></div>
+                  {/* Indicador de posición - fórmula: ((imc - 16) / 24) * 100 */}
                   <motion.div
                     initial={{ left: 0 }}
-                    animate={{ left: `${Math.min(Math.max((imc / 40) * 100, 2), 98)}%` }}
+                    animate={{ left: `${Math.min(Math.max(((imc - 16) / 24) * 100, 1), 99)}%` }}
                     transition={{ delay: 0.3, duration: 0.5 }}
                     className="absolute top-0 w-1 h-full bg-white rounded-full shadow-lg"
                     style={{ transform: "translateX(-50%)" }}
