@@ -34,7 +34,7 @@ export default async function handler(
     let history = snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
-    }));
+    })) as Array<{ id: string; planId?: string; date?: string | Date; sets?: Array<{ weight: number; completed: boolean }> }>;
 
     // Filtrar por planId si se proporciona
     if (planId) {
