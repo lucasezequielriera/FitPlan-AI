@@ -468,7 +468,7 @@ export default function PlanPage() {
         {dayData.ejercicios && dayData.ejercicios.length > 0 ? (
           <ul className="space-y-3">
             {dayData.ejercicios.map((ejercicio, ei) => {
-              const restTime = ejercicio.rest_seconds || ejercicio.rest_sec;
+              const restTime = ejercicio.rest_seconds || (ejercicio as unknown as { rest_sec?: number }).rest_sec;
               const exerciseId = `w${week}-d${dayIndex}-e${ei}`;
               const progress = exerciseProgress[exerciseId] || { completed: 0, total: ejercicio.sets };
               
@@ -4564,7 +4564,7 @@ export default function PlanPage() {
                           {(dia.ejercicios || []).length > 0 ? (
                             <ul className="space-y-3">
                               {(dia.ejercicios || []).map((ejercicio: TrainingExercise, ei: number) => {
-                                const restTime = ejercicio.rest_seconds || ejercicio.rest_sec;
+                                const restTime = ejercicio.rest_seconds || (ejercicio as unknown as { rest_sec?: number }).rest_sec;
                                 const exerciseId = `w${semanaSeleccionada}-d${di}-e${ei}`;
                                 const progress = exerciseProgress[exerciseId] || { completed: 0, total: ejercicio.sets };
                                 
