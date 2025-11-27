@@ -54,6 +54,7 @@ export default function ExerciseSetTracker({
   const [saved, setSaved] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const onProgressChangeRef = useRef(onProgressChange);
+  const lastNotifiedProgress = useRef<{ completed: number; total: number } | null>(null);
   
   // Actualizar la referencia cuando cambia la función
   useEffect(() => {
@@ -118,16 +119,20 @@ export default function ExerciseSetTracker({
             });
             setSets(loadedSets);
             
-            // Notificar progreso cargado
-            const completed = loadedSets.filter(s => s.completed).length;
-            if (onProgressChangeRef.current) {
-              onProgressChangeRef.current(completed, exercise.sets);
-            }
-            
             // Si hay datos guardados, expandir automáticamente
             if (loadedSets.some(s => s.weight > 0 || s.completed)) {
               setIsExpanded(true);
             }
+            
+            // Notificar progreso cargado después de un delay para evitar loops
+            setTimeout(() => {
+              const completed = loadedSets.filter(s => s.completed).length;
+              if (onProgressChangeRef.current) {
+                onProgressChangeRef.current(completed, exercise.sets);
+                // Actualizar el último valor notificado
+                lastNotifiedProgress.current = { completed, total: exercise.sets };
+              }
+            }, 200);
           }
         }
       } else {
@@ -149,10 +154,8 @@ export default function ExerciseSetTracker({
       completed: false,
     }));
     setSets(initialSets);
-    // Notificar progreso inicial
-    if (onProgressChangeRef.current) {
-      onProgressChangeRef.current(0, exercise.sets);
-    }
+    // NO notificar progreso inicial aquí para evitar loops
+    // El progreso se notificará cuando el usuario interactúe con los sets
   }, [exercise.sets, exercise.reps]);
 
   // Cargar historial solo cuando se expande (para evitar demasiadas peticiones simultáneas)
@@ -185,12 +188,31 @@ export default function ExerciseSetTracker({
     });
   };
 
-  // Notificar cambio de progreso cuando cambian los sets
+  // Notificar cambio de progreso cuando cambian los sets (con debounce para evitar loops)
   useEffect(() => {
-    if (onProgressChangeRef.current && sets.length > 0) {
-      const completed = sets.filter(s => s.completed).length;
-      onProgressChangeRef.current(completed, exercise.sets);
+    if (sets.length === 0) return;
+    
+    const completed = sets.filter(s => s.completed).length;
+    const total = exercise.sets;
+    
+    // Solo notificar si el progreso realmente cambió
+    if (
+      lastNotifiedProgress.current &&
+      lastNotifiedProgress.current.completed === completed &&
+      lastNotifiedProgress.current.total === total
+    ) {
+      return; // No notificar si no cambió
     }
+    
+    // Usar un timeout para evitar llamadas excesivas
+    const timeoutId = setTimeout(() => {
+      if (onProgressChangeRef.current) {
+        onProgressChangeRef.current(completed, total);
+        lastNotifiedProgress.current = { completed, total };
+      }
+    }, 100); // Debounce más largo para evitar loops
+    
+    return () => clearTimeout(timeoutId);
   }, [sets, exercise.sets]);
 
   const handleSave = async () => {

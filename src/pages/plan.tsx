@@ -14,6 +14,8 @@ import IMCInfoModal from "@/components/IMCInfoModal";
 import PlanContinuityModal from "@/components/PlanContinuityModal";
 import MonthChangesModal from "@/components/MonthChangesModal";
 import ExerciseSetTracker from "@/components/ExerciseSetTracker";
+import TrainingCalendar from "@/components/TrainingCalendar";
+import type { TrainingDayPlan } from "@/types/plan";
 import { getAuthSafe, getDbSafe } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { useAuthStore } from "@/store/authStore";
@@ -114,6 +116,15 @@ export default function PlanPage() {
   const [diasExpandidos, setDiasExpandidos] = useState<Record<string, boolean>>({});
   const [diaProgressCache, setDiaProgressCache] = useState<Record<string, { total: number; completed: number; porcentaje: number }>>({});
   const [vistaPlan, setVistaPlan] = useState<'entrenamiento' | 'alimentacion'>('alimentacion');
+  // Estados para calendario de entrenamiento
+  const [selectedTrainingDate, setSelectedTrainingDate] = useState<Date | null>(null);
+  const [selectedDayData, setSelectedDayData] = useState<{ day: TrainingDayPlan; week: number; dayIndex: number } | null>(null);
+  // Estado separado para el progreso del día seleccionado (evita loops)
+  const [selectedDayProgress, setSelectedDayProgress] = useState<Record<string, { completed: number; total: number }>>({});
+  // Estado para mostrar loader mientras se cargan los datos del día seleccionado
+  const [loadingSelectedDay, setLoadingSelectedDay] = useState(false);
+  // Cache de progreso cargado por día (evita recargas innecesarias)
+  const dayProgressCache = useRef<Map<string, Record<string, { completed: number; total: number }>>>(new Map());
   const [modalAlimentosAbierto, setModalAlimentosAbierto] = useState<null | { diaIdx: number }>(null);
   const [foodDetails, setFoodDetails] = useState<Record<string, { ingredientes?: string[]; pasos_preparacion?: string[]; loading?: boolean; error?: string }>>({});
   const [foodTrackingModalOpen, setFoodTrackingModalOpen] = useState(false);
@@ -123,8 +134,22 @@ export default function PlanPage() {
   // Estado para rastrear progreso de ejercicios (ejercicioId -> { completed, total })
   const [exerciseProgress, setExerciseProgress] = useState<Record<string, { completed: number; total: number }>>({});
   
+  // Ref para mantener una referencia estable de selectedDayData dentro de loadExerciseProgress
+  const selectedDayDataRefForLoad = useRef(selectedDayData);
+  
+  useEffect(() => {
+    selectedDayDataRefForLoad.current = selectedDayData;
+  }, [selectedDayData]);
+  
   const loadExerciseProgress = useCallback(async () => {
     if (!authUser || !planId) return;
+    
+    // IMPORTANTE: NO cargar si hay un día seleccionado del calendario
+    // Esto previene que se actualice exerciseProgress cuando hay un día seleccionado
+    // Usar ref para evitar que el callback se recree cuando selectedDayData cambia
+    if (selectedDayDataRefForLoad.current) {
+      return; // NO cargar si hay un día seleccionado
+    }
     
     try {
       const tp = (plan as unknown as Record<string, unknown>)?.training_plan as TrainingPlan | undefined;
@@ -204,36 +229,359 @@ export default function PlanPage() {
       );
       
       // Actualizar estado inmediatamente con los ejercicios actuales
-      const currentProgressMap: Record<string, { completed: number; total: number }> = {};
-      currentProgressResults.forEach(({ exerciseId, completed, total }) => {
-        currentProgressMap[exerciseId] = { completed, total };
-      });
-      setExerciseProgress(prev => ({ ...prev, ...currentProgressMap }));
+      // IMPORTANTE: Verificar nuevamente antes de actualizar exerciseProgress usando ref
+      if (!selectedDayDataRefForLoad.current) {
+        const currentProgressMap: Record<string, { completed: number; total: number }> = {};
+        currentProgressResults.forEach(({ exerciseId, completed, total }) => {
+          currentProgressMap[exerciseId] = { completed, total };
+        });
+        setExerciseProgress(prev => ({ ...prev, ...currentProgressMap }));
+      }
       
       // 2. Cargar el resto de ejercicios en segundo plano (en lotes de 2 para no sobrecargar)
-      if (otherExercises.length > 0) {
+      if (otherExercises.length > 0 && !selectedDayDataRefForLoad.current) {
         // Usar setTimeout para no bloquear la UI
         setTimeout(async () => {
+          // Verificar nuevamente antes de cargar usando ref
+          if (selectedDayDataRefForLoad.current) {
+            return; // NO cargar si hay un día seleccionado
+          }
+          
           const otherProgressResults = await processInBatches(
             otherExercises,
             2,
             loadExerciseProgress
           );
           
-          const otherProgressMap: Record<string, { completed: number; total: number }> = {};
-          otherProgressResults.forEach(({ exerciseId, completed, total }) => {
-            otherProgressMap[exerciseId] = { completed, total };
-          });
-          
-          setExerciseProgress(prev => ({ ...prev, ...otherProgressMap }));
+          // Verificar nuevamente antes de actualizar usando ref
+          if (!selectedDayDataRefForLoad.current) {
+            const otherProgressMap: Record<string, { completed: number; total: number }> = {};
+            otherProgressResults.forEach(({ exerciseId, completed, total }) => {
+              otherProgressMap[exerciseId] = { completed, total };
+            });
+            
+            setExerciseProgress(prev => ({ ...prev, ...otherProgressMap }));
+          }
         }, 200); // Delay un poco más largo
       }
     } catch (error) {
       console.error("Error cargando progreso de ejercicios:", error);
     }
-  }, [authUser, planId, semanaSeleccionada, plan]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authUser, planId, semanaSeleccionada, plan]); // NO incluir selectedDayData para evitar recrear el callback
+  
+  // Ref para prevenir llamadas duplicadas
+  const loadingProgressRef = useRef<string | null>(null);
+  const isLoadingDayRef = useRef(false);
+  const lastLoadedDayRef = useRef<string | null>(null);
+  const processingSelectionRef = useRef(false);
+  const lastSelectedDateRef = useRef<string | null>(null);
+  
+  // Función para cargar progreso solo de un día específico
+  // NUEVA VERSIÓN: Usa un estado separado para evitar loops
+  const loadExerciseProgressForDay = useCallback(async (week: number, dayIndex: number, dayData: TrainingDayPlan) => {
+    if (!authUser || !planId || !dayData.ejercicios) {
+      setLoadingSelectedDay(false);
+      return;
+    }
+    
+    // Crear una clave única para este día
+    const dayKey = `w${week}-d${dayIndex}`;
+    
+    // PREVENIR LLAMADAS DUPLICADAS - Verificaciones múltiples y estrictas
+    if (isLoadingDayRef.current) {
+      console.warn("🚫 Ya se está cargando un día, omitiendo");
+      return; // Ya se está cargando, omitir
+    }
+    
+    if (loadingProgressRef.current === dayKey) {
+      console.warn("🚫 Este día ya se está cargando, omitiendo");
+      return; // Ya se está cargando este día específico, omitir
+    }
+    
+    // Verificar si ya tenemos los datos en cache
+    const cachedProgress = dayProgressCache.current.get(dayKey);
+    if (cachedProgress) {
+      console.log("✅ Usando datos del cache para este día");
+      setSelectedDayProgress(cachedProgress);
+      setLoadingSelectedDay(false);
+      return; // Usar cache, no recargar
+    }
+    
+    if (lastLoadedDayRef.current === dayKey) {
+      // Si ya fue cargado pero no está en cache, no recargar
+      console.log("✅ Este día ya fue procesado, omitiendo");
+      setLoadingSelectedDay(false);
+      return;
+    }
+    
+    // Marcar que estamos cargando ANTES de hacer cualquier cosa
+    isLoadingDayRef.current = true;
+    loadingProgressRef.current = dayKey;
+    
+    try {
+      const exercises = dayData.ejercicios.map((ejercicio, ei) => ({
+        exerciseName: ejercicio.name,
+        exerciseId: `w${week}-d${dayIndex}-e${ei}`,
+        sets: ejercicio.sets,
+      }));
+      
+      // Cargar progreso de todos los ejercicios del día en paralelo (máximo 5 a la vez)
+      const batchSize = 5;
+      const progressMap: Record<string, { completed: number; total: number }> = {};
+      
+      for (let i = 0; i < exercises.length; i += batchSize) {
+        const batch = exercises.slice(i, i + batchSize);
+        const batchPromises = batch.map(async ({ exerciseName, exerciseId, sets }) => {
+          try {
+            const response = await fetch(
+              `/api/getExerciseHistory?userId=${authUser.uid}&exerciseName=${encodeURIComponent(exerciseName)}&planId=${planId}`
+            );
+            if (response.ok) {
+              const data = await response.json();
+              if (data.history && data.history.length > 0) {
+                const latestSession = data.history[0];
+                if (latestSession.sets && latestSession.sets.length > 0) {
+                  const completed = latestSession.sets.filter((s: { completed: boolean }) => s.completed).length;
+                  return { exerciseId, completed, total: sets };
+                }
+              }
+            }
+          } catch (error) {
+            console.error(`Error cargando progreso de ${exerciseName}:`, error);
+          }
+          return { exerciseId, completed: 0, total: sets };
+        });
+        
+        const batchResults = await Promise.all(batchPromises);
+        batchResults.forEach(({ exerciseId, completed, total }) => {
+          progressMap[exerciseId] = { completed, total };
+        });
+      }
+      
+      // IMPORTANTE: Actualizar el estado separado para el día seleccionado
+      // Esto NO dispara el useEffect que recalcula el progreso global
+      // Solo actualizar si realmente hay datos
+      if (Object.keys(progressMap).length > 0) {
+        setSelectedDayProgress(progressMap);
+        // Guardar en cache para evitar recargas futuras
+        dayProgressCache.current.set(dayKey, progressMap);
+      }
+      
+      // Marcar que este día ya fue cargado
+      lastLoadedDayRef.current = dayKey;
+    } catch (error) {
+      console.error("Error cargando progreso del día:", error);
+    } finally {
+      // Limpiar las referencias INMEDIATAMENTE
+      isLoadingDayRef.current = false;
+      loadingProgressRef.current = null;
+      setLoadingSelectedDay(false); // Ocultar loader
+    }
+  }, [authUser, planId]);
+  
+  // Componente para mostrar el entrenamiento de un día específico
+  const DayTrainingPanel = ({
+    dayData,
+    week,
+    dayIndex,
+    date,
+    exerciseProgress,
+    planId,
+    userId,
+    onProgressChange,
+  }: {
+    dayData: TrainingDayPlan;
+    week: number;
+    dayIndex: number;
+    date: Date | null;
+    exerciseProgress: Record<string, { completed: number; total: number }>;
+    planId?: string;
+    userId?: string;
+    onProgressChange: (exerciseId: string, completed: number, total: number) => void;
+  }) => {
+    // Calcular progreso del día
+    const totalSeries = dayData.ejercicios?.reduce((sum, e) => sum + e.sets, 0) || 0;
+    const completedSeries = dayData.ejercicios?.reduce((sum, e, ei) => {
+      const exerciseId = `w${week}-d${dayIndex}-e${ei}`;
+      return sum + (exerciseProgress[exerciseId]?.completed || 0);
+    }, 0) || 0;
+    const porcentaje = totalSeries > 0 ? Math.round((completedSeries / totalSeries) * 100) : 0;
+    
+    // Obtener músculos trabajados
+    const muscleGroups = new Set<string>();
+    dayData.ejercicios?.forEach(ej => {
+      if (ej.muscle_group) {
+        muscleGroups.add(ej.muscle_group);
+      }
+    });
+    const musculos = muscleGroups.size >= 5 
+      ? "Full Body" 
+      : Array.from(muscleGroups).sort().join(", ");
+    
+    const dateStr = date ? date.toLocaleDateString('es-AR', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    }) : dayData.day;
+    
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mt-6 rounded-xl border-2 border-cyan-500/30 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-xl font-bold text-white flex items-center gap-2">
+              <span className="text-cyan-400">🏋️</span>
+              {dayData.day}
+              {musculos && (
+                <span className="text-sm font-normal opacity-70 ml-2">({musculos})</span>
+              )}
+            </h3>
+            {date && (
+              <p className="text-sm text-white/60 mt-1 capitalize">{dateStr}</p>
+            )}
+          </div>
+          <div className="text-right">
+            <div className="text-sm text-white/70">Progreso del día</div>
+            <div className="text-lg font-bold text-cyan-300">
+              {completedSeries}/{totalSeries} ({porcentaje}%)
+            </div>
+          </div>
+        </div>
+        
+        {/* Calentamiento */}
+        {dayData.warmup && (
+          <div className="mb-4 p-3 rounded-md bg-gradient-to-r from-orange-500/20 to-yellow-500/20 border border-orange-500/30">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-sm font-semibold text-orange-300">🔥 Calentamiento</span>
+              <span className="text-xs opacity-70">({dayData.warmup.duration_minutes} min)</span>
+            </div>
+            <p className="text-sm opacity-90 leading-relaxed">{dayData.warmup.description}</p>
+          </div>
+        )}
+        
+        {/* Ejercicios */}
+        {dayData.ejercicios && dayData.ejercicios.length > 0 ? (
+          <ul className="space-y-3">
+            {dayData.ejercicios.map((ejercicio, ei) => {
+              const restTime = ejercicio.rest_seconds || ejercicio.rest_sec;
+              const exerciseId = `w${week}-d${dayIndex}-e${ei}`;
+              const progress = exerciseProgress[exerciseId] || { completed: 0, total: ejercicio.sets };
+              
+              return (
+                <li key={`ej-${week}-${dayIndex}-${ei}`} className="rounded-lg bg-white/5 border border-white/10 p-3">
+                  <div className="flex-1">
+                    {/* Header del ejercicio */}
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <span className="font-semibold text-white">{ejercicio.name}</span>
+                          <span className="text-sm opacity-70">· {ejercicio.sets}x{String(ejercicio.reps)}</span>
+                          <span className="ml-auto text-sm font-medium text-cyan-300">
+                            {progress.completed}/{progress.total}
+                          </span>
+                          {ejercicio.muscle_group && (
+                            <span className="text-xs px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                              {ejercicio.muscle_group}
+                            </span>
+                          )}
+                        </div>
+                        {/* Detalles técnicos compactos */}
+                        <div className="flex items-center gap-3 flex-wrap text-xs opacity-80">
+                          {ejercicio.rpe && (
+                            <span className="flex items-center gap-1">
+                              <span className="opacity-60">RPE:</span>
+                              <span className="font-medium">{ejercicio.rpe}/10</span>
+                            </span>
+                          )}
+                          {ejercicio.tempo && (
+                            <span className="flex items-center gap-1">
+                              <span className="opacity-60">Tempo:</span>
+                              <span className="font-medium">{ejercicio.tempo}</span>
+                            </span>
+                          )}
+                          {restTime && (
+                            <span className="flex items-center gap-1">
+                              <span className="opacity-60">Descanso:</span>
+                              <span className="font-medium">{restTime}s</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Técnica, progresión, cues, alternativa (igual que en el modal) */}
+                    {ejercicio.technique && (
+                      <details className="mt-2">
+                        <summary className="text-xs font-medium text-cyan-300 cursor-pointer hover:text-cyan-200">
+                          💡 Técnica
+                        </summary>
+                        <p className="mt-1 text-xs opacity-90 leading-relaxed pl-2 border-l-2 border-cyan-500/30">
+                          {ejercicio.technique}
+                        </p>
+                      </details>
+                    )}
+                    
+                    {ejercicio.progression && (
+                      <details className="mt-2">
+                        <summary className="text-xs font-medium text-yellow-300 cursor-pointer hover:text-yellow-200">
+                          📈 Progresión
+                        </summary>
+                        <p className="mt-1 text-xs opacity-90 leading-relaxed pl-2 border-l-2 border-yellow-500/30">
+                          {ejercicio.progression}
+                        </p>
+                      </details>
+                    )}
+                    
+                    {ejercicio.cues && ejercicio.cues.length > 0 && (
+                      <div className="mt-2">
+                        <p className="text-xs font-medium text-purple-300 mb-1">🎯 Pistas mentales:</p>
+                        <ul className="list-disc pl-4 space-y-0.5">
+                          {ejercicio.cues.map((cue, cueIdx) => (
+                            <li key={`cue-${ei}-${cueIdx}`} className="text-xs opacity-90">{cue}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
+                    {ejercicio.alternative && (
+                      <div className="mt-2 p-2 rounded bg-orange-500/10 border border-orange-500/30">
+                        <p className="text-xs font-medium text-orange-300 mb-1">⚠️ Alternativa (si tienes lesión):</p>
+                        <p className="text-xs opacity-90">{ejercicio.alternative}</p>
+                      </div>
+                    )}
+                    
+                    {/* Tracker de pesos por serie */}
+                    {userId && planId && (
+                      <ExerciseSetTracker
+                        exercise={ejercicio}
+                        week={week}
+                        day={dayData.day}
+                        planId={planId}
+                        userId={userId}
+                        onProgressChange={(completed, total) => {
+                          onProgressChange(exerciseId, completed, total);
+                        }}
+                      />
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="text-center py-8 text-white/70">No hay ejercicios programados para este día</p>
+        )}
+      </motion.div>
+    );
+  };
   
   // Función para calcular el progreso de todos los días (solo se llama al abrir el modal)
+  // IMPORTANTE: NO usar exerciseProgress en las dependencias para evitar loops
   const calcularProgresoDias = useCallback(() => {
     if (!plan) return;
     
@@ -253,6 +601,7 @@ export default function PlanPage() {
         if (dia.ejercicios && dia.ejercicios.length > 0) {
           dia.ejercicios.forEach((ejercicio: TrainingExercise, ei: number) => {
             const exerciseId = `w${weekNumber}-d${di}-e${ei}`;
+            // Usar el estado actual de exerciseProgress directamente (no como dependencia)
             const progress = exerciseProgress[exerciseId];
             
             // Siempre usar ejercicio.sets como total (valor del plan)
@@ -271,18 +620,40 @@ export default function PlanPage() {
     });
     
     setDiaProgressCache(newCache);
-  }, [plan, exerciseProgress]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan]); // NO incluir exerciseProgress para evitar loops
   
   // Cargar progreso de ejercicios cuando se abre el modal de entrenamiento
+  // Ref para prevenir que este useEffect se ejecute múltiples veces
+  const modalOpenedRef = useRef(false);
+  
   useEffect(() => {
-    if (modalEntrenamientoAbierto && authUser && planId) {
+    // IMPORTANTE: Si hay un día seleccionado del calendario, NO hacer nada
+    // Verificar tanto el estado como el ref para mayor seguridad
+    if (selectedDayData || selectedDayDataRefForLoad.current) {
+      return;
+    }
+    
+    // Solo cargar si se abre el modal desde el botón tradicional (no desde el calendario)
+    // Y solo si no se ha ejecutado ya para esta apertura del modal
+    if (modalEntrenamientoAbierto && authUser && planId && !modalOpenedRef.current) {
+      // Verificar nuevamente antes de ejecutar (por si selectedDayData cambió entre renders)
+      if (selectedDayData || selectedDayDataRefForLoad.current) {
+        return;
+      }
+      
+      modalOpenedRef.current = true;
+      
       // Limpiar cache al abrir el modal
       setDiaProgressCache({});
       
       // Calcular progreso inicial (solo totales, sin datos guardados aún)
       calcularProgresoDias();
       
-      loadExerciseProgress();
+      // Solo cargar progreso si NO hay un día seleccionado
+      if (!selectedDayData && !selectedDayDataRefForLoad.current) {
+        loadExerciseProgress();
+      }
       
       // Expandir automáticamente el día actual
       const diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
@@ -303,18 +674,102 @@ export default function PlanPage() {
         });
       }
     }
-  }, [modalEntrenamientoAbierto, authUser, planId, semanaSeleccionada, loadExerciseProgress, plan, calcularProgresoDias]);
-  
-  // Actualizar progreso de días SOLO cuando cambia exerciseProgress (después de cargar datos)
-  // NO se recalcula al expandir días, solo cuando cambian los datos de ejercicio
-  useEffect(() => {
-    if (!modalEntrenamientoAbierto || !plan) return;
     
-    // Solo actualizar si exerciseProgress tiene datos (no en el cálculo inicial)
-    if (Object.keys(exerciseProgress).length > 0) {
-      calcularProgresoDias();
+    // Resetear el ref cuando se cierra el modal
+    if (!modalEntrenamientoAbierto) {
+      modalOpenedRef.current = false;
+      // Limpiar TODAS las referencias de carga cuando se cierra el modal
+      isLoadingDayRef.current = false;
+      loadingProgressRef.current = null;
+      lastLoadedDayRef.current = null;
+      isRecalculatingRef.current = false;
+      processingSelectionRef.current = false;
+      lastSelectedDateRef.current = null;
+      lastExerciseProgressRef.current = ''; // Limpiar también este
+      // Limpiar el cache también
+      dayProgressCache.current.clear();
     }
-  }, [exerciseProgress, modalEntrenamientoAbierto, plan, calcularProgresoDias]);
+  }, [modalEntrenamientoAbierto, authUser, planId, semanaSeleccionada, loadExerciseProgress, plan, calcularProgresoDias, selectedDayData]);
+  
+  // DESHABILITAR COMPLETAMENTE este useEffect cuando hay un día seleccionado del calendario
+  // Solo recalcular progreso cuando NO hay selectedDayData
+  const lastExerciseProgressRef = useRef<string>('');
+  const isRecalculatingRef = useRef(false);
+  const selectedDayDataRef = useRef(selectedDayData);
+  
+  // Actualizar ref cuando cambia selectedDayData
+  useEffect(() => {
+    selectedDayDataRef.current = selectedDayData;
+  }, [selectedDayData]);
+  
+  // DESHABILITAR COMPLETAMENTE este useEffect cuando hay un día seleccionado del calendario
+  // Este useEffect SOLO debe ejecutarse cuando el modal se abre desde el botón tradicional
+  // IMPORTANTE: Si hay selectedDayData, este useEffect NO debe ejecutarse EN ABSOLUTO
+  useEffect(() => {
+    // PRIMERA VERIFICACIÓN CRÍTICA: Si hay un día seleccionado del calendario, NO HACER NADA
+    // Esta es la verificación MÁS IMPORTANTE - debe ser la primera y más estricta
+    if (selectedDayData || selectedDayDataRef.current) {
+      return; // NO hacer nada si hay un día seleccionado - SALIR INMEDIATAMENTE
+    }
+    
+    // SEGUNDA VERIFICACIÓN: Si el modal no está abierto, NO HACER NADA
+    if (!modalEntrenamientoAbierto) {
+      return;
+    }
+    
+    // TERCERA VERIFICACIÓN: Si ya se está procesando algo, NO HACER NADA
+    if (!plan || isRecalculatingRef.current || loadingProgressRef.current || isLoadingDayRef.current || processingSelectionRef.current) {
+      return;
+    }
+    
+    // CUARTA VERIFICACIÓN: Solo procesar si exerciseProgress tiene datos
+    if (Object.keys(exerciseProgress).length === 0) {
+      return;
+    }
+    
+    const progressKey = JSON.stringify(exerciseProgress);
+    
+    // QUINTA VERIFICACIÓN: Prevenir recálculos duplicados
+    if (lastExerciseProgressRef.current === progressKey) {
+      return;
+    }
+    
+    // SEXTA VERIFICACIÓN: Verificar nuevamente antes de marcar como recalculando
+    if (selectedDayData || selectedDayDataRef.current || loadingProgressRef.current || isLoadingDayRef.current || processingSelectionRef.current) {
+      return;
+    }
+    
+    // Marcar como recalculando
+    isRecalculatingRef.current = true;
+    lastExerciseProgressRef.current = progressKey;
+    
+    // Usar setTimeout para evitar loops inmediatos
+    const timeoutId = setTimeout(() => {
+      // SÉPTIMA VERIFICACIÓN: Verificar nuevamente antes de recalcular
+      if (
+        !modalEntrenamientoAbierto || 
+        selectedDayData ||
+        selectedDayDataRef.current || 
+        loadingProgressRef.current || 
+        isLoadingDayRef.current || 
+        processingSelectionRef.current
+      ) {
+        isRecalculatingRef.current = false;
+        return;
+      }
+      
+      // Solo recalcular si todas las verificaciones pasan
+      calcularProgresoDias();
+      isRecalculatingRef.current = false;
+    }, 500);
+    
+    // Cleanup: cancelar el timeout si el componente se desmonta o cambian las dependencias
+    return () => {
+      clearTimeout(timeoutId);
+      isRecalculatingRef.current = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exerciseProgress, modalEntrenamientoAbierto, plan, calcularProgresoDias]); // NO incluir selectedDayData en dependencias para evitar re-ejecuciones
   
   // Estados para modal de siguiente mes (plan multi-fase)
   const [modalSiguienteMesAbierto, setModalSiguienteMesAbierto] = useState(false);
@@ -339,14 +794,27 @@ export default function PlanPage() {
   const [monthChangesModalOpen, setMonthChangesModalOpen] = useState(false);
   const [monthChangesData, setMonthChangesData] = useState<any>(null);
 
+  // Ref para prevenir cargas duplicadas de registros de peso
+  const loadingRegistrosPesoRef = useRef(false);
+  const lastLoadedPlanIdRef = useRef<string | null>(null);
+  
   // Cargar registros de peso para el modal de continuidad
   useEffect(() => {
+    // Prevenir cargas duplicadas
+    if (!planId || loadingRegistrosPesoRef.current || lastLoadedPlanIdRef.current === planId) {
+      return;
+    }
+    
+    loadingRegistrosPesoRef.current = true;
+    lastLoadedPlanIdRef.current = planId;
+    
     const loadRegistrosPeso = async () => {
-      if (!planId) return;
-      
       try {
         const db = getDbSafe();
-        if (!db) return;
+        if (!db) {
+          loadingRegistrosPesoRef.current = false;
+          return;
+        }
         
         const planRef = doc(db, "planes", planId);
         const planDoc = await getDoc(planRef);
@@ -362,6 +830,8 @@ export default function PlanPage() {
         }
       } catch (error) {
         console.error("Error al cargar registros de peso:", error);
+      } finally {
+        loadingRegistrosPesoRef.current = false;
       }
     };
     
@@ -2653,15 +3123,81 @@ export default function PlanPage() {
             </button>
           </div>
 
-          {/* Botón para abrir modal de entrenamiento */}
+          {/* Calendario de entrenamiento */}
           {vistaPlan === 'entrenamiento' && isPremium && (plan as unknown as Record<string, unknown>)?.training_plan && (
-            <div className="mt-6 flex justify-center">
-              <button
-                onClick={() => setModalEntrenamientoAbierto(true)}
-                className="px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 hover:from-cyan-500/30 hover:to-blue-500/30 transition-all text-white font-medium"
-              >
-                🏋️ Ver Plan de Entrenamiento
-              </button>
+            <div className="mt-6">
+              <TrainingCalendar
+                trainingPlan={(plan as unknown as Record<string, unknown>)?.training_plan as TrainingPlan}
+                planStartDate={fechaInicioPlan}
+                planDurationDays={plan?.duracion_plan_dias || 30}
+                onDaySelect={(date, dayData, week, dayIndex) => {
+                  // Prevenir procesamiento duplicado
+                  if (processingSelectionRef.current) {
+                    console.warn("🚫 Ya se está procesando una selección, omitiendo");
+                    return;
+                  }
+                  
+                  // Prevenir selecciones duplicadas del mismo día
+                  const dateKey = date.toISOString().split('T')[0];
+                  if (lastSelectedDateRef.current === dateKey && selectedDayData) {
+                    console.warn("🚫 Este día ya está seleccionado, omitiendo");
+                    return;
+                  }
+                  
+                  // Prevenir llamadas duplicadas
+                  const dayKey = `w${week}-d${dayIndex}`;
+                  if (isLoadingDayRef.current || loadingProgressRef.current === dayKey) {
+                    console.warn("🚫 Ya se está cargando este día, omitiendo");
+                    return;
+                  }
+                  
+                  // Marcar que estamos procesando
+                  processingSelectionRef.current = true;
+                  lastSelectedDateRef.current = dateKey;
+                  
+                  // Limpiar y establecer estados
+                  setSelectedDayProgress({});
+                  setSelectedTrainingDate(date);
+                  
+                  if (dayData && dayData.ejercicios && dayData.ejercicios.length > 0) {
+                    // IMPORTANTE: Establecer selectedDayData PRIMERO para prevenir que el useEffect problemático se ejecute
+                    setSelectedDayData({ day: dayData, week, dayIndex });
+                    
+                    // Usar setTimeout para asegurar que selectedDayData se establezca antes de abrir el modal
+                    setTimeout(() => {
+                      // Verificar cache primero antes de cargar
+                      const dayKey = `w${week}-d${dayIndex}`;
+                      const cachedProgress = dayProgressCache.current.get(dayKey);
+                      
+                      if (cachedProgress) {
+                        // Usar cache, no cargar
+                        setSelectedDayProgress(cachedProgress);
+                        setLoadingSelectedDay(false);
+                        processingSelectionRef.current = false;
+                      } else if (authUser && planId) {
+                        // Solo cargar si no está en cache
+                        setLoadingSelectedDay(true);
+                        loadExerciseProgressForDay(week, dayIndex, dayData).finally(() => {
+                          processingSelectionRef.current = false;
+                        });
+                      } else {
+                        setLoadingSelectedDay(false);
+                        processingSelectionRef.current = false;
+                      }
+                      
+                      // Abrir el modal DESPUÉS de establecer selectedDayData
+                      setModalEntrenamientoAbierto(true);
+                    }, 0);
+                  } else {
+                    setSelectedDayData(null);
+                    setSelectedDayProgress({});
+                    setLoadingSelectedDay(false);
+                    processingSelectionRef.current = false;
+                    setModalEntrenamientoAbierto(true);
+                  }
+                }}
+                selectedDate={selectedTrainingDate}
+              />
             </div>
           )}
 
@@ -3788,7 +4324,24 @@ export default function PlanPage() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-              onClick={() => setModalEntrenamientoAbierto(false)}
+              onClick={() => {
+                // Limpiar TODAS las referencias al cerrar el modal
+                isLoadingDayRef.current = false;
+                loadingProgressRef.current = null;
+                lastLoadedDayRef.current = null;
+                isRecalculatingRef.current = false;
+                processingSelectionRef.current = false;
+                lastSelectedDateRef.current = null;
+                lastExerciseProgressRef.current = ''; // Limpiar también este
+                dayProgressCache.current.clear(); // Limpiar cache
+                
+                // Cerrar modal y limpiar estados
+                setModalEntrenamientoAbierto(false);
+                setSelectedTrainingDate(null);
+                setSelectedDayData(null);
+                setSelectedDayProgress({});
+                setLoadingSelectedDay(false);
+              }}
             >
               <motion.div
                 initial={{ scale: 0.9, opacity: 0 }}
@@ -3807,7 +4360,11 @@ export default function PlanPage() {
                     )}
                   </div>
                   <button
-                    onClick={() => setModalEntrenamientoAbierto(false)}
+                    onClick={() => {
+                      setModalEntrenamientoAbierto(false);
+                      setSelectedTrainingDate(null);
+                      setSelectedDayData(null);
+                    }}
                     className="text-white/70 hover:text-white transition-colors"
                   >
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3816,6 +4373,58 @@ export default function PlanPage() {
                   </button>
                 </div>
 
+                {/* Mostrar día seleccionado del calendario o todas las semanas */}
+                {selectedDayData && selectedDayData.day && selectedDayData.day.ejercicios ? (
+                  // Mostrar solo el día seleccionado del calendario
+                  loadingSelectedDay ? (
+                    // Mostrar loader mientras se cargan los datos
+                    <div className="flex flex-col items-center justify-center py-20">
+                      <div className="relative w-16 h-16 mb-4">
+                        <div className="absolute inset-0 border-4 border-cyan-500/30 rounded-full"></div>
+                        <div className="absolute inset-0 border-4 border-transparent border-t-cyan-500 rounded-full animate-spin"></div>
+                      </div>
+                      <p className="text-white/70 text-sm">Cargando datos del entrenamiento...</p>
+                    </div>
+                  ) : (
+                    <DayTrainingPanel
+                      dayData={selectedDayData.day}
+                      week={selectedDayData.week}
+                      dayIndex={selectedDayData.dayIndex}
+                      date={selectedTrainingDate}
+                      exerciseProgress={selectedDayProgress} // Usar el progreso separado para evitar loops
+                      planId={planId || undefined}
+                      userId={authUser?.uid || undefined}
+                      onProgressChange={(exerciseId, completed, total) => {
+                        // Actualizar solo el progreso del día seleccionado (no el global)
+                        setSelectedDayProgress(prev => ({
+                          ...prev,
+                          [exerciseId]: { completed, total }
+                        }));
+                      }}
+                    />
+                  )
+                ) : selectedTrainingDate && !selectedDayData ? (
+                  // Día seleccionado pero sin entrenamiento
+                  <div className="text-center py-12">
+                    <div className="text-6xl mb-4">📅</div>
+                    <h3 className="text-xl font-semibold text-white mb-2">
+                      {selectedTrainingDate.toLocaleDateString('es-AR', { 
+                        weekday: 'long', 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                      })}
+                    </h3>
+                    <p className="text-white/70">
+                      No hay entrenamiento programado para este día.
+                    </p>
+                    <p className="text-sm text-white/50 mt-2">
+                      Este es un día de descanso o no está incluido en tu plan de entrenamiento.
+                    </p>
+                  </div>
+                ) : (
+                  // Vista completa con todas las semanas (fallback si se abre de otra forma)
+                  <>
                 {/* Botones de semanas */}
                 <div className="flex gap-2 mb-6 flex-wrap">
                   {[1, 2, 3, 4].map((semana) => (
@@ -4054,10 +4663,14 @@ export default function PlanPage() {
                                           planId={planId}
                                           userId={authUser.uid}
                                           onProgressChange={(completed, total) => {
-                                            setExerciseProgress(prev => ({
-                                              ...prev,
-                                              [exerciseId]: { completed, total }
-                                            }));
+                                            // Solo actualizar exerciseProgress si NO hay un día seleccionado del calendario
+                                            // Si hay un día seleccionado, NO actualizar exerciseProgress para evitar loops
+                                            if (!selectedDayData) {
+                                              setExerciseProgress(prev => ({
+                                                ...prev,
+                                                [exerciseId]: { completed, total }
+                                              }));
+                                            }
                                           }}
                                         />
                                       )}
@@ -4078,6 +4691,8 @@ export default function PlanPage() {
                     </div>
                   );
                 })()}
+                  </>
+                )}
               </motion.div>
             </motion.div>
           )}
