@@ -730,20 +730,23 @@ export default function Admin() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authUser, authLoading, router]);
 
-  // Actualización automática de usuarios - usando polling cada 60 segundos
+  // Actualización automática de usuarios - usando polling cada 5 minutos (reducido para evitar cuota)
   useEffect(() => {
     if (!isAdmin || !authUser) return;
 
-    // Actualización automática silenciosa cada 60 segundos (sin mostrar loading)
-    // Esto permite detectar nuevos usuarios sin interrumpir la experiencia
-    // Menos frecuente para reducir re-renders innecesarios
+    // Actualización automática silenciosa cada 5 minutos (sin mostrar loading)
+    // Intervalo aumentado para reducir el consumo de cuota de Firestore
     const pollInterval = setInterval(async () => {
       try {
         await loadUserStats(adminMeta.lastUsersCheck ?? null, true); // silent = true para no mostrar loading
-      } catch {
-        // Silenciar errores en polling
+      } catch (error) {
+        // Silenciar errores en polling, pero loguear si es de cuota
+        if (error instanceof Error && error.message.includes('RESOURCE_EXHAUSTED')) {
+          console.warn('⚠️ Cuota de Firestore excedida, pausando polling temporalmente');
+          // No hacer nada, el intervalo seguirá corriendo pero fallará silenciosamente
+        }
       }
-    }, 60000); // Actualizar cada 60 segundos (menos frecuente para reducir re-renders)
+    }, 300000); // Actualizar cada 5 minutos (300000ms) para reducir consumo de cuota
 
     return () => {
       clearInterval(pollInterval);
@@ -771,6 +774,14 @@ export default function Admin() {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: "Error desconocido" }));
         console.error("❌ Error del API:", errorData);
+        
+        // Manejar error de cuota excedida de manera especial
+        if (errorData.detail?.includes('RESOURCE_EXHAUSTED') || errorData.error?.includes('Quota exceeded')) {
+          const quotaError = new Error('Cuota de Firestore excedida. Por favor, espera unos minutos antes de intentar nuevamente.');
+          quotaError.name = 'QuotaExceededError';
+          throw quotaError;
+        }
+        
         throw new Error(errorData.detail || errorData.error || `HTTP ${response.status}`);
       }
 

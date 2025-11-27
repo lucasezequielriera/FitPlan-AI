@@ -8,6 +8,7 @@ import { getDbSafe, getAuthSafe } from "@/lib/firebase";
 import { collection, query, where, getDocs, limit, Timestamp, doc, deleteDoc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore";
 import Navbar from "@/components/Navbar";
 import PremiumPlanModal from "@/components/PremiumPlanModal";
+import PlanContinuityModal from "@/components/PlanContinuityModal";
 
 interface RegistroPeso {
   fecha: string;
@@ -29,6 +30,23 @@ interface PlanMultiFaseData {
     pesoInicio: number;
     pesoFin: number;
   }>;
+  historialMeses?: Array<{
+    mesNumero: number;
+    fechaGeneracion?: string;
+    datosAlIniciar?: {
+      peso: number;
+      fechaRegistro?: string;
+      cintura?: number;
+    };
+    datosAlFinalizar?: {
+      peso?: number;
+      fechaRegistro?: string;
+      adherenciaComida: "<50%" | "50-70%" | "70-80%" | ">80%";
+      adherenciaEntreno: "<50%" | "50-70%" | "70-80%" | ">80%";
+      energia: "muy_baja" | "baja" | "normal" | "alta" | "muy_alta";
+      recuperacion: "mala" | "regular" | "normal" | "buena" | "excelente";
+    };
+  }>;
 }
 
 interface SavedPlan {
@@ -41,12 +59,14 @@ interface SavedPlan {
   planMultiFase?: PlanMultiFaseData; // Al mismo nivel que plan (así se guarda en Firebase)
   createdAt: Timestamp;
   isOldest?: boolean;
+  registrosPeso?: RegistroPeso[];
+  completado?: boolean;
 }
 
 export default function Dashboard() {
   const router = useRouter();
   const { user: authUser, loading: authLoading } = useAuthStore();
-  const { setPlan, setUser, setPlanId } = usePlanStore();
+  const { setPlan, setUser, setPlanId, setPlanMultiFase } = usePlanStore();
   const [plans, setPlans] = useState<SavedPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +79,8 @@ export default function Dashboard() {
   const [processingPayment, setProcessingPayment] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
   const [premiumModalOpen, setPremiumModalOpen] = useState(false);
+  const [continuityModalOpen, setContinuityModalOpen] = useState(false);
+  const [planForContinuity, setPlanForContinuity] = useState<SavedPlan | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -205,6 +227,12 @@ export default function Dashboard() {
     setUser(plan.plan.user as unknown as Parameters<typeof setUser>[0]);
     setPlan(plan.plan.plan as unknown as Parameters<typeof setPlan>[0]);
     setPlanId(plan.id); // Guardar el ID del plan para poder actualizarlo después
+    // Cargar planMultiFase si existe (para planes bulk_cut y lean_bulk)
+    if (plan.planMultiFase) {
+      setPlanMultiFase(plan.planMultiFase as unknown as Parameters<typeof setPlanMultiFase>[0]);
+    } else {
+      setPlanMultiFase(undefined); // Limpiar si es un plan simple
+    }
     router.push("/plan");
   };
 
@@ -717,6 +745,31 @@ export default function Dashboard() {
                           const totalMeses = pmf.totalMeses || 1;
                           const progresoTotal = Math.round((mesActual / totalMeses) * 100);
                           
+                          // Calcular progreso del mes actual
+                          const calcularProgresoMes = () => {
+                            try {
+                              // Buscar la fecha de inicio del mes actual en el historial
+                              const historialMeses = pmf.historialMeses ?? [];
+                              const mesActualIndex = mesActual - 1;
+                              const mesActualData = historialMeses[mesActualIndex];
+                              
+                              if (mesActualData && mesActualData.fechaGeneracion) {
+                                const fechaInicio = new Date(mesActualData.fechaGeneracion);
+                                const now = new Date();
+                                const diffTime = now.getTime() - fechaInicio.getTime();
+                                const diffDays = diffTime / (1000 * 60 * 60 * 24);
+                                return Math.min(100, Math.max(0, (diffDays / 30) * 100));
+                              }
+                            } catch (error) {
+                              console.error("Error al calcular progreso del mes:", error);
+                            }
+                            return 0;
+                          };
+                          
+                          const progresoMes = calcularProgresoMes();
+                          const mesCompleto = progresoMes >= 90;
+                          const diasRestantesMes = Math.max(0, Math.ceil(30 - (progresoMes / 100 * 30)));
+                          
                           // Colores según fase
                           const faseColors: Record<string, { bg: string; text: string; border: string; gradient: string }> = {
                             BULK: { bg: "bg-amber-500/20", text: "text-amber-300", border: "border-amber-500/40", gradient: "linear-gradient(90deg, #f59e0b, #fbbf24)" },
@@ -751,13 +804,52 @@ export default function Dashboard() {
                                 </div>
                               </div>
                               
+                              {/* Barra de progreso del mes actual */}
+                              <div className="space-y-1">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs opacity-60">Progreso del mes {mesActual}</span>
+                                  <span className="text-xs font-medium">{Math.round(progresoMes)}%</span>
+                                </div>
+                                <div className="h-2 w-full rounded-full bg-white/10 overflow-hidden">
+                                  <div
+                                    className="h-full rounded-full transition-all duration-300"
+                                    style={{
+                                      width: `${progresoMes}%`,
+                                      background: colors.gradient,
+                                    }}
+                                  />
+                                </div>
+                                <p className="text-xs opacity-50 mt-1">
+                                  {mesCompleto 
+                                    ? `Mes ${mesActual} completado - Abre el plan para generar el mes ${mesActual + 1}`
+                                    : `${diasRestantesMes} día${diasRestantesMes !== 1 ? 's' : ''} restante${diasRestantesMes !== 1 ? 's' : ''} del mes ${mesActual}`}
+                                </p>
+                              </div>
+
+                              {/* Barra de progreso del plan completo */}
+                              <div className="space-y-1 pt-2 border-t border-white/10">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs opacity-60">Progreso del plan completo</span>
+                                  <span className="text-xs font-medium">{progresoTotal}%</span>
+                                </div>
+                                <div className="h-1.5 w-full rounded-full bg-white/10 overflow-hidden">
+                                  <div
+                                    className="h-full rounded-full transition-all duration-300"
+                                    style={{
+                                      width: `${progresoTotal}%`,
+                                      background: "linear-gradient(90deg, var(--brand-start), var(--brand-mid), var(--brand-end))",
+                                    }}
+                                  />
+                                </div>
+                              </div>
                             </div>
                           );
                         })()}
                       </div>
                     )}
                     
-                    {/* Barra de progreso del mes (días restantes) */}
+                    {/* Barra de progreso del plan (solo para planes simples) */}
+                    {!plan.planMultiFase && (
                     <div className="mt-4 pt-4 border-t border-white/10">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-xs opacity-60">Progreso del plan</span>
@@ -777,7 +869,36 @@ export default function Dashboard() {
                           ? "Plan completado" 
                           : `${calculateDaysRemaining(plan.createdAt)} día${calculateDaysRemaining(plan.createdAt) !== 1 ? 's' : ''} restante${calculateDaysRemaining(plan.createdAt) !== 1 ? 's' : ''}`}
                       </p>
+
+                      {/* Botón de continuidad para planes al 90-100% (solo para planes simples, no multi-fase) */}
+                      {calculateProgress(plan.createdAt) >= 90 && !plan.completado && (
+                        <motion.button
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPlanForContinuity(plan);
+                            setContinuityModalOpen(true);
+                          }}
+                          className="w-full mt-3 px-4 py-2 rounded-lg bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white text-sm font-medium transition-all shadow-lg flex items-center justify-center gap-2"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="h-4 w-4"
+                          >
+                            <path d="M12 5v14M5 12l7 7 7-7" />
+                          </svg>
+                          Preparar continuidad
+                        </motion.button>
+                      )}
                     </div>
+                    )}
                   </motion.div>
                 ))}
               </div>
@@ -903,6 +1024,30 @@ export default function Dashboard() {
           userId={authUser.uid}
           userEmail={authUser.email || ""}
         />
+      )}
+
+      {/* Modal de continuidad de plan */}
+      {mounted && createPortal(
+        <AnimatePresence>
+          {continuityModalOpen && planForContinuity && authUser && (
+            <PlanContinuityModal
+              isOpen={continuityModalOpen}
+              onClose={() => {
+                setContinuityModalOpen(false);
+                setPlanForContinuity(null);
+              }}
+              planData={{
+                id: planForContinuity.id,
+                plan: planForContinuity.plan.plan as unknown as Parameters<typeof PlanContinuityModal>[0]['planData']['plan'],
+                user: planForContinuity.plan.user as unknown as Parameters<typeof PlanContinuityModal>[0]['planData']['user'],
+                createdAt: planForContinuity.createdAt.toDate?.() || new Date(planForContinuity.createdAt.seconds * 1000),
+              }}
+              registrosPeso={planForContinuity.registrosPeso || []}
+              userId={authUser.uid}
+            />
+          )}
+        </AnimatePresence>,
+        document.body
       )}
     </div>
   );

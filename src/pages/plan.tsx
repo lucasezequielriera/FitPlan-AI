@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { usePlanStore } from "@/store/planStore";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Goal, TipoDieta, Intensidad, UserInput, PlanMultiFase } from "@/types/plan";
@@ -11,6 +11,9 @@ import PremiumPlanModal from "@/components/PremiumPlanModal";
 import FoodTrackingModal from "@/components/FoodTrackingModal";
 import WeeklyStatsModal from "@/components/WeeklyStatsModal";
 import IMCInfoModal from "@/components/IMCInfoModal";
+import PlanContinuityModal from "@/components/PlanContinuityModal";
+import MonthChangesModal from "@/components/MonthChangesModal";
+import ExerciseSetTracker from "@/components/ExerciseSetTracker";
 import { getAuthSafe, getDbSafe } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { useAuthStore } from "@/store/authStore";
@@ -108,12 +111,210 @@ export default function PlanPage() {
   const [modalInfoAbierto, setModalInfoAbierto] = useState<'imc' | 'macros' | 'sueno' | 'dificultad' | 'split' | null>(null);
   const [modalEntrenamientoAbierto, setModalEntrenamientoAbierto] = useState(false);
   const [semanaSeleccionada, setSemanaSeleccionada] = useState<number>(1);
+  const [diasExpandidos, setDiasExpandidos] = useState<Record<string, boolean>>({});
+  const [diaProgressCache, setDiaProgressCache] = useState<Record<string, { total: number; completed: number; porcentaje: number }>>({});
   const [vistaPlan, setVistaPlan] = useState<'entrenamiento' | 'alimentacion'>('alimentacion');
   const [modalAlimentosAbierto, setModalAlimentosAbierto] = useState<null | { diaIdx: number }>(null);
   const [foodDetails, setFoodDetails] = useState<Record<string, { ingredientes?: string[]; pasos_preparacion?: string[]; loading?: boolean; error?: string }>>({});
   const [foodTrackingModalOpen, setFoodTrackingModalOpen] = useState(false);
   const [weeklyStatsModalOpen, setWeeklyStatsModalOpen] = useState(false);
   const [imcModalOpen, setImcModalOpen] = useState(false);
+  
+  // Estado para rastrear progreso de ejercicios (ejercicioId -> { completed, total })
+  const [exerciseProgress, setExerciseProgress] = useState<Record<string, { completed: number; total: number }>>({});
+  
+  const loadExerciseProgress = useCallback(async () => {
+    if (!authUser || !planId) return;
+    
+    try {
+      const tp = (plan as unknown as Record<string, unknown>)?.training_plan as TrainingPlan | undefined;
+      const weeks = tp?.weeks || [];
+      
+      // Obtener todos los ejercicios de todas las semanas
+      const allExercises: Array<{ exerciseName: string; week: number; day: string; sets: number; exerciseId: string; isCurrent: boolean }> = [];
+      
+      weeks.forEach((week, wi) => {
+        const weekNumber = week.week ?? wi + 1;
+        const isCurrentWeek = weekNumber === semanaSeleccionada;
+        (week.days || []).forEach((day, di) => {
+          (day.ejercicios || []).forEach((ejercicio: TrainingExercise, ei: number) => {
+            const exerciseId = `w${weekNumber}-d${di}-e${ei}`;
+            allExercises.push({
+              exerciseName: ejercicio.name,
+              week: weekNumber,
+              day: day.day,
+              sets: ejercicio.sets,
+              exerciseId,
+              isCurrent: isCurrentWeek, // Priorizar semana actual
+            });
+          });
+        });
+      });
+      
+      // Separar ejercicios actuales y del resto
+      const currentExercises = allExercises.filter(e => e.isCurrent);
+      const otherExercises = allExercises.filter(e => !e.isCurrent);
+      
+      // Función para cargar progreso de un ejercicio
+      const loadExerciseProgress = async ({ exerciseName, exerciseId, sets }: { exerciseName: string; exerciseId: string; sets: number }) => {
+        try {
+          const response = await fetch(
+            `/api/getExerciseHistory?userId=${authUser.uid}&exerciseName=${encodeURIComponent(exerciseName)}&planId=${planId}`
+          );
+          if (response.ok) {
+            const data = await response.json();
+            if (data.history && data.history.length > 0) {
+              const latestSession = data.history[0];
+              if (latestSession.sets && latestSession.sets.length > 0) {
+                const completed = latestSession.sets.filter((s: { completed: boolean }) => s.completed).length;
+                return { exerciseId, completed, total: sets };
+              }
+            }
+          }
+        } catch (error) {
+          console.error(`Error cargando progreso de ${exerciseName}:`, error);
+        }
+        return { exerciseId, completed: 0, total: sets };
+      };
+      
+      // Función para procesar peticiones en lotes (evitar demasiadas peticiones simultáneas)
+      const processInBatches = async <T, R>(
+        items: T[],
+        batchSize: number,
+        processor: (item: T) => Promise<R>
+      ): Promise<R[]> => {
+        const results: R[] = [];
+        for (let i = 0; i < items.length; i += batchSize) {
+          const batch = items.slice(i, i + batchSize);
+          const batchResults = await Promise.all(batch.map(processor));
+          results.push(...batchResults);
+          // Pequeño delay entre lotes para no sobrecargar
+          if (i + batchSize < items.length) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+        }
+        return results;
+      };
+      
+      // 1. Cargar primero los ejercicios de la semana actual (prioridad, en lotes de 3)
+      const currentProgressResults = await processInBatches(
+        currentExercises,
+        3,
+        loadExerciseProgress
+      );
+      
+      // Actualizar estado inmediatamente con los ejercicios actuales
+      const currentProgressMap: Record<string, { completed: number; total: number }> = {};
+      currentProgressResults.forEach(({ exerciseId, completed, total }) => {
+        currentProgressMap[exerciseId] = { completed, total };
+      });
+      setExerciseProgress(prev => ({ ...prev, ...currentProgressMap }));
+      
+      // 2. Cargar el resto de ejercicios en segundo plano (en lotes de 2 para no sobrecargar)
+      if (otherExercises.length > 0) {
+        // Usar setTimeout para no bloquear la UI
+        setTimeout(async () => {
+          const otherProgressResults = await processInBatches(
+            otherExercises,
+            2,
+            loadExerciseProgress
+          );
+          
+          const otherProgressMap: Record<string, { completed: number; total: number }> = {};
+          otherProgressResults.forEach(({ exerciseId, completed, total }) => {
+            otherProgressMap[exerciseId] = { completed, total };
+          });
+          
+          setExerciseProgress(prev => ({ ...prev, ...otherProgressMap }));
+        }, 200); // Delay un poco más largo
+      }
+    } catch (error) {
+      console.error("Error cargando progreso de ejercicios:", error);
+    }
+  }, [authUser, planId, semanaSeleccionada, plan]);
+  
+  // Función para calcular el progreso de todos los días (solo se llama al abrir el modal)
+  const calcularProgresoDias = useCallback(() => {
+    if (!plan) return;
+    
+    const tp = (plan as unknown as Record<string, unknown>)?.training_plan as TrainingPlan | undefined;
+    const weeks = tp?.weeks || [];
+    
+    // Calcular progreso para todas las semanas
+    const newCache: Record<string, { total: number; completed: number; porcentaje: number }> = {};
+    
+    weeks.forEach((week, wi) => {
+      const weekNumber = week.week ?? wi + 1;
+      (week.days || []).forEach((dia: TrainingDay, di: number) => {
+        const dayKey = `w${weekNumber}-d${di}`;
+        let totalSeriesDia = 0;
+        let seriesCompletadasDia = 0;
+        
+        if (dia.ejercicios && dia.ejercicios.length > 0) {
+          dia.ejercicios.forEach((ejercicio: TrainingExercise, ei: number) => {
+            const exerciseId = `w${weekNumber}-d${di}-e${ei}`;
+            const progress = exerciseProgress[exerciseId];
+            
+            // Siempre usar ejercicio.sets como total (valor del plan)
+            const totalEjercicio = ejercicio.sets;
+            const completadasEjercicio = progress?.completed || 0;
+            
+            totalSeriesDia += totalEjercicio;
+            seriesCompletadasDia += completadasEjercicio;
+          });
+        }
+        
+        // Guardar en cache siempre, incluso si es 0, para tener el total correcto
+        const porcentajeDia = totalSeriesDia > 0 ? Math.round((seriesCompletadasDia / totalSeriesDia) * 100) : 0;
+        newCache[dayKey] = { total: totalSeriesDia, completed: seriesCompletadasDia, porcentaje: porcentajeDia };
+      });
+    });
+    
+    setDiaProgressCache(newCache);
+  }, [plan, exerciseProgress]);
+  
+  // Cargar progreso de ejercicios cuando se abre el modal de entrenamiento
+  useEffect(() => {
+    if (modalEntrenamientoAbierto && authUser && planId) {
+      // Limpiar cache al abrir el modal
+      setDiaProgressCache({});
+      
+      // Calcular progreso inicial (solo totales, sin datos guardados aún)
+      calcularProgresoDias();
+      
+      loadExerciseProgress();
+      
+      // Expandir automáticamente el día actual
+      const diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+      const hoy = new Date().getDay();
+      const diaActualNombre = diasSemana[hoy];
+      
+      // Buscar el día actual en la semana seleccionada
+      const tp = (plan as unknown as Record<string, unknown>)?.training_plan as TrainingPlan | undefined;
+      const weeks = tp?.weeks || [];
+      const semanaActual = weeks.find((w) => (w.week ?? 1) === semanaSeleccionada) || weeks[semanaSeleccionada - 1];
+      
+      if (semanaActual && semanaActual.days) {
+        semanaActual.days.forEach((dia, di) => {
+          if (dia.day === diaActualNombre) {
+            const dayKey = `w${semanaSeleccionada}-d${di}`;
+            setDiasExpandidos(prev => ({ ...prev, [dayKey]: true }));
+          }
+        });
+      }
+    }
+  }, [modalEntrenamientoAbierto, authUser, planId, semanaSeleccionada, loadExerciseProgress, plan, calcularProgresoDias]);
+  
+  // Actualizar progreso de días SOLO cuando cambia exerciseProgress (después de cargar datos)
+  // NO se recalcula al expandir días, solo cuando cambian los datos de ejercicio
+  useEffect(() => {
+    if (!modalEntrenamientoAbierto || !plan) return;
+    
+    // Solo actualizar si exerciseProgress tiene datos (no en el cálculo inicial)
+    if (Object.keys(exerciseProgress).length > 0) {
+      calcularProgresoDias();
+    }
+  }, [exerciseProgress, modalEntrenamientoAbierto, plan, calcularProgresoDias]);
   
   // Estados para modal de siguiente mes (plan multi-fase)
   const [modalSiguienteMesAbierto, setModalSiguienteMesAbierto] = useState(false);
@@ -129,7 +330,44 @@ export default function PlanPage() {
   });
   const [generandoSiguienteMes, setGenerandoSiguienteMes] = useState(false);
   const [errorSiguienteMes, setErrorSiguienteMes] = useState<string | null>(null);
+  
+  // Estados para modal de continuidad (planes simples)
+  const [continuityModalOpen, setContinuityModalOpen] = useState(false);
+  const [registrosPeso, setRegistrosPeso] = useState<Array<{ fecha: string; peso: number }>>([]);
+  
+  // Estados para modal de cambios (planes multi-fase)
+  const [monthChangesModalOpen, setMonthChangesModalOpen] = useState(false);
+  const [monthChangesData, setMonthChangesData] = useState<any>(null);
 
+  // Cargar registros de peso para el modal de continuidad
+  useEffect(() => {
+    const loadRegistrosPeso = async () => {
+      if (!planId) return;
+      
+      try {
+        const db = getDbSafe();
+        if (!db) return;
+        
+        const planRef = doc(db, "planes", planId);
+        const planDoc = await getDoc(planRef);
+        
+        if (planDoc.exists()) {
+          const data = planDoc.data();
+          if (data.registrosPeso && Array.isArray(data.registrosPeso)) {
+            setRegistrosPeso(data.registrosPeso.map((r: Record<string, unknown>) => ({
+              fecha: String(r.fecha || ''),
+              peso: Number(r.peso || 0)
+            })));
+          }
+        }
+      } catch (error) {
+        console.error("Error al cargar registros de peso:", error);
+      }
+    };
+    
+    loadRegistrosPeso();
+  }, [planId]);
+  
   // Mostrar modal de IMC solo la primera vez que el usuario ve su plan
   useEffect(() => {
     if (!user || !planId) return;
@@ -792,6 +1030,14 @@ export default function PlanPage() {
     setGenerandoSiguienteMes(true);
     setErrorSiguienteMes(null);
     
+    // Guardar datos del mes anterior para comparación
+    const mesAnteriorIndex = planMultiFase.mesActual - 1;
+    const datosNutricionAnterior = {
+      calorias: planMultiFase.historialMeses[mesAnteriorIndex]?.caloriasObjetivo || plan.calorias_diarias,
+      macros: planMultiFase.historialMeses[mesAnteriorIndex]?.macros || plan.macros
+    };
+    const mesAnteriorCompleto = planMultiFase.historialMeses[mesAnteriorIndex];
+    
     try {
       const db = getDbSafe();
       if (!db) throw new Error("Base de datos no disponible");
@@ -962,8 +1208,160 @@ export default function PlanPage() {
       setPlan(nuevoPlan);
       setPlanMultiFase(planMultiFaseActualizado);
       
-      // Cerrar modal y resetear datos
+      // Calcular cambios entre meses para mostrar en modal
+      const calcularCambiosEntrenamiento = () => {
+        const diasGymAnterior = mesAnteriorCompleto?.planEntrenamiento?.weeks?.[0]?.days?.length || user.diasGym || 4;
+        const diasGymNuevo = nuevoPlan.training_plan?.weeks?.[0]?.days?.length || user.diasGym || 4;
+        
+        // Contar ejercicios totales
+        const ejerciciosAnterior = mesAnteriorCompleto?.planEntrenamiento?.weeks?.reduce((acc: number, week: any) => 
+          acc + (week.days?.reduce((dayAcc: number, day: any) => dayAcc + (day.ejercicios?.length || 0), 0) || 0), 0) || 0;
+        const ejerciciosNuevo = nuevoPlan.training_plan?.weeks?.reduce((acc: number, week: any) => 
+          acc + (week.days?.reduce((dayAcc: number, day: any) => dayAcc + (day.ejercicios?.length || 0), 0) || 0), 0) || 0;
+        
+        let cambioVolumen: "aumentado" | "reducido" | "mantenido" = "mantenido";
+        if (ejerciciosNuevo > ejerciciosAnterior + 2) cambioVolumen = "aumentado";
+        else if (ejerciciosNuevo < ejerciciosAnterior - 2) cambioVolumen = "reducido";
+        
+        let descripcion = "";
+        if (cambioVolumen === "aumentado") {
+          descripcion = "Se ha incrementado el volumen de entrenamiento para progresar según tus capacidades actuales.";
+        } else if (cambioVolumen === "reducido") {
+          descripcion = "Se ha reducido el volumen para mejorar la recuperación según tu feedback del mes anterior.";
+        } else {
+          descripcion = "El volumen de entrenamiento se mantiene para consolidar adaptaciones.";
+        }
+        
+        return {
+          diasGymAnterior,
+          diasGymNuevo,
+          cambioVolumen,
+          ejerciciosNuevos: Math.max(0, ejerciciosNuevo - ejerciciosAnterior),
+          descripcionCambios: descripcion
+        };
+      };
+      
+      const extraerGramos = (str: string): number => {
+        const match = str.match(/(\d+(\.\d+)?)/);
+        return match ? parseFloat(match[1]) : 0;
+      };
+      
+      // Calcular progreso del usuario
+      const calcularProgresoUsuario = () => {
+        const pesoInicial = planMultiFase.datosIniciales.pesoInicial;
+        const pesoActual = datosSiguienteMes.pesoActual;
+        const pesoObjetivo = planMultiFase.datosIniciales.pesoObjetivoFinal;
+        
+        const cambioPesoTotal = pesoActual - pesoInicial;
+        const cambioPesoUltimoMes = datosSiguienteMes.pesoActual - (mesAnteriorCompleto?.datosAlIniciar?.peso || pesoInicial);
+        
+        // Calcular porcentaje hacia objetivo
+        const pesoARecorrer = pesoObjetivo - pesoInicial;
+        const pesoRecorrido = pesoActual - pesoInicial;
+        const porcentajeHaciaObjetivo = pesoARecorrer !== 0 ? (pesoRecorrido / pesoARecorrer) * 100 : 0;
+        
+        // Calcular adherencia promedio de todos los meses
+        const mapAdherencia = (s: string) => {
+          if (s === ">80%") return 85;
+          if (s === "70-80%") return 75;
+          if (s === "50-70%") return 60;
+          return 40;
+        };
+        
+        const mesesConDatos = planMultiFaseActualizado.historialMeses.filter(m => m.datosAlFinalizar);
+        const adherencias = mesesConDatos.map(m => {
+          const comida = m.datosAlFinalizar!.adherenciaComida;
+          const entreno = m.datosAlFinalizar!.adherenciaEntreno;
+          return (mapAdherencia(comida) + mapAdherencia(entreno)) / 2;
+        });
+        const adherenciaPromedio = adherencias.length > 0 
+          ? adherencias.reduce((a, b) => a + b, 0) / adherencias.length 
+          : 0;
+        
+        // Calcular tendencias de energía y recuperación
+        const mapEnergia = (e: string): number => {
+          if (e === "muy_alta") return 5;
+          if (e === "alta") return 4;
+          if (e === "normal") return 3;
+          if (e === "baja") return 2;
+          return 1;
+        };
+        
+        const mapRecuperacion = (r: string): number => {
+          if (r === "excelente") return 5;
+          if (r === "buena") return 4;
+          if (r === "normal") return 3;
+          if (r === "regular") return 2;
+          return 1;
+        };
+        
+        const energias = mesesConDatos.map(m => mapEnergia(m.datosAlFinalizar!.energia));
+        const recuperaciones = mesesConDatos.map(m => mapRecuperacion(m.datosAlFinalizar!.recuperacion));
+        
+        let tendenciaEnergia: "mejorando" | "estable" | "empeorando" = "estable";
+        if (energias.length >= 2) {
+          const ultimaDos = energias.slice(-2);
+          if (ultimaDos[1] > ultimaDos[0]) tendenciaEnergia = "mejorando";
+          else if (ultimaDos[1] < ultimaDos[0]) tendenciaEnergia = "empeorando";
+        }
+        
+        let tendenciaRecuperacion: "mejorando" | "estable" | "empeorando" = "estable";
+        if (recuperaciones.length >= 2) {
+          const ultimaDos = recuperaciones.slice(-2);
+          if (ultimaDos[1] > ultimaDos[0]) tendenciaRecuperacion = "mejorando";
+          else if (ultimaDos[1] < ultimaDos[0]) tendenciaRecuperacion = "empeorando";
+        }
+        
+        return {
+          pesoInicial,
+          pesoActual,
+          pesoObjetivo,
+          cambioPesoTotal,
+          cambioPesoUltimoMes,
+          porcentajeHaciaObjetivo,
+          mesesCompletados: planMultiFase.mesActual, // El mes que acaba de completar
+          totalMeses: planMultiFase.totalMeses,
+          adherenciaPromedio,
+          tendenciaEnergia,
+          tendenciaRecuperacion
+        };
+      };
+      
+      const cambiosData = {
+        mesAnterior: planMultiFase.mesActual,
+        mesNuevo: siguienteMes,
+        faseAnterior: planMultiFase.faseActual,
+        faseNueva: siguienteFase?.nombre || planMultiFase.faseActual,
+        cambioFase,
+        nutricion: {
+          caloriasAnterior: datosNutricionAnterior.calorias,
+          caloriasNueva: nuevoPlan.calorias_diarias,
+          diferenciaCalorias: nuevoPlan.calorias_diarias - datosNutricionAnterior.calorias,
+          macrosAnterior: datosNutricionAnterior.macros,
+          macrosNuevo: nuevoPlan.macros,
+          cambioMacros: {
+            proteinas: extraerGramos(nuevoPlan.macros.proteinas) - extraerGramos(datosNutricionAnterior.macros.proteinas),
+            carbohidratos: extraerGramos(nuevoPlan.macros.carbohidratos) - extraerGramos(datosNutricionAnterior.macros.carbohidratos),
+            grasas: extraerGramos(nuevoPlan.macros.grasas) - extraerGramos(datosNutricionAnterior.macros.grasas),
+          }
+        },
+        entrenamiento: calcularCambiosEntrenamiento(),
+        ajustesAplicados: ajustes,
+        razonCambios: ajustes.length > 0 
+          ? "Los ajustes se realizaron para optimizar tu progreso basándose en los resultados del mes anterior."
+          : cambiaFase
+          ? `Cambio de fase automático según tu plan multi-fase. Tu fase ${planMultiFase.faseActual} ha finalizado y ahora comienza la fase ${siguienteFase.nombre}.`
+          : "El plan se mantiene consistente con tu progreso actual. Continuarás con la misma estructura para consolidar adaptaciones.",
+        progresoUsuario: calcularProgresoUsuario()
+      };
+      
+      setMonthChangesData(cambiosData);
+      
+      // Cerrar modal de datos y abrir modal de cambios
       setModalSiguienteMesAbierto(false);
+      setMonthChangesModalOpen(true);
+      
+      // Resetear datos del formulario
       setDatosSiguienteMes({
         pesoActual: 0,
         cinturaActual: 0,
@@ -1265,6 +1663,230 @@ export default function PlanPage() {
                 </div>
               </motion.div>
             )}
+            
+            {/* Banner de Continuidad - Planes simples al 90-100% */}
+            {!planMultiFase && planId && authUser && (() => {
+              const ContinuityBanner = () => {
+                const [planData, setPlanData] = useState<any>(null);
+                const [progress, setProgress] = useState(0);
+                
+                useEffect(() => {
+                  const loadData = async () => {
+                    try {
+                      const db = getDbSafe();
+                      if (!db) return;
+                      
+                      const planRef = doc(db, "planes", planId);
+                      const planDoc = await getDoc(planRef);
+                      
+                      if (planDoc.exists()) {
+                        const data = planDoc.data();
+                        setPlanData(data);
+                        
+                        if (data.createdAt) {
+                          const createdDate = data.createdAt.toDate?.() || new Date(data.createdAt.seconds * 1000);
+                          const now = new Date();
+                          const diffTime = now.getTime() - createdDate.getTime();
+                          const diffDays = diffTime / (1000 * 60 * 60 * 24);
+                          const prog = Math.min(100, Math.max(0, (diffDays / 30) * 100));
+                          setProgress(prog);
+                        }
+                      }
+                    } catch (error) {
+                      console.error("Error al cargar datos del plan:", error);
+                    }
+                  };
+                  
+                  loadData();
+                }, []);
+                
+                if (!planData || progress < 90 || planData.completado) return null;
+                
+                return (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mb-4 p-4 rounded-xl border bg-gradient-to-r from-green-500/20 to-emerald-500/20 border-green-500/30"
+                  >
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-lg">🎯</span>
+                          <h3 className="font-bold text-green-200">
+                            {progress >= 100 ? "¡Plan completado!" : "Plan casi completado"}
+                          </h3>
+                        </div>
+                        <p className="text-sm opacity-80">
+                          {progress >= 100 
+                            ? "¡Felicidades! Es momento de generar tu siguiente plan basado en tus resultados." 
+                            : `Estás al ${Math.round(progress)}%. Pronto podrás generar tu siguiente plan personalizado.`}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setContinuityModalOpen(true)}
+                        className="px-4 py-2 rounded-lg bg-green-500 hover:bg-green-600 text-white text-sm font-medium transition-all shadow-lg whitespace-nowrap"
+                      >
+                        Preparar continuidad
+                      </button>
+                    </div>
+                  </motion.div>
+                );
+              };
+              
+              return <ContinuityBanner />;
+            })()}
+
+            {/* Banner de Continuidad - Planes Multi-Fase mes a mes */}
+            {planMultiFase && planMultiFase.tipo !== "simple" && planId && authUser && (() => {
+              const MultiPhaseContinuityBanner = () => {
+                const [mesProgress, setMesProgress] = useState(0);
+                const [fechaInicioMesActual, setFechaInicioMesActual] = useState<Date | null>(null);
+                
+                useEffect(() => {
+                  const loadData = async () => {
+                    try {
+                      const db = getDbSafe();
+                      if (!db) {
+                        return;
+                      }
+                      
+                      const planRef = doc(db, "planes", planId);
+                      const planDoc = await getDoc(planRef);
+                      
+                      if (planDoc.exists()) {
+                        const data = planDoc.data();
+                        
+                        // Obtener fecha de inicio del mes actual
+                        const mesActualIndex = planMultiFase.mesActual - 1;
+                        const mesActualData = planMultiFase.historialMeses[mesActualIndex];
+                        
+                        if (mesActualData && mesActualData.fechaGeneracion) {
+                          const fechaInicio = new Date(mesActualData.fechaGeneracion);
+                          setFechaInicioMesActual(fechaInicio);
+                          
+                          // Calcular progreso del mes actual (30 días)
+                          const now = new Date();
+                          const diffTime = now.getTime() - fechaInicio.getTime();
+                          const diffDays = diffTime / (1000 * 60 * 60 * 24);
+                          const prog = Math.min(100, Math.max(0, (diffDays / 30) * 100));
+                          setMesProgress(prog);
+                        }
+                      }
+                    } catch (error) {
+                      console.error("Error al cargar datos del mes actual:", error);
+                    }
+                  };
+                  
+                  loadData();
+                }, []);
+                
+                // Solo mostrar si el mes actual está al 90-100% Y no es el último mes
+                // TEMPORAL: Usando 5% para testing
+                // Solo mostrar si el mes actual está al 90-100% Y no es el último mes
+                if (!fechaInicioMesActual || mesProgress < 90 || planMultiFase.mesActual >= planMultiFase.totalMeses) {
+                  return null;
+                }
+                
+                const siguienteMes = planMultiFase.mesActual + 1;
+                const siguienteFase = planMultiFase.fases.find(f => f.mesesIncluidos.includes(siguienteMes));
+                const cambiaFase = siguienteFase && siguienteFase.nombre !== planMultiFase.faseActual;
+                
+                return (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`mb-4 p-4 rounded-xl border ${
+                      planMultiFase.faseActual === "BULK"
+                        ? "bg-gradient-to-r from-amber-500/20 to-orange-500/20 border-amber-500/30"
+                        : planMultiFase.faseActual === "CUT"
+                        ? "bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border-cyan-500/30"
+                        : planMultiFase.faseActual === "LEAN_BULK"
+                        ? "bg-gradient-to-r from-emerald-500/20 to-teal-500/20 border-emerald-500/30"
+                        : "bg-gradient-to-r from-purple-500/20 to-pink-500/20 border-purple-500/30"
+                    }`}
+                  >
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-lg">
+                            {cambiaFase ? "🔄" : "📈"}
+                          </span>
+                          <h3 className={`font-bold ${
+                            planMultiFase.faseActual === "BULK" ? "text-amber-200" :
+                            planMultiFase.faseActual === "CUT" ? "text-cyan-200" :
+                            planMultiFase.faseActual === "LEAN_BULK" ? "text-emerald-200" :
+                            "text-purple-200"
+                          }`}>
+                            {Math.round(mesProgress) >= 100 
+                              ? `¡Mes ${planMultiFase.mesActual} completado!` 
+                              : Math.round(mesProgress) >= 90
+                              ? `Mes ${planMultiFase.mesActual} casi completado`
+                              : `Mes ${planMultiFase.mesActual} en progreso`}
+                          </h3>
+                        </div>
+                        <p className="text-sm opacity-80">
+                          {Math.round(mesProgress) >= 100 
+                            ? cambiaFase 
+                              ? `Es momento de cambiar a la fase ${siguienteFase.nombre} y generar el mes ${siguienteMes}.`
+                              : `Es momento de generar el mes ${siguienteMes} de tu plan multi-fase.`
+                            : Math.round(mesProgress) >= 90
+                            ? `Estás al ${Math.round(mesProgress)}% del mes ${planMultiFase.mesActual}. Pronto podrás generar el siguiente mes.`
+                            : `Estás al ${Math.round(mesProgress)}% del mes ${planMultiFase.mesActual}.`}
+                        </p>
+                        {cambiaFase && (
+                          <p className="text-xs opacity-70 mt-1">
+                            🔥 Cambio de fase: <span className="font-semibold">{planMultiFase.faseActual}</span> → <span className="font-semibold">{siguienteFase.nombre}</span>
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => setModalSiguienteMesAbierto(true)}
+                        className={`px-4 py-2 rounded-lg text-white text-sm font-medium transition-all shadow-lg whitespace-nowrap ${
+                          planMultiFase.faseActual === "BULK"
+                            ? "bg-amber-500 hover:bg-amber-600"
+                            : planMultiFase.faseActual === "CUT"
+                            ? "bg-cyan-500 hover:bg-cyan-600"
+                            : planMultiFase.faseActual === "LEAN_BULK"
+                            ? "bg-emerald-500 hover:bg-emerald-600"
+                            : "bg-purple-500 hover:bg-purple-600"
+                        }`}
+                      >
+                        Preparar mes {siguienteMes} de {planMultiFase.totalMeses}
+                      </button>
+                    </div>
+                    
+                    {/* Barra de progreso del mes actual */}
+                    <div className="mt-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs opacity-60">Progreso del mes {planMultiFase.mesActual}</span>
+                        <span className="text-xs font-medium">{Math.round(mesProgress)}%</span>
+                      </div>
+                      <div className="h-2 w-full rounded-full bg-white/10 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-300 ${
+                            planMultiFase.faseActual === "BULK"
+                              ? "bg-gradient-to-r from-amber-500 to-orange-500"
+                              : planMultiFase.faseActual === "CUT"
+                              ? "bg-gradient-to-r from-cyan-500 to-blue-500"
+                              : planMultiFase.faseActual === "LEAN_BULK"
+                              ? "bg-gradient-to-r from-emerald-500 to-teal-500"
+                              : "bg-gradient-to-r from-purple-500 to-pink-500"
+                          }`}
+                          style={{ width: `${mesProgress}%` }}
+                        />
+                      </div>
+                      <p className="text-xs opacity-50 mt-1">
+                        {Math.round(mesProgress) >= 100 
+                          ? "Mes completado - Listo para continuar" 
+                          : `${Math.max(0, Math.ceil(30 - (mesProgress / 100 * 30)))} días restantes`}
+                      </p>
+                    </div>
+                  </motion.div>
+                );
+              };
+              
+              return <MultiPhaseContinuityBanner />;
+            })()}
             
             <div className="flex items-center justify-between gap-4 flex-wrap">
             <h1 className="text-2xl md:text-3xl font-semibold">Tu plan inteligente</h1>
@@ -1602,22 +2224,7 @@ export default function PlanPage() {
                 </div>
                 
                 {/* Botón Generar Siguiente Mes - Solo para planes multi-fase */}
-                {planMultiFase && planMultiFase.tipo !== "simple" && planMultiFase.mesActual < planMultiFase.totalMeses && (
-                  <button
-                    className={`rounded-xl px-4 py-2 text-sm font-medium border transition-colors ${
-                      planMultiFase.faseActual === "BULK" 
-                        ? "bg-amber-500/20 border-amber-500/30 hover:bg-amber-500/30 text-amber-200" 
-                        : planMultiFase.faseActual === "CUT"
-                        ? "bg-cyan-500/20 border-cyan-500/30 hover:bg-cyan-500/30 text-cyan-200"
-                        : planMultiFase.faseActual === "LEAN_BULK"
-                        ? "bg-emerald-500/20 border-emerald-500/30 hover:bg-emerald-500/30 text-emerald-200"
-                        : "bg-purple-500/20 border-purple-500/30 hover:bg-purple-500/30 text-purple-200"
-                    }`}
-                    onClick={() => setModalSiguienteMesAbierto(true)}
-                  >
-                    🚀 Generar Mes {planMultiFase.mesActual + 1} de {planMultiFase.totalMeses}
-                  </button>
-                )}
+                {/* Botón secundario para generar siguiente mes (solo si no hay banner activo) - Oculto cuando el banner al 90-100% está visible */}
                 
                 {!isPremium && (
                   <button
@@ -1646,17 +2253,17 @@ export default function PlanPage() {
                   <span className="text-sm font-medium text-white whitespace-nowrap max-w-[150px] md:max-w-none truncate">
                     {getObjetivoTexto(user.objetivo)}
                   </span>
-                </div>
+                      </div>
                 {/* Intensidad - Solo lectura */}
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
                   <span className="text-xs opacity-70 whitespace-nowrap">Intensidad:</span>
                   <span className="text-sm font-medium text-white capitalize">
                     {getIntensidadTexto(user.intensidad)}
-                  </span>
-                </div>
+                    </span>
+                        </div>
                 {/* Dieta - Solo lectura */}
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
-                  <span className="text-xs opacity-70 whitespace-nowrap">Dieta:</span>
+                    <span className="text-xs opacity-70 whitespace-nowrap">Dieta:</span>
                   <span className="text-sm font-medium text-white">
                     {getDietaTexto(user.tipoDieta)}
                   </span>
@@ -3247,46 +3854,13 @@ export default function PlanPage() {
                       </h3>
                       {(semanaActual.days || []).map((dia: TrainingDay, di: number) => {
                         // Función para determinar qué músculos se trabajan en este día
+                        // Basado en los muscle_group reales de los ejercicios
                         const getMusculosDelDia = (): string | null => {
-                          const tp = (plan as unknown as Record<string, unknown>)?.training_plan as TrainingPlan | undefined;
-                          const splitGeneral = (tp as unknown as Record<string, unknown>)?.split as string | undefined;
-                          
-                          // Si el día tiene un split específico, usarlo
-                          if (dia.split) {
-                            const splitLower = dia.split.toLowerCase();
-                            
-                            // Si es Full Body, mostrar "Full Body"
-                            if (splitLower.includes("full body")) {
-                              return "Full Body";
-                            }
-                            
-                            // Mapear splits comunes a músculos
-                            if (splitLower.includes("push")) {
-                              return "Pecho, Hombros, Tríceps";
-                            } else if (splitLower.includes("pull")) {
-                              return "Espalda, Bíceps, Trapecio";
-                            } else if (splitLower.includes("legs") || splitLower.includes("piernas")) {
-                              return "Cuádriceps, Isquiotibiales, Glúteos, Gemelos";
-                            } else if (splitLower.includes("upper")) {
-                              return "Pecho, Espalda, Hombros, Bíceps, Tríceps";
-                            } else if (splitLower.includes("lower")) {
-                              return "Cuádriceps, Isquiotibiales, Glúteos, Gemelos, Abdominales";
-                            } else if (splitLower.includes("chest") || splitLower.includes("pecho")) {
-                              return "Pecho, Tríceps";
-                            } else if (splitLower.includes("back") || splitLower.includes("espalda")) {
-                              return "Espalda, Bíceps";
-                            } else if (splitLower.includes("shoulders") || splitLower.includes("hombros")) {
-                              return "Hombros, Trapecio";
-                            }
+                          if (!dia.ejercicios || dia.ejercicios.length === 0) {
+                            return null;
                           }
                           
-                          // Si el split general es Full Body, mostrar "Full Body"
-                          if (splitGeneral === "Full Body" || splitGeneral?.toLowerCase().includes("full body")) {
-                            return "Full Body";
-                          }
-                          
-                          // Si no hay split específico, analizar los muscle_group de los ejercicios
-                          if (dia.ejercicios && dia.ejercicios.length > 0) {
+                          // Obtener todos los muscle_group únicos de los ejercicios del día
                             const muscleGroups = new Set<string>();
                             dia.ejercicios.forEach(ej => {
                               if (ej.muscle_group) {
@@ -3294,31 +3868,79 @@ export default function PlanPage() {
                               }
                             });
                             
-                            // Si hay 4 o más músculos diferentes, probablemente es Full Body
-                            if (muscleGroups.size >= 4) {
-                              return "Full Body";
-                            }
-                            
-                            // Devolver los músculos únicos encontrados
-                            if (muscleGroups.size > 0) {
-                              return Array.from(muscleGroups).join(", ");
-                            }
+                          if (muscleGroups.size === 0) {
+                            return null;
                           }
                           
-                          return null;
+                          // Si hay muchos músculos diferentes, puede ser Full Body
+                          if (muscleGroups.size >= 5) {
+                            return "Full Body";
+                          }
+                          
+                          // Devolver los músculos únicos encontrados, ordenados alfabéticamente
+                          return Array.from(muscleGroups).sort().join(", ");
                         };
                         
                         const musculos = getMusculosDelDia();
                         
+                        // Usar el progreso del día desde el cache (calculado una sola vez al abrir el modal)
+                        // NO calcular aquí, solo usar el cache
+                        const dayKey = `w${semanaSeleccionada}-d${di}`;
+                        const cachedProgress = diaProgressCache[dayKey];
+                        
+                        // Si no hay cache, usar valores por defecto (se calculará cuando se cargue exerciseProgress)
+                        const finalTotal = cachedProgress?.total || 0;
+                        const finalCompleted = cachedProgress?.completed || 0;
+                        const finalPorcentaje = cachedProgress?.porcentaje || 0;
+                        
+                        // Identificar día actual
+                        const diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+                        const hoy = new Date().getDay();
+                        const diaActualNombre = diasSemana[hoy];
+                        const esDiaActual = dia.day === diaActualNombre;
+                        
+                        // Estado de expansión del día
+                        const isExpanded = diasExpandidos[dayKey] || false;
+                        
                         return (
-                        <div key={`dia-${semanaSeleccionada}-${di}`} className="rounded-lg border border-white/10 bg-white/5 p-4">
-                          <h4 className="text-base font-semibold mb-3 text-white">
+                        <div 
+                          key={`dia-${semanaSeleccionada}-${di}`} 
+                          className={`rounded-lg border-2 bg-white/5 p-4 transition-all ${
+                            esDiaActual 
+                              ? 'border-cyan-500/50 bg-cyan-500/10 shadow-lg shadow-cyan-500/20' 
+                              : 'border-white/10'
+                          }`}
+                        >
+                          <button
+                            onClick={() => setDiasExpandidos(prev => ({ ...prev, [dayKey]: !prev[dayKey] }))}
+                            className="w-full flex items-center justify-between mb-3"
+                          >
+                            <h4 className={`text-base font-semibold text-white flex items-center gap-2 ${
+                              esDiaActual ? 'text-cyan-300' : ''
+                            }`}>
+                              {esDiaActual && <span className="text-cyan-400">📍</span>}
                             {dia.day}
                             {musculos && (
                               <span className="text-sm font-normal opacity-70 ml-2">({musculos})</span>
                             )}
+                              <span className="ml-auto text-sm font-medium text-cyan-300">
+                                {finalCompleted}/{finalTotal} ({finalPorcentaje}%)
+                              </span>
                           </h4>
+                            <span className="text-white/50 text-sm">
+                              {isExpanded ? '▼' : '▶'}
+                            </span>
+                          </button>
                           
+                          <AnimatePresence>
+                            {isExpanded && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: "auto", opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="overflow-hidden"
+                              >
                           {/* Calentamiento */}
                           {dia.warmup && (
                             <div className="mb-4 p-3 rounded-md bg-gradient-to-r from-orange-500/20 to-yellow-500/20 border border-orange-500/30">
@@ -3334,6 +3956,9 @@ export default function PlanPage() {
                             <ul className="space-y-3">
                               {(dia.ejercicios || []).map((ejercicio: TrainingExercise, ei: number) => {
                                 const restTime = ejercicio.rest_seconds || ejercicio.rest_sec;
+                                const exerciseId = `w${semanaSeleccionada}-d${di}-e${ei}`;
+                                const progress = exerciseProgress[exerciseId] || { completed: 0, total: ejercicio.sets };
+                                
                                 return (
                                   <li key={`ej-${semanaSeleccionada}-${di}-${ei}`} className="rounded-lg bg-white/5 border border-white/10 p-3">
                                     <div className="flex-1">
@@ -3343,6 +3968,9 @@ export default function PlanPage() {
                                           <div className="flex items-center gap-2 flex-wrap mb-1">
                                             <span className="font-semibold text-white">{ejercicio.name}</span>
                                             <span className="text-sm opacity-70">· {ejercicio.sets}x{String(ejercicio.reps)}</span>
+                                            <span className="ml-auto text-sm font-medium text-cyan-300">
+                                              {progress.completed}/{progress.total}
+                                            </span>
                                             {ejercicio.muscle_group && (
                                               <span className="text-xs px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
                                                 {ejercicio.muscle_group}
@@ -3416,6 +4044,23 @@ export default function PlanPage() {
                                           <p className="text-xs opacity-90">{ejercicio.alternative}</p>
                                         </div>
                                       )}
+                                      
+                                      {/* Tracker de pesos por serie */}
+                                      {authUser && planId && (
+                                        <ExerciseSetTracker
+                                          exercise={ejercicio}
+                                          week={semanaActual.week}
+                                          day={dia.day}
+                                          planId={planId}
+                                          userId={authUser.uid}
+                                          onProgressChange={(completed, total) => {
+                                            setExerciseProgress(prev => ({
+                                              ...prev,
+                                              [exerciseId]: { completed, total }
+                                            }));
+                                          }}
+                                        />
+                                      )}
                                     </div>
                                   </li>
                                 );
@@ -3424,6 +4069,9 @@ export default function PlanPage() {
                           ) : (
                             <p className="text-sm text-white/50">No hay ejercicios registrados para este día</p>
                           )}
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </div>
                         );
                       })}
@@ -3445,6 +4093,36 @@ export default function PlanPage() {
           userEmail={authUser.email || ""}
         />
       )}
+
+      {/* Modal de Continuidad de Plan (solo para planes simples) */}
+      {continuityModalOpen && authUser && user && plan && planId && !planMultiFase && (
+        <PlanContinuityModal
+          isOpen={continuityModalOpen}
+          onClose={() => setContinuityModalOpen(false)}
+          planData={{
+            id: planId,
+            plan: plan,
+            user: user,
+            createdAt: new Date(), // La fecha real se carga desde Firestore dentro del modal
+          }}
+          registrosPeso={registrosPeso}
+          userId={authUser.uid}
+        />
+      )}
+
+      {/* Modal de Cambios del Nuevo Mes (planes multi-fase) */}
+      <AnimatePresence>
+        {monthChangesModalOpen && monthChangesData && (
+          <MonthChangesModal
+            isOpen={monthChangesModalOpen}
+            onClose={() => {
+              setMonthChangesModalOpen(false);
+              setMonthChangesData(null);
+            }}
+            cambios={monthChangesData}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Modal de registro de comida fuera del plan */}
       <FoodTrackingModal
