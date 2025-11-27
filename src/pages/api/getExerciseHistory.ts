@@ -63,7 +63,7 @@ export default async function handler(
             allWeights.length
           : null,
       lastWeight:
-        history.length > 0 && history[0].sets?.length > 0
+        history.length > 0 && history[0].sets && history[0].sets.length > 0
           ? history[0].sets[history[0].sets.length - 1].weight
           : null,
       totalSessions: history.length,
