@@ -3127,7 +3127,7 @@ export default function PlanPage() {
           {vistaPlan === 'entrenamiento' && isPremium && (plan as unknown as Record<string, unknown>)?.training_plan && (
             <div className="mt-6">
               <TrainingCalendar
-                trainingPlan={(plan as unknown as Record<string, unknown>)?.training_plan as TrainingPlan}
+                trainingPlan={(plan as unknown as Record<string, unknown>)?.training_plan as unknown as import("@/types/plan").TrainingPlan}
                 planStartDate={fechaInicioPlan}
                 planDurationDays={plan?.duracion_plan_dias || 30}
                 onDaySelect={(date, dayData, week, dayIndex) => {
