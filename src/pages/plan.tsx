@@ -139,7 +139,12 @@ export default function PlanPage() {
     selectedDayDataRefForLoad.current = selectedDayData;
   }, [selectedDayData]);
   
+  // FUNCIÓN DESHABILITADA: loadExerciseProgress
+  // Ya no se carga el historial de ejercicios ya que se eliminó el tracking de progreso
   const loadExerciseProgress = useCallback(async () => {
+    // Función deshabilitada - no hacer nada
+    return;
+    /* CÓDIGO DESHABILITADO
     if (!authUser || !planId) return;
     
     // IMPORTANTE: NO cargar si hay un día seleccionado del calendario
@@ -517,8 +522,8 @@ export default function PlanPage() {
       // Calcular progreso inicial (solo totales, sin datos guardados aún)
       calcularProgresoDias();
       
-      // Cargar progreso (solo cuando NO hay día seleccionado del calendario)
-      loadExerciseProgress();
+      // Cargar progreso DESHABILITADO - ya no se usa el tracking de progreso
+      // loadExerciseProgress();
       
       // Expandir automáticamente el día actual
       const diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];

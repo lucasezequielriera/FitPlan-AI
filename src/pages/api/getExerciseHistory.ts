@@ -18,7 +18,11 @@ export default async function handler(
 
     const db = getAdminDb();
     if (!db) {
-      return res.status(500).json({ error: "Firebase Admin no configurado" });
+      console.error("❌ Firebase Admin no configurado en getExerciseHistory");
+      return res.status(500).json({ 
+        error: "Firebase Admin no configurado",
+        message: "Este endpoint está deshabilitado temporalmente"
+      });
     }
 
     // Construir query base - solo filtrar por userId y exerciseName
@@ -77,7 +81,6 @@ export default async function handler(
   } catch (error) {
     console.error("Error obteniendo historial de ejercicio:", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    const errorStack = error instanceof Error ? error.stack : undefined;
     
     // Si es un error de índice faltante, dar un mensaje más claro
     if (errorMessage.includes("index") || errorMessage.includes("Index")) {
@@ -87,10 +90,23 @@ export default async function handler(
       console.error("   - Fields: userId (Ascending), exerciseName (Ascending), date (Descending)");
     }
     
+    // En producción, devolver un error más amigable sin exponer detalles
+    if (process.env.NODE_ENV === "production") {
+      return res.status(200).json({
+        success: true,
+        history: [],
+        stats: {
+          maxWeight: null,
+          avgWeight: null,
+          lastWeight: null,
+          totalSessions: 0,
+        },
+      });
+    }
+    
     return res.status(500).json({
       error: "Error al obtener el historial del ejercicio",
       details: errorMessage,
-      stack: process.env.NODE_ENV === "development" ? errorStack : undefined,
     });
   }
 }
