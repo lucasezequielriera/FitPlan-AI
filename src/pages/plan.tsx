@@ -13,7 +13,7 @@ import WeeklyStatsModal from "@/components/WeeklyStatsModal";
 import IMCInfoModal from "@/components/IMCInfoModal";
 import PlanContinuityModal from "@/components/PlanContinuityModal";
 import MonthChangesModal from "@/components/MonthChangesModal";
-import ExerciseSetTracker from "@/components/ExerciseSetTracker";
+// ExerciseSetTracker removido temporalmente
 import TrainingCalendar from "@/components/TrainingCalendar";
 import type { TrainingDayPlan } from "@/types/plan";
 import { getAuthSafe, getDbSafe } from "@/lib/firebase";
@@ -123,8 +123,6 @@ export default function PlanPage() {
   const [selectedDayProgress, setSelectedDayProgress] = useState<Record<string, { completed: number; total: number }>>({});
   // Estado para mostrar loader mientras se cargan los datos del día seleccionado
   const [loadingSelectedDay, setLoadingSelectedDay] = useState(false);
-  // Cache de progreso cargado por día (evita recargas innecesarias)
-  const dayProgressCache = useRef<Map<string, Record<string, { completed: number; total: number }>>>(new Map());
   const [modalAlimentosAbierto, setModalAlimentosAbierto] = useState<null | { diaIdx: number }>(null);
   const [foodDetails, setFoodDetails] = useState<Record<string, { ingredientes?: string[]; pasos_preparacion?: string[]; loading?: boolean; error?: string }>>({});
   const [foodTrackingModalOpen, setFoodTrackingModalOpen] = useState(false);
@@ -270,115 +268,12 @@ export default function PlanPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authUser, planId, semanaSeleccionada, plan]); // NO incluir selectedDayData para evitar recrear el callback
   
-  // Ref para prevenir llamadas duplicadas
-  const loadingProgressRef = useRef<string | null>(null);
-  const isLoadingDayRef = useRef(false);
-  const lastLoadedDayRef = useRef<string | null>(null);
+  // Ref para prevenir procesamiento duplicado (sin llamadas al backend)
   const processingSelectionRef = useRef(false);
-  const lastSelectedDateRef = useRef<string | null>(null);
   
-  // Función para cargar progreso solo de un día específico
-  // NUEVA VERSIÓN: Usa un estado separado para evitar loops
-  const loadExerciseProgressForDay = useCallback(async (week: number, dayIndex: number, dayData: TrainingDayPlan) => {
-    if (!authUser || !planId || !dayData.ejercicios) {
-      setLoadingSelectedDay(false);
-      return;
-    }
-    
-    // Crear una clave única para este día
-    const dayKey = `w${week}-d${dayIndex}`;
-    
-    // PREVENIR LLAMADAS DUPLICADAS - Verificaciones múltiples y estrictas
-    if (isLoadingDayRef.current) {
-      console.warn("🚫 Ya se está cargando un día, omitiendo");
-      return; // Ya se está cargando, omitir
-    }
-    
-    if (loadingProgressRef.current === dayKey) {
-      console.warn("🚫 Este día ya se está cargando, omitiendo");
-      return; // Ya se está cargando este día específico, omitir
-    }
-    
-    // Verificar si ya tenemos los datos en cache
-    const cachedProgress = dayProgressCache.current.get(dayKey);
-    if (cachedProgress) {
-      console.log("✅ Usando datos del cache para este día");
-      setSelectedDayProgress(cachedProgress);
-      setLoadingSelectedDay(false);
-      return; // Usar cache, no recargar
-    }
-    
-    if (lastLoadedDayRef.current === dayKey) {
-      // Si ya fue cargado pero no está en cache, no recargar
-      console.log("✅ Este día ya fue procesado, omitiendo");
-      setLoadingSelectedDay(false);
-      return;
-    }
-    
-    // Marcar que estamos cargando ANTES de hacer cualquier cosa
-    isLoadingDayRef.current = true;
-    loadingProgressRef.current = dayKey;
-    
-    try {
-      const exercises = dayData.ejercicios.map((ejercicio, ei) => ({
-        exerciseName: ejercicio.name,
-        exerciseId: `w${week}-d${dayIndex}-e${ei}`,
-        sets: ejercicio.sets,
-      }));
-      
-      // Cargar progreso de todos los ejercicios del día en paralelo (máximo 5 a la vez)
-      const batchSize = 5;
-      const progressMap: Record<string, { completed: number; total: number }> = {};
-      
-      for (let i = 0; i < exercises.length; i += batchSize) {
-        const batch = exercises.slice(i, i + batchSize);
-        const batchPromises = batch.map(async ({ exerciseName, exerciseId, sets }) => {
-          try {
-            const response = await fetch(
-              `/api/getExerciseHistory?userId=${authUser.uid}&exerciseName=${encodeURIComponent(exerciseName)}&planId=${planId}`
-            );
-            if (response.ok) {
-              const data = await response.json();
-              if (data.history && data.history.length > 0) {
-                const latestSession = data.history[0];
-                if (latestSession.sets && latestSession.sets.length > 0) {
-                  const completed = latestSession.sets.filter((s: { completed: boolean }) => s.completed).length;
-                  return { exerciseId, completed, total: sets };
-                }
-              }
-            }
-          } catch (error) {
-            console.error(`Error cargando progreso de ${exerciseName}:`, error);
-          }
-          return { exerciseId, completed: 0, total: sets };
-        });
-        
-        const batchResults = await Promise.all(batchPromises);
-        batchResults.forEach(({ exerciseId, completed, total }) => {
-          progressMap[exerciseId] = { completed, total };
-        });
-      }
-      
-      // IMPORTANTE: Actualizar el estado separado para el día seleccionado
-      // Esto NO dispara el useEffect que recalcula el progreso global
-      // Solo actualizar si realmente hay datos
-      if (Object.keys(progressMap).length > 0) {
-        setSelectedDayProgress(progressMap);
-        // Guardar en cache para evitar recargas futuras
-        dayProgressCache.current.set(dayKey, progressMap);
-      }
-      
-      // Marcar que este día ya fue cargado
-      lastLoadedDayRef.current = dayKey;
-    } catch (error) {
-      console.error("Error cargando progreso del día:", error);
-    } finally {
-      // Limpiar las referencias INMEDIATAMENTE
-      isLoadingDayRef.current = false;
-      loadingProgressRef.current = null;
-      setLoadingSelectedDay(false); // Ocultar loader
-    }
-  }, [authUser, planId]);
+  // FUNCIÓN ELIMINADA: loadExerciseProgressForDay
+  // Ya no se hacen llamadas al backend al seleccionar un día del calendario
+  // Solo se muestran los datos del plan que ya están cargados en memoria
   
   // Componente para mostrar el entrenamiento de un día específico
   const DayTrainingPanel = ({
@@ -395,19 +290,11 @@ export default function PlanPage() {
     week: number;
     dayIndex: number;
     date: Date | null;
-    exerciseProgress: Record<string, { completed: number; total: number }>;
+    exerciseProgress?: Record<string, { completed: number; total: number }>;
     planId?: string;
     userId?: string;
-    onProgressChange: (exerciseId: string, completed: number, total: number) => void;
+    onProgressChange?: (exerciseId: string, completed: number, total: number) => void;
   }) => {
-    // Calcular progreso del día
-    const totalSeries = dayData.ejercicios?.reduce((sum, e) => sum + e.sets, 0) || 0;
-    const completedSeries = dayData.ejercicios?.reduce((sum, e, ei) => {
-      const exerciseId = `w${week}-d${dayIndex}-e${ei}`;
-      return sum + (exerciseProgress[exerciseId]?.completed || 0);
-    }, 0) || 0;
-    const porcentaje = totalSeries > 0 ? Math.round((completedSeries / totalSeries) * 100) : 0;
-    
     // Obtener músculos trabajados
     const muscleGroups = new Set<string>();
     dayData.ejercicios?.forEach(ej => {
@@ -445,12 +332,6 @@ export default function PlanPage() {
               <p className="text-sm text-white/60 mt-1 capitalize">{dateStr}</p>
             )}
           </div>
-          <div className="text-right">
-            <div className="text-sm text-white/70">Progreso del día</div>
-            <div className="text-lg font-bold text-cyan-300">
-              {completedSeries}/{totalSeries} ({porcentaje}%)
-            </div>
-          </div>
         </div>
         
         {/* Calentamiento */}
@@ -469,8 +350,6 @@ export default function PlanPage() {
           <ul className="space-y-3">
             {dayData.ejercicios.map((ejercicio, ei) => {
               const restTime = ejercicio.rest_seconds || (ejercicio as unknown as { rest_sec?: number }).rest_sec;
-              const exerciseId = `w${week}-d${dayIndex}-e${ei}`;
-              const progress = exerciseProgress[exerciseId] || { completed: 0, total: ejercicio.sets };
               
               return (
                 <li key={`ej-${week}-${dayIndex}-${ei}`} className="rounded-lg bg-white/5 border border-white/10 p-3">
@@ -481,9 +360,6 @@ export default function PlanPage() {
                         <div className="flex items-center gap-2 flex-wrap mb-1">
                           <span className="font-semibold text-white">{ejercicio.name}</span>
                           <span className="text-sm opacity-70">· {ejercicio.sets}x{String(ejercicio.reps)}</span>
-                          <span className="ml-auto text-sm font-medium text-cyan-300">
-                            {progress.completed}/{progress.total}
-                          </span>
                           {ejercicio.muscle_group && (
                             <span className="text-xs px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
                               {ejercicio.muscle_group}
@@ -555,19 +431,7 @@ export default function PlanPage() {
                       </div>
                     )}
                     
-                    {/* Tracker de pesos por serie */}
-                    {userId && planId && (
-                      <ExerciseSetTracker
-                        exercise={ejercicio}
-                        week={week}
-                        day={dayData.day}
-                        planId={planId}
-                        userId={userId}
-                        onProgressChange={(completed, total) => {
-                          onProgressChange(exerciseId, completed, total);
-                        }}
-                      />
-                    )}
+                    {/* Tracker de pesos por serie - REMOVIDO TEMPORALMENTE */}
                   </div>
                 </li>
               );
@@ -628,20 +492,23 @@ export default function PlanPage() {
   const modalOpenedRef = useRef(false);
   
   useEffect(() => {
-    // IMPORTANTE: Si hay un día seleccionado del calendario, NO hacer nada
-    // Verificar tanto el estado como el ref para mayor seguridad
-    if (selectedDayData || selectedDayDataRefForLoad.current) {
-      return;
+    // CRÍTICO: Si hay un día seleccionado del calendario, NO hacer NADA en absoluto
+    // Esta verificación debe ser la PRIMERA y más estricta
+    if (selectedDayData) {
+      // Si hay un día seleccionado, NO ejecutar NADA de este useEffect
+      // Solo resetear el ref cuando se cierra el modal
+      if (!modalEntrenamientoAbierto) {
+        modalOpenedRef.current = false;
+        isRecalculatingRef.current = false;
+        processingSelectionRef.current = false;
+        lastExerciseProgressRef.current = '';
+      }
+      return; // SALIR INMEDIATAMENTE si hay un día seleccionado
     }
     
     // Solo cargar si se abre el modal desde el botón tradicional (no desde el calendario)
     // Y solo si no se ha ejecutado ya para esta apertura del modal
     if (modalEntrenamientoAbierto && authUser && planId && !modalOpenedRef.current) {
-      // Verificar nuevamente antes de ejecutar (por si selectedDayData cambió entre renders)
-      if (selectedDayData || selectedDayDataRefForLoad.current) {
-        return;
-      }
-      
       modalOpenedRef.current = true;
       
       // Limpiar cache al abrir el modal
@@ -650,10 +517,8 @@ export default function PlanPage() {
       // Calcular progreso inicial (solo totales, sin datos guardados aún)
       calcularProgresoDias();
       
-      // Solo cargar progreso si NO hay un día seleccionado
-      if (!selectedDayData && !selectedDayDataRefForLoad.current) {
-        loadExerciseProgress();
-      }
+      // Cargar progreso (solo cuando NO hay día seleccionado del calendario)
+      loadExerciseProgress();
       
       // Expandir automáticamente el día actual
       const diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
@@ -678,16 +543,10 @@ export default function PlanPage() {
     // Resetear el ref cuando se cierra el modal
     if (!modalEntrenamientoAbierto) {
       modalOpenedRef.current = false;
-      // Limpiar TODAS las referencias de carga cuando se cierra el modal
-      isLoadingDayRef.current = false;
-      loadingProgressRef.current = null;
-      lastLoadedDayRef.current = null;
+      // Limpiar referencias cuando se cierra el modal
       isRecalculatingRef.current = false;
       processingSelectionRef.current = false;
-      lastSelectedDateRef.current = null;
-      lastExerciseProgressRef.current = ''; // Limpiar también este
-      // Limpiar el cache también
-      dayProgressCache.current.clear();
+      lastExerciseProgressRef.current = '';
     }
   }, [modalEntrenamientoAbierto, authUser, planId, semanaSeleccionada, loadExerciseProgress, plan, calcularProgresoDias, selectedDayData]);
   
@@ -718,7 +577,7 @@ export default function PlanPage() {
     }
     
     // TERCERA VERIFICACIÓN: Si ya se está procesando algo, NO HACER NADA
-    if (!plan || isRecalculatingRef.current || loadingProgressRef.current || isLoadingDayRef.current || processingSelectionRef.current) {
+    if (!plan || isRecalculatingRef.current || processingSelectionRef.current) {
       return;
     }
     
@@ -735,7 +594,7 @@ export default function PlanPage() {
     }
     
     // SEXTA VERIFICACIÓN: Verificar nuevamente antes de marcar como recalculando
-    if (selectedDayData || selectedDayDataRef.current || loadingProgressRef.current || isLoadingDayRef.current || processingSelectionRef.current) {
+    if (selectedDayData || selectedDayDataRef.current || processingSelectionRef.current) {
       return;
     }
     
@@ -750,8 +609,6 @@ export default function PlanPage() {
         !modalEntrenamientoAbierto || 
         selectedDayData ||
         selectedDayDataRef.current || 
-        loadingProgressRef.current || 
-        isLoadingDayRef.current || 
         processingSelectionRef.current
       ) {
         isRecalculatingRef.current = false;
@@ -3133,67 +2990,45 @@ export default function PlanPage() {
                 onDaySelect={(date, dayData, week, dayIndex) => {
                   // Prevenir procesamiento duplicado
                   if (processingSelectionRef.current) {
-                    console.warn("🚫 Ya se está procesando una selección, omitiendo");
-                    return;
-                  }
-                  
-                  // Prevenir selecciones duplicadas del mismo día
-                  const dateKey = date.toISOString().split('T')[0];
-                  if (lastSelectedDateRef.current === dateKey && selectedDayData) {
-                    console.warn("🚫 Este día ya está seleccionado, omitiendo");
-                    return;
-                  }
-                  
-                  // Prevenir llamadas duplicadas
-                  const dayKey = `w${week}-d${dayIndex}`;
-                  if (isLoadingDayRef.current || loadingProgressRef.current === dayKey) {
-                    console.warn("🚫 Ya se está cargando este día, omitiendo");
                     return;
                   }
                   
                   // Marcar que estamos procesando
                   processingSelectionRef.current = true;
-                  lastSelectedDateRef.current = dateKey;
                   
-                  // Limpiar y establecer estados
-                  setSelectedDayProgress({});
-                  setSelectedTrainingDate(date);
-                  
+                  // CRÍTICO: Establecer selectedDayData PRIMERO antes de abrir el modal
+                  // Esto previene que el useEffect se ejecute y haga llamadas al backend
                   if (dayData && dayData.ejercicios && dayData.ejercicios.length > 0) {
-                    // IMPORTANTE: Establecer selectedDayData PRIMERO para prevenir que el useEffect problemático se ejecute
+                    // IMPORTANTE: Solo mostrar los datos del plan que ya están en memoria
+                    // NO hacer NINGUNA llamada al backend
+                    // Los ejercicios, series, repeticiones, etc. ya están en dayData (vienen de OpenAI)
+                    
+                    // Establecer selectedDayData PRIMERO (esto previene que el useEffect se ejecute)
                     setSelectedDayData({ day: dayData, week, dayIndex });
                     
-                    // Usar setTimeout para asegurar que selectedDayData se establezca antes de abrir el modal
-                    setTimeout(() => {
-                      // Verificar cache primero antes de cargar
-                      const dayKey = `w${week}-d${dayIndex}`;
-                      const cachedProgress = dayProgressCache.current.get(dayKey);
-                      
-                      if (cachedProgress) {
-                        // Usar cache, no cargar
-                        setSelectedDayProgress(cachedProgress);
-                        setLoadingSelectedDay(false);
-                        processingSelectionRef.current = false;
-                      } else if (authUser && planId) {
-                        // Solo cargar si no está en cache
-                        setLoadingSelectedDay(true);
-                        loadExerciseProgressForDay(week, dayIndex, dayData).finally(() => {
-                          processingSelectionRef.current = false;
-                        });
-                      } else {
-                        setLoadingSelectedDay(false);
-                        processingSelectionRef.current = false;
-                      }
-                      
-                      // Abrir el modal DESPUÉS de establecer selectedDayData
-                      setModalEntrenamientoAbierto(true);
-                    }, 0);
-                  } else {
-                    setSelectedDayData(null);
+                    // Establecer la fecha seleccionada
+                    setSelectedTrainingDate(date);
+                    
+                    // Inicializar progreso vacío (solo para la UI, sin datos del backend)
                     setSelectedDayProgress({});
                     setLoadingSelectedDay(false);
-                    processingSelectionRef.current = false;
-                    setModalEntrenamientoAbierto(true);
+                    
+                    // Abrir el modal DESPUÉS de establecer selectedDayData
+                    // Usar setTimeout para asegurar que selectedDayData se establezca primero
+                    setTimeout(() => {
+                      setModalEntrenamientoAbierto(true);
+                      processingSelectionRef.current = false;
+                    }, 0);
+                  } else {
+                    // Día sin entrenamiento
+                    setSelectedDayData(null);
+                    setSelectedTrainingDate(date);
+                    setSelectedDayProgress({});
+                    setLoadingSelectedDay(false);
+                    setTimeout(() => {
+                      setModalEntrenamientoAbierto(true);
+                      processingSelectionRef.current = false;
+                    }, 0);
                   }
                 }}
                 selectedDate={selectedTrainingDate}
@@ -4325,15 +4160,10 @@ export default function PlanPage() {
               exit={{ opacity: 0 }}
               className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
               onClick={() => {
-                // Limpiar TODAS las referencias al cerrar el modal
-                isLoadingDayRef.current = false;
-                loadingProgressRef.current = null;
-                lastLoadedDayRef.current = null;
+                // Limpiar referencias al cerrar el modal
                 isRecalculatingRef.current = false;
                 processingSelectionRef.current = false;
-                lastSelectedDateRef.current = null;
-                lastExerciseProgressRef.current = ''; // Limpiar también este
-                dayProgressCache.current.clear(); // Limpiar cache
+                lastExerciseProgressRef.current = '';
                 
                 // Cerrar modal y limpiar estados
                 setModalEntrenamientoAbierto(false);
@@ -4376,33 +4206,13 @@ export default function PlanPage() {
                 {/* Mostrar día seleccionado del calendario o todas las semanas */}
                 {selectedDayData && selectedDayData.day && selectedDayData.day.ejercicios ? (
                   // Mostrar solo el día seleccionado del calendario
-                  loadingSelectedDay ? (
-                    // Mostrar loader mientras se cargan los datos
-                    <div className="flex flex-col items-center justify-center py-20">
-                      <div className="relative w-16 h-16 mb-4">
-                        <div className="absolute inset-0 border-4 border-cyan-500/30 rounded-full"></div>
-                        <div className="absolute inset-0 border-4 border-transparent border-t-cyan-500 rounded-full animate-spin"></div>
-                      </div>
-                      <p className="text-white/70 text-sm">Cargando datos del entrenamiento...</p>
-                    </div>
-                  ) : (
-                    <DayTrainingPanel
-                      dayData={selectedDayData.day}
-                      week={selectedDayData.week}
-                      dayIndex={selectedDayData.dayIndex}
-                      date={selectedTrainingDate}
-                      exerciseProgress={selectedDayProgress} // Usar el progreso separado para evitar loops
-                      planId={planId || undefined}
-                      userId={authUser?.uid || undefined}
-                      onProgressChange={(exerciseId, completed, total) => {
-                        // Actualizar solo el progreso del día seleccionado (no el global)
-                        setSelectedDayProgress(prev => ({
-                          ...prev,
-                          [exerciseId]: { completed, total }
-                        }));
-                      }}
-                    />
-                  )
+                  // NO hay loader porque los datos ya están en memoria (vienen del plan)
+                  <DayTrainingPanel
+                    dayData={selectedDayData.day}
+                    week={selectedDayData.week}
+                    dayIndex={selectedDayData.dayIndex}
+                    date={selectedTrainingDate}
+                  />
                 ) : selectedTrainingDate && !selectedDayData ? (
                   // Día seleccionado pero sin entrenamiento
                   <div className="text-center py-12">
@@ -4492,16 +4302,6 @@ export default function PlanPage() {
                         
                         const musculos = getMusculosDelDia();
                         
-                        // Usar el progreso del día desde el cache (calculado una sola vez al abrir el modal)
-                        // NO calcular aquí, solo usar el cache
-                        const dayKey = `w${semanaSeleccionada}-d${di}`;
-                        const cachedProgress = diaProgressCache[dayKey];
-                        
-                        // Si no hay cache, usar valores por defecto (se calculará cuando se cargue exerciseProgress)
-                        const finalTotal = cachedProgress?.total || 0;
-                        const finalCompleted = cachedProgress?.completed || 0;
-                        const finalPorcentaje = cachedProgress?.porcentaje || 0;
-                        
                         // Identificar día actual
                         const diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
                         const hoy = new Date().getDay();
@@ -4509,6 +4309,7 @@ export default function PlanPage() {
                         const esDiaActual = dia.day === diaActualNombre;
                         
                         // Estado de expansión del día
+                        const dayKey = `w${semanaSeleccionada}-d${di}`;
                         const isExpanded = diasExpandidos[dayKey] || false;
                         
                         return (
@@ -4532,9 +4333,6 @@ export default function PlanPage() {
                             {musculos && (
                               <span className="text-sm font-normal opacity-70 ml-2">({musculos})</span>
                             )}
-                              <span className="ml-auto text-sm font-medium text-cyan-300">
-                                {finalCompleted}/{finalTotal} ({finalPorcentaje}%)
-                              </span>
                           </h4>
                             <span className="text-white/50 text-sm">
                               {isExpanded ? '▼' : '▶'}
@@ -4565,8 +4363,6 @@ export default function PlanPage() {
                             <ul className="space-y-3">
                               {(dia.ejercicios || []).map((ejercicio: TrainingExercise, ei: number) => {
                                 const restTime = ejercicio.rest_seconds || (ejercicio as unknown as { rest_sec?: number }).rest_sec;
-                                const exerciseId = `w${semanaSeleccionada}-d${di}-e${ei}`;
-                                const progress = exerciseProgress[exerciseId] || { completed: 0, total: ejercicio.sets };
                                 
                                 return (
                                   <li key={`ej-${semanaSeleccionada}-${di}-${ei}`} className="rounded-lg bg-white/5 border border-white/10 p-3">
@@ -4577,9 +4373,6 @@ export default function PlanPage() {
                                           <div className="flex items-center gap-2 flex-wrap mb-1">
                                             <span className="font-semibold text-white">{ejercicio.name}</span>
                                             <span className="text-sm opacity-70">· {ejercicio.sets}x{String(ejercicio.reps)}</span>
-                                            <span className="ml-auto text-sm font-medium text-cyan-300">
-                                              {progress.completed}/{progress.total}
-                                            </span>
                                             {ejercicio.muscle_group && (
                                               <span className="text-xs px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
                                                 {ejercicio.muscle_group}
@@ -4654,26 +4447,7 @@ export default function PlanPage() {
                                         </div>
                                       )}
                                       
-                                      {/* Tracker de pesos por serie */}
-                                      {authUser && planId && (
-                                        <ExerciseSetTracker
-                                          exercise={ejercicio}
-                                          week={semanaActual.week}
-                                          day={dia.day}
-                                          planId={planId}
-                                          userId={authUser.uid}
-                                          onProgressChange={(completed, total) => {
-                                            // Solo actualizar exerciseProgress si NO hay un día seleccionado del calendario
-                                            // Si hay un día seleccionado, NO actualizar exerciseProgress para evitar loops
-                                            if (!selectedDayData) {
-                                              setExerciseProgress(prev => ({
-                                                ...prev,
-                                                [exerciseId]: { completed, total }
-                                              }));
-                                            }
-                                          }}
-                                        />
-                                      )}
+                                      {/* Tracker de pesos por serie - REMOVIDO TEMPORALMENTE */}
                                     </div>
                                   </li>
                                 );

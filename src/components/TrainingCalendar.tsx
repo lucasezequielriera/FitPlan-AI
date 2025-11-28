@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
 import type { TrainingPlan, TrainingDayPlan } from "@/types/plan";
 
@@ -17,7 +17,23 @@ export default function TrainingCalendar({
   planStartDate,
   planDurationDays = 30,
 }: TrainingCalendarProps) {
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+  // Inicializar con el mes de inicio del plan, o el mes actual si no hay planStartDate
+  const initialMonth = useMemo(() => {
+    if (planStartDate) {
+      return new Date(planStartDate.getFullYear(), planStartDate.getMonth(), 1);
+    }
+    return new Date();
+  }, [planStartDate?.getTime()]);
+  
+  const [currentMonth, setCurrentMonth] = useState(initialMonth);
+  
+  // Actualizar currentMonth cuando cambie planStartDate
+  useEffect(() => {
+    if (planStartDate) {
+      const newMonth = new Date(planStartDate.getFullYear(), planStartDate.getMonth(), 1);
+      setCurrentMonth(newMonth);
+    }
+  }, [planStartDate?.getTime()]);
 
   // Calcular fecha de inicio del plan
   const startDate = useMemo(() => {
@@ -65,14 +81,17 @@ export default function TrainingCalendar({
           daysOffset = 7;
         }
 
-        // Mapear todas las semanas del plan
-        for (let weekOffset = 0; weekOffset < Math.ceil(planDurationDays / 7) + 1; weekOffset++) {
+        // Calcular fecha de fin (1 mes desde la fecha de inicio)
+        const endDate = new Date(startDate);
+        endDate.setMonth(endDate.getMonth() + 1);
+        endDate.setHours(23, 59, 59, 999);
+        
+        // Mapear todas las semanas del plan (hasta 1 mes desde la fecha de inicio)
+        const maxDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+        for (let weekOffset = 0; weekOffset < Math.ceil(maxDays / 7) + 1; weekOffset++) {
           const date = new Date(startDate);
           date.setDate(startDate.getDate() + daysOffset + (weekOffset * 7));
           date.setHours(0, 0, 0, 0);
-          
-          const endDate = new Date(startDate);
-          endDate.setDate(startDate.getDate() + planDurationDays);
           
           if (date >= startDate && date <= endDate) {
             const actualWeekIndex = weekOffset % trainingPlan.weeks.length;
@@ -87,6 +106,15 @@ export default function TrainingCalendar({
 
     return map;
   }, [trainingPlan.weeks, startDate.getTime(), planDurationDays]);
+
+  // Calcular fecha de fin del plan (1 mes desde la fecha de inicio)
+  const planEndDate = useMemo(() => {
+    if (!startDate) return null;
+    const endDate = new Date(startDate);
+    endDate.setMonth(endDate.getMonth() + 1);
+    endDate.setHours(23, 59, 59, 999);
+    return endDate;
+  }, [startDate.getTime()]);
 
   // Generar días del calendario
   const calendarDays = useMemo(() => {
@@ -103,19 +131,23 @@ export default function TrainingCalendar({
       isToday: boolean;
       hasTraining: boolean;
       trainingData: { day: TrainingDayPlan; week: number; dayIndex: number } | null;
+      isInPlanRange: boolean;
     }> = [];
 
     // Días del mes anterior
     const prevMonthLastDay = new Date(year, month, 0).getDate();
     for (let i = startingDayOfWeek - 1; i >= 0; i--) {
       const date = new Date(year, month - 1, prevMonthLastDay - i);
+      date.setHours(0, 0, 0, 0);
       const dateKey = date.toISOString().split('T')[0];
+      const isInRange = startDate && planEndDate && date >= startDate && date <= planEndDate;
       days.push({
         date,
         isCurrentMonth: false,
         isToday: false,
-        hasTraining: trainingMap.has(dateKey),
-        trainingData: trainingMap.get(dateKey) || null,
+        hasTraining: isInRange ? trainingMap.has(dateKey) : false,
+        trainingData: isInRange ? (trainingMap.get(dateKey) || null) : null,
+        isInPlanRange: isInRange || false,
       });
     }
 
@@ -127,12 +159,14 @@ export default function TrainingCalendar({
       const date = new Date(year, month, day);
       date.setHours(0, 0, 0, 0);
       const dateKey = date.toISOString().split('T')[0];
+      const isInRange = startDate && planEndDate && date >= startDate && date <= planEndDate;
       days.push({
         date,
         isCurrentMonth: true,
         isToday: date.getTime() === today.getTime(),
-        hasTraining: trainingMap.has(dateKey),
-        trainingData: trainingMap.get(dateKey) || null,
+        hasTraining: isInRange ? trainingMap.has(dateKey) : false,
+        trainingData: isInRange ? (trainingMap.get(dateKey) || null) : null,
+        isInPlanRange: isInRange || false,
       });
     }
 
@@ -140,18 +174,21 @@ export default function TrainingCalendar({
     const remainingDays = 42 - days.length;
     for (let day = 1; day <= remainingDays; day++) {
       const date = new Date(year, month + 1, day);
+      date.setHours(0, 0, 0, 0);
       const dateKey = date.toISOString().split('T')[0];
+      const isInRange = startDate && planEndDate && date >= startDate && date <= planEndDate;
       days.push({
         date,
         isCurrentMonth: false,
         isToday: false,
-        hasTraining: trainingMap.has(dateKey),
-        trainingData: trainingMap.get(dateKey) || null,
+        hasTraining: isInRange ? trainingMap.has(dateKey) : false,
+        trainingData: isInRange ? (trainingMap.get(dateKey) || null) : null,
+        isInPlanRange: isInRange || false,
       });
     }
 
     return days;
-  }, [currentMonth, trainingMap]);
+  }, [currentMonth, trainingMap, startDate.getTime(), planEndDate?.getTime()]);
 
   const monthNames = [
     "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -161,7 +198,8 @@ export default function TrainingCalendar({
   const dayNames = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
   const handleDayClick = (day: typeof calendarDays[0]) => {
-    if (!day.isCurrentMonth) return;
+    // Solo permitir clicks en días que estén en el rango del plan
+    if (!day.isInPlanRange) return;
     
     if (day.hasTraining && day.trainingData) {
       onDaySelect(day.date, day.trainingData.day, day.trainingData.week, day.trainingData.dayIndex);
@@ -231,19 +269,19 @@ export default function TrainingCalendar({
               whileTap={day.isCurrentMonth ? { scale: 0.95 } : {}}
               className={`
                 aspect-square rounded-xl text-sm font-medium transition-all duration-200
-                ${!day.isCurrentMonth 
-                  ? 'opacity-30 cursor-not-allowed' 
+                ${!day.isInPlanRange 
+                  ? 'opacity-20 cursor-not-allowed' 
                   : 'cursor-pointer'
                 }
                 ${day.isToday 
                   ? 'bg-gradient-to-br from-cyan-500/30 to-blue-500/30 border-2 border-cyan-400 text-cyan-100 shadow-lg shadow-cyan-500/20' 
                   : isSelected
                   ? 'bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border-2 border-cyan-500 text-cyan-200 shadow-md'
-                  : day.hasTraining
+                  : day.hasTraining && day.isInPlanRange
                   ? 'bg-gradient-to-br from-blue-500/20 to-indigo-500/20 border border-blue-500/40 text-blue-200 hover:from-blue-500/30 hover:to-indigo-500/30 hover:border-blue-500/60 hover:shadow-lg'
-                  : day.isCurrentMonth
+                  : day.isInPlanRange
                   ? 'bg-white/5 border border-white/10 text-white/60 hover:bg-white/10 hover:border-white/20'
-                  : 'bg-white/5 border border-white/10 text-white/30'
+                  : 'bg-white/5 border border-white/10 text-white/20'
                 }
               `}
             >
