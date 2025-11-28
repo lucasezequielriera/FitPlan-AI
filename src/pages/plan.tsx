@@ -270,8 +270,8 @@ export default function PlanPage() {
     } catch (error) {
       console.error("Error cargando progreso de ejercicios:", error);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authUser, planId, semanaSeleccionada, plan]); // NO incluir selectedDayData para evitar recrear el callback
+    CÓDIGO DESHABILITADO */
+  }, []); // Sin dependencias ya que la función está deshabilitada
   
   // Ref para prevenir procesamiento duplicado (sin llamadas al backend)
   const processingSelectionRef = useRef(false);
