@@ -114,7 +114,6 @@ export default function PlanPage() {
   const [modalEntrenamientoAbierto, setModalEntrenamientoAbierto] = useState(false);
   const [semanaSeleccionada, setSemanaSeleccionada] = useState<number>(1);
   const [diasExpandidos, setDiasExpandidos] = useState<Record<string, boolean>>({});
-  const [diaProgressCache, setDiaProgressCache] = useState<Record<string, { total: number; completed: number; porcentaje: number }>>({});
   const [vistaPlan, setVistaPlan] = useState<'entrenamiento' | 'alimentacion'>('alimentacion');
   // Estados para calendario de entrenamiento
   const [selectedTrainingDate, setSelectedTrainingDate] = useState<Date | null>(null);
@@ -129,149 +128,6 @@ export default function PlanPage() {
   const [weeklyStatsModalOpen, setWeeklyStatsModalOpen] = useState(false);
   const [imcModalOpen, setImcModalOpen] = useState(false);
   
-  // Estado para rastrear progreso de ejercicios (ejercicioId -> { completed, total })
-  const [exerciseProgress, setExerciseProgress] = useState<Record<string, { completed: number; total: number }>>({});
-  
-  // Ref para mantener una referencia estable de selectedDayData dentro de loadExerciseProgress
-  const selectedDayDataRefForLoad = useRef(selectedDayData);
-  
-  useEffect(() => {
-    selectedDayDataRefForLoad.current = selectedDayData;
-  }, [selectedDayData]);
-  
-  // FUNCIÓN DESHABILITADA: loadExerciseProgress
-  // Ya no se carga el historial de ejercicios ya que se eliminó el tracking de progreso
-  const loadExerciseProgress = useCallback(async () => {
-    // Función deshabilitada - no hacer nada
-    return;
-    /* CÓDIGO DESHABILITADO
-    if (!authUser || !planId) return;
-    
-    // IMPORTANTE: NO cargar si hay un día seleccionado del calendario
-    // Esto previene que se actualice exerciseProgress cuando hay un día seleccionado
-    // Usar ref para evitar que el callback se recree cuando selectedDayData cambia
-    if (selectedDayDataRefForLoad.current) {
-      return; // NO cargar si hay un día seleccionado
-    }
-    
-    try {
-      const tp = (plan as unknown as Record<string, unknown>)?.training_plan as TrainingPlan | undefined;
-      const weeks = tp?.weeks || [];
-      
-      // Obtener todos los ejercicios de todas las semanas
-      const allExercises: Array<{ exerciseName: string; week: number; day: string; sets: number; exerciseId: string; isCurrent: boolean }> = [];
-      
-      weeks.forEach((week, wi) => {
-        const weekNumber = week.week ?? wi + 1;
-        const isCurrentWeek = weekNumber === semanaSeleccionada;
-        (week.days || []).forEach((day, di) => {
-          (day.ejercicios || []).forEach((ejercicio: TrainingExercise, ei: number) => {
-            const exerciseId = `w${weekNumber}-d${di}-e${ei}`;
-            allExercises.push({
-              exerciseName: ejercicio.name,
-              week: weekNumber,
-              day: day.day,
-              sets: ejercicio.sets,
-              exerciseId,
-              isCurrent: isCurrentWeek, // Priorizar semana actual
-            });
-          });
-        });
-      });
-      
-      // Separar ejercicios actuales y del resto
-      const currentExercises = allExercises.filter(e => e.isCurrent);
-      const otherExercises = allExercises.filter(e => !e.isCurrent);
-      
-      // Función para cargar progreso de un ejercicio
-      const loadExerciseProgress = async ({ exerciseName, exerciseId, sets }: { exerciseName: string; exerciseId: string; sets: number }) => {
-        try {
-          const response = await fetch(
-            `/api/getExerciseHistory?userId=${authUser.uid}&exerciseName=${encodeURIComponent(exerciseName)}&planId=${planId}`
-          );
-          if (response.ok) {
-            const data = await response.json();
-            if (data.history && data.history.length > 0) {
-              const latestSession = data.history[0];
-              if (latestSession.sets && latestSession.sets.length > 0) {
-                const completed = latestSession.sets.filter((s: { completed: boolean }) => s.completed).length;
-                return { exerciseId, completed, total: sets };
-              }
-            }
-          }
-        } catch (error) {
-          console.error(`Error cargando progreso de ${exerciseName}:`, error);
-        }
-        return { exerciseId, completed: 0, total: sets };
-      };
-      
-      // Función para procesar peticiones en lotes (evitar demasiadas peticiones simultáneas)
-      const processInBatches = async <T, R>(
-        items: T[],
-        batchSize: number,
-        processor: (item: T) => Promise<R>
-      ): Promise<R[]> => {
-        const results: R[] = [];
-        for (let i = 0; i < items.length; i += batchSize) {
-          const batch = items.slice(i, i + batchSize);
-          const batchResults = await Promise.all(batch.map(processor));
-          results.push(...batchResults);
-          // Pequeño delay entre lotes para no sobrecargar
-          if (i + batchSize < items.length) {
-            await new Promise(resolve => setTimeout(resolve, 100));
-          }
-        }
-        return results;
-      };
-      
-      // 1. Cargar primero los ejercicios de la semana actual (prioridad, en lotes de 3)
-      const currentProgressResults = await processInBatches(
-        currentExercises,
-        3,
-        loadExerciseProgress
-      );
-      
-      // Actualizar estado inmediatamente con los ejercicios actuales
-      // IMPORTANTE: Verificar nuevamente antes de actualizar exerciseProgress usando ref
-      if (!selectedDayDataRefForLoad.current) {
-        const currentProgressMap: Record<string, { completed: number; total: number }> = {};
-        currentProgressResults.forEach(({ exerciseId, completed, total }) => {
-          currentProgressMap[exerciseId] = { completed, total };
-        });
-        setExerciseProgress(prev => ({ ...prev, ...currentProgressMap }));
-      }
-      
-      // 2. Cargar el resto de ejercicios en segundo plano (en lotes de 2 para no sobrecargar)
-      if (otherExercises.length > 0 && !selectedDayDataRefForLoad.current) {
-        // Usar setTimeout para no bloquear la UI
-        setTimeout(async () => {
-          // Verificar nuevamente antes de cargar usando ref
-          if (selectedDayDataRefForLoad.current) {
-            return; // NO cargar si hay un día seleccionado
-          }
-          
-          const otherProgressResults = await processInBatches(
-            otherExercises,
-            2,
-            loadExerciseProgress
-          );
-          
-          // Verificar nuevamente antes de actualizar usando ref
-          if (!selectedDayDataRefForLoad.current) {
-            const otherProgressMap: Record<string, { completed: number; total: number }> = {};
-            otherProgressResults.forEach(({ exerciseId, completed, total }) => {
-              otherProgressMap[exerciseId] = { completed, total };
-            });
-            
-            setExerciseProgress(prev => ({ ...prev, ...otherProgressMap }));
-          }
-        }, 200); // Delay un poco más largo
-      }
-    } catch (error) {
-      console.error("Error cargando progreso de ejercicios:", error);
-    }
-    CÓDIGO DESHABILITADO */
-  }, []); // Sin dependencias ya que la función está deshabilitada
   
   // Ref para prevenir procesamiento duplicado (sin llamadas al backend)
   const processingSelectionRef = useRef(false);
@@ -286,19 +142,15 @@ export default function PlanPage() {
     week,
     dayIndex,
     date,
-    exerciseProgress,
     planId,
     userId,
-    onProgressChange,
   }: {
     dayData: TrainingDayPlan;
     week: number;
     dayIndex: number;
     date: Date | null;
-    exerciseProgress?: Record<string, { completed: number; total: number }>;
     planId?: string;
     userId?: string;
-    onProgressChange?: (exerciseId: string, completed: number, total: number) => void;
   }) => {
     // Obtener músculos trabajados
     const muscleGroups = new Set<string>();
@@ -449,48 +301,7 @@ export default function PlanPage() {
     );
   };
   
-  // Función para calcular el progreso de todos los días (solo se llama al abrir el modal)
-  // IMPORTANTE: NO usar exerciseProgress en las dependencias para evitar loops
-  const calcularProgresoDias = useCallback(() => {
-    if (!plan) return;
-    
-    const tp = (plan as unknown as Record<string, unknown>)?.training_plan as TrainingPlan | undefined;
-    const weeks = tp?.weeks || [];
-    
-    // Calcular progreso para todas las semanas
-    const newCache: Record<string, { total: number; completed: number; porcentaje: number }> = {};
-    
-    weeks.forEach((week, wi) => {
-      const weekNumber = week.week ?? wi + 1;
-      (week.days || []).forEach((dia: TrainingDay, di: number) => {
-        const dayKey = `w${weekNumber}-d${di}`;
-        let totalSeriesDia = 0;
-        let seriesCompletadasDia = 0;
-        
-        if (dia.ejercicios && dia.ejercicios.length > 0) {
-          dia.ejercicios.forEach((ejercicio: TrainingExercise, ei: number) => {
-            const exerciseId = `w${weekNumber}-d${di}-e${ei}`;
-            // Usar el estado actual de exerciseProgress directamente (no como dependencia)
-            const progress = exerciseProgress[exerciseId];
-            
-            // Siempre usar ejercicio.sets como total (valor del plan)
-            const totalEjercicio = ejercicio.sets;
-            const completadasEjercicio = progress?.completed || 0;
-            
-            totalSeriesDia += totalEjercicio;
-            seriesCompletadasDia += completadasEjercicio;
-          });
-        }
-        
-        // Guardar en cache siempre, incluso si es 0, para tener el total correcto
-        const porcentajeDia = totalSeriesDia > 0 ? Math.round((seriesCompletadasDia / totalSeriesDia) * 100) : 0;
-        newCache[dayKey] = { total: totalSeriesDia, completed: seriesCompletadasDia, porcentaje: porcentajeDia };
-      });
-    });
-    
-    setDiaProgressCache(newCache);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plan]); // NO incluir exerciseProgress para evitar loops
+  // Función eliminada: calcularProgresoDias - ya no se calcula progreso de ejercicios
   
   // Cargar progreso de ejercicios cuando se abre el modal de entrenamiento
   // Ref para prevenir que este useEffect se ejecute múltiples veces
@@ -504,9 +315,7 @@ export default function PlanPage() {
       // Solo resetear el ref cuando se cierra el modal
       if (!modalEntrenamientoAbierto) {
         modalOpenedRef.current = false;
-        isRecalculatingRef.current = false;
         processingSelectionRef.current = false;
-        lastExerciseProgressRef.current = '';
       }
       return; // SALIR INMEDIATAMENTE si hay un día seleccionado
     }
@@ -516,14 +325,6 @@ export default function PlanPage() {
     if (modalEntrenamientoAbierto && authUser && planId && !modalOpenedRef.current) {
       modalOpenedRef.current = true;
       
-      // Limpiar cache al abrir el modal
-      setDiaProgressCache({});
-      
-      // Calcular progreso inicial (solo totales, sin datos guardados aún)
-      calcularProgresoDias();
-      
-      // Cargar progreso DESHABILITADO - ya no se usa el tracking de progreso
-      // loadExerciseProgress();
       
       // Expandir automáticamente el día actual
       const diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
@@ -549,89 +350,9 @@ export default function PlanPage() {
     if (!modalEntrenamientoAbierto) {
       modalOpenedRef.current = false;
       // Limpiar referencias cuando se cierra el modal
-      isRecalculatingRef.current = false;
       processingSelectionRef.current = false;
-      lastExerciseProgressRef.current = '';
     }
-  }, [modalEntrenamientoAbierto, authUser, planId, semanaSeleccionada, loadExerciseProgress, plan, calcularProgresoDias, selectedDayData]);
-  
-  // DESHABILITAR COMPLETAMENTE este useEffect cuando hay un día seleccionado del calendario
-  // Solo recalcular progreso cuando NO hay selectedDayData
-  const lastExerciseProgressRef = useRef<string>('');
-  const isRecalculatingRef = useRef(false);
-  const selectedDayDataRef = useRef(selectedDayData);
-  
-  // Actualizar ref cuando cambia selectedDayData
-  useEffect(() => {
-    selectedDayDataRef.current = selectedDayData;
-  }, [selectedDayData]);
-  
-  // DESHABILITAR COMPLETAMENTE este useEffect cuando hay un día seleccionado del calendario
-  // Este useEffect SOLO debe ejecutarse cuando el modal se abre desde el botón tradicional
-  // IMPORTANTE: Si hay selectedDayData, este useEffect NO debe ejecutarse EN ABSOLUTO
-  useEffect(() => {
-    // PRIMERA VERIFICACIÓN CRÍTICA: Si hay un día seleccionado del calendario, NO HACER NADA
-    // Esta es la verificación MÁS IMPORTANTE - debe ser la primera y más estricta
-    if (selectedDayData || selectedDayDataRef.current) {
-      return; // NO hacer nada si hay un día seleccionado - SALIR INMEDIATAMENTE
-    }
-    
-    // SEGUNDA VERIFICACIÓN: Si el modal no está abierto, NO HACER NADA
-    if (!modalEntrenamientoAbierto) {
-      return;
-    }
-    
-    // TERCERA VERIFICACIÓN: Si ya se está procesando algo, NO HACER NADA
-    if (!plan || isRecalculatingRef.current || processingSelectionRef.current) {
-      return;
-    }
-    
-    // CUARTA VERIFICACIÓN: Solo procesar si exerciseProgress tiene datos
-    if (Object.keys(exerciseProgress).length === 0) {
-      return;
-    }
-    
-    const progressKey = JSON.stringify(exerciseProgress);
-    
-    // QUINTA VERIFICACIÓN: Prevenir recálculos duplicados
-    if (lastExerciseProgressRef.current === progressKey) {
-      return;
-    }
-    
-    // SEXTA VERIFICACIÓN: Verificar nuevamente antes de marcar como recalculando
-    if (selectedDayData || selectedDayDataRef.current || processingSelectionRef.current) {
-      return;
-    }
-    
-    // Marcar como recalculando
-    isRecalculatingRef.current = true;
-    lastExerciseProgressRef.current = progressKey;
-    
-    // Usar setTimeout para evitar loops inmediatos
-    const timeoutId = setTimeout(() => {
-      // SÉPTIMA VERIFICACIÓN: Verificar nuevamente antes de recalcular
-      if (
-        !modalEntrenamientoAbierto || 
-        selectedDayData ||
-        selectedDayDataRef.current || 
-        processingSelectionRef.current
-      ) {
-        isRecalculatingRef.current = false;
-        return;
-      }
-      
-      // Solo recalcular si todas las verificaciones pasan
-      calcularProgresoDias();
-      isRecalculatingRef.current = false;
-    }, 500);
-    
-    // Cleanup: cancelar el timeout si el componente se desmonta o cambian las dependencias
-    return () => {
-      clearTimeout(timeoutId);
-      isRecalculatingRef.current = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [exerciseProgress, modalEntrenamientoAbierto, plan, calcularProgresoDias]); // NO incluir selectedDayData en dependencias para evitar re-ejecuciones
+  }, [modalEntrenamientoAbierto, authUser, planId, semanaSeleccionada, plan, selectedDayData]);
   
   // Estados para modal de siguiente mes (plan multi-fase)
   const [modalSiguienteMesAbierto, setModalSiguienteMesAbierto] = useState(false);
@@ -4166,9 +3887,7 @@ export default function PlanPage() {
               className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
               onClick={() => {
                 // Limpiar referencias al cerrar el modal
-                isRecalculatingRef.current = false;
                 processingSelectionRef.current = false;
-                lastExerciseProgressRef.current = '';
                 
                 // Cerrar modal y limpiar estados
                 setModalEntrenamientoAbierto(false);
