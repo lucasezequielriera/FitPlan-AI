@@ -120,8 +120,6 @@ export default function PlanPage() {
   const [selectedDayData, setSelectedDayData] = useState<{ day: TrainingDayPlan; week: number; dayIndex: number } | null>(null);
   // Estado separado para el progreso del día seleccionado (evita loops)
   const [selectedDayProgress, setSelectedDayProgress] = useState<Record<string, { completed: number; total: number }>>({});
-  // Estado para mostrar loader mientras se cargan los datos del día seleccionado
-  const [loadingSelectedDay, setLoadingSelectedDay] = useState(false);
   const [modalAlimentosAbierto, setModalAlimentosAbierto] = useState<null | { diaIdx: number }>(null);
   const [foodDetails, setFoodDetails] = useState<Record<string, { ingredientes?: string[]; pasos_preparacion?: string[]; loading?: boolean; error?: string }>>({});
   const [foodTrackingModalOpen, setFoodTrackingModalOpen] = useState(false);
@@ -2737,7 +2735,6 @@ export default function PlanPage() {
                     
                     // Inicializar progreso vacío (solo para la UI, sin datos del backend)
                     setSelectedDayProgress({});
-                    setLoadingSelectedDay(false);
                     
                     // Abrir el modal DESPUÉS de establecer selectedDayData
                     // Usar setTimeout para asegurar que selectedDayData se establezca primero
@@ -2750,7 +2747,6 @@ export default function PlanPage() {
                     setSelectedDayData(null);
                     setSelectedTrainingDate(date);
                     setSelectedDayProgress({});
-                    setLoadingSelectedDay(false);
                     setTimeout(() => {
                       setModalEntrenamientoAbierto(true);
                       processingSelectionRef.current = false;
@@ -3894,7 +3890,6 @@ export default function PlanPage() {
                 setSelectedTrainingDate(null);
                 setSelectedDayData(null);
                 setSelectedDayProgress({});
-                setLoadingSelectedDay(false);
               }}
             >
               <motion.div
