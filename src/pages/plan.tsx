@@ -573,8 +573,6 @@ export default function PlanPage() {
   
   // Calcular progreso del plan
   const progresoPlan = (() => {
-    if (!plan?.duracion_plan_dias) return { diasTranscurridos: 0, porcentaje: 0 };
-
     const ahora = new Date();
     const diffTime = ahora.getTime() - fechaInicioPlan.getTime();
 
@@ -582,7 +580,8 @@ export default function PlanPage() {
     const diffHours = diffTime / (1000 * 60 * 60);
     const diffDays = Math.max(0, diffHours / 24); // días con decimales
 
-    const totalDays = plan.duracion_plan_dias;
+    // Si el plan no tiene duracion_plan_dias, asumir 30 días (igual que en el dashboard)
+    const totalDays = plan?.duracion_plan_dias || 30;
     const porcentaje = Math.min(100, Math.max(0, (diffDays / totalDays) * 100));
 
     // Días transcurridos para mostrar: redondear hacia arriba pero nunca superar la duración

@@ -90,60 +90,14 @@ export default function ExerciseSetTracker({
     return Math.round(base);
   };
 
-  // Función para cargar historial
+  // Función para cargar historial - DESHABILITADA
+  // Ya no se hacen llamadas al backend automáticamente
+  // El historial solo se carga si el usuario lo solicita explícitamente
   const loadHistory = useCallback(async () => {
-    if (loadingHistory || !userId || !exercise.name || !planId) return; // Evitar cargas duplicadas
-    
-    setLoadingHistory(true);
-    try {
-      const response = await fetch(
-        `/api/getExerciseHistory?userId=${userId}&exerciseName=${encodeURIComponent(exercise.name)}&planId=${planId}`
-      );
-      if (response.ok) {
-        const data = await response.json();
-        setHistory(data);
-        
-        // Cargar los datos de la sesión más reciente para pre-llenar
-        if (data.history && data.history.length > 0) {
-          const latestSession = data.history[0];
-          if (latestSession.sets && latestSession.sets.length > 0) {
-            // Mapear los sets guardados a nuestro formato
-            const loadedSets: SetData[] = Array.from({ length: exercise.sets }, (_, i) => {
-              const savedSet = latestSession.sets.find((s: { setNumber: number }) => s.setNumber === i + 1);
-              return {
-                setNumber: i + 1,
-                weight: savedSet?.weight || 0,
-                reps: savedSet?.reps || exercise.reps,
-                completed: savedSet?.completed || false,
-              };
-            });
-            setSets(loadedSets);
-            
-            // Si hay datos guardados, expandir automáticamente
-            if (loadedSets.some(s => s.weight > 0 || s.completed)) {
-              setIsExpanded(true);
-            }
-            
-            // Notificar progreso cargado después de un delay para evitar loops
-            setTimeout(() => {
-              const completed = loadedSets.filter(s => s.completed).length;
-              if (onProgressChangeRef.current) {
-                onProgressChangeRef.current(completed, exercise.sets);
-                // Actualizar el último valor notificado
-                lastNotifiedProgress.current = { completed, total: exercise.sets };
-              }
-            }, 200);
-          }
-        }
-      } else {
-        console.error("Error en respuesta:", response.status, response.statusText);
-      }
-    } catch (error) {
-      console.error("Error cargando historial:", error);
-    } finally {
-      setLoadingHistory(false);
-    }
-  }, [loadingHistory, userId, exercise.name, planId, exercise.sets, exercise.reps]);
+    // DESHABILITADO: No hacer llamadas al backend automáticamente
+    // Función vacía - no hace nada
+    return;
+  }, []);
 
   // Inicializar sets
   useEffect(() => {
@@ -158,13 +112,13 @@ export default function ExerciseSetTracker({
     // El progreso se notificará cuando el usuario interactúe con los sets
   }, [exercise.sets, exercise.reps]);
 
-  // Cargar historial solo cuando se expande (para evitar demasiadas peticiones simultáneas)
-  // El progreso se carga desde plan.tsx, aquí solo cargamos el historial completo cuando se necesita
-  useEffect(() => {
-    if (isExpanded && !history && !loadingHistory && userId && exercise.name && planId) {
-      loadHistory();
-    }
-  }, [isExpanded, history, loadingHistory, userId, exercise.name, planId, loadHistory]);
+  // DESHABILITADO: No cargar historial automáticamente
+  // Ya no se hacen llamadas al backend cuando se expande un ejercicio
+  // useEffect(() => {
+  //   if (isExpanded && !history && !loadingHistory && userId && exercise.name && planId) {
+  //     loadHistory();
+  //   }
+  // }, [isExpanded, history, loadingHistory, userId, exercise.name, planId, loadHistory]);
 
   const handleWeightChange = (setNumber: number, weight: number) => {
     setSets((prev) =>
@@ -246,8 +200,8 @@ export default function ExerciseSetTracker({
       if (response.ok) {
         setSaved(true);
         if (onSave) onSave();
-        // Recargar historial para actualizar estadísticas
-        await loadHistory();
+        // DESHABILITADO: No recargar historial después de guardar
+        // await loadHistory();
         setTimeout(() => setSaved(false), 2000);
       } else {
         const errorData = await response.json().catch(() => ({}));
