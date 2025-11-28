@@ -66,7 +66,7 @@ interface SavedPlan {
 export default function Dashboard() {
   const router = useRouter();
   const { user: authUser, loading: authLoading } = useAuthStore();
-  const { setPlan, setUser, setPlanId, setPlanMultiFase } = usePlanStore();
+  const { setPlan, setUser, setPlanId, setPlanMultiFase, setPlanCreatedAt } = usePlanStore();
   const [plans, setPlans] = useState<SavedPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -227,6 +227,13 @@ export default function Dashboard() {
     setUser(plan.plan.user as unknown as Parameters<typeof setUser>[0]);
     setPlan(plan.plan.plan as unknown as Parameters<typeof setPlan>[0]);
     setPlanId(plan.id); // Guardar el ID del plan para poder actualizarlo después
+    // Guardar fecha de creación del plan para usarla dentro de /plan
+    try {
+      const createdDate = plan.createdAt?.toDate?.() || (plan.createdAt?.seconds ? new Date(plan.createdAt.seconds * 1000) : undefined);
+      setPlanCreatedAt(createdDate ? createdDate.toISOString() : undefined);
+    } catch {
+      setPlanCreatedAt(undefined);
+    }
     // Cargar planMultiFase si existe (para planes bulk_cut y lean_bulk)
     if (plan.planMultiFase) {
       setPlanMultiFase(plan.planMultiFase as unknown as Parameters<typeof setPlanMultiFase>[0]);

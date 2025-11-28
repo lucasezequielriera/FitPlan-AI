@@ -74,7 +74,7 @@ interface TrainingPlan {
 
 export default function PlanPage() {
   const router = useRouter();
-  const { plan, user, planId, planMultiFase, setUser, setPlan, setPlanId, setPlanMultiFase } = usePlanStore();
+  const { plan, user, planId, planMultiFase, planCreatedAt, setUser, setPlan, setPlanId, setPlanMultiFase } = usePlanStore();
   const { user: authUser } = useAuthStore();
 
   useEffect(() => {
@@ -554,20 +554,18 @@ export default function PlanPage() {
     }
   }, [isPremium, vistaPlan]);
   
-  // Obtener fecha de inicio del plan desde localStorage o usar fecha actual
-  const fechaInicioPlan = (() => {
-    if (typeof window !== 'undefined' && user && plan) {
-      const stored = localStorage.getItem(`fecha_inicio_${user.nombre}_${plan.duracion_plan_dias || 30}`);
-      if (stored) {
-        return new Date(stored);
+  // Usar la misma fecha de creación que en el dashboard (planCreatedAt),
+  // para que el progreso y la fecha de inicio coincidan.
+  const fechaInicioPlan = useMemo(() => {
+    if (planCreatedAt) {
+      const d = new Date(planCreatedAt);
+      if (!isNaN(d.getTime())) {
+        d.setHours(0, 0, 0, 0);
+        return d;
       }
-      // Si no existe, guardarla ahora
-      const ahora = new Date();
-      localStorage.setItem(`fecha_inicio_${user.nombre}_${plan.duracion_plan_dias || 30}`, ahora.toISOString());
-      return ahora;
     }
     return new Date();
-  })();
+  }, [planCreatedAt]);
 
 
   // Vista por defecto: alimentación
@@ -576,10 +574,21 @@ export default function PlanPage() {
   // Calcular progreso del plan
   const progresoPlan = (() => {
     if (!plan?.duracion_plan_dias) return { diasTranscurridos: 0, porcentaje: 0 };
+
     const ahora = new Date();
-    const diasTranscurridos = Math.floor((ahora.getTime() - fechaInicioPlan.getTime()) / (1000 * 60 * 60 * 24));
-    const porcentaje = Math.min(100, Math.max(0, (diasTranscurridos / plan.duracion_plan_dias) * 100));
-    return { diasTranscurridos: Math.min(plan.duracion_plan_dias, Math.max(0, diasTranscurridos)), porcentaje };
+    const diffTime = ahora.getTime() - fechaInicioPlan.getTime();
+
+    // Igual que en el dashboard: usar horas para que el progreso no sea 0% todo el primer día
+    const diffHours = diffTime / (1000 * 60 * 60);
+    const diffDays = Math.max(0, diffHours / 24); // días con decimales
+
+    const totalDays = plan.duracion_plan_dias;
+    const porcentaje = Math.min(100, Math.max(0, (diffDays / totalDays) * 100));
+
+    // Días transcurridos para mostrar: redondear hacia arriba pero nunca superar la duración
+    const diasTranscurridos = Math.min(totalDays, Math.max(0, Math.ceil(diffDays)));
+
+    return { diasTranscurridos, porcentaje };
   })();
   
   // Guardar valores originales para comparar
