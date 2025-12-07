@@ -14,7 +14,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const db = getAdminDb();
     if (!db) {
-      return res.status(500).json({ error: "Firebase Admin SDK no configurado" });
+      // Si Firebase Admin no está configurado, retornar éxito silencioso
+      // para no romper el flujo del usuario (esta funcionalidad es opcional)
+      console.warn("⚠️ Firebase Admin SDK no configurado, snapshot mensual no se guardará");
+      return res.status(200).json({ 
+        message: "Snapshot mensual omitido (Firebase Admin no configurado)",
+        skipped: true
+      });
     }
 
     const { userId, planId, planData, userData } = req.body;

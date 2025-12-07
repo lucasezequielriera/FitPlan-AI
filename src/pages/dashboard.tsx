@@ -179,8 +179,16 @@ export default function Dashboard() {
                       planData: data.plan?.plan || {},
                       userData: data.plan?.user || {},
                     }),
-                  }).catch((err) => {
-                    console.error("Error al guardar snapshot mensual:", err);
+                  })
+                  .then((response) => {
+                    if (!response.ok) {
+                      console.warn("⚠️ No se pudo guardar snapshot mensual (puede ser normal si Firebase Admin no está configurado)");
+                    }
+                    return response.json();
+                  })
+                  .catch((err) => {
+                    // Silenciar el error para no interrumpir el flujo del usuario
+                    console.warn("⚠️ Error al guardar snapshot mensual (puede ser normal):", err);
                   });
                 }
               }).catch((err) => {
