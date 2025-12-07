@@ -301,3 +301,5 @@ Sugerencia: Revisar calorías, posible problema metabólico
 **Desarrollado con:** Next.js, TypeScript, OpenAI GPT-4o, Firebase/Firestore, Framer Motion
 
 
+
+

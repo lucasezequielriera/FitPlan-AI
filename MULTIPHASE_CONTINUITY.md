@@ -313,3 +313,5 @@ const progress = Math.min(100, Math.max(0, (diffDays / 30) * 100));
 ✅ **100% funcional y listo para producción**
 
 
+
+
