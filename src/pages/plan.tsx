@@ -74,7 +74,7 @@ interface TrainingPlan {
 
 export default function PlanPage() {
   const router = useRouter();
-  const { plan, user, planId, planMultiFase, planCreatedAt, setUser, setPlan, setPlanId, setPlanMultiFase } = usePlanStore();
+  const { plan, user, planId, planMultiFase, planCreatedAt, setUser, setPlan, setPlanId, setPlanMultiFase, setPlanCreatedAt } = usePlanStore();
   const { user: authUser } = useAuthStore();
 
   useEffect(() => {
@@ -84,6 +84,49 @@ export default function PlanPage() {
       return;
     }
   }, [plan, user, router]);
+
+  // Cargar fecha de creación desde Firestore si no está en el store
+  useEffect(() => {
+    if (!planId || planCreatedAt) return; // Si ya tenemos la fecha, no hacer nada
+    
+    const loadCreatedAt = async () => {
+      try {
+        const db = getDbSafe();
+        if (!db) return;
+        
+        const planRef = doc(db, "planes", planId);
+        const planDoc = await getDoc(planRef);
+        
+        if (planDoc.exists()) {
+          const data = planDoc.data();
+          const createdAt = data.createdAt;
+          
+          if (createdAt) {
+            let createdDate: Date;
+            // Manejar diferentes formatos de timestamp de Firestore
+            if (createdAt && typeof createdAt === 'object' && 'toDate' in createdAt) {
+              createdDate = (createdAt as { toDate: () => Date }).toDate();
+            } else if (createdAt && typeof createdAt === 'object' && 'seconds' in createdAt) {
+              const ts = createdAt as { seconds: number; nanoseconds?: number };
+              createdDate = new Date(ts.seconds * 1000 + (ts.nanoseconds || 0) / 1000000);
+            } else if (typeof createdAt === 'string') {
+              createdDate = new Date(createdAt);
+            } else {
+              return; // No podemos parsear la fecha
+            }
+            
+            // Guardar en el store para uso futuro
+            setPlanCreatedAt(createdDate.toISOString());
+            console.log('✅ Fecha de creación cargada desde Firestore:', createdDate.toISOString());
+          }
+        }
+      } catch (error) {
+        console.error('Error al cargar fecha de creación del plan:', error);
+      }
+    };
+    
+    loadCreatedAt();
+  }, [planId, planCreatedAt, setPlanCreatedAt]);
 
   // Limpiar caché de localStorage al entrar a cada plan
   useEffect(() => {
