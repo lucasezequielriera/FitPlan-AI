@@ -85,14 +85,37 @@ export default function PlanPage() {
     }
   }, [plan, user, router]);
 
-  // Cargar fecha de creación desde Firestore si no está en el store
+  // Estado local para la fecha de inicio del plan (se carga desde store o Firestore)
+  const [fechaInicioPlan, setFechaInicioPlan] = useState<Date | null>(null);
+  const [loadingFechaInicio, setLoadingFechaInicio] = useState(true);
+
+  // Cargar fecha de creación desde el store o Firestore
   useEffect(() => {
-    if (!planId || planCreatedAt) return; // Si ya tenemos la fecha, no hacer nada
-    
+    if (!planId) {
+      setLoadingFechaInicio(false);
+      return;
+    }
+
     const loadCreatedAt = async () => {
       try {
+        // Primero intentar usar planCreatedAt del store si está disponible
+        if (planCreatedAt) {
+          const d = new Date(planCreatedAt);
+          if (!isNaN(d.getTime())) {
+            d.setHours(0, 0, 0, 0);
+            setFechaInicioPlan(d);
+            setLoadingFechaInicio(false);
+            console.log('✅ Fecha de creación desde store:', d.toISOString());
+            return;
+          }
+        }
+
+        // Si no está en el store, cargar desde Firestore
         const db = getDbSafe();
-        if (!db) return;
+        if (!db) {
+          setLoadingFechaInicio(false);
+          return;
+        }
         
         const planRef = doc(db, "planes", planId);
         const planDoc = await getDoc(planRef);
@@ -112,8 +135,13 @@ export default function PlanPage() {
             } else if (typeof createdAt === 'string') {
               createdDate = new Date(createdAt);
             } else {
+              setLoadingFechaInicio(false);
               return; // No podemos parsear la fecha
             }
+            
+            // Normalizar a inicio del día
+            createdDate.setHours(0, 0, 0, 0);
+            setFechaInicioPlan(createdDate);
             
             // Guardar en el store para uso futuro
             setPlanCreatedAt(createdDate.toISOString());
@@ -122,6 +150,8 @@ export default function PlanPage() {
         }
       } catch (error) {
         console.error('Error al cargar fecha de creación del plan:', error);
+      } finally {
+        setLoadingFechaInicio(false);
       }
     };
     
@@ -631,25 +661,16 @@ export default function PlanPage() {
     }
   }, [isPremium, vistaPlan]);
   
-  // Usar la misma fecha de creación que en el dashboard (planCreatedAt),
-  // para que el progreso y la fecha de inicio coincidan.
-  const fechaInicioPlan = useMemo(() => {
-    if (planCreatedAt) {
-      const d = new Date(planCreatedAt);
-      if (!isNaN(d.getTime())) {
-        d.setHours(0, 0, 0, 0);
-        return d;
-      }
-    }
-    return new Date();
-  }, [planCreatedAt]);
-
-
   // Vista por defecto: alimentación
   // (el usuario puede cambiar entre alimentación y entrenamiento con los botones)
   
-  // Calcular progreso del plan
-  const progresoPlan = (() => {
+  // Calcular progreso del plan (solo si tenemos la fecha de inicio)
+  const progresoPlan = useMemo(() => {
+    if (!fechaInicioPlan) {
+      // Si aún no tenemos la fecha, retornar 0% temporalmente
+      return { diasTranscurridos: 0, porcentaje: 0 };
+    }
+
     const ahora = new Date();
     const diffTime = ahora.getTime() - fechaInicioPlan.getTime();
 
@@ -665,7 +686,7 @@ export default function PlanPage() {
     const diasTranscurridos = Math.min(totalDays, Math.max(0, Math.ceil(diffDays)));
 
     return { diasTranscurridos, porcentaje };
-  })();
+  }, [fechaInicioPlan, plan?.duracion_plan_dias]);
   
   // Guardar valores originales para comparar
   const [valoresOriginales, setValoresOriginales] = useState<{
@@ -2570,7 +2591,7 @@ export default function PlanPage() {
                 <div>
                   <p className="text-xs opacity-70 mb-1">Fecha de inicio:</p>
                   <p className="text-sm font-medium">
-                    {fechaInicioPlan.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    {fechaInicioPlan ? fechaInicioPlan.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Cargando...'}
                   </p>
                         </div>
                 {plan?.dificultad && (
@@ -2794,7 +2815,7 @@ export default function PlanPage() {
             <div className="mt-6">
               <TrainingCalendar
                 trainingPlan={(plan as unknown as Record<string, unknown>)?.training_plan as unknown as import("@/types/plan").TrainingPlan}
-                planStartDate={fechaInicioPlan}
+                planStartDate={fechaInicioPlan || new Date()}
                 planDurationDays={plan?.duracion_plan_dias || 30}
                 onDaySelect={(date, dayData, week, dayIndex) => {
                   // Prevenir procesamiento duplicado
