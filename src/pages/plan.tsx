@@ -84,6 +84,40 @@ export default function PlanPage() {
       return;
     }
   }, [plan, user, router]);
+
+  // Limpiar caché de localStorage al entrar a cada plan
+  useEffect(() => {
+    if (typeof window === 'undefined' || !plan || !user || !planId) return;
+
+    // Limpiar todas las claves de localStorage relacionadas con este plan
+    try {
+      // Limpiar fecha de inicio del plan
+      const fechaInicioKey = `fecha_inicio_${user.nombre}_${plan.duracion_plan_dias || 30}`;
+      localStorage.removeItem(fechaInicioKey);
+
+      // Limpiar modal de IMC
+      const imcModalKey = `imc_modal_shown_${planId}`;
+      localStorage.removeItem(imcModalKey);
+
+      // Limpiar registros de peso
+      const pesoKey = `peso_${planId}`;
+      localStorage.removeItem(pesoKey);
+
+      // Limpiar cualquier otra clave relacionada con el plan (por si acaso)
+      const planRelatedKeys: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.includes(planId) || key.includes(user.nombre))) {
+          planRelatedKeys.push(key);
+        }
+      }
+      planRelatedKeys.forEach(key => localStorage.removeItem(key));
+
+      console.log('✅ Caché de localStorage limpiada al entrar al plan');
+    } catch (error) {
+      console.error('Error al limpiar localStorage:', error);
+    }
+  }, [plan, user, planId]);
   
   // Valores editables de entrenamiento
   const [diasGymEditado, setDiasGymEditado] = useState<number | null>(null);
