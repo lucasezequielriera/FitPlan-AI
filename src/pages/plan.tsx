@@ -91,6 +91,9 @@ export default function PlanPage() {
 
   // Cargar fecha de creación desde el store o Firestore
   useEffect(() => {
+    // Asegurar que solo se ejecute en el cliente
+    if (typeof window === 'undefined') return;
+    
     if (!planId) {
       setLoadingFechaInicio(false);
       return;
@@ -111,45 +114,57 @@ export default function PlanPage() {
         }
 
         // Si no está en el store, cargar desde Firestore
-        const db = getDbSafe();
-        if (!db) {
-          setLoadingFechaInicio(false);
-          return;
-        }
-        
-        const planRef = doc(db, "planes", planId);
-        const planDoc = await getDoc(planRef);
-        
-        if (planDoc.exists()) {
-          const data = planDoc.data();
-          const createdAt = data.createdAt;
-          
-          if (createdAt) {
-            let createdDate: Date;
-            // Manejar diferentes formatos de timestamp de Firestore
-            if (createdAt && typeof createdAt === 'object' && 'toDate' in createdAt) {
-              createdDate = (createdAt as { toDate: () => Date }).toDate();
-            } else if (createdAt && typeof createdAt === 'object' && 'seconds' in createdAt) {
-              const ts = createdAt as { seconds: number; nanoseconds?: number };
-              createdDate = new Date(ts.seconds * 1000 + (ts.nanoseconds || 0) / 1000000);
-            } else if (typeof createdAt === 'string') {
-              createdDate = new Date(createdAt);
-            } else {
-              setLoadingFechaInicio(false);
-              return; // No podemos parsear la fecha
-            }
-            
-            // Normalizar a inicio del día
-            createdDate.setHours(0, 0, 0, 0);
-            setFechaInicioPlan(createdDate);
-            
-            // Guardar en el store para uso futuro
-            setPlanCreatedAt(createdDate.toISOString());
-            console.log('✅ Fecha de creación cargada desde Firestore:', createdDate.toISOString());
+        try {
+          const db = getDbSafe();
+          if (!db) {
+            console.warn('⚠️ Firestore no disponible, usando fecha actual como fallback');
+            setLoadingFechaInicio(false);
+            return;
           }
+          
+          const planRef = doc(db, "planes", planId);
+          const planDoc = await getDoc(planRef);
+          
+          if (planDoc.exists()) {
+            const data = planDoc.data();
+            const createdAt = data.createdAt;
+            
+            if (createdAt) {
+              let createdDate: Date;
+              // Manejar diferentes formatos de timestamp de Firestore
+              if (createdAt && typeof createdAt === 'object' && 'toDate' in createdAt) {
+                createdDate = (createdAt as { toDate: () => Date }).toDate();
+              } else if (createdAt && typeof createdAt === 'object' && 'seconds' in createdAt) {
+                const ts = createdAt as { seconds: number; nanoseconds?: number };
+                createdDate = new Date(ts.seconds * 1000 + (ts.nanoseconds || 0) / 1000000);
+              } else if (typeof createdAt === 'string') {
+                createdDate = new Date(createdAt);
+              } else {
+                console.warn('⚠️ No se pudo parsear la fecha de creación');
+                setLoadingFechaInicio(false);
+                return; // No podemos parsear la fecha
+              }
+              
+              // Normalizar a inicio del día
+              createdDate.setHours(0, 0, 0, 0);
+              setFechaInicioPlan(createdDate);
+              
+              // Guardar en el store para uso futuro
+              setPlanCreatedAt(createdDate.toISOString());
+              console.log('✅ Fecha de creación cargada desde Firestore:', createdDate.toISOString());
+            } else {
+              console.warn('⚠️ No se encontró createdAt en el documento del plan');
+            }
+          } else {
+            console.warn('⚠️ Plan no encontrado en Firestore');
+          }
+        } catch (firestoreError) {
+          console.error('Error al acceder a Firestore:', firestoreError);
+          // No lanzar el error, solo loguearlo
         }
       } catch (error) {
         console.error('Error al cargar fecha de creación del plan:', error);
+        // No lanzar el error para evitar que rompa la página
       } finally {
         setLoadingFechaInicio(false);
       }
