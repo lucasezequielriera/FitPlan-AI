@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import React, { useEffect, useState, useRef, useMemo, useCallback } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import { usePlanStore } from "@/store/planStore";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Goal, TipoDieta, Intensidad, UserInput, PlanMultiFase } from "@/types/plan";
@@ -686,7 +686,7 @@ export default function PlanPage() {
       return { diasTranscurridos: 0, porcentaje: 0 };
     }
 
-    const ahora = new Date();
+      const ahora = new Date();
     const diffTime = ahora.getTime() - fechaInicioPlan.getTime();
 
     // Igual que en el dashboard: usar horas para que el progreso no sea 0% todo el primer día
@@ -4133,9 +4133,9 @@ export default function PlanPage() {
                           
                           // Si hay muchos músculos diferentes, puede ser Full Body
                           if (muscleGroups.size >= 5) {
-                            return "Full Body";
-                          }
-                          
+                              return "Full Body";
+                            }
+                            
                           // Devolver los músculos únicos encontrados, ordenados alfabéticamente
                           return Array.from(muscleGroups).sort().join(", ");
                         };
