@@ -50,6 +50,14 @@ service cloud.firestore {
       allow write: if request.auth != null && isAdmin();
     }
     
+    // Colección de pesos de ejercicios - solo el usuario puede leer/escribir sus propios datos
+    match /exercise_weights/{weightId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+    
     // Permitir acceso a historial mensual solo para el propio usuario o admin
     match /historial_mensual/{userId} {
       allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());

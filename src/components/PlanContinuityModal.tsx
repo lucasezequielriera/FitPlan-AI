@@ -19,7 +19,7 @@ interface PlanContinuityModalProps {
 interface AnalysisResult {
   analisis: {
     cumplioObjetivo: boolean;
-    progresoGeneral: "excelente" | "bueno" | "moderado" | "bajo";
+    progresoGeneral: "excelente" | "bueno" | "regular" | "insuficiente";
     puntosPositivos: string[];
     areasMejora: string[];
     resumen: string;
@@ -38,7 +38,6 @@ interface AnalysisResult {
       intensidad: "aumentar" | "mantener" | "reducir";
       recomendacion: string;
     };
-    duracionRecomendada: number;
     mensajeMotivacional: string;
   };
   objetivosAlternativos: Array<{
@@ -151,85 +150,92 @@ export default function PlanContinuityModal({ isOpen, onClose, planData, registr
   };
 
   const handleGenerateNewPlan = async () => {
-    if (!analysis || !objetivoSeleccionado) return;
+    if (!objetivoSeleccionado || !analysis) return;
 
     setStep("generating");
     setError(null);
 
     try {
-      // Actualizar el plan anterior con los datos finales
-      const { getDbSafe } = await import("@/lib/firebase");
-      const { doc, updateDoc, serverTimestamp } = await import("firebase/firestore");
-      
-      const db = getDbSafe();
-      if (db) {
-        const planRef = doc(db, "planes", planData.id);
-        await updateDoc(planRef, {
-          datosFinalizacion: {
-            pesoFinal: parseFloat(pesoFinal),
-            cinturaFinal: cinturaFinal ? parseFloat(cinturaFinal) : null,
-            adherenciaComida,
-            adherenciaEntreno,
-            energia,
-            recuperacion,
-            lesionesNuevas: lesionesNuevas || null,
-            comentarios: comentarios || null,
-            fechaFinalizacion: new Date().toISOString(),
-          },
-          analisis: analysis.analisis,
-          completado: true,
-          updatedAt: serverTimestamp(),
-        });
-      }
-
-      // Preparar datos para el nuevo plan
+      // Construir nuevo UserInput con ajustes aplicados
       const nuevoUserInput: UserInput = {
         ...planData.user,
+        objetivo: objetivoSeleccionado,
         pesoKg: parseFloat(pesoFinal),
         cinturaCm: cinturaFinal ? parseFloat(cinturaFinal) : planData.user.cinturaCm,
-        objetivo: objetivoSeleccionado,
-        // Actualizar lesiones si hay nuevas
-        doloresLesiones: lesionesNuevas 
-          ? [...(planData.user.doloresLesiones || []), lesionesNuevas]
-          : planData.user.doloresLesiones,
       };
 
-      // Aplicar ajustes recomendados si se usa la sugerencia
+      // Aplicar ajustes de entrenamiento si se usa la sugerencia
       if (usarSugerencia) {
-        // Los ajustes se aplicarán en generatePlan.ts basados en el análisis previo
-        // Por ahora solo ajustamos días de gym si es necesario
-        const ajusteGym = analysis.sugerenciaContinuidad.ajustesEntrenamiento.diasGym;
-        if (ajusteGym === "aumentar" && nuevoUserInput.diasGym) {
+        const ajustes = analysis.sugerenciaContinuidad.ajustesEntrenamiento;
+        
+        if (ajustes.diasGym === "aumentar" && nuevoUserInput.diasGym) {
           nuevoUserInput.diasGym = Math.min(7, nuevoUserInput.diasGym + 1);
-        } else if (ajusteGym === "reducir" && nuevoUserInput.diasGym) {
-          nuevoUserInput.diasGym = Math.max(2, nuevoUserInput.diasGym - 1);
+        } else if (ajustes.diasGym === "reducir" && nuevoUserInput.diasGym) {
+          nuevoUserInput.diasGym = Math.max(3, nuevoUserInput.diasGym - 1);
+        }
+
+        if (ajustes.intensidad === "aumentar") {
+          if (nuevoUserInput.intensidad === "leve") nuevoUserInput.intensidad = "moderada";
+          else if (nuevoUserInput.intensidad === "moderada") nuevoUserInput.intensidad = "intensa";
+          else if (nuevoUserInput.intensidad === "intensa") nuevoUserInput.intensidad = "ultra";
+        } else if (ajustes.intensidad === "reducir") {
+          if (nuevoUserInput.intensidad === "ultra") nuevoUserInput.intensidad = "intensa";
+          else if (nuevoUserInput.intensidad === "intensa") nuevoUserInput.intensidad = "moderada";
+          else if (nuevoUserInput.intensidad === "moderada") nuevoUserInput.intensidad = "leve";
         }
       }
 
-      // Generar el nuevo plan
-      const planResponse = await fetch("/api/generatePlan", {
+      // Generar nuevo plan
+      const response = await fetch("/api/generatePlan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(nuevoUserInput),
       });
 
-      if (!planResponse.ok) {
-        throw new Error("Error al generar el nuevo plan");
+      if (!response.ok) {
+        throw new Error("Error al generar el plan");
       }
 
-      const nuevoPlan: PlanAIResponse = await planResponse.json();
+      const nuevoPlan = await response.json();
 
-      // Guardar el nuevo plan
+      // Actualizar plan anterior con datos de finalización
+      try {
+        const { getDbSafe } = await import("@/lib/firebase");
+        const { doc, updateDoc, serverTimestamp } = await import("firebase/firestore");
+        
+        const db = getDbSafe();
+        if (db) {
+          const planRef = doc(db, "planes", planData.id);
+          await updateDoc(planRef, {
+            datosFinalizacion: {
+              pesoFinal: parseFloat(pesoFinal),
+              cinturaFinal: cinturaFinal ? parseFloat(cinturaFinal) : undefined,
+              adherenciaComida,
+              adherenciaEntreno,
+              energia,
+              recuperacion,
+              lesionesNuevas: lesionesNuevas || undefined,
+              comentarios: comentarios || undefined,
+              fechaFinalizacion: new Date().toISOString(),
+            },
+            analisis: analysis.analisis,
+            completado: true,
+            updatedAt: serverTimestamp(),
+          });
+        }
+      } catch (err) {
+        console.error("Error al actualizar plan anterior:", err);
+        // No bloqueamos el flujo si falla actualizar el plan anterior
+      }
+
+      // Guardar nuevo plan
       const saveResponse = await fetch("/api/savePlan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          plan: nuevoPlan,
           userId,
-          plan: {
-            plan: nuevoPlan,
-            user: nuevoUserInput,
-          },
-          planAnteriorId: planData.id, // Referencia al plan anterior
+          planAnteriorId: planData.id,
         }),
       });
 
@@ -238,15 +244,14 @@ export default function PlanContinuityModal({ isOpen, onClose, planData, registr
       }
 
       const { id: nuevoPlanId } = await saveResponse.json();
-
       setStep("complete");
 
-      // Redirigir al nuevo plan después de 2 segundos
+      // Redirigir al nuevo plan después de 1 segundo
       setTimeout(() => {
         router.push(`/plan?id=${nuevoPlanId}`);
-      }, 2000);
+      }, 1000);
     } catch (err) {
-      console.error("Error al generar nuevo plan:", err);
+      console.error("Error al generar plan:", err);
       setError("No se pudo generar el nuevo plan. Por favor intenta de nuevo.");
       setStep("suggestion");
     }
@@ -254,395 +259,352 @@ export default function PlanContinuityModal({ isOpen, onClose, planData, registr
 
   if (!isOpen) return null;
 
-  const objetivoLabels: Record<Goal, string> = {
-    perder_grasa: "Perder grasa",
-    mantener: "Mantener peso",
-    ganar_masa: "Ganar masa muscular",
-    recomposicion: "Recomposición corporal",
-    definicion: "Definición extrema",
-    volumen: "Volumen/Hipertrofia",
-    corte: "Corte (preservar músculo)",
-    mantenimiento_avanzado: "Mantenimiento avanzado",
-    rendimiento_deportivo: "Rendimiento deportivo",
-    powerlifting: "Powerlifting/Fuerza",
-    resistencia: "Resistencia",
-    atleta_elite: "Atleta elite",
-    bulk_cut: "Bulk + Cut",
-    lean_bulk: "Lean Bulk",
-  };
-
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-      />
+    <AnimatePresence>
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+        {/* Backdrop */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={onClose}
+          className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+        />
 
-      {/* Modal */}
-      <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.9, opacity: 0 }}
-        onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl border border-white/10 bg-black/95 p-6 shadow-2xl"
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold">
-            {step === "input" && "Finalizar Plan Actual"}
-            {step === "analyzing" && "Analizando resultados..."}
-            {step === "suggestion" && "Sugerencia de Continuidad"}
-            {step === "generating" && "Generando nuevo plan..."}
-            {step === "complete" && "¡Plan generado!"}
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-white/70 hover:text-white transition-colors"
-            disabled={step === "analyzing" || step === "generating"}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-6 w-6"
-            >
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        {error && (
-          <div className="mb-4 p-4 rounded-lg bg-red-500/20 border border-red-500/30 text-red-300 text-sm">
-            {error}
-          </div>
-        )}
-
-        {/* Step 1: Input de datos finales */}
-        {step === "input" && (
-          <div className="space-y-4">
-            <p className="text-sm opacity-70">
-              Para generar tu siguiente plan personalizado, necesitamos conocer los resultados de tu plan actual.
-            </p>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Peso final */}
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Peso final (kg) <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="number"
-                  step="0.1"
-                  value={pesoFinal}
-                  onChange={(e) => setPesoFinal(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Ej: 75.5"
-                />
-                <p className="text-xs opacity-60 mt-1">
-                  Peso inicial: {planData.user.pesoKg} kg
-                </p>
-              </div>
-
-              {/* Cintura final (opcional) */}
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Cintura final (cm) <span className="opacity-50">(opcional)</span>
-                </label>
-                <input
-                  type="number"
-                  step="0.1"
-                  value={cinturaFinal}
-                  onChange={(e) => setCinturaFinal(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Ej: 85"
-                />
-              </div>
-            </div>
-
-            {/* Adherencia */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Adherencia a comidas
-                </label>
-                <select
-                  value={adherenciaComida}
-                  onChange={(e) => setAdherenciaComida(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value=">80%">Muy buena (&gt;80%)</option>
-                  <option value="70-80%">Buena (70-80%)</option>
-                  <option value="50-70%">Regular (50-70%)</option>
-                  <option value="<50%">Baja (&lt;50%)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Adherencia a entrenamiento
-                </label>
-                <select
-                  value={adherenciaEntreno}
-                  onChange={(e) => setAdherenciaEntreno(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value=">80%">Muy buena (&gt;80%)</option>
-                  <option value="70-80%">Buena (70-80%)</option>
-                  <option value="50-70%">Regular (50-70%)</option>
-                  <option value="<50%">Baja (&lt;50%)</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Energía y recuperación */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Nivel de energía
-                </label>
-                <select
-                  value={energia}
-                  onChange={(e) => setEnergia(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="muy_alta">Muy alta</option>
-                  <option value="alta">Alta</option>
-                  <option value="normal">Normal</option>
-                  <option value="baja">Baja</option>
-                  <option value="muy_baja">Muy baja</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Recuperación
-                </label>
-                <select
-                  value={recuperacion}
-                  onChange={(e) => setRecuperacion(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="excelente">Excelente</option>
-                  <option value="buena">Buena</option>
-                  <option value="normal">Normal</option>
-                  <option value="regular">Regular</option>
-                  <option value="mala">Mala</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Lesiones nuevas */}
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Lesiones o molestias nuevas <span className="opacity-50">(opcional)</span>
-              </label>
-              <input
-                type="text"
-                value={lesionesNuevas}
-                onChange={(e) => setLesionesNuevas(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Ej: Dolor de rodilla leve"
-              />
-            </div>
-
-            {/* Comentarios */}
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Comentarios adicionales <span className="opacity-50">(opcional)</span>
-              </label>
-              <textarea
-                value={comentarios}
-                onChange={(e) => setComentarios(e.target.value)}
-                rows={3}
-                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Comparte tu experiencia con este plan..."
-              />
-            </div>
-
-            {/* Botón analizar */}
+        {/* Modal */}
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.9, opacity: 0 }}
+          onClick={(e) => e.stopPropagation()}
+          className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl border border-white/10 bg-black/95 p-6 shadow-2xl"
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-white">
+              {step === "input" && "Finalizar Plan Actual"}
+              {step === "analyzing" && "Analizando resultados..."}
+              {step === "suggestion" && "Sugerencia de Continuidad"}
+              {step === "generating" && "Generando nuevo plan..."}
+              {step === "complete" && "¡Plan generado!"}
+            </h2>
             <button
-              onClick={handleAnalyze}
-              className="w-full px-6 py-3 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-medium transition-all shadow-lg"
+              onClick={onClose}
+              className="text-white/70 hover:text-white transition-colors"
+              disabled={step === "analyzing" || step === "generating"}
             >
-              Analizar resultados y sugerir continuidad
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-6 w-6"
+              >
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
             </button>
           </div>
-        )}
 
-        {/* Step 2: Analyzing */}
-        {step === "analyzing" && (
-          <div className="flex flex-col items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mb-4"></div>
-            <p className="text-lg font-medium mb-2">Analizando tus resultados...</p>
-            <p className="text-sm opacity-70">Esto puede tomar unos segundos</p>
-          </div>
-        )}
-
-        {/* Step 3: Suggestion */}
-        {step === "suggestion" && analysis && (
-          <div className="space-y-6">
-            {/* Análisis de resultados */}
-            <div className="p-4 rounded-lg bg-white/5 border border-white/10">
-              <h3 className="text-lg font-semibold mb-3">📊 Análisis de Resultados</h3>
-              
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm opacity-70">Progreso general:</span>
-                  <span className={`font-semibold ${
-                    analysis.analisis.progresoGeneral === "excelente" ? "text-green-400" :
-                    analysis.analisis.progresoGeneral === "bueno" ? "text-blue-400" :
-                    analysis.analisis.progresoGeneral === "moderado" ? "text-yellow-400" :
-                    "text-orange-400"
-                  }`}>
-                    {analysis.analisis.progresoGeneral.toUpperCase()}
-                  </span>
-                  {analysis.analisis.cumplioObjetivo && (
-                    <span className="ml-2 text-green-400">✓ Objetivo cumplido</span>
-                  )}
-                </div>
-
-                <p className="text-sm opacity-90">{analysis.analisis.resumen}</p>
-
-                {analysis.analisis.puntosPositivos.length > 0 && (
-                  <div>
-                    <p className="text-sm font-medium text-green-400 mb-1">✓ Puntos positivos:</p>
-                    <ul className="text-sm opacity-80 space-y-1 ml-4">
-                      {analysis.analisis.puntosPositivos.map((punto, idx) => (
-                        <li key={idx}>• {punto}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {analysis.analisis.areasMejora.length > 0 && (
-                  <div>
-                    <p className="text-sm font-medium text-orange-400 mb-1">⚠ Áreas de mejora:</p>
-                    <ul className="text-sm opacity-80 space-y-1 ml-4">
-                      {analysis.analisis.areasMejora.map((area, idx) => (
-                        <li key={idx}>• {area}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
+          {error && (
+            <div className="mb-4 p-4 rounded-lg bg-red-500/20 border border-red-500/30 text-red-300 text-sm">
+              {error}
             </div>
+          )}
 
-            {/* Sugerencia de continuidad */}
-            <div className="p-4 rounded-lg bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-500/30">
-              <h3 className="text-lg font-semibold mb-3">🎯 Sugerencia de Continuidad</h3>
-              
-              <div className="space-y-3">
+          {/* Step 1: Input de datos finales */}
+          {step === "input" && (
+            <div className="space-y-4">
+              <p className="text-white/70 text-sm mb-4">
+                Completa los datos finales de tu plan para recibir una sugerencia personalizada de continuidad.
+              </p>
+
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm opacity-70 mb-1">Objetivo recomendado:</p>
-                  <p className="font-semibold text-lg text-blue-300">
-                    {objetivoLabels[analysis.sugerenciaContinuidad.objetivoRecomendado]}
-                  </p>
-                  <p className="text-sm opacity-80 mt-1">
-                    {analysis.sugerenciaContinuidad.razonObjetivo}
-                  </p>
+                  <label className="block text-sm font-medium text-white/90 mb-2">
+                    Peso final (kg) *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={pesoFinal}
+                    onChange={(e) => setPesoFinal(e.target.value)}
+                    className="w-full px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="75.5"
+                  />
                 </div>
 
                 <div>
-                  <p className="text-sm font-medium mb-2">Ajustes recomendados:</p>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div className="p-2 rounded bg-white/5">
-                      <span className="opacity-70">Calorías: </span>
-                      <span className="font-medium">{analysis.sugerenciaContinuidad.ajustesCalorias}</span>
-                    </div>
-                    <div className="p-2 rounded bg-white/5">
-                      <span className="opacity-70">Intensidad: </span>
-                      <span className="font-medium">{analysis.sugerenciaContinuidad.ajustesEntrenamiento.intensidad}</span>
-                    </div>
-                  </div>
+                  <label className="block text-sm font-medium text-white/90 mb-2">
+                    Cintura final (cm)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={cinturaFinal}
+                    onChange={(e) => setCinturaFinal(e.target.value)}
+                    className="w-full px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="88"
+                  />
                 </div>
-
-                <p className="text-sm italic opacity-90 bg-white/5 p-3 rounded">
-                  "{analysis.sugerenciaContinuidad.mensajeMotivacional}"
-                </p>
               </div>
 
-              {/* Botón aceptar sugerencia */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-white/90 mb-2">
+                    Adherencia a comidas
+                  </label>
+                  <select
+                    value={adherenciaComida}
+                    onChange={(e) => setAdherenciaComida(e.target.value)}
+                    className="w-full px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="<50%">&lt;50%</option>
+                    <option value="50-70%">50-70%</option>
+                    <option value="70-80%">70-80%</option>
+                    <option value=">80%">&gt;80%</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-white/90 mb-2">
+                    Adherencia a entrenamiento
+                  </label>
+                  <select
+                    value={adherenciaEntreno}
+                    onChange={(e) => setAdherenciaEntreno(e.target.value)}
+                    className="w-full px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="<50%">&lt;50%</option>
+                    <option value="50-70%">50-70%</option>
+                    <option value="70-80%">70-80%</option>
+                    <option value=">80%">&gt;80%</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-white/90 mb-2">
+                    Nivel de energía
+                  </label>
+                  <select
+                    value={energia}
+                    onChange={(e) => setEnergia(e.target.value)}
+                    className="w-full px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="muy_baja">Muy baja</option>
+                    <option value="baja">Baja</option>
+                    <option value="normal">Normal</option>
+                    <option value="alta">Alta</option>
+                    <option value="muy_alta">Muy alta</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-white/90 mb-2">
+                    Recuperación
+                  </label>
+                  <select
+                    value={recuperacion}
+                    onChange={(e) => setRecuperacion(e.target.value)}
+                    className="w-full px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="mala">Mala</option>
+                    <option value="regular">Regular</option>
+                    <option value="normal">Normal</option>
+                    <option value="buena">Buena</option>
+                    <option value="excelente">Excelente</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-white/90 mb-2">
+                  Lesiones nuevas (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={lesionesNuevas}
+                  onChange={(e) => setLesionesNuevas(e.target.value)}
+                  className="w-full px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Ej: Dolor de rodilla leve"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-white/90 mb-2">
+                  Comentarios adicionales (opcional)
+                </label>
+                <textarea
+                  value={comentarios}
+                  onChange={(e) => setComentarios(e.target.value)}
+                  rows={3}
+                  className="w-full px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Comparte cómo te sentiste durante el plan..."
+                />
+              </div>
+
               <button
-                onClick={() => {
-                  setUsarSugerencia(true);
-                  handleGenerateNewPlan();
-                }}
-                className="w-full mt-4 px-6 py-3 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-medium transition-all shadow-lg"
+                onClick={handleAnalyze}
+                className="w-full py-3 rounded-lg bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold hover:from-blue-600 hover:to-purple-600 transition-all"
               >
-                Aceptar y generar nuevo plan
+                Analizar y obtener sugerencia
               </button>
             </div>
+          )}
 
-            {/* Objetivos alternativos */}
-            {analysis.objetivosAlternativos && analysis.objetivosAlternativos.length > 0 && (
-              <div>
-                <h3 className="text-sm font-semibold mb-3 opacity-70">
-                  O elige otro objetivo:
-                </h3>
-                <div className="space-y-2">
-                  {analysis.objetivosAlternativos.map((alt, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => {
-                        setObjetivoSeleccionado(alt.objetivo);
-                        setUsarSugerencia(false);
-                      }}
-                      className={`w-full p-3 rounded-lg border text-left transition-all ${
-                        objetivoSeleccionado === alt.objetivo && !usarSugerencia
-                          ? "border-cyan-500 bg-cyan-500/10"
-                          : "border-white/10 bg-white/5 hover:bg-white/10"
-                      }`}
-                    >
-                      <p className="font-medium text-sm">{objetivoLabels[alt.objetivo]}</p>
-                      <p className="text-xs opacity-70 mt-1">{alt.razon}</p>
-                      <p className="text-xs opacity-60 mt-1 italic">{alt.adecuadoPara}</p>
-                    </button>
-                  ))}
+          {/* Step 2: Analyzing */}
+          {step === "analyzing" && (
+            <div className="flex flex-col items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-400 mb-4"></div>
+              <p className="text-white/70 text-center">
+                Analizando tus resultados con inteligencia artificial...
+              </p>
+            </div>
+          )}
+
+          {/* Step 3: Suggestion */}
+          {step === "suggestion" && analysis && (
+            <div className="space-y-6">
+              {/* Análisis */}
+              <div className="p-4 rounded-lg bg-white/5 border border-white/10">
+                <h3 className="text-lg font-semibold text-white mb-3">Análisis de resultados</h3>
+                <div className="space-y-2 text-sm text-white/80">
+                  <p className="font-medium">
+                    Progreso: <span className={`${
+                      analysis.analisis.progresoGeneral === "excelente" ? "text-green-400" :
+                      analysis.analisis.progresoGeneral === "bueno" ? "text-blue-400" :
+                      analysis.analisis.progresoGeneral === "regular" ? "text-yellow-400" :
+                      "text-orange-400"
+                    }`}>
+                      {analysis.analisis.progresoGeneral.toUpperCase()}
+                    </span>
+                  </p>
+                  <p>{analysis.analisis.resumen}</p>
+                  
+                  {analysis.analisis.puntosPositivos.length > 0 && (
+                    <div className="mt-3">
+                      <p className="font-medium text-green-400 mb-1">Puntos positivos:</p>
+                      <ul className="list-disc list-inside space-y-1">
+                        {analysis.analisis.puntosPositivos.map((punto, i) => (
+                          <li key={i}>{punto}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {analysis.analisis.areasMejora.length > 0 && (
+                    <div className="mt-3">
+                      <p className="font-medium text-yellow-400 mb-1">Áreas de mejora:</p>
+                      <ul className="list-disc list-inside space-y-1">
+                        {analysis.analisis.areasMejora.map((area, i) => (
+                          <li key={i}>{area}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Sugerencia principal */}
+              <div className="p-4 rounded-lg bg-gradient-to-r from-blue-500/20 to-purple-500/20 border border-blue-400/30">
+                <h3 className="text-lg font-semibold text-white mb-3">Sugerencia de continuidad</h3>
+                <div className="space-y-2 text-sm text-white/90">
+                  <p className="font-medium">
+                    Objetivo recomendado: <span className="text-blue-300">{analysis.sugerenciaContinuidad.objetivoRecomendado}</span>
+                  </p>
+                  <p>{analysis.sugerenciaContinuidad.razonObjetivo}</p>
+                  <p className="mt-3 text-blue-200">{analysis.sugerenciaContinuidad.mensajeMotivacional}</p>
                 </div>
 
-                {!usarSugerencia && objetivoSeleccionado && (
-                  <button
-                    onClick={handleGenerateNewPlan}
-                    className="w-full mt-4 px-6 py-3 rounded-lg bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-600 hover:to-teal-600 text-white font-medium transition-all shadow-lg"
-                  >
-                    Generar plan con {objetivoLabels[objetivoSeleccionado]}
-                  </button>
-                )}
+                <div className="mt-4 flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="usarSugerencia"
+                    checked={usarSugerencia}
+                    onChange={(e) => setUsarSugerencia(e.target.checked)}
+                    className="w-4 h-4 rounded"
+                  />
+                  <label htmlFor="usarSugerencia" className="text-sm text-white/80">
+                    Usar esta sugerencia
+                  </label>
+                </div>
               </div>
-            )}
-          </div>
-        )}
 
-        {/* Step 4: Generating */}
-        {step === "generating" && (
-          <div className="flex flex-col items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-cyan-500 mb-4"></div>
-            <p className="text-lg font-medium mb-2">Generando tu nuevo plan...</p>
-            <p className="text-sm opacity-70">Creando plan personalizado según tus resultados</p>
-          </div>
-        )}
+              {/* Objetivos alternativos */}
+              {analysis.objetivosAlternativos.length > 0 && (
+                <div className="p-4 rounded-lg bg-white/5 border border-white/10">
+                  <h3 className="text-lg font-semibold text-white mb-3">Otras opciones</h3>
+                  <div className="space-y-3">
+                    {analysis.objetivosAlternativos.map((alt, i) => (
+                      <div
+                        key={i}
+                        className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                          objetivoSeleccionado === alt.objetivo && !usarSugerencia
+                            ? "border-blue-400 bg-blue-500/20"
+                            : "border-white/20 bg-white/5 hover:bg-white/10"
+                        }`}
+                        onClick={() => {
+                          setUsarSugerencia(false);
+                          setObjetivoSeleccionado(alt.objetivo);
+                        }}
+                      >
+                        <p className="font-semibold text-white">{alt.objetivo}</p>
+                        <p className="text-sm text-white/70 mt-1">{alt.razon}</p>
+                        <p className="text-xs text-white/50 mt-1">{alt.adecuadoPara}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-        {/* Step 5: Complete */}
-        {step === "complete" && (
-          <div className="flex flex-col items-center justify-center py-12">
-            <div className="text-6xl mb-4">✅</div>
-            <p className="text-2xl font-bold mb-2">¡Plan generado exitosamente!</p>
-            <p className="text-sm opacity-70">Redirigiendo a tu nuevo plan...</p>
-          </div>
-        )}
-      </motion.div>
-    </div>
+              <button
+                onClick={handleGenerateNewPlan}
+                disabled={!objetivoSeleccionado}
+                className="w-full py-3 rounded-lg bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold hover:from-green-600 hover:to-emerald-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {usarSugerencia ? "Aceptar y generar plan" : `Generar plan con ${objetivoSeleccionado}`}
+              </button>
+            </div>
+          )}
+
+          {/* Step 4: Generating */}
+          {step === "generating" && (
+            <div className="flex flex-col items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-green-400 mb-4"></div>
+              <p className="text-white/70 text-center">
+                Generando tu nuevo plan personalizado...
+              </p>
+            </div>
+          )}
+
+          {/* Step 5: Complete */}
+          {step === "complete" && (
+            <div className="flex flex-col items-center justify-center py-12">
+              <div className="w-16 h-16 rounded-full bg-green-500 flex items-center justify-center mb-4">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-8 w-8 text-white"
+                >
+                  <path d="M20 6L9 17l-5-5" />
+                </svg>
+              </div>
+              <p className="text-white text-lg font-semibold mb-2">¡Plan generado exitosamente!</p>
+              <p className="text-white/70 text-sm">Redirigiendo a tu nuevo plan...</p>
+            </div>
+          )}
+        </motion.div>
+      </div>
+    </AnimatePresence>
   );
 }
-
-
-
 

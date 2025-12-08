@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import { usePlanStore } from "@/store/planStore";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Goal, TipoDieta, Intensidad, UserInput, PlanMultiFase } from "@/types/plan";
@@ -12,6 +12,10 @@ import FoodTrackingModal from "@/components/FoodTrackingModal";
 import WeeklyStatsModal from "@/components/WeeklyStatsModal";
 import IMCInfoModal from "@/components/IMCInfoModal";
 import PlanContinuityModal from "@/components/PlanContinuityModal";
+import MonthChangesModal from "@/components/MonthChangesModal";
+// ExerciseSetTracker removido temporalmente
+import TrainingCalendar from "@/components/TrainingCalendar";
+import type { TrainingDayPlan } from "@/types/plan";
 import { getAuthSafe, getDbSafe } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { useAuthStore } from "@/store/authStore";
@@ -70,7 +74,7 @@ interface TrainingPlan {
 
 export default function PlanPage() {
   const router = useRouter();
-  const { plan, user, planId, planMultiFase, setUser, setPlan, setPlanId, setPlanMultiFase } = usePlanStore();
+  const { plan, user, planId, planMultiFase, planCreatedAt, setUser, setPlan, setPlanId, setPlanMultiFase, setPlanCreatedAt } = usePlanStore();
   const { user: authUser } = useAuthStore();
 
   useEffect(() => {
@@ -80,6 +84,128 @@ export default function PlanPage() {
       return;
     }
   }, [plan, user, router]);
+
+  // Estado local para la fecha de inicio del plan (se carga desde store o Firestore)
+  const [fechaInicioPlan, setFechaInicioPlan] = useState<Date | null>(null);
+  const [loadingFechaInicio, setLoadingFechaInicio] = useState(true);
+
+  // Cargar fecha de creación desde el store o Firestore
+  useEffect(() => {
+    // Asegurar que solo se ejecute en el cliente
+    if (typeof window === 'undefined') return;
+    
+    if (!planId) {
+      setLoadingFechaInicio(false);
+      return;
+    }
+
+    const loadCreatedAt = async () => {
+      try {
+        // Primero intentar usar planCreatedAt del store si está disponible
+        if (planCreatedAt) {
+          const d = new Date(planCreatedAt);
+          if (!isNaN(d.getTime())) {
+            d.setHours(0, 0, 0, 0);
+            setFechaInicioPlan(d);
+            setLoadingFechaInicio(false);
+            console.log('✅ Fecha de creación desde store:', d.toISOString());
+            return;
+          }
+        }
+
+        // Si no está en el store, cargar desde Firestore
+        try {
+          const db = getDbSafe();
+          if (!db) {
+            console.warn('⚠️ Firestore no disponible, usando fecha actual como fallback');
+            setLoadingFechaInicio(false);
+            return;
+          }
+          
+          const planRef = doc(db, "planes", planId);
+          const planDoc = await getDoc(planRef);
+          
+          if (planDoc.exists()) {
+            const data = planDoc.data();
+            const createdAt = data.createdAt;
+            
+            if (createdAt) {
+              let createdDate: Date;
+              // Manejar diferentes formatos de timestamp de Firestore
+              if (createdAt && typeof createdAt === 'object' && 'toDate' in createdAt) {
+                createdDate = (createdAt as { toDate: () => Date }).toDate();
+              } else if (createdAt && typeof createdAt === 'object' && 'seconds' in createdAt) {
+                const ts = createdAt as { seconds: number; nanoseconds?: number };
+                createdDate = new Date(ts.seconds * 1000 + (ts.nanoseconds || 0) / 1000000);
+              } else if (typeof createdAt === 'string') {
+                createdDate = new Date(createdAt);
+              } else {
+                console.warn('⚠️ No se pudo parsear la fecha de creación');
+                setLoadingFechaInicio(false);
+                return; // No podemos parsear la fecha
+              }
+              
+              // Normalizar a inicio del día
+              createdDate.setHours(0, 0, 0, 0);
+              setFechaInicioPlan(createdDate);
+              
+              // Guardar en el store para uso futuro
+              setPlanCreatedAt(createdDate.toISOString());
+              console.log('✅ Fecha de creación cargada desde Firestore:', createdDate.toISOString());
+            } else {
+              console.warn('⚠️ No se encontró createdAt en el documento del plan');
+            }
+          } else {
+            console.warn('⚠️ Plan no encontrado en Firestore');
+          }
+        } catch (firestoreError) {
+          console.error('Error al acceder a Firestore:', firestoreError);
+          // No lanzar el error, solo loguearlo
+        }
+      } catch (error) {
+        console.error('Error al cargar fecha de creación del plan:', error);
+        // No lanzar el error para evitar que rompa la página
+      } finally {
+        setLoadingFechaInicio(false);
+      }
+    };
+    
+    loadCreatedAt();
+  }, [planId, planCreatedAt, setPlanCreatedAt]);
+
+  // Limpiar caché de localStorage al entrar a cada plan
+  useEffect(() => {
+    if (typeof window === 'undefined' || !plan || !user || !planId) return;
+
+    // Limpiar todas las claves de localStorage relacionadas con este plan
+    try {
+      // Limpiar fecha de inicio del plan
+      const fechaInicioKey = `fecha_inicio_${user.nombre}_${plan.duracion_plan_dias || 30}`;
+      localStorage.removeItem(fechaInicioKey);
+
+      // Limpiar modal de IMC
+      const imcModalKey = `imc_modal_shown_${planId}`;
+      localStorage.removeItem(imcModalKey);
+
+      // Limpiar registros de peso
+      const pesoKey = `peso_${planId}`;
+      localStorage.removeItem(pesoKey);
+
+      // Limpiar cualquier otra clave relacionada con el plan (por si acaso)
+      const planRelatedKeys: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.includes(planId) || key.includes(user.nombre))) {
+          planRelatedKeys.push(key);
+        }
+      }
+      planRelatedKeys.forEach(key => localStorage.removeItem(key));
+
+      console.log('✅ Caché de localStorage limpiada al entrar al plan');
+    } catch (error) {
+      console.error('Error al limpiar localStorage:', error);
+    }
+  }, [plan, user, planId]);
   
   // Valores editables de entrenamiento
   const [diasGymEditado, setDiasGymEditado] = useState<number | null>(null);
@@ -109,12 +235,244 @@ export default function PlanPage() {
   const [modalInfoAbierto, setModalInfoAbierto] = useState<'imc' | 'macros' | 'sueno' | 'dificultad' | 'split' | null>(null);
   const [modalEntrenamientoAbierto, setModalEntrenamientoAbierto] = useState(false);
   const [semanaSeleccionada, setSemanaSeleccionada] = useState<number>(1);
+  const [diasExpandidos, setDiasExpandidos] = useState<Record<string, boolean>>({});
   const [vistaPlan, setVistaPlan] = useState<'entrenamiento' | 'alimentacion'>('alimentacion');
+  // Estados para calendario de entrenamiento
+  const [selectedTrainingDate, setSelectedTrainingDate] = useState<Date | null>(null);
+  const [selectedDayData, setSelectedDayData] = useState<{ day: TrainingDayPlan; week: number; dayIndex: number } | null>(null);
+  // Estado separado para el progreso del día seleccionado (evita loops)
+  const [selectedDayProgress, setSelectedDayProgress] = useState<Record<string, { completed: number; total: number }>>({});
   const [modalAlimentosAbierto, setModalAlimentosAbierto] = useState<null | { diaIdx: number }>(null);
   const [foodDetails, setFoodDetails] = useState<Record<string, { ingredientes?: string[]; pasos_preparacion?: string[]; loading?: boolean; error?: string }>>({});
   const [foodTrackingModalOpen, setFoodTrackingModalOpen] = useState(false);
   const [weeklyStatsModalOpen, setWeeklyStatsModalOpen] = useState(false);
   const [imcModalOpen, setImcModalOpen] = useState(false);
+  
+  
+  // Ref para prevenir procesamiento duplicado (sin llamadas al backend)
+  const processingSelectionRef = useRef(false);
+  
+  // FUNCIÓN ELIMINADA: loadExerciseProgressForDay
+  // Ya no se hacen llamadas al backend al seleccionar un día del calendario
+  // Solo se muestran los datos del plan que ya están cargados en memoria
+  
+  // Componente para mostrar el entrenamiento de un día específico
+  const DayTrainingPanel = ({
+    dayData,
+    week,
+    dayIndex,
+    date,
+    planId,
+    userId,
+  }: {
+    dayData: TrainingDayPlan;
+    week: number;
+    dayIndex: number;
+    date: Date | null;
+    planId?: string;
+    userId?: string;
+  }) => {
+    // Obtener músculos trabajados
+    const muscleGroups = new Set<string>();
+    dayData.ejercicios?.forEach(ej => {
+      if (ej.muscle_group) {
+        muscleGroups.add(ej.muscle_group);
+      }
+    });
+    const musculos = muscleGroups.size >= 5 
+      ? "Full Body" 
+      : Array.from(muscleGroups).sort().join(", ");
+    
+    const dateStr = date ? date.toLocaleDateString('es-AR', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    }) : dayData.day;
+    
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mt-6 rounded-xl border-2 border-cyan-500/30 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-xl font-bold text-white flex items-center gap-2">
+              <span className="text-cyan-400">🏋️</span>
+              {dayData.day}
+              {musculos && (
+                <span className="text-sm font-normal opacity-70 ml-2">({musculos})</span>
+              )}
+            </h3>
+            {date && (
+              <p className="text-sm text-white/60 mt-1 capitalize">{dateStr}</p>
+            )}
+          </div>
+        </div>
+        
+        {/* Calentamiento */}
+        {dayData.warmup && (
+          <div className="mb-4 p-3 rounded-md bg-gradient-to-r from-orange-500/20 to-yellow-500/20 border border-orange-500/30">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-sm font-semibold text-orange-300">🔥 Calentamiento</span>
+              <span className="text-xs opacity-70">({dayData.warmup.duration_minutes} min)</span>
+            </div>
+            <p className="text-sm opacity-90 leading-relaxed">{dayData.warmup.description}</p>
+          </div>
+        )}
+        
+        {/* Ejercicios */}
+        {dayData.ejercicios && dayData.ejercicios.length > 0 ? (
+          <ul className="space-y-3">
+            {dayData.ejercicios.map((ejercicio, ei) => {
+              const restTime = ejercicio.rest_seconds || (ejercicio as unknown as { rest_sec?: number }).rest_sec;
+              
+              return (
+                <li key={`ej-${week}-${dayIndex}-${ei}`} className="rounded-lg bg-white/5 border border-white/10 p-3">
+                  <div className="flex-1">
+                    {/* Header del ejercicio */}
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <span className="font-semibold text-white">{ejercicio.name}</span>
+                          <span className="text-sm opacity-70">· {ejercicio.sets}x{String(ejercicio.reps)}</span>
+                          {ejercicio.muscle_group && (
+                            <span className="text-xs px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                              {ejercicio.muscle_group}
+                            </span>
+                          )}
+                        </div>
+                        {/* Detalles técnicos compactos */}
+                        <div className="flex items-center gap-3 flex-wrap text-xs opacity-80">
+                          {ejercicio.rpe && (
+                            <span className="flex items-center gap-1">
+                              <span className="opacity-60">RPE:</span>
+                              <span className="font-medium">{ejercicio.rpe}/10</span>
+                            </span>
+                          )}
+                          {ejercicio.tempo && (
+                            <span className="flex items-center gap-1">
+                              <span className="opacity-60">Tempo:</span>
+                              <span className="font-medium">{ejercicio.tempo}</span>
+                            </span>
+                          )}
+                          {restTime && (
+                            <span className="flex items-center gap-1">
+                              <span className="opacity-60">Descanso:</span>
+                              <span className="font-medium">{restTime}s</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Técnica, progresión, cues, alternativa (igual que en el modal) */}
+                    {ejercicio.technique && (
+                      <details className="mt-2">
+                        <summary className="text-xs font-medium text-cyan-300 cursor-pointer hover:text-cyan-200">
+                          💡 Técnica
+                        </summary>
+                        <p className="mt-1 text-xs opacity-90 leading-relaxed pl-2 border-l-2 border-cyan-500/30">
+                          {ejercicio.technique}
+                        </p>
+                      </details>
+                    )}
+                    
+                    {ejercicio.progression && (
+                      <details className="mt-2">
+                        <summary className="text-xs font-medium text-yellow-300 cursor-pointer hover:text-yellow-200">
+                          📈 Progresión
+                        </summary>
+                        <p className="mt-1 text-xs opacity-90 leading-relaxed pl-2 border-l-2 border-yellow-500/30">
+                          {ejercicio.progression}
+                        </p>
+                      </details>
+                    )}
+                    
+                    {ejercicio.cues && ejercicio.cues.length > 0 && (
+                      <div className="mt-2">
+                        <p className="text-xs font-medium text-purple-300 mb-1">🎯 Pistas mentales:</p>
+                        <ul className="list-disc pl-4 space-y-0.5">
+                          {ejercicio.cues.map((cue, cueIdx) => (
+                            <li key={`cue-${ei}-${cueIdx}`} className="text-xs opacity-90">{cue}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
+                    {ejercicio.alternative && (
+                      <div className="mt-2 p-2 rounded bg-orange-500/10 border border-orange-500/30">
+                        <p className="text-xs font-medium text-orange-300 mb-1">⚠️ Alternativa (si tienes lesión):</p>
+                        <p className="text-xs opacity-90">{ejercicio.alternative}</p>
+                      </div>
+                    )}
+                    
+                    {/* Tracker de pesos por serie - REMOVIDO TEMPORALMENTE */}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="text-center py-8 text-white/70">No hay ejercicios programados para este día</p>
+        )}
+      </motion.div>
+    );
+  };
+  
+  // Función eliminada: calcularProgresoDias - ya no se calcula progreso de ejercicios
+  
+  // Cargar progreso de ejercicios cuando se abre el modal de entrenamiento
+  // Ref para prevenir que este useEffect se ejecute múltiples veces
+  const modalOpenedRef = useRef(false);
+  
+  useEffect(() => {
+    // CRÍTICO: Si hay un día seleccionado del calendario, NO hacer NADA en absoluto
+    // Esta verificación debe ser la PRIMERA y más estricta
+    if (selectedDayData) {
+      // Si hay un día seleccionado, NO ejecutar NADA de este useEffect
+      // Solo resetear el ref cuando se cierra el modal
+      if (!modalEntrenamientoAbierto) {
+        modalOpenedRef.current = false;
+        processingSelectionRef.current = false;
+      }
+      return; // SALIR INMEDIATAMENTE si hay un día seleccionado
+    }
+    
+    // Solo cargar si se abre el modal desde el botón tradicional (no desde el calendario)
+    // Y solo si no se ha ejecutado ya para esta apertura del modal
+    if (modalEntrenamientoAbierto && authUser && planId && !modalOpenedRef.current) {
+      modalOpenedRef.current = true;
+      
+      
+      // Expandir automáticamente el día actual
+      const diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+      const hoy = new Date().getDay();
+      const diaActualNombre = diasSemana[hoy];
+      
+      // Buscar el día actual en la semana seleccionada
+      const tp = (plan as unknown as Record<string, unknown>)?.training_plan as TrainingPlan | undefined;
+      const weeks = tp?.weeks || [];
+      const semanaActual = weeks.find((w) => (w.week ?? 1) === semanaSeleccionada) || weeks[semanaSeleccionada - 1];
+      
+      if (semanaActual && semanaActual.days) {
+        semanaActual.days.forEach((dia, di) => {
+          if (dia.day === diaActualNombre) {
+            const dayKey = `w${semanaSeleccionada}-d${di}`;
+            setDiasExpandidos(prev => ({ ...prev, [dayKey]: true }));
+          }
+        });
+      }
+    }
+    
+    // Resetear el ref cuando se cierra el modal
+    if (!modalEntrenamientoAbierto) {
+      modalOpenedRef.current = false;
+      // Limpiar referencias cuando se cierra el modal
+      processingSelectionRef.current = false;
+    }
+  }, [modalEntrenamientoAbierto, authUser, planId, semanaSeleccionada, plan, selectedDayData]);
   
   // Estados para modal de siguiente mes (plan multi-fase)
   const [modalSiguienteMesAbierto, setModalSiguienteMesAbierto] = useState(false);
@@ -134,15 +492,32 @@ export default function PlanPage() {
   // Estados para modal de continuidad (planes simples)
   const [continuityModalOpen, setContinuityModalOpen] = useState(false);
   const [registrosPeso, setRegistrosPeso] = useState<Array<{ fecha: string; peso: number }>>([]);
+  
+  // Estados para modal de cambios (planes multi-fase)
+  const [monthChangesModalOpen, setMonthChangesModalOpen] = useState(false);
+  const [monthChangesData, setMonthChangesData] = useState<any>(null);
 
+  // Ref para prevenir cargas duplicadas de registros de peso
+  const loadingRegistrosPesoRef = useRef(false);
+  const lastLoadedPlanIdRef = useRef<string | null>(null);
+  
   // Cargar registros de peso para el modal de continuidad
   useEffect(() => {
+    // Prevenir cargas duplicadas
+    if (!planId || loadingRegistrosPesoRef.current || lastLoadedPlanIdRef.current === planId) {
+      return;
+    }
+    
+    loadingRegistrosPesoRef.current = true;
+    lastLoadedPlanIdRef.current = planId;
+    
     const loadRegistrosPeso = async () => {
-      if (!planId) return;
-      
       try {
         const db = getDbSafe();
-        if (!db) return;
+        if (!db) {
+          loadingRegistrosPesoRef.current = false;
+          return;
+        }
         
         const planRef = doc(db, "planes", planId);
         const planDoc = await getDoc(planRef);
@@ -158,6 +533,8 @@ export default function PlanPage() {
         }
       } catch (error) {
         console.error("Error al cargar registros de peso:", error);
+      } finally {
+        loadingRegistrosPesoRef.current = false;
       }
     };
     
@@ -299,33 +676,32 @@ export default function PlanPage() {
     }
   }, [isPremium, vistaPlan]);
   
-  // Obtener fecha de inicio del plan desde localStorage o usar fecha actual
-  const fechaInicioPlan = (() => {
-    if (typeof window !== 'undefined' && user && plan) {
-      const stored = localStorage.getItem(`fecha_inicio_${user.nombre}_${plan.duracion_plan_dias || 30}`);
-      if (stored) {
-        return new Date(stored);
-      }
-      // Si no existe, guardarla ahora
-      const ahora = new Date();
-      localStorage.setItem(`fecha_inicio_${user.nombre}_${plan.duracion_plan_dias || 30}`, ahora.toISOString());
-      return ahora;
-    }
-    return new Date();
-  })();
-
-
   // Vista por defecto: alimentación
   // (el usuario puede cambiar entre alimentación y entrenamiento con los botones)
   
-  // Calcular progreso del plan
-  const progresoPlan = (() => {
-    if (!plan?.duracion_plan_dias) return { diasTranscurridos: 0, porcentaje: 0 };
-    const ahora = new Date();
-    const diasTranscurridos = Math.floor((ahora.getTime() - fechaInicioPlan.getTime()) / (1000 * 60 * 60 * 24));
-    const porcentaje = Math.min(100, Math.max(0, (diasTranscurridos / plan.duracion_plan_dias) * 100));
-    return { diasTranscurridos: Math.min(plan.duracion_plan_dias, Math.max(0, diasTranscurridos)), porcentaje };
-  })();
+  // Calcular progreso del plan (solo si tenemos la fecha de inicio)
+  const progresoPlan = useMemo(() => {
+    if (!fechaInicioPlan) {
+      // Si aún no tenemos la fecha, retornar 0% temporalmente
+      return { diasTranscurridos: 0, porcentaje: 0 };
+    }
+
+      const ahora = new Date();
+    const diffTime = ahora.getTime() - fechaInicioPlan.getTime();
+
+    // Igual que en el dashboard: usar horas para que el progreso no sea 0% todo el primer día
+    const diffHours = diffTime / (1000 * 60 * 60);
+    const diffDays = Math.max(0, diffHours / 24); // días con decimales
+
+    // Si el plan no tiene duracion_plan_dias, asumir 30 días (igual que en el dashboard)
+    const totalDays = plan?.duracion_plan_dias || 30;
+    const porcentaje = Math.min(100, Math.max(0, (diffDays / totalDays) * 100));
+
+    // Días transcurridos para mostrar: redondear hacia arriba pero nunca superar la duración
+    const diasTranscurridos = Math.min(totalDays, Math.max(0, Math.ceil(diffDays)));
+
+    return { diasTranscurridos, porcentaje };
+  }, [fechaInicioPlan, plan?.duracion_plan_dias]);
   
   // Guardar valores originales para comparar
   const [valoresOriginales, setValoresOriginales] = useState<{
@@ -826,6 +1202,14 @@ export default function PlanPage() {
     setGenerandoSiguienteMes(true);
     setErrorSiguienteMes(null);
     
+    // Guardar datos del mes anterior para comparación
+    const mesAnteriorIndex = planMultiFase.mesActual - 1;
+    const datosNutricionAnterior = {
+      calorias: planMultiFase.historialMeses[mesAnteriorIndex]?.caloriasObjetivo || plan.calorias_diarias,
+      macros: planMultiFase.historialMeses[mesAnteriorIndex]?.macros || plan.macros
+    };
+    const mesAnteriorCompleto = planMultiFase.historialMeses[mesAnteriorIndex];
+    
     try {
       const db = getDbSafe();
       if (!db) throw new Error("Base de datos no disponible");
@@ -996,8 +1380,160 @@ export default function PlanPage() {
       setPlan(nuevoPlan);
       setPlanMultiFase(planMultiFaseActualizado);
       
-      // Cerrar modal y resetear datos
+      // Calcular cambios entre meses para mostrar en modal
+      const calcularCambiosEntrenamiento = () => {
+        const diasGymAnterior = mesAnteriorCompleto?.planEntrenamiento?.weeks?.[0]?.days?.length || user.diasGym || 4;
+        const diasGymNuevo = nuevoPlan.training_plan?.weeks?.[0]?.days?.length || user.diasGym || 4;
+        
+        // Contar ejercicios totales
+        const ejerciciosAnterior = mesAnteriorCompleto?.planEntrenamiento?.weeks?.reduce((acc: number, week: any) => 
+          acc + (week.days?.reduce((dayAcc: number, day: any) => dayAcc + (day.ejercicios?.length || 0), 0) || 0), 0) || 0;
+        const ejerciciosNuevo = nuevoPlan.training_plan?.weeks?.reduce((acc: number, week: any) => 
+          acc + (week.days?.reduce((dayAcc: number, day: any) => dayAcc + (day.ejercicios?.length || 0), 0) || 0), 0) || 0;
+        
+        let cambioVolumen: "aumentado" | "reducido" | "mantenido" = "mantenido";
+        if (ejerciciosNuevo > ejerciciosAnterior + 2) cambioVolumen = "aumentado";
+        else if (ejerciciosNuevo < ejerciciosAnterior - 2) cambioVolumen = "reducido";
+        
+        let descripcion = "";
+        if (cambioVolumen === "aumentado") {
+          descripcion = "Se ha incrementado el volumen de entrenamiento para progresar según tus capacidades actuales.";
+        } else if (cambioVolumen === "reducido") {
+          descripcion = "Se ha reducido el volumen para mejorar la recuperación según tu feedback del mes anterior.";
+        } else {
+          descripcion = "El volumen de entrenamiento se mantiene para consolidar adaptaciones.";
+        }
+        
+        return {
+          diasGymAnterior,
+          diasGymNuevo,
+          cambioVolumen,
+          ejerciciosNuevos: Math.max(0, ejerciciosNuevo - ejerciciosAnterior),
+          descripcionCambios: descripcion
+        };
+      };
+      
+      const extraerGramos = (str: string): number => {
+        const match = str.match(/(\d+(\.\d+)?)/);
+        return match ? parseFloat(match[1]) : 0;
+      };
+      
+      // Calcular progreso del usuario
+      const calcularProgresoUsuario = () => {
+        const pesoInicial = planMultiFase.datosIniciales.pesoInicial;
+        const pesoActual = datosSiguienteMes.pesoActual;
+        const pesoObjetivo = planMultiFase.datosIniciales.pesoObjetivoFinal;
+        
+        const cambioPesoTotal = pesoActual - pesoInicial;
+        const cambioPesoUltimoMes = datosSiguienteMes.pesoActual - (mesAnteriorCompleto?.datosAlIniciar?.peso || pesoInicial);
+        
+        // Calcular porcentaje hacia objetivo
+        const pesoARecorrer = pesoObjetivo - pesoInicial;
+        const pesoRecorrido = pesoActual - pesoInicial;
+        const porcentajeHaciaObjetivo = pesoARecorrer !== 0 ? (pesoRecorrido / pesoARecorrer) * 100 : 0;
+        
+        // Calcular adherencia promedio de todos los meses
+        const mapAdherencia = (s: string) => {
+          if (s === ">80%") return 85;
+          if (s === "70-80%") return 75;
+          if (s === "50-70%") return 60;
+          return 40;
+        };
+        
+        const mesesConDatos = planMultiFaseActualizado.historialMeses.filter(m => m.datosAlFinalizar);
+        const adherencias = mesesConDatos.map(m => {
+          const comida = m.datosAlFinalizar!.adherenciaComida;
+          const entreno = m.datosAlFinalizar!.adherenciaEntreno;
+          return (mapAdherencia(comida) + mapAdherencia(entreno)) / 2;
+        });
+        const adherenciaPromedio = adherencias.length > 0 
+          ? adherencias.reduce((a, b) => a + b, 0) / adherencias.length 
+          : 0;
+        
+        // Calcular tendencias de energía y recuperación
+        const mapEnergia = (e: string): number => {
+          if (e === "muy_alta") return 5;
+          if (e === "alta") return 4;
+          if (e === "normal") return 3;
+          if (e === "baja") return 2;
+          return 1;
+        };
+        
+        const mapRecuperacion = (r: string): number => {
+          if (r === "excelente") return 5;
+          if (r === "buena") return 4;
+          if (r === "normal") return 3;
+          if (r === "regular") return 2;
+          return 1;
+        };
+        
+        const energias = mesesConDatos.map(m => mapEnergia(m.datosAlFinalizar!.energia));
+        const recuperaciones = mesesConDatos.map(m => mapRecuperacion(m.datosAlFinalizar!.recuperacion));
+        
+        let tendenciaEnergia: "mejorando" | "estable" | "empeorando" = "estable";
+        if (energias.length >= 2) {
+          const ultimaDos = energias.slice(-2);
+          if (ultimaDos[1] > ultimaDos[0]) tendenciaEnergia = "mejorando";
+          else if (ultimaDos[1] < ultimaDos[0]) tendenciaEnergia = "empeorando";
+        }
+        
+        let tendenciaRecuperacion: "mejorando" | "estable" | "empeorando" = "estable";
+        if (recuperaciones.length >= 2) {
+          const ultimaDos = recuperaciones.slice(-2);
+          if (ultimaDos[1] > ultimaDos[0]) tendenciaRecuperacion = "mejorando";
+          else if (ultimaDos[1] < ultimaDos[0]) tendenciaRecuperacion = "empeorando";
+        }
+        
+        return {
+          pesoInicial,
+          pesoActual,
+          pesoObjetivo,
+          cambioPesoTotal,
+          cambioPesoUltimoMes,
+          porcentajeHaciaObjetivo,
+          mesesCompletados: planMultiFase.mesActual, // El mes que acaba de completar
+          totalMeses: planMultiFase.totalMeses,
+          adherenciaPromedio,
+          tendenciaEnergia,
+          tendenciaRecuperacion
+        };
+      };
+      
+      const cambiosData = {
+        mesAnterior: planMultiFase.mesActual,
+        mesNuevo: siguienteMes,
+        faseAnterior: planMultiFase.faseActual,
+        faseNueva: siguienteFase?.nombre || planMultiFase.faseActual,
+        cambiaFase,
+        nutricion: {
+          caloriasAnterior: datosNutricionAnterior.calorias,
+          caloriasNueva: nuevoPlan.calorias_diarias,
+          diferenciaCalorias: nuevoPlan.calorias_diarias - datosNutricionAnterior.calorias,
+          macrosAnterior: datosNutricionAnterior.macros,
+          macrosNuevo: nuevoPlan.macros,
+          cambioMacros: {
+            proteinas: extraerGramos(nuevoPlan.macros.proteinas) - extraerGramos(datosNutricionAnterior.macros.proteinas),
+            carbohidratos: extraerGramos(nuevoPlan.macros.carbohidratos) - extraerGramos(datosNutricionAnterior.macros.carbohidratos),
+            grasas: extraerGramos(nuevoPlan.macros.grasas) - extraerGramos(datosNutricionAnterior.macros.grasas),
+          }
+        },
+        entrenamiento: calcularCambiosEntrenamiento(),
+        ajustesAplicados: ajustes,
+        razonCambios: ajustes.length > 0 
+          ? "Los ajustes se realizaron para optimizar tu progreso basándose en los resultados del mes anterior."
+          : cambiaFase
+          ? `Cambio de fase automático según tu plan multi-fase. Tu fase ${planMultiFase.faseActual} ha finalizado y ahora comienza la fase ${siguienteFase.nombre}.`
+          : "El plan se mantiene consistente con tu progreso actual. Continuarás con la misma estructura para consolidar adaptaciones.",
+        progresoUsuario: calcularProgresoUsuario()
+      };
+      
+      setMonthChangesData(cambiosData);
+      
+      // Cerrar modal de datos y abrir modal de cambios
       setModalSiguienteMesAbierto(false);
+      setMonthChangesModalOpen(true);
+      
+      // Resetear datos del formulario
       setDatosSiguienteMes({
         pesoActual: 0,
         cinturaActual: 0,
@@ -1382,7 +1918,9 @@ export default function PlanPage() {
                   const loadData = async () => {
                     try {
                       const db = getDbSafe();
-                      if (!db) return;
+                      if (!db) {
+                        return;
+                      }
                       
                       const planRef = doc(db, "planes", planId);
                       const planDoc = await getDoc(planRef);
@@ -1414,6 +1952,8 @@ export default function PlanPage() {
                   loadData();
                 }, []);
                 
+                // Solo mostrar si el mes actual está al 90-100% Y no es el último mes
+                // TEMPORAL: Usando 5% para testing
                 // Solo mostrar si el mes actual está al 90-100% Y no es el último mes
                 if (!fechaInicioMesActual || mesProgress < 90 || planMultiFase.mesActual >= planMultiFase.totalMeses) {
                   return null;
@@ -1449,17 +1989,21 @@ export default function PlanPage() {
                             planMultiFase.faseActual === "LEAN_BULK" ? "text-emerald-200" :
                             "text-purple-200"
                           }`}>
-                            {mesProgress >= 100 
+                            {Math.round(mesProgress) >= 100 
                               ? `¡Mes ${planMultiFase.mesActual} completado!` 
-                              : `Mes ${planMultiFase.mesActual} casi completado`}
+                              : Math.round(mesProgress) >= 90
+                              ? `Mes ${planMultiFase.mesActual} casi completado`
+                              : `Mes ${planMultiFase.mesActual} en progreso`}
                           </h3>
                         </div>
                         <p className="text-sm opacity-80">
-                          {mesProgress >= 100 
+                          {Math.round(mesProgress) >= 100 
                             ? cambiaFase 
                               ? `Es momento de cambiar a la fase ${siguienteFase.nombre} y generar el mes ${siguienteMes}.`
                               : `Es momento de generar el mes ${siguienteMes} de tu plan multi-fase.`
-                            : `Estás al ${Math.round(mesProgress)}% del mes ${planMultiFase.mesActual}. Pronto podrás generar el siguiente mes.`}
+                            : Math.round(mesProgress) >= 90
+                            ? `Estás al ${Math.round(mesProgress)}% del mes ${planMultiFase.mesActual}. Pronto podrás generar el siguiente mes.`
+                            : `Estás al ${Math.round(mesProgress)}% del mes ${planMultiFase.mesActual}.`}
                         </p>
                         {cambiaFase && (
                           <p className="text-xs opacity-70 mt-1">
@@ -1504,7 +2048,7 @@ export default function PlanPage() {
                         />
                       </div>
                       <p className="text-xs opacity-50 mt-1">
-                        {mesProgress >= 100 
+                        {Math.round(mesProgress) >= 100 
                           ? "Mes completado - Listo para continuar" 
                           : `${Math.max(0, Math.ceil(30 - (mesProgress / 100 * 30)))} días restantes`}
                       </p>
@@ -1881,17 +2425,17 @@ export default function PlanPage() {
                   <span className="text-sm font-medium text-white whitespace-nowrap max-w-[150px] md:max-w-none truncate">
                     {getObjetivoTexto(user.objetivo)}
                   </span>
-                </div>
+                      </div>
                 {/* Intensidad - Solo lectura */}
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
                   <span className="text-xs opacity-70 whitespace-nowrap">Intensidad:</span>
                   <span className="text-sm font-medium text-white capitalize">
                     {getIntensidadTexto(user.intensidad)}
-                  </span>
-                </div>
+                    </span>
+                        </div>
                 {/* Dieta - Solo lectura */}
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
-                  <span className="text-xs opacity-70 whitespace-nowrap">Dieta:</span>
+                    <span className="text-xs opacity-70 whitespace-nowrap">Dieta:</span>
                   <span className="text-sm font-medium text-white">
                     {getDietaTexto(user.tipoDieta)}
                   </span>
@@ -2062,7 +2606,7 @@ export default function PlanPage() {
                 <div>
                   <p className="text-xs opacity-70 mb-1">Fecha de inicio:</p>
                   <p className="text-sm font-medium">
-                    {fechaInicioPlan.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    {fechaInicioPlan ? fechaInicioPlan.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Cargando...'}
                   </p>
                         </div>
                 {plan?.dificultad && (
@@ -2281,15 +2825,57 @@ export default function PlanPage() {
             </button>
           </div>
 
-          {/* Botón para abrir modal de entrenamiento */}
+          {/* Calendario de entrenamiento */}
           {vistaPlan === 'entrenamiento' && isPremium && (plan as unknown as Record<string, unknown>)?.training_plan && (
-            <div className="mt-6 flex justify-center">
-              <button
-                onClick={() => setModalEntrenamientoAbierto(true)}
-                className="px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 hover:from-cyan-500/30 hover:to-blue-500/30 transition-all text-white font-medium"
-              >
-                🏋️ Ver Plan de Entrenamiento
-              </button>
+            <div className="mt-6">
+              <TrainingCalendar
+                trainingPlan={(plan as unknown as Record<string, unknown>)?.training_plan as unknown as import("@/types/plan").TrainingPlan}
+                planStartDate={fechaInicioPlan || new Date()}
+                planDurationDays={plan?.duracion_plan_dias || 30}
+                onDaySelect={(date, dayData, week, dayIndex) => {
+                  // Prevenir procesamiento duplicado
+                  if (processingSelectionRef.current) {
+                    return;
+                  }
+                  
+                  // Marcar que estamos procesando
+                  processingSelectionRef.current = true;
+                  
+                  // CRÍTICO: Establecer selectedDayData PRIMERO antes de abrir el modal
+                  // Esto previene que el useEffect se ejecute y haga llamadas al backend
+                  if (dayData && dayData.ejercicios && dayData.ejercicios.length > 0) {
+                    // IMPORTANTE: Solo mostrar los datos del plan que ya están en memoria
+                    // NO hacer NINGUNA llamada al backend
+                    // Los ejercicios, series, repeticiones, etc. ya están en dayData (vienen de OpenAI)
+                    
+                    // Establecer selectedDayData PRIMERO (esto previene que el useEffect se ejecute)
+                    setSelectedDayData({ day: dayData, week, dayIndex });
+                    
+                    // Establecer la fecha seleccionada
+                    setSelectedTrainingDate(date);
+                    
+                    // Inicializar progreso vacío (solo para la UI, sin datos del backend)
+                    setSelectedDayProgress({});
+                    
+                    // Abrir el modal DESPUÉS de establecer selectedDayData
+                    // Usar setTimeout para asegurar que selectedDayData se establezca primero
+                    setTimeout(() => {
+                      setModalEntrenamientoAbierto(true);
+                      processingSelectionRef.current = false;
+                    }, 0);
+                  } else {
+                    // Día sin entrenamiento
+                    setSelectedDayData(null);
+                    setSelectedTrainingDate(date);
+                    setSelectedDayProgress({});
+                    setTimeout(() => {
+                      setModalEntrenamientoAbierto(true);
+                      processingSelectionRef.current = false;
+                    }, 0);
+                  }
+                }}
+                selectedDate={selectedTrainingDate}
+              />
             </div>
           )}
 
@@ -3416,7 +4002,16 @@ export default function PlanPage() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-              onClick={() => setModalEntrenamientoAbierto(false)}
+              onClick={() => {
+                // Limpiar referencias al cerrar el modal
+                processingSelectionRef.current = false;
+                
+                // Cerrar modal y limpiar estados
+                setModalEntrenamientoAbierto(false);
+                setSelectedTrainingDate(null);
+                setSelectedDayData(null);
+                setSelectedDayProgress({});
+              }}
             >
               <motion.div
                 initial={{ scale: 0.9, opacity: 0 }}
@@ -3435,7 +4030,11 @@ export default function PlanPage() {
                     )}
                   </div>
                   <button
-                    onClick={() => setModalEntrenamientoAbierto(false)}
+                    onClick={() => {
+                      setModalEntrenamientoAbierto(false);
+                      setSelectedTrainingDate(null);
+                      setSelectedDayData(null);
+                    }}
                     className="text-white/70 hover:text-white transition-colors"
                   >
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3444,6 +4043,38 @@ export default function PlanPage() {
                   </button>
                 </div>
 
+                {/* Mostrar día seleccionado del calendario o todas las semanas */}
+                {selectedDayData && selectedDayData.day && selectedDayData.day.ejercicios ? (
+                  // Mostrar solo el día seleccionado del calendario
+                  // NO hay loader porque los datos ya están en memoria (vienen del plan)
+                  <DayTrainingPanel
+                    dayData={selectedDayData.day}
+                    week={selectedDayData.week}
+                    dayIndex={selectedDayData.dayIndex}
+                    date={selectedTrainingDate}
+                  />
+                ) : selectedTrainingDate && !selectedDayData ? (
+                  // Día seleccionado pero sin entrenamiento
+                  <div className="text-center py-12">
+                    <div className="text-6xl mb-4">📅</div>
+                    <h3 className="text-xl font-semibold text-white mb-2">
+                      {selectedTrainingDate.toLocaleDateString('es-AR', { 
+                        weekday: 'long', 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                      })}
+                    </h3>
+                    <p className="text-white/70">
+                      No hay entrenamiento programado para este día.
+                    </p>
+                    <p className="text-sm text-white/50 mt-2">
+                      Este es un día de descanso o no está incluido en tu plan de entrenamiento.
+                    </p>
+                  </div>
+                ) : (
+                  // Vista completa con todas las semanas (fallback si se abre de otra forma)
+                  <>
                 {/* Botones de semanas */}
                 <div className="flex gap-2 mb-6 flex-wrap">
                   {[1, 2, 3, 4].map((semana) => (
@@ -3482,46 +4113,13 @@ export default function PlanPage() {
                       </h3>
                       {(semanaActual.days || []).map((dia: TrainingDay, di: number) => {
                         // Función para determinar qué músculos se trabajan en este día
+                        // Basado en los muscle_group reales de los ejercicios
                         const getMusculosDelDia = (): string | null => {
-                          const tp = (plan as unknown as Record<string, unknown>)?.training_plan as TrainingPlan | undefined;
-                          const splitGeneral = (tp as unknown as Record<string, unknown>)?.split as string | undefined;
-                          
-                          // Si el día tiene un split específico, usarlo
-                          if (dia.split) {
-                            const splitLower = dia.split.toLowerCase();
-                            
-                            // Si es Full Body, mostrar "Full Body"
-                            if (splitLower.includes("full body")) {
-                              return "Full Body";
-                            }
-                            
-                            // Mapear splits comunes a músculos
-                            if (splitLower.includes("push")) {
-                              return "Pecho, Hombros, Tríceps";
-                            } else if (splitLower.includes("pull")) {
-                              return "Espalda, Bíceps, Trapecio";
-                            } else if (splitLower.includes("legs") || splitLower.includes("piernas")) {
-                              return "Cuádriceps, Isquiotibiales, Glúteos, Gemelos";
-                            } else if (splitLower.includes("upper")) {
-                              return "Pecho, Espalda, Hombros, Bíceps, Tríceps";
-                            } else if (splitLower.includes("lower")) {
-                              return "Cuádriceps, Isquiotibiales, Glúteos, Gemelos, Abdominales";
-                            } else if (splitLower.includes("chest") || splitLower.includes("pecho")) {
-                              return "Pecho, Tríceps";
-                            } else if (splitLower.includes("back") || splitLower.includes("espalda")) {
-                              return "Espalda, Bíceps";
-                            } else if (splitLower.includes("shoulders") || splitLower.includes("hombros")) {
-                              return "Hombros, Trapecio";
-                            }
+                          if (!dia.ejercicios || dia.ejercicios.length === 0) {
+                            return null;
                           }
                           
-                          // Si el split general es Full Body, mostrar "Full Body"
-                          if (splitGeneral === "Full Body" || splitGeneral?.toLowerCase().includes("full body")) {
-                            return "Full Body";
-                          }
-                          
-                          // Si no hay split específico, analizar los muscle_group de los ejercicios
-                          if (dia.ejercicios && dia.ejercicios.length > 0) {
+                          // Obtener todos los muscle_group únicos de los ejercicios del día
                             const muscleGroups = new Set<string>();
                             dia.ejercicios.forEach(ej => {
                               if (ej.muscle_group) {
@@ -3529,31 +4127,67 @@ export default function PlanPage() {
                               }
                             });
                             
-                            // Si hay 4 o más músculos diferentes, probablemente es Full Body
-                            if (muscleGroups.size >= 4) {
+                          if (muscleGroups.size === 0) {
+                            return null;
+                          }
+                          
+                          // Si hay muchos músculos diferentes, puede ser Full Body
+                          if (muscleGroups.size >= 5) {
                               return "Full Body";
                             }
                             
-                            // Devolver los músculos únicos encontrados
-                            if (muscleGroups.size > 0) {
-                              return Array.from(muscleGroups).join(", ");
-                            }
-                          }
-                          
-                          return null;
+                          // Devolver los músculos únicos encontrados, ordenados alfabéticamente
+                          return Array.from(muscleGroups).sort().join(", ");
                         };
                         
                         const musculos = getMusculosDelDia();
                         
+                        // Identificar día actual
+                        const diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+                        const hoy = new Date().getDay();
+                        const diaActualNombre = diasSemana[hoy];
+                        const esDiaActual = dia.day === diaActualNombre;
+                        
+                        // Estado de expansión del día
+                        const dayKey = `w${semanaSeleccionada}-d${di}`;
+                        const isExpanded = diasExpandidos[dayKey] || false;
+                        
                         return (
-                        <div key={`dia-${semanaSeleccionada}-${di}`} className="rounded-lg border border-white/10 bg-white/5 p-4">
-                          <h4 className="text-base font-semibold mb-3 text-white">
+                        <div 
+                          key={`dia-${semanaSeleccionada}-${di}`} 
+                          className={`rounded-lg border-2 bg-white/5 p-4 transition-all ${
+                            esDiaActual 
+                              ? 'border-cyan-500/50 bg-cyan-500/10 shadow-lg shadow-cyan-500/20' 
+                              : 'border-white/10'
+                          }`}
+                        >
+                          <button
+                            onClick={() => setDiasExpandidos(prev => ({ ...prev, [dayKey]: !prev[dayKey] }))}
+                            className="w-full flex items-center justify-between mb-3"
+                          >
+                            <h4 className={`text-base font-semibold text-white flex items-center gap-2 ${
+                              esDiaActual ? 'text-cyan-300' : ''
+                            }`}>
+                              {esDiaActual && <span className="text-cyan-400">📍</span>}
                             {dia.day}
                             {musculos && (
                               <span className="text-sm font-normal opacity-70 ml-2">({musculos})</span>
                             )}
                           </h4>
+                            <span className="text-white/50 text-sm">
+                              {isExpanded ? '▼' : '▶'}
+                            </span>
+                          </button>
                           
+                          <AnimatePresence>
+                            {isExpanded && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: "auto", opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="overflow-hidden"
+                              >
                           {/* Calentamiento */}
                           {dia.warmup && (
                             <div className="mb-4 p-3 rounded-md bg-gradient-to-r from-orange-500/20 to-yellow-500/20 border border-orange-500/30">
@@ -3568,7 +4202,8 @@ export default function PlanPage() {
                           {(dia.ejercicios || []).length > 0 ? (
                             <ul className="space-y-3">
                               {(dia.ejercicios || []).map((ejercicio: TrainingExercise, ei: number) => {
-                                const restTime = ejercicio.rest_seconds || ejercicio.rest_sec;
+                                const restTime = ejercicio.rest_seconds || (ejercicio as unknown as { rest_sec?: number }).rest_sec;
+                                
                                 return (
                                   <li key={`ej-${semanaSeleccionada}-${di}-${ei}`} className="rounded-lg bg-white/5 border border-white/10 p-3">
                                     <div className="flex-1">
@@ -3651,6 +4286,8 @@ export default function PlanPage() {
                                           <p className="text-xs opacity-90">{ejercicio.alternative}</p>
                                         </div>
                                       )}
+                                      
+                                      {/* Tracker de pesos por serie - REMOVIDO TEMPORALMENTE */}
                                     </div>
                                   </li>
                                 );
@@ -3659,1038 +4296,21 @@ export default function PlanPage() {
                           ) : (
                             <p className="text-sm text-white/50">No hay ejercicios registrados para este día</p>
                           )}
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </div>
                         );
                       })}
                     </div>
                   );
                 })()}
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* Modal de selección de plan premium */}
-      {premiumModalOpen && authUser && (
-        <PremiumPlanModal
-          isOpen={premiumModalOpen}
-          onClose={() => setPremiumModalOpen(false)}
-          userId={authUser.uid}
-          userEmail={authUser.email || ""}
-        />
-      )}
-
-      {/* Modal de Continuidad de Plan (solo para planes simples) */}
-      {continuityModalOpen && authUser && user && plan && planId && !planMultiFase && (
-        <PlanContinuityModal
-          isOpen={continuityModalOpen}
-          onClose={() => setContinuityModalOpen(false)}
-          planData={{
-            id: planId,
-            plan: plan,
-            user: user,
-            createdAt: new Date(), // La fecha real se carga desde Firestore dentro del modal
-          }}
-          registrosPeso={registrosPeso}
-          userId={authUser.uid}
-        />
-      )}
-
-      {/* Modal de registro de comida fuera del plan */}
-      <FoodTrackingModal
-        isOpen={foodTrackingModalOpen}
-        onClose={() => setFoodTrackingModalOpen(false)}
-        planCalories={plan?.calorias_diarias || 2000}
-        userObjective={user?.objetivo}
-        planId={planId || undefined}
-        userId={authUser?.uid || undefined}
-      />
-
-      {/* Modal de estadísticas semanales */}
-      {planId && (
-        <WeeklyStatsModal
-          isOpen={weeklyStatsModalOpen}
-          onClose={() => setWeeklyStatsModalOpen(false)}
-          planId={planId}
-          userId={authUser?.uid || undefined}
-        />
-      )}
-
-      {/* Modal de información del IMC - se muestra la primera vez que el usuario ve su plan */}
-      {user && (
-        <IMCInfoModal
-          isOpen={imcModalOpen}
-          onClose={() => setImcModalOpen(false)}
-          imc={bmi}
-          pesoActual={user.pesoKg}
-          alturaCm={user.alturaCm}
-          objetivo={user.objetivo}
-          intensidad={user.intensidad}
-          sexo={user.sexo}
-        />
-      )}
-      
-      {/* Modal de Generar Siguiente Mes */}
-      <AnimatePresence>
-        {modalSiguienteMesAbierto && planMultiFase && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => !generandoSiguienteMes && setModalSiguienteMesAbierto(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-slate-900 border border-white/10 rounded-2xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold">
-                  🚀 Generar Mes {planMultiFase.mesActual + 1}
-                </h2>
-                <button
-                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                  onClick={() => !generandoSiguienteMes && setModalSiguienteMesAbierto(false)}
-                  disabled={generandoSiguienteMes}
-                >
-                  ✕
-                </button>
-              </div>
-              
-              <p className="text-sm opacity-70 mb-4">
-                Ingresá tus datos actuales para generar el plan del próximo mes con ajustes personalizados.
-              </p>
-              
-              {/* Info de fase actual */}
-              <div className={`mb-4 p-3 rounded-xl ${
-                planMultiFase.faseActual === "BULK" 
-                  ? "bg-amber-500/10 border border-amber-500/20" 
-                  : planMultiFase.faseActual === "CUT"
-                  ? "bg-cyan-500/10 border border-cyan-500/20"
-                  : "bg-emerald-500/10 border border-emerald-500/20"
-              }`}>
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="font-semibold">Fase actual: {planMultiFase.faseActual}</span>
-                  <span className="opacity-70">• Mes {planMultiFase.mesActual} de {planMultiFase.totalMeses}</span>
-                </div>
-                <p className="text-xs opacity-70 mt-1">
-                  {(() => {
-                    const infoFase = obtenerInfoFaseActual(planMultiFase);
-                    return infoFase.fase?.descripcion || "";
-                  })()}
-                </p>
-              </div>
-              
-              <div className="space-y-4">
-                {/* Peso Actual (OBLIGATORIO) */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Peso Actual (kg) <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                    value={datosSiguienteMes.pesoActual || ""}
-                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, pesoActual: parseFloat(e.target.value) || 0 }))}
-                    placeholder="Ej: 82.5"
-                  />
-                  {planMultiFase.historialMeses[planMultiFase.mesActual - 1] && (
-                    <p className="text-xs opacity-50 mt-1">
-                      Peso al iniciar este mes: {planMultiFase.historialMeses[planMultiFase.mesActual - 1].datosAlIniciar.peso} kg
-                    </p>
-                  )}
-                </div>
-                
-                {/* Cintura Actual (Opcional) */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">Cintura Actual (cm) <span className="text-xs opacity-50">(opcional)</span></label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                    value={datosSiguienteMes.cinturaActual || ""}
-                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, cinturaActual: parseFloat(e.target.value) || 0 }))}
-                    placeholder="Ej: 84"
-                  />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Energía */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Energía</label>
-                    <select
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                      value={datosSiguienteMes.energia}
-                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, energia: e.target.value as typeof prev.energia }))}
-                    >
-                      <option value="muy_baja">😴 Muy baja</option>
-                      <option value="baja">😕 Baja</option>
-                      <option value="normal">😊 Normal</option>
-                      <option value="alta">💪 Alta</option>
-                      <option value="muy_alta">🔥 Muy alta</option>
-                    </select>
-                  </div>
-                  
-                  {/* Recuperación */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Recuperación</label>
-                    <select
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                      value={datosSiguienteMes.recuperacion}
-                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, recuperacion: e.target.value as typeof prev.recuperacion }))}
-                    >
-                      <option value="mala">😓 Mala</option>
-                      <option value="regular">😐 Regular</option>
-                      <option value="normal">😊 Normal</option>
-                      <option value="buena">💪 Buena</option>
-                      <option value="excelente">🌟 Excelente</option>
-                    </select>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Adherencia Comida */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Adherencia Alimentación</label>
-                    <select
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                      value={datosSiguienteMes.adherenciaComida}
-                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, adherenciaComida: e.target.value as typeof prev.adherenciaComida }))}
-                    >
-                      <option value="<50%">{"<50%"} - Muy baja</option>
-                      <option value="50-70%">50-70% - Regular</option>
-                      <option value="70-80%">70-80% - Buena</option>
-                      <option value=">80%">{">80%"} - Excelente</option>
-                    </select>
-                  </div>
-                  
-                  {/* Adherencia Entreno */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Adherencia Entreno</label>
-                    <select
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                      value={datosSiguienteMes.adherenciaEntreno}
-                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, adherenciaEntreno: e.target.value as typeof prev.adherenciaEntreno }))}
-                    >
-                      <option value="<50%">{"<50%"} - Muy baja</option>
-                      <option value="50-70%">50-70% - Regular</option>
-                      <option value="70-80%">70-80% - Buena</option>
-                      <option value=">80%">{">80%"} - Excelente</option>
-                    </select>
-                  </div>
-                </div>
-                
-                {/* Lesiones nuevas */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">Lesiones o molestias nuevas <span className="text-xs opacity-50">(opcional)</span></label>
-                  <input
-                    type="text"
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                    value={datosSiguienteMes.lesionesNuevas}
-                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, lesionesNuevas: e.target.value }))}
-                    placeholder="Ej: Dolor en hombro derecho, molestia en rodilla..."
-                  />
-                </div>
-                
-                {/* Comentarios */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">Ajustes o comentarios <span className="text-xs opacity-50">(opcional)</span></label>
-                  <textarea
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30 resize-none"
-                    rows={2}
-                    value={datosSiguienteMes.comentarios}
-                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, comentarios: e.target.value }))}
-                    placeholder="Ej: Quisiera más variedad en desayunos, menos cardio..."
-                  />
-                </div>
-              </div>
-              
-              {errorSiguienteMes && (
-                <div className="mt-4 p-3 rounded-xl bg-red-500/20 border border-red-500/30 text-red-200 text-sm">
-                  {errorSiguienteMes}
-                </div>
-              )}
-              
-              <div className="flex gap-3 mt-6">
-                <button
-                  className="flex-1 rounded-xl px-4 py-3 bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
-                  onClick={() => setModalSiguienteMesAbierto(false)}
-                  disabled={generandoSiguienteMes}
-                >
-                  Cancelar
-                </button>
-                <button
-                  className={`flex-1 rounded-xl px-4 py-3 font-medium transition-colors disabled:opacity-50 ${
-                    planMultiFase.faseActual === "BULK" 
-                      ? "bg-amber-500/20 border border-amber-500/30 hover:bg-amber-500/30 text-amber-200" 
-                      : planMultiFase.faseActual === "CUT"
-                      ? "bg-cyan-500/20 border border-cyan-500/30 hover:bg-cyan-500/30 text-cyan-200"
-                      : "bg-emerald-500/20 border border-emerald-500/30 hover:bg-emerald-500/30 text-emerald-200"
-                  }`}
-                  onClick={handleGenerarSiguienteMes}
-                  disabled={!datosSiguienteMes.pesoActual || generandoSiguienteMes}
-                >
-                  {generandoSiguienteMes ? "⏳ Generando..." : "🚀 Generar Siguiente Mes"}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-function FetchDetails({ k, dish, onLoaded, onError }: { k: string; dish: string; onLoaded: (p: { ingredientes?: string[]; pasos_preparacion?: string[] }) => void; onError: (msg: string) => void }) {
-  const { user } = usePlanStore();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const resp = await fetch('/api/mealDetails', { 
-          method: 'POST', 
-          headers: { 'Content-Type': 'application/json' }, 
-          body: JSON.stringify({ 
-            dish,
-            tipoDieta: user?.tipoDieta,
-            restricciones: user?.restricciones,
-            preferencias: user?.preferencias,
-            patologias: user?.patologias
-          }) 
-        });
-        if (!resp.ok) {
-          const data = await resp.json().catch(() => null);
-          throw new Error(data?.error || `HTTP ${resp.status}`);
-        }
-        const data = await resp.json();
-        if (!cancelled) {
-          onLoaded({ ingredientes: data.ingredientes, pasos_preparacion: data.pasos_preparacion });
-          setLoading(false);
-        }
-      } catch (e: unknown) {
-        if (!cancelled) {
-          const msg = e instanceof Error ? e.message : 'Error';
-          setError(msg);
-          onError(msg);
-          setLoading(false);
-        }
-      }
-    })();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dish, k, user?.tipoDieta, user?.restricciones, user?.preferencias, user?.patologias]);
-
-  if (loading) return <p className="text-xs opacity-70">Cargando detalles…</p>;
-  if (error) return <p className="text-xs text-red-300">{String(error)}</p>;
-  return null;
-}
-
-
-                    Perfil atlético
-                  </span>
-                </label>
-                <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80">Preferencias (separadas por comas)</span>
-                  <input
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
-                    value={preferenciasTexto}
-                    onChange={(e) => setPreferenciasTexto(e.target.value)}
-                    onBlur={(e) => {
-                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      setDatosEdicion({ ...datosEdicion, preferencias: array });
-                    }}
-                    placeholder="ej: pollo, avena, salmón"
-                  />
-                </label>
-                <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80">Restricciones (separadas por comas)</span>
-                  <input
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
-                    value={restriccionesTexto}
-                    onChange={(e) => setRestriccionesTexto(e.target.value)}
-                    onBlur={(e) => {
-                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      setDatosEdicion({ ...datosEdicion, restricciones: array });
-                    }}
-                    placeholder="ej: gluten, lácteos, cerdo"
-                  />
-                </label>
-                <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80">Patologías (separadas por comas)</span>
-                  <input
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
-                    value={patologiasTexto}
-                    onChange={(e) => setPatologiasTexto(e.target.value)}
-                    onBlur={(e) => {
-                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      setDatosEdicion({ ...datosEdicion, patologias: array });
-                    }}
-                    placeholder="ej: hígado graso, intolerancia a la lactosa, diabetes tipo 2"
-                  />
-                  <p className="text-xs opacity-60 mt-1">
-                    Indica condiciones médicas relevantes para ajustar el plan nutricional
-                  </p>
-                </label>
-                <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80 flex items-center gap-2">
-                    Dolores, lesiones o molestias (separadas por comas)
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                      className="h-4 w-4 opacity-70"
-                    >
-                      <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm1.971-6.279-.675.693A3.375 3.375 0 0 0 12.75 14.25h-1.5a4.875 4.875 0 0 1 1.425-3.45l.93-.936a1.875 1.875 0 1 0-3.195-1.326h-1.5a3.375 3.375 0 1 1 6.03 1.283Z" />
-                    </svg>
-                  </span>
-                  <input
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
-                    value={doloresLesionesTexto}
-                    onChange={(e) => setDoloresLesionesTexto(e.target.value)}
-                    onBlur={(e) => {
-                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      setDatosEdicion({ ...datosEdicion, doloresLesiones: array });
-                    }}
-                    placeholder="ej: rodilla derecha, zona lumbar, hombro izquierdo"
-                  />
-                  <p className="text-xs opacity-60 mt-1">
-                    Ajustamos el entrenamiento para cuidar estas zonas y recomendar movilidad o precalentamientos específicos.
-                  </p>
-                </label>
-                <label className="flex items-start gap-3 md:col-span-2">
-                  <input
-                    type="checkbox"
-                    className="mt-1 h-4 w-4"
-                    checked={!!((datosEdicion as unknown as Record<string, unknown>).preferirRutina)}
-                    onChange={(e) => setDatosEdicion({ ...datosEdicion, preferirRutina: e.target.checked } as unknown as UserInput)}
-                  />
-                  <span className="text-sm opacity-80">
-                    Mantener comidas rutinarias (poca variación entre días)
-                    <span className="block text-xs opacity-60 mt-0.5">
-                      Repetir comidas facilita el seguimiento (p. ej., papa en déficit o pasta en volumen). Podés cambiarlo cuando quieras.
-                    </span>
-                  </span>
-                </label>
-      </div>
-              
-              <div className="flex gap-3 mt-6 justify-end">
-            <button
-                  className="rounded-xl px-6 py-2 text-sm font-medium bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
-                  onClick={() => setModalAbierto(false)}
-                >
-                  Cancelar
-            </button>
-            <button
-                  className="rounded-xl px-6 py-2 text-sm font-medium bg-blue-500/20 border border-blue-500/30 hover:bg-blue-500/30 transition-colors"
-                  onClick={async () => {
-                    if (!datosEdicion) return;
-                    setModalAbierto(false);
-                    setRegenerandoPlan(true);
-                    setErrorRegeneracion(null);
-                    
-                    try {
-                      if (!user) {
-                        throw new Error("No hay datos de usuario disponibles");
-                      }
-                      
-                      // Procesar los arrays de preferencias, restricciones y patologías
-                      const preferenciasArray = preferenciasTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      const restriccionesArray = restriccionesTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      const patologiasArray = patologiasTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      const doloresLesionesArray = doloresLesionesTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      
-                      const bmi = calculateBMI(datosEdicion.pesoKg, datosEdicion.alturaCm);
-                      const nuevasSugerencias = sugerirEntrenamiento(
-                        user.objetivo, // Usar el objetivo original del usuario
-                        user.intensidad, // Usar la intensidad original del usuario
-                        datosEdicion.edad,
-                        bmi,
-                        datosEdicion.atletico
-                      );
-                      
-                      const userActualizado = {
-                        ...user, // Mantener todos los datos originales (objetivo, intensidad, tipoDieta)
-                        ...datosEdicion, // Aplicar cambios de datos básicos
-                        preferencias: preferenciasArray,
-                        restricciones: restriccionesArray,
-                        patologias: patologiasArray,
-                        doloresLesiones: doloresLesionesArray,
-                        diasGym: nuevasSugerencias.diasGym,
-                        diasCardio: Math.ceil(nuevasSugerencias.minutosCaminata / (nuevasSugerencias.minutosCaminata > 45 ? 60 : nuevasSugerencias.minutosCaminata > 30 ? 45 : 30))
-                      };
-                      
-                      const resp = await fetch("/api/generatePlan", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(userActualizado),
-                      });
-                      
-                      if (!resp.ok) {
-                        const data = await resp.json().catch(() => null);
-                        const combined = data?.error && data?.detail ? `${data.error}: ${data.detail}` : (data?.error || data?.detail);
-                        const msg = combined || `No se pudo generar el plan (HTTP ${resp.status})`;
-                        throw new Error(msg);
-                      }
-                      
-                      const nuevoPlan = await resp.json();
-                      
-                      // Mostrar objeto de debug en consola del navegador
-                      if (nuevoPlan._debug_training_plan) {
-                        console.log("=".repeat(80));
-                        console.log("📊 DEBUG: DATOS USADOS PARA GENERAR TRAINING_PLAN (EDITADO)");
-                        console.log("=".repeat(80));
-                        console.log(nuevoPlan._debug_training_plan);
-                        console.log("=".repeat(80));
-                        // También exponerlo globalmente para fácil acceso
-                        (window as unknown as { __TRAINING_PLAN_DEBUG__?: unknown }).__TRAINING_PLAN_DEBUG__ = nuevoPlan._debug_training_plan;
-                        console.log("💡 También disponible en: window.__TRAINING_PLAN_DEBUG__");
-                      }
-                      
-                      setUser(userActualizado);
-                      setPlan(nuevoPlan);
-                      
-                      // Guardar o actualizar en Firestore
-                      try {
-                        const auth = getAuthSafe();
-                        const db = await import("@/lib/firebase").then(m => m.getDbSafe());
-                        
-                        if (auth?.currentUser && db) {
-                          const { collection, doc, updateDoc, addDoc, setDoc, getDoc, serverTimestamp } = await import("firebase/firestore");
-                          
-                          // Actualizar perfil del usuario en la colección "usuarios"
-                          try {
-                            const userRef = doc(db, "usuarios", auth.currentUser.uid);
-                            const userDoc = await getDoc(userRef);
-                            
-                            // Obtener el email del usuario autenticado
-                            const userEmail = auth.currentUser?.email?.toLowerCase() || "";
-                            
-                            const userProfileData: Record<string, unknown> = {
-                              nombre: userActualizado.nombre,
-                              sexo: userActualizado.sexo,
-                              alturaCm: userActualizado.alturaCm,
-                              edad: userActualizado.edad,
-                              peso: userActualizado.pesoKg, // Guardar peso del usuario
-                              objetivo: userActualizado.objetivo, // Guardar objetivo
-                              atletico: Boolean(userActualizado.atletico), // Guardar perfil atlético
-                              doloresLesiones: Array.isArray(userActualizado.doloresLesiones) ? userActualizado.doloresLesiones : [],
-                              updatedAt: serverTimestamp(),
-                            };
-                            
-                            // Agregar tipoDieta solo si tiene valor (no undefined)
-                            if (userActualizado.tipoDieta !== undefined && userActualizado.tipoDieta !== null) {
-                              userProfileData.tipoDieta = userActualizado.tipoDieta;
-                            }
-                            
-                            // Asegurar que email y premium estén presentes
-                            if (!userDoc.exists() || !userDoc.data()?.email) {
-                              userProfileData.email = userEmail;
-                            }
-                            if (!userDoc.exists() || userDoc.data()?.premium === undefined) {
-                              userProfileData.premium = false;
-                            }
-                            
-                            // Agregar medidas opcionales si existen y tienen valores válidos
-                            if (userActualizado.cinturaCm !== undefined && userActualizado.cinturaCm !== null && userActualizado.cinturaCm !== 0) {
-                              userProfileData.cinturaCm = Number(userActualizado.cinturaCm);
-                            }
-                            if (userActualizado.cuelloCm !== undefined && userActualizado.cuelloCm !== null && userActualizado.cuelloCm !== 0) {
-                              userProfileData.cuelloCm = Number(userActualizado.cuelloCm);
-                            }
-                            if (userActualizado.caderaCm !== undefined && userActualizado.caderaCm !== null && userActualizado.caderaCm !== 0) {
-                              userProfileData.caderaCm = Number(userActualizado.caderaCm);
-                            }
-                            
-                            // Limpiar campos undefined antes de guardar
-                            const cleanUserProfileData = Object.fromEntries(
-                              Object.entries(userProfileData).filter(([, v]) => v !== undefined && v !== null)
-                            );
-                            
-                            if (!userDoc.exists()) {
-                              await setDoc(userRef, {
-                                ...cleanUserProfileData,
-                                createdAt: serverTimestamp(),
-                                email: userEmail,
-                                premium: false,
-                              });
-                            } else {
-                              await setDoc(userRef, cleanUserProfileData, { merge: true });
-                            }
-                            console.log("✅ Perfil del usuario actualizado en Firestore (incluye peso)");
-                          } catch (profileError) {
-                            console.error("Error al actualizar perfil del usuario:", profileError);
-                            // No bloqueamos el flujo si falla guardar el perfil
-                          }
-                          
-                          // Limpiar datos: eliminar campos undefined y null
-                          const cleanUser = Object.fromEntries(
-                            Object.entries(userActualizado).filter(([, v]) => v !== undefined && v !== null)
-                          );
-                          
-                          const cleanPlan = JSON.parse(JSON.stringify({ plan: nuevoPlan, user: cleanUser }));
-                          
-                          if (planId) {
-                            // Actualizar plan existente
-                            const planRef = doc(db, "planes", planId);
-                            await updateDoc(planRef, {
-                              plan: cleanPlan,
-                              updatedAt: serverTimestamp(),
-                            });
-                            console.log("Plan actualizado en Firestore desde modal:", planId);
-                          } else {
-                            // Crear nuevo plan (si no tiene ID, es un plan nuevo)
-                            const docRef = await addDoc(collection(db, "planes"), {
-                              userId: auth.currentUser.uid,
-                              plan: cleanPlan,
-                              createdAt: serverTimestamp(),
-                            });
-                            console.log("Plan guardado en Firestore desde modal:", docRef.id);
-                          }
-                        }
-                      } catch (saveError) {
-                        console.error("Error al guardar plan actualizado desde modal:", saveError);
-                        // No bloqueamos el flujo si falla guardar
-                      }
-                      
-                      setValoresOriginales({
-                        objetivo: userActualizado.objetivo,
-                        intensidad: userActualizado.intensidad,
-                        tipoDieta: userActualizado.tipoDieta,
-                      });
-                      setDiasGymEditado(null);
-                      setMinutosCaminataEditado(null);
-                      setHorasSuenoEditado(null);
-                    } catch (err: unknown) {
-                      const message = err instanceof Error ? err.message : "Ocurrió un error";
-                      setErrorRegeneracion(message);
-                      console.error("Error al regenerar plan:", err);
-                    } finally {
-                      setRegenerandoPlan(false);
-                    }
-                  }}
-                >
-                  Aceptar
-            </button>
-          </div>
-        </motion.div>
-          </motion.div>
-        )}
-        </AnimatePresence>
-
-        {/* Modal de carga - Regenerando plan */}
-        <AnimatePresence>
-          {regenerandoPlan && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"
-            >
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                className="glass rounded-2xl p-8 max-w-md w-full text-center"
-              >
-                <div className="mb-4">
-                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-500/20 mb-4">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-      </div>
-                  <h3 className="text-xl font-semibold mb-2">Regenerando plan</h3>
-                  <p className="text-sm opacity-70">
-                    Estamos generando tu nuevo plan personalizado con IA...
-                  </p>
-                </div>
-                {errorRegeneracion && (
-                  <div className="mt-4 p-3 rounded-lg bg-red-500/20 border border-red-500/30 text-red-300 text-sm">
-                    {errorRegeneracion}
-                  </div>
+                  </>
                 )}
               </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
-
-        {/* Modal de información (tooltips) */}
-        <AnimatePresence>
-          {modalInfoAbierto && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-4"
-              onClick={() => setModalInfoAbierto(null)}
-            >
-              <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" />
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                className="relative z-10 w-full max-w-md rounded-xl border border-white/10 bg-black/95 p-6 shadow-2xl"
-                onClick={(e) => e.stopPropagation()}
-              >
-            <button
-                  onClick={() => setModalInfoAbierto(null)}
-                  className="absolute right-4 top-4 text-white/70 hover:text-white transition-colors"
-                  aria-label="Cerrar"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="h-5 w-5"
-                  >
-                    <path d="M18 6L6 18M6 6l12 12" />
-                  </svg>
-            </button>
-                <h3 className="text-lg font-semibold mb-4">
-                  {modalInfoAbierto === 'imc' && '¿Qué es el IMC?'}
-                  {modalInfoAbierto === 'macros' && '¿Qué son los macronutrientes?'}
-                  {modalInfoAbierto === 'sueno' && '¿Cómo contar las horas de sueño?'}
-                  {modalInfoAbierto === 'dificultad' && '¿Qué implica la dificultad del plan?'}
-                  {modalInfoAbierto === 'split' && '¿Qué es la división de entrenamiento?'}
-                </h3>
-                <div className="text-sm opacity-90 leading-relaxed space-y-2">
-                  {modalInfoAbierto === 'imc' && (
-                    <p>El Índice de Masa Corporal (IMC) relaciona peso y altura. Es una guía general y no sustituye evaluación clínica.</p>
-                  )}
-                  {modalInfoAbierto === 'macros' && (
-                    <p>Los macronutrientes son proteínas, grasas y carbohidratos. Tu plan reparte las calorías diarias entre ellos para apoyar tu objetivo.</p>
-                  )}
-                  {modalInfoAbierto === 'sueno' && (
-                    <>
-                      <p>Tu objetivo actual: <strong>{typeof horasSuenoActual === 'number' ? horasSuenoActual : (sugerenciaEntrenamiento?.horasSueno ?? 8)}</strong> h por noche.</p>
-                      <p className="opacity-90">Las siestas suman al total diario, pero ideal que sean cortas (20–30 min) y no muy tarde para no afectar el sueño nocturno.</p>
-                    </>
-                  )}
-                  {modalInfoAbierto === 'dificultad' && (
-                    (() => {
-                      const cambios = (plan as unknown as Record<string, unknown>)?.cambios_semanales as Record<string, unknown> | undefined;
-                      const fallback = {
-                        semana1: 'Adaptación: posible fatiga suave y cambios en el apetito. Enfocá en técnica y rutina.',
-                        semana2: 'Mejora de energía y rendimiento. Hambre más estable. El buen descanso acelera la adaptación.',
-                        semana3_4: 'Progreso visible: fuerza/resistencia mejoran; cintura y peso empiezan a reflejar el objetivo.',
-                        post_mes: 'Consolidación de hábitos y ajustes finos para seguir progresando.',
-                        fisiologia: [
-                          'Mejor sensibilidad a la insulina y control de glucosa',
-                          'Adaptaciones musculares (reclutamiento y eficiencia neuromuscular)',
-                          `${user?.objetivo === 'perder_grasa' || user?.objetivo === 'corte' ? 'Déficit calórico → reducción de grasa' : user?.objetivo === 'ganar_masa' || user?.objetivo === 'volumen' ? 'Superávit calórico → síntesis muscular' : 'Balance energético optimizado'}`,
-                          `Recuperación mejorada con ${typeof horasSuenoActual === 'number' ? horasSuenoActual : (sugerenciaEntrenamiento?.horasSueno ?? 8)} h de sueño`
-                        ]
-                      };
-                      return (
-                        <>
-                          <p>
-                            Tu plan está marcado como <strong className="capitalize">{String((plan as unknown as Record<string, unknown>)?.dificultad || 'media')}</strong>
-                            {(plan as unknown as Record<string, unknown>)?.dificultad_detalle ? ` — ${String((plan as unknown as Record<string, unknown>).dificultad_detalle)}` : ''}.
-                          </p>
-                          <p className="mt-2 font-medium">¿Qué vas a sentir:</p>
-                          <ul className="list-disc pl-5 space-y-1">
-                            <li><strong>Semana 1:</strong> {String(cambios?.semana1 || fallback.semana1)}</li>
-                            <li><strong>Semana 2:</strong> {String(cambios?.semana2 || fallback.semana2)}</li>
-                            <li><strong>Semana 3-4:</strong> {String(cambios?.semana3_4 || fallback.semana3_4)}</li>
-                            <li><strong>Después del mes:</strong> {String(cambios?.post_mes || fallback.post_mes)}</li>
-                          </ul>
-                          <p className="mt-2 font-medium">¿Qué cambios pasan en tu cuerpo:</p>
-                          <ul className="list-disc pl-5 space-y-1">
-                            {(Array.isArray(cambios?.fisiologia) ? cambios.fisiologia : fallback.fisiologia).map((t: string, i: number) => (
-                              <li key={`fisio-${i}`}>{t}</li>
-                            ))}
-                          </ul>
-                        </>
-                      );
-                    })()
-                  )}
-                  {modalInfoAbierto === 'split' && (
-                    <>
-                      <p>La división de entrenamiento describe cómo se reparten los grupos musculares a lo largo de la semana:</p>
-                      <ul className="list-disc pl-5 space-y-1">
-                        <li><strong>Full Body</strong>: todo el cuerpo en cada sesión. Ideal para 2–3 días/sem.</li>
-                        <li><strong>Upper/Lower</strong>: tren superior y tren inferior alternados. 4 días/sem típicos.</li>
-                        <li><strong>Push/Pull/Legs</strong>: empuje, tirón y piernas. 3–6 días/sem según volumen.</li>
-                        <li><strong>Mixto</strong>: combinación adaptada a tu objetivo, intensidad y disponibilidad.</li>
-                      </ul>
-                      <p className="opacity-90">Tu plan actual: <strong>{splitResumen}</strong>. Esto se ajusta a tus <em>días de gym</em>, intensidad y objetivo para optimizar progreso y recuperación.</p>
-                    </>
-                  )}
-          </div>
-        </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Modal de Plan de Entrenamiento */}
-        <AnimatePresence>
-          {modalEntrenamientoAbierto && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-              onClick={() => setModalEntrenamientoAbierto(false)}
-            >
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                onClick={(e) => e.stopPropagation()}
-                className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl border border-white/10 p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
-              >
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <h2 className="text-2xl font-bold">🏋️ Plan de Entrenamiento</h2>
-                    {splitResumen && (
-                      <span className="text-sm px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-medium">
-                        {splitResumen}
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => setModalEntrenamientoAbierto(false)}
-                    className="text-white/70 hover:text-white transition-colors"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-
-                {/* Botones de semanas */}
-                <div className="flex gap-2 mb-6 flex-wrap">
-                  {[1, 2, 3, 4].map((semana) => (
-                    <button
-                      key={semana}
-                      onClick={() => setSemanaSeleccionada(semana)}
-                      className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                        semanaSeleccionada === semana
-                          ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white'
-                          : 'bg-white/10 text-white/70 hover:bg-white/20'
-                      }`}
-                    >
-                      Semana {semana}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Contenido de la semana seleccionada */}
-                {(() => {
-                  const tp = (plan as unknown as Record<string, unknown>)?.training_plan as TrainingPlan | undefined;
-                  const weeks = tp?.weeks || [];
-                  const semanaActual = weeks.find((w) => (w.week ?? 1) === semanaSeleccionada) || weeks[semanaSeleccionada - 1];
-                  
-                  if (!semanaActual) {
-                    return (
-                      <div className="text-center py-8 text-white/70">
-                        <p>No hay datos de entrenamiento para la Semana {semanaSeleccionada}</p>
-    </div>
-  );
-                  }
-
-                  return (
-                    <div className="space-y-4">
-                      <h3 className="text-lg font-semibold text-cyan-400 mb-4">
-                        Semana {semanaActual.week ?? semanaSeleccionada}
-                      </h3>
-                      {(semanaActual.days || []).map((dia: TrainingDay, di: number) => {
-                        // Función para determinar qué músculos se trabajan en este día
-                        const getMusculosDelDia = (): string | null => {
-                          const tp = (plan as unknown as Record<string, unknown>)?.training_plan as TrainingPlan | undefined;
-                          const splitGeneral = (tp as unknown as Record<string, unknown>)?.split as string | undefined;
-                          
-                          // Si el día tiene un split específico, usarlo
-                          if (dia.split) {
-                            const splitLower = dia.split.toLowerCase();
-                            
-                            // Si es Full Body, mostrar "Full Body"
-                            if (splitLower.includes("full body")) {
-                              return "Full Body";
-                            }
-                            
-                            // Mapear splits comunes a músculos
-                            if (splitLower.includes("push")) {
-                              return "Pecho, Hombros, Tríceps";
-                            } else if (splitLower.includes("pull")) {
-                              return "Espalda, Bíceps, Trapecio";
-                            } else if (splitLower.includes("legs") || splitLower.includes("piernas")) {
-                              return "Cuádriceps, Isquiotibiales, Glúteos, Gemelos";
-                            } else if (splitLower.includes("upper")) {
-                              return "Pecho, Espalda, Hombros, Bíceps, Tríceps";
-                            } else if (splitLower.includes("lower")) {
-                              return "Cuádriceps, Isquiotibiales, Glúteos, Gemelos, Abdominales";
-                            } else if (splitLower.includes("chest") || splitLower.includes("pecho")) {
-                              return "Pecho, Tríceps";
-                            } else if (splitLower.includes("back") || splitLower.includes("espalda")) {
-                              return "Espalda, Bíceps";
-                            } else if (splitLower.includes("shoulders") || splitLower.includes("hombros")) {
-                              return "Hombros, Trapecio";
-                            }
-                          }
-                          
-                          // Si el split general es Full Body, mostrar "Full Body"
-                          if (splitGeneral === "Full Body" || splitGeneral?.toLowerCase().includes("full body")) {
-                            return "Full Body";
-                          }
-                          
-                          // Si no hay split específico, analizar los muscle_group de los ejercicios
-                          if (dia.ejercicios && dia.ejercicios.length > 0) {
-                            const muscleGroups = new Set<string>();
-                            dia.ejercicios.forEach(ej => {
-                              if (ej.muscle_group) {
-                                muscleGroups.add(ej.muscle_group);
-                              }
-                            });
-                            
-                            // Si hay 4 o más músculos diferentes, probablemente es Full Body
-                            if (muscleGroups.size >= 4) {
-                              return "Full Body";
-                            }
-                            
-                            // Devolver los músculos únicos encontrados
-                            if (muscleGroups.size > 0) {
-                              return Array.from(muscleGroups).join(", ");
-                            }
-                          }
-                          
-                          return null;
-                        };
-                        
-                        const musculos = getMusculosDelDia();
-                        
-                        return (
-                        <div key={`dia-${semanaSeleccionada}-${di}`} className="rounded-lg border border-white/10 bg-white/5 p-4">
-                          <h4 className="text-base font-semibold mb-3 text-white">
-                            {dia.day}
-                            {musculos && (
-                              <span className="text-sm font-normal opacity-70 ml-2">({musculos})</span>
-                            )}
-                          </h4>
-                          
-                          {/* Calentamiento */}
-                          {dia.warmup && (
-                            <div className="mb-4 p-3 rounded-md bg-gradient-to-r from-orange-500/20 to-yellow-500/20 border border-orange-500/30">
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className="text-sm font-semibold text-orange-300">🔥 Calentamiento</span>
-                                <span className="text-xs opacity-70">({dia.warmup.duration_minutes} min)</span>
-                              </div>
-                              <p className="text-sm opacity-90 leading-relaxed">{dia.warmup.description}</p>
-                            </div>
-                          )}
-                          
-                          {(dia.ejercicios || []).length > 0 ? (
-                            <ul className="space-y-3">
-                              {(dia.ejercicios || []).map((ejercicio: TrainingExercise, ei: number) => {
-                                const restTime = ejercicio.rest_seconds || ejercicio.rest_sec;
-                                return (
-                                  <li key={`ej-${semanaSeleccionada}-${di}-${ei}`} className="rounded-lg bg-white/5 border border-white/10 p-3">
-                                    <div className="flex-1">
-                                      {/* Header del ejercicio */}
-                                      <div className="flex items-start justify-between gap-2 mb-2">
-                                        <div className="flex-1">
-                                          <div className="flex items-center gap-2 flex-wrap mb-1">
-                                            <span className="font-semibold text-white">{ejercicio.name}</span>
-                                            <span className="text-sm opacity-70">· {ejercicio.sets}x{String(ejercicio.reps)}</span>
-                                            {ejercicio.muscle_group && (
-                                              <span className="text-xs px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-                                                {ejercicio.muscle_group}
-                                              </span>
-                                            )}
-                                          </div>
-                                          {/* Detalles técnicos compactos */}
-                                          <div className="flex items-center gap-3 flex-wrap text-xs opacity-80">
-                                            {ejercicio.rpe && (
-                                              <span className="flex items-center gap-1">
-                                                <span className="opacity-60">RPE:</span>
-                                                <span className="font-medium">{ejercicio.rpe}/10</span>
-                                              </span>
-                                            )}
-                                            {ejercicio.tempo && (
-                                              <span className="flex items-center gap-1">
-                                                <span className="opacity-60">Tempo:</span>
-                                                <span className="font-medium">{ejercicio.tempo}</span>
-                                              </span>
-                                            )}
-                                            {restTime && (
-                                              <span className="flex items-center gap-1">
-                                                <span className="opacity-60">Descanso:</span>
-                                                <span className="font-medium">{restTime}s</span>
-                                              </span>
-                                            )}
-                                          </div>
-                                        </div>
-                                      </div>
-                                      
-                                      {/* Técnica (expandible) */}
-                                      {ejercicio.technique && (
-                                        <details className="mt-2">
-                                          <summary className="text-xs font-medium text-cyan-300 cursor-pointer hover:text-cyan-200">
-                                            💡 Técnica
-                                          </summary>
-                                          <p className="mt-1 text-xs opacity-90 leading-relaxed pl-2 border-l-2 border-cyan-500/30">
-                                            {ejercicio.technique}
-                                          </p>
-                                        </details>
-                                      )}
-                                      
-                                      {/* Progresión */}
-                                      {ejercicio.progression && (
-                                        <details className="mt-2">
-                                          <summary className="text-xs font-medium text-yellow-300 cursor-pointer hover:text-yellow-200">
-                                            📈 Progresión
-                                          </summary>
-                                          <p className="mt-1 text-xs opacity-90 leading-relaxed pl-2 border-l-2 border-yellow-500/30">
-                                            {ejercicio.progression}
-                                          </p>
-                                        </details>
-                                      )}
-                                      
-                                      {/* Cues mentales */}
-                                      {ejercicio.cues && ejercicio.cues.length > 0 && (
-                                        <div className="mt-2">
-                                          <p className="text-xs font-medium text-purple-300 mb-1">🎯 Pistas mentales:</p>
-                                          <ul className="list-disc pl-4 space-y-0.5">
-                                            {ejercicio.cues.map((cue, cueIdx) => (
-                                              <li key={`cue-${ei}-${cueIdx}`} className="text-xs opacity-90">{cue}</li>
-                                            ))}
-                                          </ul>
-                                        </div>
-                                      )}
-                                      
-                                      {/* Alternativa (si hay lesión) */}
-                                      {ejercicio.alternative && (
-                                        <div className="mt-2 p-2 rounded bg-orange-500/10 border border-orange-500/30">
-                                          <p className="text-xs font-medium text-orange-300 mb-1">⚠️ Alternativa (si tienes lesión):</p>
-                                          <p className="text-xs opacity-90">{ejercicio.alternative}</p>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </li>
-                                );
-                              })}
-                            </ul>
-                          ) : (
-                            <p className="text-sm text-white/50">No hay ejercicios registrados para este día</p>
-                          )}
-                        </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
 
       {/* Modal de selección de plan premium */}
@@ -4719,7159 +4339,19 @@ function FetchDetails({ k, dish, onLoaded, onError }: { k: string; dish: string;
         />
       )}
 
-      {/* Modal de registro de comida fuera del plan */}
-      <FoodTrackingModal
-        isOpen={foodTrackingModalOpen}
-        onClose={() => setFoodTrackingModalOpen(false)}
-        planCalories={plan?.calorias_diarias || 2000}
-        userObjective={user?.objetivo}
-        planId={planId || undefined}
-        userId={authUser?.uid || undefined}
-      />
-
-      {/* Modal de estadísticas semanales */}
-      {planId && (
-        <WeeklyStatsModal
-          isOpen={weeklyStatsModalOpen}
-          onClose={() => setWeeklyStatsModalOpen(false)}
-          planId={planId}
-          userId={authUser?.uid || undefined}
-        />
-      )}
-
-      {/* Modal de información del IMC - se muestra la primera vez que el usuario ve su plan */}
-      {user && (
-        <IMCInfoModal
-          isOpen={imcModalOpen}
-          onClose={() => setImcModalOpen(false)}
-          imc={bmi}
-          pesoActual={user.pesoKg}
-          alturaCm={user.alturaCm}
-          objetivo={user.objetivo}
-          intensidad={user.intensidad}
-          sexo={user.sexo}
-        />
-      )}
-      
-      {/* Modal de Generar Siguiente Mes */}
+      {/* Modal de Cambios del Nuevo Mes (planes multi-fase) */}
       <AnimatePresence>
-        {modalSiguienteMesAbierto && planMultiFase && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => !generandoSiguienteMes && setModalSiguienteMesAbierto(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-slate-900 border border-white/10 rounded-2xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold">
-                  🚀 Generar Mes {planMultiFase.mesActual + 1}
-                </h2>
-                <button
-                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                  onClick={() => !generandoSiguienteMes && setModalSiguienteMesAbierto(false)}
-                  disabled={generandoSiguienteMes}
-                >
-                  ✕
-                </button>
-              </div>
-              
-              <p className="text-sm opacity-70 mb-4">
-                Ingresá tus datos actuales para generar el plan del próximo mes con ajustes personalizados.
-              </p>
-              
-              {/* Info de fase actual */}
-              <div className={`mb-4 p-3 rounded-xl ${
-                planMultiFase.faseActual === "BULK" 
-                  ? "bg-amber-500/10 border border-amber-500/20" 
-                  : planMultiFase.faseActual === "CUT"
-                  ? "bg-cyan-500/10 border border-cyan-500/20"
-                  : "bg-emerald-500/10 border border-emerald-500/20"
-              }`}>
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="font-semibold">Fase actual: {planMultiFase.faseActual}</span>
-                  <span className="opacity-70">• Mes {planMultiFase.mesActual} de {planMultiFase.totalMeses}</span>
-                </div>
-                <p className="text-xs opacity-70 mt-1">
-                  {(() => {
-                    const infoFase = obtenerInfoFaseActual(planMultiFase);
-                    return infoFase.fase?.descripcion || "";
-                  })()}
-                </p>
-              </div>
-              
-              <div className="space-y-4">
-                {/* Peso Actual (OBLIGATORIO) */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Peso Actual (kg) <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                    value={datosSiguienteMes.pesoActual || ""}
-                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, pesoActual: parseFloat(e.target.value) || 0 }))}
-                    placeholder="Ej: 82.5"
-                  />
-                  {planMultiFase.historialMeses[planMultiFase.mesActual - 1] && (
-                    <p className="text-xs opacity-50 mt-1">
-                      Peso al iniciar este mes: {planMultiFase.historialMeses[planMultiFase.mesActual - 1].datosAlIniciar.peso} kg
-                    </p>
-                  )}
-                </div>
-                
-                {/* Cintura Actual (Opcional) */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">Cintura Actual (cm) <span className="text-xs opacity-50">(opcional)</span></label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                    value={datosSiguienteMes.cinturaActual || ""}
-                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, cinturaActual: parseFloat(e.target.value) || 0 }))}
-                    placeholder="Ej: 84"
-                  />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Energía */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Energía</label>
-                    <select
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                      value={datosSiguienteMes.energia}
-                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, energia: e.target.value as typeof prev.energia }))}
-                    >
-                      <option value="muy_baja">😴 Muy baja</option>
-                      <option value="baja">😕 Baja</option>
-                      <option value="normal">😊 Normal</option>
-                      <option value="alta">💪 Alta</option>
-                      <option value="muy_alta">🔥 Muy alta</option>
-                    </select>
-                  </div>
-                  
-                  {/* Recuperación */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Recuperación</label>
-                    <select
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                      value={datosSiguienteMes.recuperacion}
-                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, recuperacion: e.target.value as typeof prev.recuperacion }))}
-                    >
-                      <option value="mala">😓 Mala</option>
-                      <option value="regular">😐 Regular</option>
-                      <option value="normal">😊 Normal</option>
-                      <option value="buena">💪 Buena</option>
-                      <option value="excelente">🌟 Excelente</option>
-                    </select>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Adherencia Comida */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Adherencia Alimentación</label>
-                    <select
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                      value={datosSiguienteMes.adherenciaComida}
-                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, adherenciaComida: e.target.value as typeof prev.adherenciaComida }))}
-                    >
-                      <option value="<50%">{"<50%"} - Muy baja</option>
-                      <option value="50-70%">50-70% - Regular</option>
-                      <option value="70-80%">70-80% - Buena</option>
-                      <option value=">80%">{">80%"} - Excelente</option>
-                    </select>
-                  </div>
-                  
-                  {/* Adherencia Entreno */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Adherencia Entreno</label>
-                    <select
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                      value={datosSiguienteMes.adherenciaEntreno}
-                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, adherenciaEntreno: e.target.value as typeof prev.adherenciaEntreno }))}
-                    >
-                      <option value="<50%">{"<50%"} - Muy baja</option>
-                      <option value="50-70%">50-70% - Regular</option>
-                      <option value="70-80%">70-80% - Buena</option>
-                      <option value=">80%">{">80%"} - Excelente</option>
-                    </select>
-                  </div>
-                </div>
-                
-                {/* Lesiones nuevas */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">Lesiones o molestias nuevas <span className="text-xs opacity-50">(opcional)</span></label>
-                  <input
-                    type="text"
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                    value={datosSiguienteMes.lesionesNuevas}
-                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, lesionesNuevas: e.target.value }))}
-                    placeholder="Ej: Dolor en hombro derecho, molestia en rodilla..."
-                  />
-                </div>
-                
-                {/* Comentarios */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">Ajustes o comentarios <span className="text-xs opacity-50">(opcional)</span></label>
-                  <textarea
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30 resize-none"
-                    rows={2}
-                    value={datosSiguienteMes.comentarios}
-                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, comentarios: e.target.value }))}
-                    placeholder="Ej: Quisiera más variedad en desayunos, menos cardio..."
-                  />
-                </div>
-              </div>
-              
-              {errorSiguienteMes && (
-                <div className="mt-4 p-3 rounded-xl bg-red-500/20 border border-red-500/30 text-red-200 text-sm">
-                  {errorSiguienteMes}
-                </div>
-              )}
-              
-              <div className="flex gap-3 mt-6">
-                <button
-                  className="flex-1 rounded-xl px-4 py-3 bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
-                  onClick={() => setModalSiguienteMesAbierto(false)}
-                  disabled={generandoSiguienteMes}
-                >
-                  Cancelar
-                </button>
-                <button
-                  className={`flex-1 rounded-xl px-4 py-3 font-medium transition-colors disabled:opacity-50 ${
-                    planMultiFase.faseActual === "BULK" 
-                      ? "bg-amber-500/20 border border-amber-500/30 hover:bg-amber-500/30 text-amber-200" 
-                      : planMultiFase.faseActual === "CUT"
-                      ? "bg-cyan-500/20 border border-cyan-500/30 hover:bg-cyan-500/30 text-cyan-200"
-                      : "bg-emerald-500/20 border border-emerald-500/30 hover:bg-emerald-500/30 text-emerald-200"
-                  }`}
-                  onClick={handleGenerarSiguienteMes}
-                  disabled={!datosSiguienteMes.pesoActual || generandoSiguienteMes}
-                >
-                  {generandoSiguienteMes ? "⏳ Generando..." : "🚀 Generar Siguiente Mes"}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
+        {monthChangesModalOpen && monthChangesData && (
+          <MonthChangesModal
+            isOpen={monthChangesModalOpen}
+            onClose={() => {
+              setMonthChangesModalOpen(false);
+              setMonthChangesData(null);
+            }}
+            cambios={monthChangesData}
+          />
         )}
       </AnimatePresence>
-    </div>
-  );
-}
-
-function FetchDetails({ k, dish, onLoaded, onError }: { k: string; dish: string; onLoaded: (p: { ingredientes?: string[]; pasos_preparacion?: string[] }) => void; onError: (msg: string) => void }) {
-  const { user } = usePlanStore();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const resp = await fetch('/api/mealDetails', { 
-          method: 'POST', 
-          headers: { 'Content-Type': 'application/json' }, 
-          body: JSON.stringify({ 
-            dish,
-            tipoDieta: user?.tipoDieta,
-            restricciones: user?.restricciones,
-            preferencias: user?.preferencias,
-            patologias: user?.patologias
-          }) 
-        });
-        if (!resp.ok) {
-          const data = await resp.json().catch(() => null);
-          throw new Error(data?.error || `HTTP ${resp.status}`);
-        }
-        const data = await resp.json();
-        if (!cancelled) {
-          onLoaded({ ingredientes: data.ingredientes, pasos_preparacion: data.pasos_preparacion });
-          setLoading(false);
-        }
-      } catch (e: unknown) {
-        if (!cancelled) {
-          const msg = e instanceof Error ? e.message : 'Error';
-          setError(msg);
-          onError(msg);
-          setLoading(false);
-        }
-      }
-    })();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dish, k, user?.tipoDieta, user?.restricciones, user?.preferencias, user?.patologias]);
-
-  if (loading) return <p className="text-xs opacity-70">Cargando detalles…</p>;
-  if (error) return <p className="text-xs text-red-300">{String(error)}</p>;
-  return null;
-}
-
-
-                    Perfil atlético
-                  </span>
-                </label>
-                <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80">Preferencias (separadas por comas)</span>
-                  <input
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
-                    value={preferenciasTexto}
-                    onChange={(e) => setPreferenciasTexto(e.target.value)}
-                    onBlur={(e) => {
-                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      setDatosEdicion({ ...datosEdicion, preferencias: array });
-                    }}
-                    placeholder="ej: pollo, avena, salmón"
-                  />
-                </label>
-                <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80">Restricciones (separadas por comas)</span>
-                  <input
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
-                    value={restriccionesTexto}
-                    onChange={(e) => setRestriccionesTexto(e.target.value)}
-                    onBlur={(e) => {
-                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      setDatosEdicion({ ...datosEdicion, restricciones: array });
-                    }}
-                    placeholder="ej: gluten, lácteos, cerdo"
-                  />
-                </label>
-                <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80">Patologías (separadas por comas)</span>
-                  <input
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
-                    value={patologiasTexto}
-                    onChange={(e) => setPatologiasTexto(e.target.value)}
-                    onBlur={(e) => {
-                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      setDatosEdicion({ ...datosEdicion, patologias: array });
-                    }}
-                    placeholder="ej: hígado graso, intolerancia a la lactosa, diabetes tipo 2"
-                  />
-                  <p className="text-xs opacity-60 mt-1">
-                    Indica condiciones médicas relevantes para ajustar el plan nutricional
-                  </p>
-                </label>
-                <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80 flex items-center gap-2">
-                    Dolores, lesiones o molestias (separadas por comas)
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                      className="h-4 w-4 opacity-70"
-                    >
-                      <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm1.971-6.279-.675.693A3.375 3.375 0 0 0 12.75 14.25h-1.5a4.875 4.875 0 0 1 1.425-3.45l.93-.936a1.875 1.875 0 1 0-3.195-1.326h-1.5a3.375 3.375 0 1 1 6.03 1.283Z" />
-                    </svg>
-                  </span>
-                  <input
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
-                    value={doloresLesionesTexto}
-                    onChange={(e) => setDoloresLesionesTexto(e.target.value)}
-                    onBlur={(e) => {
-                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      setDatosEdicion({ ...datosEdicion, doloresLesiones: array });
-                    }}
-                    placeholder="ej: rodilla derecha, zona lumbar, hombro izquierdo"
-                  />
-                  <p className="text-xs opacity-60 mt-1">
-                    Ajustamos el entrenamiento para cuidar estas zonas y recomendar movilidad o precalentamientos específicos.
-                  </p>
-                </label>
-                <label className="flex items-start gap-3 md:col-span-2">
-                  <input
-                    type="checkbox"
-                    className="mt-1 h-4 w-4"
-                    checked={!!((datosEdicion as unknown as Record<string, unknown>).preferirRutina)}
-                    onChange={(e) => setDatosEdicion({ ...datosEdicion, preferirRutina: e.target.checked } as unknown as UserInput)}
-                  />
-                  <span className="text-sm opacity-80">
-                    Mantener comidas rutinarias (poca variación entre días)
-                    <span className="block text-xs opacity-60 mt-0.5">
-                      Repetir comidas facilita el seguimiento (p. ej., papa en déficit o pasta en volumen). Podés cambiarlo cuando quieras.
-                    </span>
-                  </span>
-                </label>
-      </div>
-              
-              <div className="flex gap-3 mt-6 justify-end">
-            <button
-                  className="rounded-xl px-6 py-2 text-sm font-medium bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
-                  onClick={() => setModalAbierto(false)}
-                >
-                  Cancelar
-            </button>
-            <button
-                  className="rounded-xl px-6 py-2 text-sm font-medium bg-blue-500/20 border border-blue-500/30 hover:bg-blue-500/30 transition-colors"
-                  onClick={async () => {
-                    if (!datosEdicion) return;
-                    setModalAbierto(false);
-                    setRegenerandoPlan(true);
-                    setErrorRegeneracion(null);
-                    
-                    try {
-                      if (!user) {
-                        throw new Error("No hay datos de usuario disponibles");
-                      }
-                      
-                      // Procesar los arrays de preferencias, restricciones y patologías
-                      const preferenciasArray = preferenciasTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      const restriccionesArray = restriccionesTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      const patologiasArray = patologiasTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      const doloresLesionesArray = doloresLesionesTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      
-                      const bmi = calculateBMI(datosEdicion.pesoKg, datosEdicion.alturaCm);
-                      const nuevasSugerencias = sugerirEntrenamiento(
-                        user.objetivo, // Usar el objetivo original del usuario
-                        user.intensidad, // Usar la intensidad original del usuario
-                        datosEdicion.edad,
-                        bmi,
-                        datosEdicion.atletico
-                      );
-                      
-                      const userActualizado = {
-                        ...user, // Mantener todos los datos originales (objetivo, intensidad, tipoDieta)
-                        ...datosEdicion, // Aplicar cambios de datos básicos
-                        preferencias: preferenciasArray,
-                        restricciones: restriccionesArray,
-                        patologias: patologiasArray,
-                        doloresLesiones: doloresLesionesArray,
-                        diasGym: nuevasSugerencias.diasGym,
-                        diasCardio: Math.ceil(nuevasSugerencias.minutosCaminata / (nuevasSugerencias.minutosCaminata > 45 ? 60 : nuevasSugerencias.minutosCaminata > 30 ? 45 : 30))
-                      };
-                      
-                      const resp = await fetch("/api/generatePlan", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(userActualizado),
-                      });
-                      
-                      if (!resp.ok) {
-                        const data = await resp.json().catch(() => null);
-                        const combined = data?.error && data?.detail ? `${data.error}: ${data.detail}` : (data?.error || data?.detail);
-                        const msg = combined || `No se pudo generar el plan (HTTP ${resp.status})`;
-                        throw new Error(msg);
-                      }
-                      
-                      const nuevoPlan = await resp.json();
-                      
-                      // Mostrar objeto de debug en consola del navegador
-                      if (nuevoPlan._debug_training_plan) {
-                        console.log("=".repeat(80));
-                        console.log("📊 DEBUG: DATOS USADOS PARA GENERAR TRAINING_PLAN (EDITADO)");
-                        console.log("=".repeat(80));
-                        console.log(nuevoPlan._debug_training_plan);
-                        console.log("=".repeat(80));
-                        // También exponerlo globalmente para fácil acceso
-                        (window as unknown as { __TRAINING_PLAN_DEBUG__?: unknown }).__TRAINING_PLAN_DEBUG__ = nuevoPlan._debug_training_plan;
-                        console.log("💡 También disponible en: window.__TRAINING_PLAN_DEBUG__");
-                      }
-                      
-                      setUser(userActualizado);
-                      setPlan(nuevoPlan);
-                      
-                      // Guardar o actualizar en Firestore
-                      try {
-                        const auth = getAuthSafe();
-                        const db = await import("@/lib/firebase").then(m => m.getDbSafe());
-                        
-                        if (auth?.currentUser && db) {
-                          const { collection, doc, updateDoc, addDoc, setDoc, getDoc, serverTimestamp } = await import("firebase/firestore");
-                          
-                          // Actualizar perfil del usuario en la colección "usuarios"
-                          try {
-                            const userRef = doc(db, "usuarios", auth.currentUser.uid);
-                            const userDoc = await getDoc(userRef);
-                            
-                            // Obtener el email del usuario autenticado
-                            const userEmail = auth.currentUser?.email?.toLowerCase() || "";
-                            
-                            const userProfileData: Record<string, unknown> = {
-                              nombre: userActualizado.nombre,
-                              sexo: userActualizado.sexo,
-                              alturaCm: userActualizado.alturaCm,
-                              edad: userActualizado.edad,
-                              peso: userActualizado.pesoKg, // Guardar peso del usuario
-                              objetivo: userActualizado.objetivo, // Guardar objetivo
-                              atletico: Boolean(userActualizado.atletico), // Guardar perfil atlético
-                              doloresLesiones: Array.isArray(userActualizado.doloresLesiones) ? userActualizado.doloresLesiones : [],
-                              updatedAt: serverTimestamp(),
-                            };
-                            
-                            // Agregar tipoDieta solo si tiene valor (no undefined)
-                            if (userActualizado.tipoDieta !== undefined && userActualizado.tipoDieta !== null) {
-                              userProfileData.tipoDieta = userActualizado.tipoDieta;
-                            }
-                            
-                            // Asegurar que email y premium estén presentes
-                            if (!userDoc.exists() || !userDoc.data()?.email) {
-                              userProfileData.email = userEmail;
-                            }
-                            if (!userDoc.exists() || userDoc.data()?.premium === undefined) {
-                              userProfileData.premium = false;
-                            }
-                            
-                            // Agregar medidas opcionales si existen y tienen valores válidos
-                            if (userActualizado.cinturaCm !== undefined && userActualizado.cinturaCm !== null && userActualizado.cinturaCm !== 0) {
-                              userProfileData.cinturaCm = Number(userActualizado.cinturaCm);
-                            }
-                            if (userActualizado.cuelloCm !== undefined && userActualizado.cuelloCm !== null && userActualizado.cuelloCm !== 0) {
-                              userProfileData.cuelloCm = Number(userActualizado.cuelloCm);
-                            }
-                            if (userActualizado.caderaCm !== undefined && userActualizado.caderaCm !== null && userActualizado.caderaCm !== 0) {
-                              userProfileData.caderaCm = Number(userActualizado.caderaCm);
-                            }
-                            
-                            // Limpiar campos undefined antes de guardar
-                            const cleanUserProfileData = Object.fromEntries(
-                              Object.entries(userProfileData).filter(([, v]) => v !== undefined && v !== null)
-                            );
-                            
-                            if (!userDoc.exists()) {
-                              await setDoc(userRef, {
-                                ...cleanUserProfileData,
-                                createdAt: serverTimestamp(),
-                                email: userEmail,
-                                premium: false,
-                              });
-                            } else {
-                              await setDoc(userRef, cleanUserProfileData, { merge: true });
-                            }
-                            console.log("✅ Perfil del usuario actualizado en Firestore (incluye peso)");
-                          } catch (profileError) {
-                            console.error("Error al actualizar perfil del usuario:", profileError);
-                            // No bloqueamos el flujo si falla guardar el perfil
-                          }
-                          
-                          // Limpiar datos: eliminar campos undefined y null
-                          const cleanUser = Object.fromEntries(
-                            Object.entries(userActualizado).filter(([, v]) => v !== undefined && v !== null)
-                          );
-                          
-                          const cleanPlan = JSON.parse(JSON.stringify({ plan: nuevoPlan, user: cleanUser }));
-                          
-                          if (planId) {
-                            // Actualizar plan existente
-                            const planRef = doc(db, "planes", planId);
-                            await updateDoc(planRef, {
-                              plan: cleanPlan,
-                              updatedAt: serverTimestamp(),
-                            });
-                            console.log("Plan actualizado en Firestore desde modal:", planId);
-                          } else {
-                            // Crear nuevo plan (si no tiene ID, es un plan nuevo)
-                            const docRef = await addDoc(collection(db, "planes"), {
-                              userId: auth.currentUser.uid,
-                              plan: cleanPlan,
-                              createdAt: serverTimestamp(),
-                            });
-                            console.log("Plan guardado en Firestore desde modal:", docRef.id);
-                          }
-                        }
-                      } catch (saveError) {
-                        console.error("Error al guardar plan actualizado desde modal:", saveError);
-                        // No bloqueamos el flujo si falla guardar
-                      }
-                      
-                      setValoresOriginales({
-                        objetivo: userActualizado.objetivo,
-                        intensidad: userActualizado.intensidad,
-                        tipoDieta: userActualizado.tipoDieta,
-                      });
-                      setDiasGymEditado(null);
-                      setMinutosCaminataEditado(null);
-                      setHorasSuenoEditado(null);
-                    } catch (err: unknown) {
-                      const message = err instanceof Error ? err.message : "Ocurrió un error";
-                      setErrorRegeneracion(message);
-                      console.error("Error al regenerar plan:", err);
-                    } finally {
-                      setRegenerandoPlan(false);
-                    }
-                  }}
-                >
-                  Aceptar
-            </button>
-          </div>
-        </motion.div>
-          </motion.div>
-        )}
-        </AnimatePresence>
-
-        {/* Modal de carga - Regenerando plan */}
-        <AnimatePresence>
-          {regenerandoPlan && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"
-            >
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                className="glass rounded-2xl p-8 max-w-md w-full text-center"
-              >
-                <div className="mb-4">
-                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-500/20 mb-4">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-      </div>
-                  <h3 className="text-xl font-semibold mb-2">Regenerando plan</h3>
-                  <p className="text-sm opacity-70">
-                    Estamos generando tu nuevo plan personalizado con IA...
-                  </p>
-                </div>
-                {errorRegeneracion && (
-                  <div className="mt-4 p-3 rounded-lg bg-red-500/20 border border-red-500/30 text-red-300 text-sm">
-                    {errorRegeneracion}
-                  </div>
-                )}
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Modal de información (tooltips) */}
-        <AnimatePresence>
-          {modalInfoAbierto && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-4"
-              onClick={() => setModalInfoAbierto(null)}
-            >
-              <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" />
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                className="relative z-10 w-full max-w-md rounded-xl border border-white/10 bg-black/95 p-6 shadow-2xl"
-                onClick={(e) => e.stopPropagation()}
-              >
-            <button
-                  onClick={() => setModalInfoAbierto(null)}
-                  className="absolute right-4 top-4 text-white/70 hover:text-white transition-colors"
-                  aria-label="Cerrar"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="h-5 w-5"
-                  >
-                    <path d="M18 6L6 18M6 6l12 12" />
-                  </svg>
-            </button>
-                <h3 className="text-lg font-semibold mb-4">
-                  {modalInfoAbierto === 'imc' && '¿Qué es el IMC?'}
-                  {modalInfoAbierto === 'macros' && '¿Qué son los macronutrientes?'}
-                  {modalInfoAbierto === 'sueno' && '¿Cómo contar las horas de sueño?'}
-                  {modalInfoAbierto === 'dificultad' && '¿Qué implica la dificultad del plan?'}
-                  {modalInfoAbierto === 'split' && '¿Qué es la división de entrenamiento?'}
-                </h3>
-                <div className="text-sm opacity-90 leading-relaxed space-y-2">
-                  {modalInfoAbierto === 'imc' && (
-                    <p>El Índice de Masa Corporal (IMC) relaciona peso y altura. Es una guía general y no sustituye evaluación clínica.</p>
-                  )}
-                  {modalInfoAbierto === 'macros' && (
-                    <p>Los macronutrientes son proteínas, grasas y carbohidratos. Tu plan reparte las calorías diarias entre ellos para apoyar tu objetivo.</p>
-                  )}
-                  {modalInfoAbierto === 'sueno' && (
-                    <>
-                      <p>Tu objetivo actual: <strong>{typeof horasSuenoActual === 'number' ? horasSuenoActual : (sugerenciaEntrenamiento?.horasSueno ?? 8)}</strong> h por noche.</p>
-                      <p className="opacity-90">Las siestas suman al total diario, pero ideal que sean cortas (20–30 min) y no muy tarde para no afectar el sueño nocturno.</p>
-                    </>
-                  )}
-                  {modalInfoAbierto === 'dificultad' && (
-                    (() => {
-                      const cambios = (plan as unknown as Record<string, unknown>)?.cambios_semanales as Record<string, unknown> | undefined;
-                      const fallback = {
-                        semana1: 'Adaptación: posible fatiga suave y cambios en el apetito. Enfocá en técnica y rutina.',
-                        semana2: 'Mejora de energía y rendimiento. Hambre más estable. El buen descanso acelera la adaptación.',
-                        semana3_4: 'Progreso visible: fuerza/resistencia mejoran; cintura y peso empiezan a reflejar el objetivo.',
-                        post_mes: 'Consolidación de hábitos y ajustes finos para seguir progresando.',
-                        fisiologia: [
-                          'Mejor sensibilidad a la insulina y control de glucosa',
-                          'Adaptaciones musculares (reclutamiento y eficiencia neuromuscular)',
-                          `${user?.objetivo === 'perder_grasa' || user?.objetivo === 'corte' ? 'Déficit calórico → reducción de grasa' : user?.objetivo === 'ganar_masa' || user?.objetivo === 'volumen' ? 'Superávit calórico → síntesis muscular' : 'Balance energético optimizado'}`,
-                          `Recuperación mejorada con ${typeof horasSuenoActual === 'number' ? horasSuenoActual : (sugerenciaEntrenamiento?.horasSueno ?? 8)} h de sueño`
-                        ]
-                      };
-                      return (
-                        <>
-                          <p>
-                            Tu plan está marcado como <strong className="capitalize">{String((plan as unknown as Record<string, unknown>)?.dificultad || 'media')}</strong>
-                            {(plan as unknown as Record<string, unknown>)?.dificultad_detalle ? ` — ${String((plan as unknown as Record<string, unknown>).dificultad_detalle)}` : ''}.
-                          </p>
-                          <p className="mt-2 font-medium">¿Qué vas a sentir:</p>
-                          <ul className="list-disc pl-5 space-y-1">
-                            <li><strong>Semana 1:</strong> {String(cambios?.semana1 || fallback.semana1)}</li>
-                            <li><strong>Semana 2:</strong> {String(cambios?.semana2 || fallback.semana2)}</li>
-                            <li><strong>Semana 3-4:</strong> {String(cambios?.semana3_4 || fallback.semana3_4)}</li>
-                            <li><strong>Después del mes:</strong> {String(cambios?.post_mes || fallback.post_mes)}</li>
-                          </ul>
-                          <p className="mt-2 font-medium">¿Qué cambios pasan en tu cuerpo:</p>
-                          <ul className="list-disc pl-5 space-y-1">
-                            {(Array.isArray(cambios?.fisiologia) ? cambios.fisiologia : fallback.fisiologia).map((t: string, i: number) => (
-                              <li key={`fisio-${i}`}>{t}</li>
-                            ))}
-                          </ul>
-                        </>
-                      );
-                    })()
-                  )}
-                  {modalInfoAbierto === 'split' && (
-                    <>
-                      <p>La división de entrenamiento describe cómo se reparten los grupos musculares a lo largo de la semana:</p>
-                      <ul className="list-disc pl-5 space-y-1">
-                        <li><strong>Full Body</strong>: todo el cuerpo en cada sesión. Ideal para 2–3 días/sem.</li>
-                        <li><strong>Upper/Lower</strong>: tren superior y tren inferior alternados. 4 días/sem típicos.</li>
-                        <li><strong>Push/Pull/Legs</strong>: empuje, tirón y piernas. 3–6 días/sem según volumen.</li>
-                        <li><strong>Mixto</strong>: combinación adaptada a tu objetivo, intensidad y disponibilidad.</li>
-                      </ul>
-                      <p className="opacity-90">Tu plan actual: <strong>{splitResumen}</strong>. Esto se ajusta a tus <em>días de gym</em>, intensidad y objetivo para optimizar progreso y recuperación.</p>
-                    </>
-                  )}
-          </div>
-        </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Modal de Plan de Entrenamiento */}
-        <AnimatePresence>
-          {modalEntrenamientoAbierto && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-              onClick={() => setModalEntrenamientoAbierto(false)}
-            >
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                onClick={(e) => e.stopPropagation()}
-                className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl border border-white/10 p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
-              >
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <h2 className="text-2xl font-bold">🏋️ Plan de Entrenamiento</h2>
-                    {splitResumen && (
-                      <span className="text-sm px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-medium">
-                        {splitResumen}
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => setModalEntrenamientoAbierto(false)}
-                    className="text-white/70 hover:text-white transition-colors"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-
-                {/* Botones de semanas */}
-                <div className="flex gap-2 mb-6 flex-wrap">
-                  {[1, 2, 3, 4].map((semana) => (
-                    <button
-                      key={semana}
-                      onClick={() => setSemanaSeleccionada(semana)}
-                      className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                        semanaSeleccionada === semana
-                          ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white'
-                          : 'bg-white/10 text-white/70 hover:bg-white/20'
-                      }`}
-                    >
-                      Semana {semana}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Contenido de la semana seleccionada */}
-                {(() => {
-                  const tp = (plan as unknown as Record<string, unknown>)?.training_plan as TrainingPlan | undefined;
-                  const weeks = tp?.weeks || [];
-                  const semanaActual = weeks.find((w) => (w.week ?? 1) === semanaSeleccionada) || weeks[semanaSeleccionada - 1];
-                  
-                  if (!semanaActual) {
-                    return (
-                      <div className="text-center py-8 text-white/70">
-                        <p>No hay datos de entrenamiento para la Semana {semanaSeleccionada}</p>
-    </div>
-  );
-                  }
-
-                  return (
-                    <div className="space-y-4">
-                      <h3 className="text-lg font-semibold text-cyan-400 mb-4">
-                        Semana {semanaActual.week ?? semanaSeleccionada}
-                      </h3>
-                      {(semanaActual.days || []).map((dia: TrainingDay, di: number) => {
-                        // Función para determinar qué músculos se trabajan en este día
-                        const getMusculosDelDia = (): string | null => {
-                          const tp = (plan as unknown as Record<string, unknown>)?.training_plan as TrainingPlan | undefined;
-                          const splitGeneral = (tp as unknown as Record<string, unknown>)?.split as string | undefined;
-                          
-                          // Si el día tiene un split específico, usarlo
-                          if (dia.split) {
-                            const splitLower = dia.split.toLowerCase();
-                            
-                            // Si es Full Body, mostrar "Full Body"
-                            if (splitLower.includes("full body")) {
-                              return "Full Body";
-                            }
-                            
-                            // Mapear splits comunes a músculos
-                            if (splitLower.includes("push")) {
-                              return "Pecho, Hombros, Tríceps";
-                            } else if (splitLower.includes("pull")) {
-                              return "Espalda, Bíceps, Trapecio";
-                            } else if (splitLower.includes("legs") || splitLower.includes("piernas")) {
-                              return "Cuádriceps, Isquiotibiales, Glúteos, Gemelos";
-                            } else if (splitLower.includes("upper")) {
-                              return "Pecho, Espalda, Hombros, Bíceps, Tríceps";
-                            } else if (splitLower.includes("lower")) {
-                              return "Cuádriceps, Isquiotibiales, Glúteos, Gemelos, Abdominales";
-                            } else if (splitLower.includes("chest") || splitLower.includes("pecho")) {
-                              return "Pecho, Tríceps";
-                            } else if (splitLower.includes("back") || splitLower.includes("espalda")) {
-                              return "Espalda, Bíceps";
-                            } else if (splitLower.includes("shoulders") || splitLower.includes("hombros")) {
-                              return "Hombros, Trapecio";
-                            }
-                          }
-                          
-                          // Si el split general es Full Body, mostrar "Full Body"
-                          if (splitGeneral === "Full Body" || splitGeneral?.toLowerCase().includes("full body")) {
-                            return "Full Body";
-                          }
-                          
-                          // Si no hay split específico, analizar los muscle_group de los ejercicios
-                          if (dia.ejercicios && dia.ejercicios.length > 0) {
-                            const muscleGroups = new Set<string>();
-                            dia.ejercicios.forEach(ej => {
-                              if (ej.muscle_group) {
-                                muscleGroups.add(ej.muscle_group);
-                              }
-                            });
-                            
-                            // Si hay 4 o más músculos diferentes, probablemente es Full Body
-                            if (muscleGroups.size >= 4) {
-                              return "Full Body";
-                            }
-                            
-                            // Devolver los músculos únicos encontrados
-                            if (muscleGroups.size > 0) {
-                              return Array.from(muscleGroups).join(", ");
-                            }
-                          }
-                          
-                          return null;
-                        };
-                        
-                        const musculos = getMusculosDelDia();
-                        
-                        return (
-                        <div key={`dia-${semanaSeleccionada}-${di}`} className="rounded-lg border border-white/10 bg-white/5 p-4">
-                          <h4 className="text-base font-semibold mb-3 text-white">
-                            {dia.day}
-                            {musculos && (
-                              <span className="text-sm font-normal opacity-70 ml-2">({musculos})</span>
-                            )}
-                          </h4>
-                          
-                          {/* Calentamiento */}
-                          {dia.warmup && (
-                            <div className="mb-4 p-3 rounded-md bg-gradient-to-r from-orange-500/20 to-yellow-500/20 border border-orange-500/30">
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className="text-sm font-semibold text-orange-300">🔥 Calentamiento</span>
-                                <span className="text-xs opacity-70">({dia.warmup.duration_minutes} min)</span>
-                              </div>
-                              <p className="text-sm opacity-90 leading-relaxed">{dia.warmup.description}</p>
-                            </div>
-                          )}
-                          
-                          {(dia.ejercicios || []).length > 0 ? (
-                            <ul className="space-y-3">
-                              {(dia.ejercicios || []).map((ejercicio: TrainingExercise, ei: number) => {
-                                const restTime = ejercicio.rest_seconds || ejercicio.rest_sec;
-                                return (
-                                  <li key={`ej-${semanaSeleccionada}-${di}-${ei}`} className="rounded-lg bg-white/5 border border-white/10 p-3">
-                                    <div className="flex-1">
-                                      {/* Header del ejercicio */}
-                                      <div className="flex items-start justify-between gap-2 mb-2">
-                                        <div className="flex-1">
-                                          <div className="flex items-center gap-2 flex-wrap mb-1">
-                                            <span className="font-semibold text-white">{ejercicio.name}</span>
-                                            <span className="text-sm opacity-70">· {ejercicio.sets}x{String(ejercicio.reps)}</span>
-                                            {ejercicio.muscle_group && (
-                                              <span className="text-xs px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-                                                {ejercicio.muscle_group}
-                                              </span>
-                                            )}
-                                          </div>
-                                          {/* Detalles técnicos compactos */}
-                                          <div className="flex items-center gap-3 flex-wrap text-xs opacity-80">
-                                            {ejercicio.rpe && (
-                                              <span className="flex items-center gap-1">
-                                                <span className="opacity-60">RPE:</span>
-                                                <span className="font-medium">{ejercicio.rpe}/10</span>
-                                              </span>
-                                            )}
-                                            {ejercicio.tempo && (
-                                              <span className="flex items-center gap-1">
-                                                <span className="opacity-60">Tempo:</span>
-                                                <span className="font-medium">{ejercicio.tempo}</span>
-                                              </span>
-                                            )}
-                                            {restTime && (
-                                              <span className="flex items-center gap-1">
-                                                <span className="opacity-60">Descanso:</span>
-                                                <span className="font-medium">{restTime}s</span>
-                                              </span>
-                                            )}
-                                          </div>
-                                        </div>
-                                      </div>
-                                      
-                                      {/* Técnica (expandible) */}
-                                      {ejercicio.technique && (
-                                        <details className="mt-2">
-                                          <summary className="text-xs font-medium text-cyan-300 cursor-pointer hover:text-cyan-200">
-                                            💡 Técnica
-                                          </summary>
-                                          <p className="mt-1 text-xs opacity-90 leading-relaxed pl-2 border-l-2 border-cyan-500/30">
-                                            {ejercicio.technique}
-                                          </p>
-                                        </details>
-                                      )}
-                                      
-                                      {/* Progresión */}
-                                      {ejercicio.progression && (
-                                        <details className="mt-2">
-                                          <summary className="text-xs font-medium text-yellow-300 cursor-pointer hover:text-yellow-200">
-                                            📈 Progresión
-                                          </summary>
-                                          <p className="mt-1 text-xs opacity-90 leading-relaxed pl-2 border-l-2 border-yellow-500/30">
-                                            {ejercicio.progression}
-                                          </p>
-                                        </details>
-                                      )}
-                                      
-                                      {/* Cues mentales */}
-                                      {ejercicio.cues && ejercicio.cues.length > 0 && (
-                                        <div className="mt-2">
-                                          <p className="text-xs font-medium text-purple-300 mb-1">🎯 Pistas mentales:</p>
-                                          <ul className="list-disc pl-4 space-y-0.5">
-                                            {ejercicio.cues.map((cue, cueIdx) => (
-                                              <li key={`cue-${ei}-${cueIdx}`} className="text-xs opacity-90">{cue}</li>
-                                            ))}
-                                          </ul>
-                                        </div>
-                                      )}
-                                      
-                                      {/* Alternativa (si hay lesión) */}
-                                      {ejercicio.alternative && (
-                                        <div className="mt-2 p-2 rounded bg-orange-500/10 border border-orange-500/30">
-                                          <p className="text-xs font-medium text-orange-300 mb-1">⚠️ Alternativa (si tienes lesión):</p>
-                                          <p className="text-xs opacity-90">{ejercicio.alternative}</p>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </li>
-                                );
-                              })}
-                            </ul>
-                          ) : (
-                            <p className="text-sm text-white/50">No hay ejercicios registrados para este día</p>
-                          )}
-                        </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* Modal de selección de plan premium */}
-      {premiumModalOpen && authUser && (
-        <PremiumPlanModal
-          isOpen={premiumModalOpen}
-          onClose={() => setPremiumModalOpen(false)}
-          userId={authUser.uid}
-          userEmail={authUser.email || ""}
-        />
-      )}
-
-      {/* Modal de Continuidad de Plan (solo para planes simples) */}
-      {continuityModalOpen && authUser && user && plan && planId && !planMultiFase && (
-        <PlanContinuityModal
-          isOpen={continuityModalOpen}
-          onClose={() => setContinuityModalOpen(false)}
-          planData={{
-            id: planId,
-            plan: plan,
-            user: user,
-            createdAt: new Date(), // La fecha real se carga desde Firestore dentro del modal
-          }}
-          registrosPeso={registrosPeso}
-          userId={authUser.uid}
-        />
-      )}
-
-      {/* Modal de registro de comida fuera del plan */}
-      <FoodTrackingModal
-        isOpen={foodTrackingModalOpen}
-        onClose={() => setFoodTrackingModalOpen(false)}
-        planCalories={plan?.calorias_diarias || 2000}
-        userObjective={user?.objetivo}
-        planId={planId || undefined}
-        userId={authUser?.uid || undefined}
-      />
-
-      {/* Modal de estadísticas semanales */}
-      {planId && (
-        <WeeklyStatsModal
-          isOpen={weeklyStatsModalOpen}
-          onClose={() => setWeeklyStatsModalOpen(false)}
-          planId={planId}
-          userId={authUser?.uid || undefined}
-        />
-      )}
-
-      {/* Modal de información del IMC - se muestra la primera vez que el usuario ve su plan */}
-      {user && (
-        <IMCInfoModal
-          isOpen={imcModalOpen}
-          onClose={() => setImcModalOpen(false)}
-          imc={bmi}
-          pesoActual={user.pesoKg}
-          alturaCm={user.alturaCm}
-          objetivo={user.objetivo}
-          intensidad={user.intensidad}
-          sexo={user.sexo}
-        />
-      )}
-      
-      {/* Modal de Generar Siguiente Mes */}
-      <AnimatePresence>
-        {modalSiguienteMesAbierto && planMultiFase && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => !generandoSiguienteMes && setModalSiguienteMesAbierto(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-slate-900 border border-white/10 rounded-2xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold">
-                  🚀 Generar Mes {planMultiFase.mesActual + 1}
-                </h2>
-                <button
-                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                  onClick={() => !generandoSiguienteMes && setModalSiguienteMesAbierto(false)}
-                  disabled={generandoSiguienteMes}
-                >
-                  ✕
-                </button>
-              </div>
-              
-              <p className="text-sm opacity-70 mb-4">
-                Ingresá tus datos actuales para generar el plan del próximo mes con ajustes personalizados.
-              </p>
-              
-              {/* Info de fase actual */}
-              <div className={`mb-4 p-3 rounded-xl ${
-                planMultiFase.faseActual === "BULK" 
-                  ? "bg-amber-500/10 border border-amber-500/20" 
-                  : planMultiFase.faseActual === "CUT"
-                  ? "bg-cyan-500/10 border border-cyan-500/20"
-                  : "bg-emerald-500/10 border border-emerald-500/20"
-              }`}>
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="font-semibold">Fase actual: {planMultiFase.faseActual}</span>
-                  <span className="opacity-70">• Mes {planMultiFase.mesActual} de {planMultiFase.totalMeses}</span>
-                </div>
-                <p className="text-xs opacity-70 mt-1">
-                  {(() => {
-                    const infoFase = obtenerInfoFaseActual(planMultiFase);
-                    return infoFase.fase?.descripcion || "";
-                  })()}
-                </p>
-              </div>
-              
-              <div className="space-y-4">
-                {/* Peso Actual (OBLIGATORIO) */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Peso Actual (kg) <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                    value={datosSiguienteMes.pesoActual || ""}
-                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, pesoActual: parseFloat(e.target.value) || 0 }))}
-                    placeholder="Ej: 82.5"
-                  />
-                  {planMultiFase.historialMeses[planMultiFase.mesActual - 1] && (
-                    <p className="text-xs opacity-50 mt-1">
-                      Peso al iniciar este mes: {planMultiFase.historialMeses[planMultiFase.mesActual - 1].datosAlIniciar.peso} kg
-                    </p>
-                  )}
-                </div>
-                
-                {/* Cintura Actual (Opcional) */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">Cintura Actual (cm) <span className="text-xs opacity-50">(opcional)</span></label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                    value={datosSiguienteMes.cinturaActual || ""}
-                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, cinturaActual: parseFloat(e.target.value) || 0 }))}
-                    placeholder="Ej: 84"
-                  />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Energía */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Energía</label>
-                    <select
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                      value={datosSiguienteMes.energia}
-                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, energia: e.target.value as typeof prev.energia }))}
-                    >
-                      <option value="muy_baja">😴 Muy baja</option>
-                      <option value="baja">😕 Baja</option>
-                      <option value="normal">😊 Normal</option>
-                      <option value="alta">💪 Alta</option>
-                      <option value="muy_alta">🔥 Muy alta</option>
-                    </select>
-                  </div>
-                  
-                  {/* Recuperación */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Recuperación</label>
-                    <select
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                      value={datosSiguienteMes.recuperacion}
-                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, recuperacion: e.target.value as typeof prev.recuperacion }))}
-                    >
-                      <option value="mala">😓 Mala</option>
-                      <option value="regular">😐 Regular</option>
-                      <option value="normal">😊 Normal</option>
-                      <option value="buena">💪 Buena</option>
-                      <option value="excelente">🌟 Excelente</option>
-                    </select>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Adherencia Comida */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Adherencia Alimentación</label>
-                    <select
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                      value={datosSiguienteMes.adherenciaComida}
-                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, adherenciaComida: e.target.value as typeof prev.adherenciaComida }))}
-                    >
-                      <option value="<50%">{"<50%"} - Muy baja</option>
-                      <option value="50-70%">50-70% - Regular</option>
-                      <option value="70-80%">70-80% - Buena</option>
-                      <option value=">80%">{">80%"} - Excelente</option>
-                    </select>
-                  </div>
-                  
-                  {/* Adherencia Entreno */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Adherencia Entreno</label>
-                    <select
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                      value={datosSiguienteMes.adherenciaEntreno}
-                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, adherenciaEntreno: e.target.value as typeof prev.adherenciaEntreno }))}
-                    >
-                      <option value="<50%">{"<50%"} - Muy baja</option>
-                      <option value="50-70%">50-70% - Regular</option>
-                      <option value="70-80%">70-80% - Buena</option>
-                      <option value=">80%">{">80%"} - Excelente</option>
-                    </select>
-                  </div>
-                </div>
-                
-                {/* Lesiones nuevas */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">Lesiones o molestias nuevas <span className="text-xs opacity-50">(opcional)</span></label>
-                  <input
-                    type="text"
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                    value={datosSiguienteMes.lesionesNuevas}
-                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, lesionesNuevas: e.target.value }))}
-                    placeholder="Ej: Dolor en hombro derecho, molestia en rodilla..."
-                  />
-                </div>
-                
-                {/* Comentarios */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">Ajustes o comentarios <span className="text-xs opacity-50">(opcional)</span></label>
-                  <textarea
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30 resize-none"
-                    rows={2}
-                    value={datosSiguienteMes.comentarios}
-                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, comentarios: e.target.value }))}
-                    placeholder="Ej: Quisiera más variedad en desayunos, menos cardio..."
-                  />
-                </div>
-              </div>
-              
-              {errorSiguienteMes && (
-                <div className="mt-4 p-3 rounded-xl bg-red-500/20 border border-red-500/30 text-red-200 text-sm">
-                  {errorSiguienteMes}
-                </div>
-              )}
-              
-              <div className="flex gap-3 mt-6">
-                <button
-                  className="flex-1 rounded-xl px-4 py-3 bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
-                  onClick={() => setModalSiguienteMesAbierto(false)}
-                  disabled={generandoSiguienteMes}
-                >
-                  Cancelar
-                </button>
-                <button
-                  className={`flex-1 rounded-xl px-4 py-3 font-medium transition-colors disabled:opacity-50 ${
-                    planMultiFase.faseActual === "BULK" 
-                      ? "bg-amber-500/20 border border-amber-500/30 hover:bg-amber-500/30 text-amber-200" 
-                      : planMultiFase.faseActual === "CUT"
-                      ? "bg-cyan-500/20 border border-cyan-500/30 hover:bg-cyan-500/30 text-cyan-200"
-                      : "bg-emerald-500/20 border border-emerald-500/30 hover:bg-emerald-500/30 text-emerald-200"
-                  }`}
-                  onClick={handleGenerarSiguienteMes}
-                  disabled={!datosSiguienteMes.pesoActual || generandoSiguienteMes}
-                >
-                  {generandoSiguienteMes ? "⏳ Generando..." : "🚀 Generar Siguiente Mes"}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-function FetchDetails({ k, dish, onLoaded, onError }: { k: string; dish: string; onLoaded: (p: { ingredientes?: string[]; pasos_preparacion?: string[] }) => void; onError: (msg: string) => void }) {
-  const { user } = usePlanStore();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const resp = await fetch('/api/mealDetails', { 
-          method: 'POST', 
-          headers: { 'Content-Type': 'application/json' }, 
-          body: JSON.stringify({ 
-            dish,
-            tipoDieta: user?.tipoDieta,
-            restricciones: user?.restricciones,
-            preferencias: user?.preferencias,
-            patologias: user?.patologias
-          }) 
-        });
-        if (!resp.ok) {
-          const data = await resp.json().catch(() => null);
-          throw new Error(data?.error || `HTTP ${resp.status}`);
-        }
-        const data = await resp.json();
-        if (!cancelled) {
-          onLoaded({ ingredientes: data.ingredientes, pasos_preparacion: data.pasos_preparacion });
-          setLoading(false);
-        }
-      } catch (e: unknown) {
-        if (!cancelled) {
-          const msg = e instanceof Error ? e.message : 'Error';
-          setError(msg);
-          onError(msg);
-          setLoading(false);
-        }
-      }
-    })();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dish, k, user?.tipoDieta, user?.restricciones, user?.preferencias, user?.patologias]);
-
-  if (loading) return <p className="text-xs opacity-70">Cargando detalles…</p>;
-  if (error) return <p className="text-xs text-red-300">{String(error)}</p>;
-  return null;
-}
-
-
-                    Perfil atlético
-                  </span>
-                </label>
-                <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80">Preferencias (separadas por comas)</span>
-                  <input
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
-                    value={preferenciasTexto}
-                    onChange={(e) => setPreferenciasTexto(e.target.value)}
-                    onBlur={(e) => {
-                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      setDatosEdicion({ ...datosEdicion, preferencias: array });
-                    }}
-                    placeholder="ej: pollo, avena, salmón"
-                  />
-                </label>
-                <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80">Restricciones (separadas por comas)</span>
-                  <input
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
-                    value={restriccionesTexto}
-                    onChange={(e) => setRestriccionesTexto(e.target.value)}
-                    onBlur={(e) => {
-                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      setDatosEdicion({ ...datosEdicion, restricciones: array });
-                    }}
-                    placeholder="ej: gluten, lácteos, cerdo"
-                  />
-                </label>
-                <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80">Patologías (separadas por comas)</span>
-                  <input
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
-                    value={patologiasTexto}
-                    onChange={(e) => setPatologiasTexto(e.target.value)}
-                    onBlur={(e) => {
-                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      setDatosEdicion({ ...datosEdicion, patologias: array });
-                    }}
-                    placeholder="ej: hígado graso, intolerancia a la lactosa, diabetes tipo 2"
-                  />
-                  <p className="text-xs opacity-60 mt-1">
-                    Indica condiciones médicas relevantes para ajustar el plan nutricional
-                  </p>
-                </label>
-                <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80 flex items-center gap-2">
-                    Dolores, lesiones o molestias (separadas por comas)
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                      className="h-4 w-4 opacity-70"
-                    >
-                      <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm1.971-6.279-.675.693A3.375 3.375 0 0 0 12.75 14.25h-1.5a4.875 4.875 0 0 1 1.425-3.45l.93-.936a1.875 1.875 0 1 0-3.195-1.326h-1.5a3.375 3.375 0 1 1 6.03 1.283Z" />
-                    </svg>
-                  </span>
-                  <input
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
-                    value={doloresLesionesTexto}
-                    onChange={(e) => setDoloresLesionesTexto(e.target.value)}
-                    onBlur={(e) => {
-                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      setDatosEdicion({ ...datosEdicion, doloresLesiones: array });
-                    }}
-                    placeholder="ej: rodilla derecha, zona lumbar, hombro izquierdo"
-                  />
-                  <p className="text-xs opacity-60 mt-1">
-                    Ajustamos el entrenamiento para cuidar estas zonas y recomendar movilidad o precalentamientos específicos.
-                  </p>
-                </label>
-                <label className="flex items-start gap-3 md:col-span-2">
-                  <input
-                    type="checkbox"
-                    className="mt-1 h-4 w-4"
-                    checked={!!((datosEdicion as unknown as Record<string, unknown>).preferirRutina)}
-                    onChange={(e) => setDatosEdicion({ ...datosEdicion, preferirRutina: e.target.checked } as unknown as UserInput)}
-                  />
-                  <span className="text-sm opacity-80">
-                    Mantener comidas rutinarias (poca variación entre días)
-                    <span className="block text-xs opacity-60 mt-0.5">
-                      Repetir comidas facilita el seguimiento (p. ej., papa en déficit o pasta en volumen). Podés cambiarlo cuando quieras.
-                    </span>
-                  </span>
-                </label>
-      </div>
-              
-              <div className="flex gap-3 mt-6 justify-end">
-            <button
-                  className="rounded-xl px-6 py-2 text-sm font-medium bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
-                  onClick={() => setModalAbierto(false)}
-                >
-                  Cancelar
-            </button>
-            <button
-                  className="rounded-xl px-6 py-2 text-sm font-medium bg-blue-500/20 border border-blue-500/30 hover:bg-blue-500/30 transition-colors"
-                  onClick={async () => {
-                    if (!datosEdicion) return;
-                    setModalAbierto(false);
-                    setRegenerandoPlan(true);
-                    setErrorRegeneracion(null);
-                    
-                    try {
-                      if (!user) {
-                        throw new Error("No hay datos de usuario disponibles");
-                      }
-                      
-                      // Procesar los arrays de preferencias, restricciones y patologías
-                      const preferenciasArray = preferenciasTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      const restriccionesArray = restriccionesTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      const patologiasArray = patologiasTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      const doloresLesionesArray = doloresLesionesTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      
-                      const bmi = calculateBMI(datosEdicion.pesoKg, datosEdicion.alturaCm);
-                      const nuevasSugerencias = sugerirEntrenamiento(
-                        user.objetivo, // Usar el objetivo original del usuario
-                        user.intensidad, // Usar la intensidad original del usuario
-                        datosEdicion.edad,
-                        bmi,
-                        datosEdicion.atletico
-                      );
-                      
-                      const userActualizado = {
-                        ...user, // Mantener todos los datos originales (objetivo, intensidad, tipoDieta)
-                        ...datosEdicion, // Aplicar cambios de datos básicos
-                        preferencias: preferenciasArray,
-                        restricciones: restriccionesArray,
-                        patologias: patologiasArray,
-                        doloresLesiones: doloresLesionesArray,
-                        diasGym: nuevasSugerencias.diasGym,
-                        diasCardio: Math.ceil(nuevasSugerencias.minutosCaminata / (nuevasSugerencias.minutosCaminata > 45 ? 60 : nuevasSugerencias.minutosCaminata > 30 ? 45 : 30))
-                      };
-                      
-                      const resp = await fetch("/api/generatePlan", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(userActualizado),
-                      });
-                      
-                      if (!resp.ok) {
-                        const data = await resp.json().catch(() => null);
-                        const combined = data?.error && data?.detail ? `${data.error}: ${data.detail}` : (data?.error || data?.detail);
-                        const msg = combined || `No se pudo generar el plan (HTTP ${resp.status})`;
-                        throw new Error(msg);
-                      }
-                      
-                      const nuevoPlan = await resp.json();
-                      
-                      // Mostrar objeto de debug en consola del navegador
-                      if (nuevoPlan._debug_training_plan) {
-                        console.log("=".repeat(80));
-                        console.log("📊 DEBUG: DATOS USADOS PARA GENERAR TRAINING_PLAN (EDITADO)");
-                        console.log("=".repeat(80));
-                        console.log(nuevoPlan._debug_training_plan);
-                        console.log("=".repeat(80));
-                        // También exponerlo globalmente para fácil acceso
-                        (window as unknown as { __TRAINING_PLAN_DEBUG__?: unknown }).__TRAINING_PLAN_DEBUG__ = nuevoPlan._debug_training_plan;
-                        console.log("💡 También disponible en: window.__TRAINING_PLAN_DEBUG__");
-                      }
-                      
-                      setUser(userActualizado);
-                      setPlan(nuevoPlan);
-                      
-                      // Guardar o actualizar en Firestore
-                      try {
-                        const auth = getAuthSafe();
-                        const db = await import("@/lib/firebase").then(m => m.getDbSafe());
-                        
-                        if (auth?.currentUser && db) {
-                          const { collection, doc, updateDoc, addDoc, setDoc, getDoc, serverTimestamp } = await import("firebase/firestore");
-                          
-                          // Actualizar perfil del usuario en la colección "usuarios"
-                          try {
-                            const userRef = doc(db, "usuarios", auth.currentUser.uid);
-                            const userDoc = await getDoc(userRef);
-                            
-                            // Obtener el email del usuario autenticado
-                            const userEmail = auth.currentUser?.email?.toLowerCase() || "";
-                            
-                            const userProfileData: Record<string, unknown> = {
-                              nombre: userActualizado.nombre,
-                              sexo: userActualizado.sexo,
-                              alturaCm: userActualizado.alturaCm,
-                              edad: userActualizado.edad,
-                              peso: userActualizado.pesoKg, // Guardar peso del usuario
-                              objetivo: userActualizado.objetivo, // Guardar objetivo
-                              atletico: Boolean(userActualizado.atletico), // Guardar perfil atlético
-                              doloresLesiones: Array.isArray(userActualizado.doloresLesiones) ? userActualizado.doloresLesiones : [],
-                              updatedAt: serverTimestamp(),
-                            };
-                            
-                            // Agregar tipoDieta solo si tiene valor (no undefined)
-                            if (userActualizado.tipoDieta !== undefined && userActualizado.tipoDieta !== null) {
-                              userProfileData.tipoDieta = userActualizado.tipoDieta;
-                            }
-                            
-                            // Asegurar que email y premium estén presentes
-                            if (!userDoc.exists() || !userDoc.data()?.email) {
-                              userProfileData.email = userEmail;
-                            }
-                            if (!userDoc.exists() || userDoc.data()?.premium === undefined) {
-                              userProfileData.premium = false;
-                            }
-                            
-                            // Agregar medidas opcionales si existen y tienen valores válidos
-                            if (userActualizado.cinturaCm !== undefined && userActualizado.cinturaCm !== null && userActualizado.cinturaCm !== 0) {
-                              userProfileData.cinturaCm = Number(userActualizado.cinturaCm);
-                            }
-                            if (userActualizado.cuelloCm !== undefined && userActualizado.cuelloCm !== null && userActualizado.cuelloCm !== 0) {
-                              userProfileData.cuelloCm = Number(userActualizado.cuelloCm);
-                            }
-                            if (userActualizado.caderaCm !== undefined && userActualizado.caderaCm !== null && userActualizado.caderaCm !== 0) {
-                              userProfileData.caderaCm = Number(userActualizado.caderaCm);
-                            }
-                            
-                            // Limpiar campos undefined antes de guardar
-                            const cleanUserProfileData = Object.fromEntries(
-                              Object.entries(userProfileData).filter(([, v]) => v !== undefined && v !== null)
-                            );
-                            
-                            if (!userDoc.exists()) {
-                              await setDoc(userRef, {
-                                ...cleanUserProfileData,
-                                createdAt: serverTimestamp(),
-                                email: userEmail,
-                                premium: false,
-                              });
-                            } else {
-                              await setDoc(userRef, cleanUserProfileData, { merge: true });
-                            }
-                            console.log("✅ Perfil del usuario actualizado en Firestore (incluye peso)");
-                          } catch (profileError) {
-                            console.error("Error al actualizar perfil del usuario:", profileError);
-                            // No bloqueamos el flujo si falla guardar el perfil
-                          }
-                          
-                          // Limpiar datos: eliminar campos undefined y null
-                          const cleanUser = Object.fromEntries(
-                            Object.entries(userActualizado).filter(([, v]) => v !== undefined && v !== null)
-                          );
-                          
-                          const cleanPlan = JSON.parse(JSON.stringify({ plan: nuevoPlan, user: cleanUser }));
-                          
-                          if (planId) {
-                            // Actualizar plan existente
-                            const planRef = doc(db, "planes", planId);
-                            await updateDoc(planRef, {
-                              plan: cleanPlan,
-                              updatedAt: serverTimestamp(),
-                            });
-                            console.log("Plan actualizado en Firestore desde modal:", planId);
-                          } else {
-                            // Crear nuevo plan (si no tiene ID, es un plan nuevo)
-                            const docRef = await addDoc(collection(db, "planes"), {
-                              userId: auth.currentUser.uid,
-                              plan: cleanPlan,
-                              createdAt: serverTimestamp(),
-                            });
-                            console.log("Plan guardado en Firestore desde modal:", docRef.id);
-                          }
-                        }
-                      } catch (saveError) {
-                        console.error("Error al guardar plan actualizado desde modal:", saveError);
-                        // No bloqueamos el flujo si falla guardar
-                      }
-                      
-                      setValoresOriginales({
-                        objetivo: userActualizado.objetivo,
-                        intensidad: userActualizado.intensidad,
-                        tipoDieta: userActualizado.tipoDieta,
-                      });
-                      setDiasGymEditado(null);
-                      setMinutosCaminataEditado(null);
-                      setHorasSuenoEditado(null);
-                    } catch (err: unknown) {
-                      const message = err instanceof Error ? err.message : "Ocurrió un error";
-                      setErrorRegeneracion(message);
-                      console.error("Error al regenerar plan:", err);
-                    } finally {
-                      setRegenerandoPlan(false);
-                    }
-                  }}
-                >
-                  Aceptar
-            </button>
-          </div>
-        </motion.div>
-          </motion.div>
-        )}
-        </AnimatePresence>
-
-        {/* Modal de carga - Regenerando plan */}
-        <AnimatePresence>
-          {regenerandoPlan && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"
-            >
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                className="glass rounded-2xl p-8 max-w-md w-full text-center"
-              >
-                <div className="mb-4">
-                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-500/20 mb-4">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-      </div>
-                  <h3 className="text-xl font-semibold mb-2">Regenerando plan</h3>
-                  <p className="text-sm opacity-70">
-                    Estamos generando tu nuevo plan personalizado con IA...
-                  </p>
-                </div>
-                {errorRegeneracion && (
-                  <div className="mt-4 p-3 rounded-lg bg-red-500/20 border border-red-500/30 text-red-300 text-sm">
-                    {errorRegeneracion}
-                  </div>
-                )}
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Modal de información (tooltips) */}
-        <AnimatePresence>
-          {modalInfoAbierto && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-4"
-              onClick={() => setModalInfoAbierto(null)}
-            >
-              <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" />
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                className="relative z-10 w-full max-w-md rounded-xl border border-white/10 bg-black/95 p-6 shadow-2xl"
-                onClick={(e) => e.stopPropagation()}
-              >
-            <button
-                  onClick={() => setModalInfoAbierto(null)}
-                  className="absolute right-4 top-4 text-white/70 hover:text-white transition-colors"
-                  aria-label="Cerrar"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="h-5 w-5"
-                  >
-                    <path d="M18 6L6 18M6 6l12 12" />
-                  </svg>
-            </button>
-                <h3 className="text-lg font-semibold mb-4">
-                  {modalInfoAbierto === 'imc' && '¿Qué es el IMC?'}
-                  {modalInfoAbierto === 'macros' && '¿Qué son los macronutrientes?'}
-                  {modalInfoAbierto === 'sueno' && '¿Cómo contar las horas de sueño?'}
-                  {modalInfoAbierto === 'dificultad' && '¿Qué implica la dificultad del plan?'}
-                  {modalInfoAbierto === 'split' && '¿Qué es la división de entrenamiento?'}
-                </h3>
-                <div className="text-sm opacity-90 leading-relaxed space-y-2">
-                  {modalInfoAbierto === 'imc' && (
-                    <p>El Índice de Masa Corporal (IMC) relaciona peso y altura. Es una guía general y no sustituye evaluación clínica.</p>
-                  )}
-                  {modalInfoAbierto === 'macros' && (
-                    <p>Los macronutrientes son proteínas, grasas y carbohidratos. Tu plan reparte las calorías diarias entre ellos para apoyar tu objetivo.</p>
-                  )}
-                  {modalInfoAbierto === 'sueno' && (
-                    <>
-                      <p>Tu objetivo actual: <strong>{typeof horasSuenoActual === 'number' ? horasSuenoActual : (sugerenciaEntrenamiento?.horasSueno ?? 8)}</strong> h por noche.</p>
-                      <p className="opacity-90">Las siestas suman al total diario, pero ideal que sean cortas (20–30 min) y no muy tarde para no afectar el sueño nocturno.</p>
-                    </>
-                  )}
-                  {modalInfoAbierto === 'dificultad' && (
-                    (() => {
-                      const cambios = (plan as unknown as Record<string, unknown>)?.cambios_semanales as Record<string, unknown> | undefined;
-                      const fallback = {
-                        semana1: 'Adaptación: posible fatiga suave y cambios en el apetito. Enfocá en técnica y rutina.',
-                        semana2: 'Mejora de energía y rendimiento. Hambre más estable. El buen descanso acelera la adaptación.',
-                        semana3_4: 'Progreso visible: fuerza/resistencia mejoran; cintura y peso empiezan a reflejar el objetivo.',
-                        post_mes: 'Consolidación de hábitos y ajustes finos para seguir progresando.',
-                        fisiologia: [
-                          'Mejor sensibilidad a la insulina y control de glucosa',
-                          'Adaptaciones musculares (reclutamiento y eficiencia neuromuscular)',
-                          `${user?.objetivo === 'perder_grasa' || user?.objetivo === 'corte' ? 'Déficit calórico → reducción de grasa' : user?.objetivo === 'ganar_masa' || user?.objetivo === 'volumen' ? 'Superávit calórico → síntesis muscular' : 'Balance energético optimizado'}`,
-                          `Recuperación mejorada con ${typeof horasSuenoActual === 'number' ? horasSuenoActual : (sugerenciaEntrenamiento?.horasSueno ?? 8)} h de sueño`
-                        ]
-                      };
-                      return (
-                        <>
-                          <p>
-                            Tu plan está marcado como <strong className="capitalize">{String((plan as unknown as Record<string, unknown>)?.dificultad || 'media')}</strong>
-                            {(plan as unknown as Record<string, unknown>)?.dificultad_detalle ? ` — ${String((plan as unknown as Record<string, unknown>).dificultad_detalle)}` : ''}.
-                          </p>
-                          <p className="mt-2 font-medium">¿Qué vas a sentir:</p>
-                          <ul className="list-disc pl-5 space-y-1">
-                            <li><strong>Semana 1:</strong> {String(cambios?.semana1 || fallback.semana1)}</li>
-                            <li><strong>Semana 2:</strong> {String(cambios?.semana2 || fallback.semana2)}</li>
-                            <li><strong>Semana 3-4:</strong> {String(cambios?.semana3_4 || fallback.semana3_4)}</li>
-                            <li><strong>Después del mes:</strong> {String(cambios?.post_mes || fallback.post_mes)}</li>
-                          </ul>
-                          <p className="mt-2 font-medium">¿Qué cambios pasan en tu cuerpo:</p>
-                          <ul className="list-disc pl-5 space-y-1">
-                            {(Array.isArray(cambios?.fisiologia) ? cambios.fisiologia : fallback.fisiologia).map((t: string, i: number) => (
-                              <li key={`fisio-${i}`}>{t}</li>
-                            ))}
-                          </ul>
-                        </>
-                      );
-                    })()
-                  )}
-                  {modalInfoAbierto === 'split' && (
-                    <>
-                      <p>La división de entrenamiento describe cómo se reparten los grupos musculares a lo largo de la semana:</p>
-                      <ul className="list-disc pl-5 space-y-1">
-                        <li><strong>Full Body</strong>: todo el cuerpo en cada sesión. Ideal para 2–3 días/sem.</li>
-                        <li><strong>Upper/Lower</strong>: tren superior y tren inferior alternados. 4 días/sem típicos.</li>
-                        <li><strong>Push/Pull/Legs</strong>: empuje, tirón y piernas. 3–6 días/sem según volumen.</li>
-                        <li><strong>Mixto</strong>: combinación adaptada a tu objetivo, intensidad y disponibilidad.</li>
-                      </ul>
-                      <p className="opacity-90">Tu plan actual: <strong>{splitResumen}</strong>. Esto se ajusta a tus <em>días de gym</em>, intensidad y objetivo para optimizar progreso y recuperación.</p>
-                    </>
-                  )}
-          </div>
-        </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Modal de Plan de Entrenamiento */}
-        <AnimatePresence>
-          {modalEntrenamientoAbierto && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-              onClick={() => setModalEntrenamientoAbierto(false)}
-            >
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                onClick={(e) => e.stopPropagation()}
-                className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl border border-white/10 p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
-              >
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <h2 className="text-2xl font-bold">🏋️ Plan de Entrenamiento</h2>
-                    {splitResumen && (
-                      <span className="text-sm px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-medium">
-                        {splitResumen}
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => setModalEntrenamientoAbierto(false)}
-                    className="text-white/70 hover:text-white transition-colors"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-
-                {/* Botones de semanas */}
-                <div className="flex gap-2 mb-6 flex-wrap">
-                  {[1, 2, 3, 4].map((semana) => (
-                    <button
-                      key={semana}
-                      onClick={() => setSemanaSeleccionada(semana)}
-                      className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                        semanaSeleccionada === semana
-                          ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white'
-                          : 'bg-white/10 text-white/70 hover:bg-white/20'
-                      }`}
-                    >
-                      Semana {semana}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Contenido de la semana seleccionada */}
-                {(() => {
-                  const tp = (plan as unknown as Record<string, unknown>)?.training_plan as TrainingPlan | undefined;
-                  const weeks = tp?.weeks || [];
-                  const semanaActual = weeks.find((w) => (w.week ?? 1) === semanaSeleccionada) || weeks[semanaSeleccionada - 1];
-                  
-                  if (!semanaActual) {
-                    return (
-                      <div className="text-center py-8 text-white/70">
-                        <p>No hay datos de entrenamiento para la Semana {semanaSeleccionada}</p>
-    </div>
-  );
-                  }
-
-                  return (
-                    <div className="space-y-4">
-                      <h3 className="text-lg font-semibold text-cyan-400 mb-4">
-                        Semana {semanaActual.week ?? semanaSeleccionada}
-                      </h3>
-                      {(semanaActual.days || []).map((dia: TrainingDay, di: number) => {
-                        // Función para determinar qué músculos se trabajan en este día
-                        const getMusculosDelDia = (): string | null => {
-                          const tp = (plan as unknown as Record<string, unknown>)?.training_plan as TrainingPlan | undefined;
-                          const splitGeneral = (tp as unknown as Record<string, unknown>)?.split as string | undefined;
-                          
-                          // Si el día tiene un split específico, usarlo
-                          if (dia.split) {
-                            const splitLower = dia.split.toLowerCase();
-                            
-                            // Si es Full Body, mostrar "Full Body"
-                            if (splitLower.includes("full body")) {
-                              return "Full Body";
-                            }
-                            
-                            // Mapear splits comunes a músculos
-                            if (splitLower.includes("push")) {
-                              return "Pecho, Hombros, Tríceps";
-                            } else if (splitLower.includes("pull")) {
-                              return "Espalda, Bíceps, Trapecio";
-                            } else if (splitLower.includes("legs") || splitLower.includes("piernas")) {
-                              return "Cuádriceps, Isquiotibiales, Glúteos, Gemelos";
-                            } else if (splitLower.includes("upper")) {
-                              return "Pecho, Espalda, Hombros, Bíceps, Tríceps";
-                            } else if (splitLower.includes("lower")) {
-                              return "Cuádriceps, Isquiotibiales, Glúteos, Gemelos, Abdominales";
-                            } else if (splitLower.includes("chest") || splitLower.includes("pecho")) {
-                              return "Pecho, Tríceps";
-                            } else if (splitLower.includes("back") || splitLower.includes("espalda")) {
-                              return "Espalda, Bíceps";
-                            } else if (splitLower.includes("shoulders") || splitLower.includes("hombros")) {
-                              return "Hombros, Trapecio";
-                            }
-                          }
-                          
-                          // Si el split general es Full Body, mostrar "Full Body"
-                          if (splitGeneral === "Full Body" || splitGeneral?.toLowerCase().includes("full body")) {
-                            return "Full Body";
-                          }
-                          
-                          // Si no hay split específico, analizar los muscle_group de los ejercicios
-                          if (dia.ejercicios && dia.ejercicios.length > 0) {
-                            const muscleGroups = new Set<string>();
-                            dia.ejercicios.forEach(ej => {
-                              if (ej.muscle_group) {
-                                muscleGroups.add(ej.muscle_group);
-                              }
-                            });
-                            
-                            // Si hay 4 o más músculos diferentes, probablemente es Full Body
-                            if (muscleGroups.size >= 4) {
-                              return "Full Body";
-                            }
-                            
-                            // Devolver los músculos únicos encontrados
-                            if (muscleGroups.size > 0) {
-                              return Array.from(muscleGroups).join(", ");
-                            }
-                          }
-                          
-                          return null;
-                        };
-                        
-                        const musculos = getMusculosDelDia();
-                        
-                        return (
-                        <div key={`dia-${semanaSeleccionada}-${di}`} className="rounded-lg border border-white/10 bg-white/5 p-4">
-                          <h4 className="text-base font-semibold mb-3 text-white">
-                            {dia.day}
-                            {musculos && (
-                              <span className="text-sm font-normal opacity-70 ml-2">({musculos})</span>
-                            )}
-                          </h4>
-                          
-                          {/* Calentamiento */}
-                          {dia.warmup && (
-                            <div className="mb-4 p-3 rounded-md bg-gradient-to-r from-orange-500/20 to-yellow-500/20 border border-orange-500/30">
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className="text-sm font-semibold text-orange-300">🔥 Calentamiento</span>
-                                <span className="text-xs opacity-70">({dia.warmup.duration_minutes} min)</span>
-                              </div>
-                              <p className="text-sm opacity-90 leading-relaxed">{dia.warmup.description}</p>
-                            </div>
-                          )}
-                          
-                          {(dia.ejercicios || []).length > 0 ? (
-                            <ul className="space-y-3">
-                              {(dia.ejercicios || []).map((ejercicio: TrainingExercise, ei: number) => {
-                                const restTime = ejercicio.rest_seconds || ejercicio.rest_sec;
-                                return (
-                                  <li key={`ej-${semanaSeleccionada}-${di}-${ei}`} className="rounded-lg bg-white/5 border border-white/10 p-3">
-                                    <div className="flex-1">
-                                      {/* Header del ejercicio */}
-                                      <div className="flex items-start justify-between gap-2 mb-2">
-                                        <div className="flex-1">
-                                          <div className="flex items-center gap-2 flex-wrap mb-1">
-                                            <span className="font-semibold text-white">{ejercicio.name}</span>
-                                            <span className="text-sm opacity-70">· {ejercicio.sets}x{String(ejercicio.reps)}</span>
-                                            {ejercicio.muscle_group && (
-                                              <span className="text-xs px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-                                                {ejercicio.muscle_group}
-                                              </span>
-                                            )}
-                                          </div>
-                                          {/* Detalles técnicos compactos */}
-                                          <div className="flex items-center gap-3 flex-wrap text-xs opacity-80">
-                                            {ejercicio.rpe && (
-                                              <span className="flex items-center gap-1">
-                                                <span className="opacity-60">RPE:</span>
-                                                <span className="font-medium">{ejercicio.rpe}/10</span>
-                                              </span>
-                                            )}
-                                            {ejercicio.tempo && (
-                                              <span className="flex items-center gap-1">
-                                                <span className="opacity-60">Tempo:</span>
-                                                <span className="font-medium">{ejercicio.tempo}</span>
-                                              </span>
-                                            )}
-                                            {restTime && (
-                                              <span className="flex items-center gap-1">
-                                                <span className="opacity-60">Descanso:</span>
-                                                <span className="font-medium">{restTime}s</span>
-                                              </span>
-                                            )}
-                                          </div>
-                                        </div>
-                                      </div>
-                                      
-                                      {/* Técnica (expandible) */}
-                                      {ejercicio.technique && (
-                                        <details className="mt-2">
-                                          <summary className="text-xs font-medium text-cyan-300 cursor-pointer hover:text-cyan-200">
-                                            💡 Técnica
-                                          </summary>
-                                          <p className="mt-1 text-xs opacity-90 leading-relaxed pl-2 border-l-2 border-cyan-500/30">
-                                            {ejercicio.technique}
-                                          </p>
-                                        </details>
-                                      )}
-                                      
-                                      {/* Progresión */}
-                                      {ejercicio.progression && (
-                                        <details className="mt-2">
-                                          <summary className="text-xs font-medium text-yellow-300 cursor-pointer hover:text-yellow-200">
-                                            📈 Progresión
-                                          </summary>
-                                          <p className="mt-1 text-xs opacity-90 leading-relaxed pl-2 border-l-2 border-yellow-500/30">
-                                            {ejercicio.progression}
-                                          </p>
-                                        </details>
-                                      )}
-                                      
-                                      {/* Cues mentales */}
-                                      {ejercicio.cues && ejercicio.cues.length > 0 && (
-                                        <div className="mt-2">
-                                          <p className="text-xs font-medium text-purple-300 mb-1">🎯 Pistas mentales:</p>
-                                          <ul className="list-disc pl-4 space-y-0.5">
-                                            {ejercicio.cues.map((cue, cueIdx) => (
-                                              <li key={`cue-${ei}-${cueIdx}`} className="text-xs opacity-90">{cue}</li>
-                                            ))}
-                                          </ul>
-                                        </div>
-                                      )}
-                                      
-                                      {/* Alternativa (si hay lesión) */}
-                                      {ejercicio.alternative && (
-                                        <div className="mt-2 p-2 rounded bg-orange-500/10 border border-orange-500/30">
-                                          <p className="text-xs font-medium text-orange-300 mb-1">⚠️ Alternativa (si tienes lesión):</p>
-                                          <p className="text-xs opacity-90">{ejercicio.alternative}</p>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </li>
-                                );
-                              })}
-                            </ul>
-                          ) : (
-                            <p className="text-sm text-white/50">No hay ejercicios registrados para este día</p>
-                          )}
-                        </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* Modal de selección de plan premium */}
-      {premiumModalOpen && authUser && (
-        <PremiumPlanModal
-          isOpen={premiumModalOpen}
-          onClose={() => setPremiumModalOpen(false)}
-          userId={authUser.uid}
-          userEmail={authUser.email || ""}
-        />
-      )}
-
-      {/* Modal de Continuidad de Plan (solo para planes simples) */}
-      {continuityModalOpen && authUser && user && plan && planId && !planMultiFase && (
-        <PlanContinuityModal
-          isOpen={continuityModalOpen}
-          onClose={() => setContinuityModalOpen(false)}
-          planData={{
-            id: planId,
-            plan: plan,
-            user: user,
-            createdAt: new Date(), // La fecha real se carga desde Firestore dentro del modal
-          }}
-          registrosPeso={registrosPeso}
-          userId={authUser.uid}
-        />
-      )}
-
-      {/* Modal de registro de comida fuera del plan */}
-      <FoodTrackingModal
-        isOpen={foodTrackingModalOpen}
-        onClose={() => setFoodTrackingModalOpen(false)}
-        planCalories={plan?.calorias_diarias || 2000}
-        userObjective={user?.objetivo}
-        planId={planId || undefined}
-        userId={authUser?.uid || undefined}
-      />
-
-      {/* Modal de estadísticas semanales */}
-      {planId && (
-        <WeeklyStatsModal
-          isOpen={weeklyStatsModalOpen}
-          onClose={() => setWeeklyStatsModalOpen(false)}
-          planId={planId}
-          userId={authUser?.uid || undefined}
-        />
-      )}
-
-      {/* Modal de información del IMC - se muestra la primera vez que el usuario ve su plan */}
-      {user && (
-        <IMCInfoModal
-          isOpen={imcModalOpen}
-          onClose={() => setImcModalOpen(false)}
-          imc={bmi}
-          pesoActual={user.pesoKg}
-          alturaCm={user.alturaCm}
-          objetivo={user.objetivo}
-          intensidad={user.intensidad}
-          sexo={user.sexo}
-        />
-      )}
-      
-      {/* Modal de Generar Siguiente Mes */}
-      <AnimatePresence>
-        {modalSiguienteMesAbierto && planMultiFase && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => !generandoSiguienteMes && setModalSiguienteMesAbierto(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-slate-900 border border-white/10 rounded-2xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold">
-                  🚀 Generar Mes {planMultiFase.mesActual + 1}
-                </h2>
-                <button
-                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                  onClick={() => !generandoSiguienteMes && setModalSiguienteMesAbierto(false)}
-                  disabled={generandoSiguienteMes}
-                >
-                  ✕
-                </button>
-              </div>
-              
-              <p className="text-sm opacity-70 mb-4">
-                Ingresá tus datos actuales para generar el plan del próximo mes con ajustes personalizados.
-              </p>
-              
-              {/* Info de fase actual */}
-              <div className={`mb-4 p-3 rounded-xl ${
-                planMultiFase.faseActual === "BULK" 
-                  ? "bg-amber-500/10 border border-amber-500/20" 
-                  : planMultiFase.faseActual === "CUT"
-                  ? "bg-cyan-500/10 border border-cyan-500/20"
-                  : "bg-emerald-500/10 border border-emerald-500/20"
-              }`}>
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="font-semibold">Fase actual: {planMultiFase.faseActual}</span>
-                  <span className="opacity-70">• Mes {planMultiFase.mesActual} de {planMultiFase.totalMeses}</span>
-                </div>
-                <p className="text-xs opacity-70 mt-1">
-                  {(() => {
-                    const infoFase = obtenerInfoFaseActual(planMultiFase);
-                    return infoFase.fase?.descripcion || "";
-                  })()}
-                </p>
-              </div>
-              
-              <div className="space-y-4">
-                {/* Peso Actual (OBLIGATORIO) */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Peso Actual (kg) <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                    value={datosSiguienteMes.pesoActual || ""}
-                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, pesoActual: parseFloat(e.target.value) || 0 }))}
-                    placeholder="Ej: 82.5"
-                  />
-                  {planMultiFase.historialMeses[planMultiFase.mesActual - 1] && (
-                    <p className="text-xs opacity-50 mt-1">
-                      Peso al iniciar este mes: {planMultiFase.historialMeses[planMultiFase.mesActual - 1].datosAlIniciar.peso} kg
-                    </p>
-                  )}
-                </div>
-                
-                {/* Cintura Actual (Opcional) */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">Cintura Actual (cm) <span className="text-xs opacity-50">(opcional)</span></label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                    value={datosSiguienteMes.cinturaActual || ""}
-                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, cinturaActual: parseFloat(e.target.value) || 0 }))}
-                    placeholder="Ej: 84"
-                  />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Energía */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Energía</label>
-                    <select
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                      value={datosSiguienteMes.energia}
-                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, energia: e.target.value as typeof prev.energia }))}
-                    >
-                      <option value="muy_baja">😴 Muy baja</option>
-                      <option value="baja">😕 Baja</option>
-                      <option value="normal">😊 Normal</option>
-                      <option value="alta">💪 Alta</option>
-                      <option value="muy_alta">🔥 Muy alta</option>
-                    </select>
-                  </div>
-                  
-                  {/* Recuperación */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Recuperación</label>
-                    <select
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                      value={datosSiguienteMes.recuperacion}
-                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, recuperacion: e.target.value as typeof prev.recuperacion }))}
-                    >
-                      <option value="mala">😓 Mala</option>
-                      <option value="regular">😐 Regular</option>
-                      <option value="normal">😊 Normal</option>
-                      <option value="buena">💪 Buena</option>
-                      <option value="excelente">🌟 Excelente</option>
-                    </select>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Adherencia Comida */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Adherencia Alimentación</label>
-                    <select
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                      value={datosSiguienteMes.adherenciaComida}
-                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, adherenciaComida: e.target.value as typeof prev.adherenciaComida }))}
-                    >
-                      <option value="<50%">{"<50%"} - Muy baja</option>
-                      <option value="50-70%">50-70% - Regular</option>
-                      <option value="70-80%">70-80% - Buena</option>
-                      <option value=">80%">{">80%"} - Excelente</option>
-                    </select>
-                  </div>
-                  
-                  {/* Adherencia Entreno */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Adherencia Entreno</label>
-                    <select
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                      value={datosSiguienteMes.adherenciaEntreno}
-                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, adherenciaEntreno: e.target.value as typeof prev.adherenciaEntreno }))}
-                    >
-                      <option value="<50%">{"<50%"} - Muy baja</option>
-                      <option value="50-70%">50-70% - Regular</option>
-                      <option value="70-80%">70-80% - Buena</option>
-                      <option value=">80%">{">80%"} - Excelente</option>
-                    </select>
-                  </div>
-                </div>
-                
-                {/* Lesiones nuevas */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">Lesiones o molestias nuevas <span className="text-xs opacity-50">(opcional)</span></label>
-                  <input
-                    type="text"
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                    value={datosSiguienteMes.lesionesNuevas}
-                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, lesionesNuevas: e.target.value }))}
-                    placeholder="Ej: Dolor en hombro derecho, molestia en rodilla..."
-                  />
-                </div>
-                
-                {/* Comentarios */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">Ajustes o comentarios <span className="text-xs opacity-50">(opcional)</span></label>
-                  <textarea
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30 resize-none"
-                    rows={2}
-                    value={datosSiguienteMes.comentarios}
-                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, comentarios: e.target.value }))}
-                    placeholder="Ej: Quisiera más variedad en desayunos, menos cardio..."
-                  />
-                </div>
-              </div>
-              
-              {errorSiguienteMes && (
-                <div className="mt-4 p-3 rounded-xl bg-red-500/20 border border-red-500/30 text-red-200 text-sm">
-                  {errorSiguienteMes}
-                </div>
-              )}
-              
-              <div className="flex gap-3 mt-6">
-                <button
-                  className="flex-1 rounded-xl px-4 py-3 bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
-                  onClick={() => setModalSiguienteMesAbierto(false)}
-                  disabled={generandoSiguienteMes}
-                >
-                  Cancelar
-                </button>
-                <button
-                  className={`flex-1 rounded-xl px-4 py-3 font-medium transition-colors disabled:opacity-50 ${
-                    planMultiFase.faseActual === "BULK" 
-                      ? "bg-amber-500/20 border border-amber-500/30 hover:bg-amber-500/30 text-amber-200" 
-                      : planMultiFase.faseActual === "CUT"
-                      ? "bg-cyan-500/20 border border-cyan-500/30 hover:bg-cyan-500/30 text-cyan-200"
-                      : "bg-emerald-500/20 border border-emerald-500/30 hover:bg-emerald-500/30 text-emerald-200"
-                  }`}
-                  onClick={handleGenerarSiguienteMes}
-                  disabled={!datosSiguienteMes.pesoActual || generandoSiguienteMes}
-                >
-                  {generandoSiguienteMes ? "⏳ Generando..." : "🚀 Generar Siguiente Mes"}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-function FetchDetails({ k, dish, onLoaded, onError }: { k: string; dish: string; onLoaded: (p: { ingredientes?: string[]; pasos_preparacion?: string[] }) => void; onError: (msg: string) => void }) {
-  const { user } = usePlanStore();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const resp = await fetch('/api/mealDetails', { 
-          method: 'POST', 
-          headers: { 'Content-Type': 'application/json' }, 
-          body: JSON.stringify({ 
-            dish,
-            tipoDieta: user?.tipoDieta,
-            restricciones: user?.restricciones,
-            preferencias: user?.preferencias,
-            patologias: user?.patologias
-          }) 
-        });
-        if (!resp.ok) {
-          const data = await resp.json().catch(() => null);
-          throw new Error(data?.error || `HTTP ${resp.status}`);
-        }
-        const data = await resp.json();
-        if (!cancelled) {
-          onLoaded({ ingredientes: data.ingredientes, pasos_preparacion: data.pasos_preparacion });
-          setLoading(false);
-        }
-      } catch (e: unknown) {
-        if (!cancelled) {
-          const msg = e instanceof Error ? e.message : 'Error';
-          setError(msg);
-          onError(msg);
-          setLoading(false);
-        }
-      }
-    })();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dish, k, user?.tipoDieta, user?.restricciones, user?.preferencias, user?.patologias]);
-
-  if (loading) return <p className="text-xs opacity-70">Cargando detalles…</p>;
-  if (error) return <p className="text-xs text-red-300">{String(error)}</p>;
-  return null;
-}
-
-
-                    Perfil atlético
-                  </span>
-                </label>
-                <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80">Preferencias (separadas por comas)</span>
-                  <input
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
-                    value={preferenciasTexto}
-                    onChange={(e) => setPreferenciasTexto(e.target.value)}
-                    onBlur={(e) => {
-                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      setDatosEdicion({ ...datosEdicion, preferencias: array });
-                    }}
-                    placeholder="ej: pollo, avena, salmón"
-                  />
-                </label>
-                <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80">Restricciones (separadas por comas)</span>
-                  <input
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
-                    value={restriccionesTexto}
-                    onChange={(e) => setRestriccionesTexto(e.target.value)}
-                    onBlur={(e) => {
-                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      setDatosEdicion({ ...datosEdicion, restricciones: array });
-                    }}
-                    placeholder="ej: gluten, lácteos, cerdo"
-                  />
-                </label>
-                <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80">Patologías (separadas por comas)</span>
-                  <input
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
-                    value={patologiasTexto}
-                    onChange={(e) => setPatologiasTexto(e.target.value)}
-                    onBlur={(e) => {
-                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      setDatosEdicion({ ...datosEdicion, patologias: array });
-                    }}
-                    placeholder="ej: hígado graso, intolerancia a la lactosa, diabetes tipo 2"
-                  />
-                  <p className="text-xs opacity-60 mt-1">
-                    Indica condiciones médicas relevantes para ajustar el plan nutricional
-                  </p>
-                </label>
-                <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80 flex items-center gap-2">
-                    Dolores, lesiones o molestias (separadas por comas)
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                      className="h-4 w-4 opacity-70"
-                    >
-                      <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm1.971-6.279-.675.693A3.375 3.375 0 0 0 12.75 14.25h-1.5a4.875 4.875 0 0 1 1.425-3.45l.93-.936a1.875 1.875 0 1 0-3.195-1.326h-1.5a3.375 3.375 0 1 1 6.03 1.283Z" />
-                    </svg>
-                  </span>
-                  <input
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
-                    value={doloresLesionesTexto}
-                    onChange={(e) => setDoloresLesionesTexto(e.target.value)}
-                    onBlur={(e) => {
-                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      setDatosEdicion({ ...datosEdicion, doloresLesiones: array });
-                    }}
-                    placeholder="ej: rodilla derecha, zona lumbar, hombro izquierdo"
-                  />
-                  <p className="text-xs opacity-60 mt-1">
-                    Ajustamos el entrenamiento para cuidar estas zonas y recomendar movilidad o precalentamientos específicos.
-                  </p>
-                </label>
-                <label className="flex items-start gap-3 md:col-span-2">
-                  <input
-                    type="checkbox"
-                    className="mt-1 h-4 w-4"
-                    checked={!!((datosEdicion as unknown as Record<string, unknown>).preferirRutina)}
-                    onChange={(e) => setDatosEdicion({ ...datosEdicion, preferirRutina: e.target.checked } as unknown as UserInput)}
-                  />
-                  <span className="text-sm opacity-80">
-                    Mantener comidas rutinarias (poca variación entre días)
-                    <span className="block text-xs opacity-60 mt-0.5">
-                      Repetir comidas facilita el seguimiento (p. ej., papa en déficit o pasta en volumen). Podés cambiarlo cuando quieras.
-                    </span>
-                  </span>
-                </label>
-      </div>
-              
-              <div className="flex gap-3 mt-6 justify-end">
-            <button
-                  className="rounded-xl px-6 py-2 text-sm font-medium bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
-                  onClick={() => setModalAbierto(false)}
-                >
-                  Cancelar
-            </button>
-            <button
-                  className="rounded-xl px-6 py-2 text-sm font-medium bg-blue-500/20 border border-blue-500/30 hover:bg-blue-500/30 transition-colors"
-                  onClick={async () => {
-                    if (!datosEdicion) return;
-                    setModalAbierto(false);
-                    setRegenerandoPlan(true);
-                    setErrorRegeneracion(null);
-                    
-                    try {
-                      if (!user) {
-                        throw new Error("No hay datos de usuario disponibles");
-                      }
-                      
-                      // Procesar los arrays de preferencias, restricciones y patologías
-                      const preferenciasArray = preferenciasTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      const restriccionesArray = restriccionesTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      const patologiasArray = patologiasTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      const doloresLesionesArray = doloresLesionesTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      
-                      const bmi = calculateBMI(datosEdicion.pesoKg, datosEdicion.alturaCm);
-                      const nuevasSugerencias = sugerirEntrenamiento(
-                        user.objetivo, // Usar el objetivo original del usuario
-                        user.intensidad, // Usar la intensidad original del usuario
-                        datosEdicion.edad,
-                        bmi,
-                        datosEdicion.atletico
-                      );
-                      
-                      const userActualizado = {
-                        ...user, // Mantener todos los datos originales (objetivo, intensidad, tipoDieta)
-                        ...datosEdicion, // Aplicar cambios de datos básicos
-                        preferencias: preferenciasArray,
-                        restricciones: restriccionesArray,
-                        patologias: patologiasArray,
-                        doloresLesiones: doloresLesionesArray,
-                        diasGym: nuevasSugerencias.diasGym,
-                        diasCardio: Math.ceil(nuevasSugerencias.minutosCaminata / (nuevasSugerencias.minutosCaminata > 45 ? 60 : nuevasSugerencias.minutosCaminata > 30 ? 45 : 30))
-                      };
-                      
-                      const resp = await fetch("/api/generatePlan", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(userActualizado),
-                      });
-                      
-                      if (!resp.ok) {
-                        const data = await resp.json().catch(() => null);
-                        const combined = data?.error && data?.detail ? `${data.error}: ${data.detail}` : (data?.error || data?.detail);
-                        const msg = combined || `No se pudo generar el plan (HTTP ${resp.status})`;
-                        throw new Error(msg);
-                      }
-                      
-                      const nuevoPlan = await resp.json();
-                      
-                      // Mostrar objeto de debug en consola del navegador
-                      if (nuevoPlan._debug_training_plan) {
-                        console.log("=".repeat(80));
-                        console.log("📊 DEBUG: DATOS USADOS PARA GENERAR TRAINING_PLAN (EDITADO)");
-                        console.log("=".repeat(80));
-                        console.log(nuevoPlan._debug_training_plan);
-                        console.log("=".repeat(80));
-                        // También exponerlo globalmente para fácil acceso
-                        (window as unknown as { __TRAINING_PLAN_DEBUG__?: unknown }).__TRAINING_PLAN_DEBUG__ = nuevoPlan._debug_training_plan;
-                        console.log("💡 También disponible en: window.__TRAINING_PLAN_DEBUG__");
-                      }
-                      
-                      setUser(userActualizado);
-                      setPlan(nuevoPlan);
-                      
-                      // Guardar o actualizar en Firestore
-                      try {
-                        const auth = getAuthSafe();
-                        const db = await import("@/lib/firebase").then(m => m.getDbSafe());
-                        
-                        if (auth?.currentUser && db) {
-                          const { collection, doc, updateDoc, addDoc, setDoc, getDoc, serverTimestamp } = await import("firebase/firestore");
-                          
-                          // Actualizar perfil del usuario en la colección "usuarios"
-                          try {
-                            const userRef = doc(db, "usuarios", auth.currentUser.uid);
-                            const userDoc = await getDoc(userRef);
-                            
-                            // Obtener el email del usuario autenticado
-                            const userEmail = auth.currentUser?.email?.toLowerCase() || "";
-                            
-                            const userProfileData: Record<string, unknown> = {
-                              nombre: userActualizado.nombre,
-                              sexo: userActualizado.sexo,
-                              alturaCm: userActualizado.alturaCm,
-                              edad: userActualizado.edad,
-                              peso: userActualizado.pesoKg, // Guardar peso del usuario
-                              objetivo: userActualizado.objetivo, // Guardar objetivo
-                              atletico: Boolean(userActualizado.atletico), // Guardar perfil atlético
-                              doloresLesiones: Array.isArray(userActualizado.doloresLesiones) ? userActualizado.doloresLesiones : [],
-                              updatedAt: serverTimestamp(),
-                            };
-                            
-                            // Agregar tipoDieta solo si tiene valor (no undefined)
-                            if (userActualizado.tipoDieta !== undefined && userActualizado.tipoDieta !== null) {
-                              userProfileData.tipoDieta = userActualizado.tipoDieta;
-                            }
-                            
-                            // Asegurar que email y premium estén presentes
-                            if (!userDoc.exists() || !userDoc.data()?.email) {
-                              userProfileData.email = userEmail;
-                            }
-                            if (!userDoc.exists() || userDoc.data()?.premium === undefined) {
-                              userProfileData.premium = false;
-                            }
-                            
-                            // Agregar medidas opcionales si existen y tienen valores válidos
-                            if (userActualizado.cinturaCm !== undefined && userActualizado.cinturaCm !== null && userActualizado.cinturaCm !== 0) {
-                              userProfileData.cinturaCm = Number(userActualizado.cinturaCm);
-                            }
-                            if (userActualizado.cuelloCm !== undefined && userActualizado.cuelloCm !== null && userActualizado.cuelloCm !== 0) {
-                              userProfileData.cuelloCm = Number(userActualizado.cuelloCm);
-                            }
-                            if (userActualizado.caderaCm !== undefined && userActualizado.caderaCm !== null && userActualizado.caderaCm !== 0) {
-                              userProfileData.caderaCm = Number(userActualizado.caderaCm);
-                            }
-                            
-                            // Limpiar campos undefined antes de guardar
-                            const cleanUserProfileData = Object.fromEntries(
-                              Object.entries(userProfileData).filter(([, v]) => v !== undefined && v !== null)
-                            );
-                            
-                            if (!userDoc.exists()) {
-                              await setDoc(userRef, {
-                                ...cleanUserProfileData,
-                                createdAt: serverTimestamp(),
-                                email: userEmail,
-                                premium: false,
-                              });
-                            } else {
-                              await setDoc(userRef, cleanUserProfileData, { merge: true });
-                            }
-                            console.log("✅ Perfil del usuario actualizado en Firestore (incluye peso)");
-                          } catch (profileError) {
-                            console.error("Error al actualizar perfil del usuario:", profileError);
-                            // No bloqueamos el flujo si falla guardar el perfil
-                          }
-                          
-                          // Limpiar datos: eliminar campos undefined y null
-                          const cleanUser = Object.fromEntries(
-                            Object.entries(userActualizado).filter(([, v]) => v !== undefined && v !== null)
-                          );
-                          
-                          const cleanPlan = JSON.parse(JSON.stringify({ plan: nuevoPlan, user: cleanUser }));
-                          
-                          if (planId) {
-                            // Actualizar plan existente
-                            const planRef = doc(db, "planes", planId);
-                            await updateDoc(planRef, {
-                              plan: cleanPlan,
-                              updatedAt: serverTimestamp(),
-                            });
-                            console.log("Plan actualizado en Firestore desde modal:", planId);
-                          } else {
-                            // Crear nuevo plan (si no tiene ID, es un plan nuevo)
-                            const docRef = await addDoc(collection(db, "planes"), {
-                              userId: auth.currentUser.uid,
-                              plan: cleanPlan,
-                              createdAt: serverTimestamp(),
-                            });
-                            console.log("Plan guardado en Firestore desde modal:", docRef.id);
-                          }
-                        }
-                      } catch (saveError) {
-                        console.error("Error al guardar plan actualizado desde modal:", saveError);
-                        // No bloqueamos el flujo si falla guardar
-                      }
-                      
-                      setValoresOriginales({
-                        objetivo: userActualizado.objetivo,
-                        intensidad: userActualizado.intensidad,
-                        tipoDieta: userActualizado.tipoDieta,
-                      });
-                      setDiasGymEditado(null);
-                      setMinutosCaminataEditado(null);
-                      setHorasSuenoEditado(null);
-                    } catch (err: unknown) {
-                      const message = err instanceof Error ? err.message : "Ocurrió un error";
-                      setErrorRegeneracion(message);
-                      console.error("Error al regenerar plan:", err);
-                    } finally {
-                      setRegenerandoPlan(false);
-                    }
-                  }}
-                >
-                  Aceptar
-            </button>
-          </div>
-        </motion.div>
-          </motion.div>
-        )}
-        </AnimatePresence>
-
-        {/* Modal de carga - Regenerando plan */}
-        <AnimatePresence>
-          {regenerandoPlan && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"
-            >
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                className="glass rounded-2xl p-8 max-w-md w-full text-center"
-              >
-                <div className="mb-4">
-                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-500/20 mb-4">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-      </div>
-                  <h3 className="text-xl font-semibold mb-2">Regenerando plan</h3>
-                  <p className="text-sm opacity-70">
-                    Estamos generando tu nuevo plan personalizado con IA...
-                  </p>
-                </div>
-                {errorRegeneracion && (
-                  <div className="mt-4 p-3 rounded-lg bg-red-500/20 border border-red-500/30 text-red-300 text-sm">
-                    {errorRegeneracion}
-                  </div>
-                )}
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Modal de información (tooltips) */}
-        <AnimatePresence>
-          {modalInfoAbierto && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-4"
-              onClick={() => setModalInfoAbierto(null)}
-            >
-              <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" />
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                className="relative z-10 w-full max-w-md rounded-xl border border-white/10 bg-black/95 p-6 shadow-2xl"
-                onClick={(e) => e.stopPropagation()}
-              >
-            <button
-                  onClick={() => setModalInfoAbierto(null)}
-                  className="absolute right-4 top-4 text-white/70 hover:text-white transition-colors"
-                  aria-label="Cerrar"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="h-5 w-5"
-                  >
-                    <path d="M18 6L6 18M6 6l12 12" />
-                  </svg>
-            </button>
-                <h3 className="text-lg font-semibold mb-4">
-                  {modalInfoAbierto === 'imc' && '¿Qué es el IMC?'}
-                  {modalInfoAbierto === 'macros' && '¿Qué son los macronutrientes?'}
-                  {modalInfoAbierto === 'sueno' && '¿Cómo contar las horas de sueño?'}
-                  {modalInfoAbierto === 'dificultad' && '¿Qué implica la dificultad del plan?'}
-                  {modalInfoAbierto === 'split' && '¿Qué es la división de entrenamiento?'}
-                </h3>
-                <div className="text-sm opacity-90 leading-relaxed space-y-2">
-                  {modalInfoAbierto === 'imc' && (
-                    <p>El Índice de Masa Corporal (IMC) relaciona peso y altura. Es una guía general y no sustituye evaluación clínica.</p>
-                  )}
-                  {modalInfoAbierto === 'macros' && (
-                    <p>Los macronutrientes son proteínas, grasas y carbohidratos. Tu plan reparte las calorías diarias entre ellos para apoyar tu objetivo.</p>
-                  )}
-                  {modalInfoAbierto === 'sueno' && (
-                    <>
-                      <p>Tu objetivo actual: <strong>{typeof horasSuenoActual === 'number' ? horasSuenoActual : (sugerenciaEntrenamiento?.horasSueno ?? 8)}</strong> h por noche.</p>
-                      <p className="opacity-90">Las siestas suman al total diario, pero ideal que sean cortas (20–30 min) y no muy tarde para no afectar el sueño nocturno.</p>
-                    </>
-                  )}
-                  {modalInfoAbierto === 'dificultad' && (
-                    (() => {
-                      const cambios = (plan as unknown as Record<string, unknown>)?.cambios_semanales as Record<string, unknown> | undefined;
-                      const fallback = {
-                        semana1: 'Adaptación: posible fatiga suave y cambios en el apetito. Enfocá en técnica y rutina.',
-                        semana2: 'Mejora de energía y rendimiento. Hambre más estable. El buen descanso acelera la adaptación.',
-                        semana3_4: 'Progreso visible: fuerza/resistencia mejoran; cintura y peso empiezan a reflejar el objetivo.',
-                        post_mes: 'Consolidación de hábitos y ajustes finos para seguir progresando.',
-                        fisiologia: [
-                          'Mejor sensibilidad a la insulina y control de glucosa',
-                          'Adaptaciones musculares (reclutamiento y eficiencia neuromuscular)',
-                          `${user?.objetivo === 'perder_grasa' || user?.objetivo === 'corte' ? 'Déficit calórico → reducción de grasa' : user?.objetivo === 'ganar_masa' || user?.objetivo === 'volumen' ? 'Superávit calórico → síntesis muscular' : 'Balance energético optimizado'}`,
-                          `Recuperación mejorada con ${typeof horasSuenoActual === 'number' ? horasSuenoActual : (sugerenciaEntrenamiento?.horasSueno ?? 8)} h de sueño`
-                        ]
-                      };
-                      return (
-                        <>
-                          <p>
-                            Tu plan está marcado como <strong className="capitalize">{String((plan as unknown as Record<string, unknown>)?.dificultad || 'media')}</strong>
-                            {(plan as unknown as Record<string, unknown>)?.dificultad_detalle ? ` — ${String((plan as unknown as Record<string, unknown>).dificultad_detalle)}` : ''}.
-                          </p>
-                          <p className="mt-2 font-medium">¿Qué vas a sentir:</p>
-                          <ul className="list-disc pl-5 space-y-1">
-                            <li><strong>Semana 1:</strong> {String(cambios?.semana1 || fallback.semana1)}</li>
-                            <li><strong>Semana 2:</strong> {String(cambios?.semana2 || fallback.semana2)}</li>
-                            <li><strong>Semana 3-4:</strong> {String(cambios?.semana3_4 || fallback.semana3_4)}</li>
-                            <li><strong>Después del mes:</strong> {String(cambios?.post_mes || fallback.post_mes)}</li>
-                          </ul>
-                          <p className="mt-2 font-medium">¿Qué cambios pasan en tu cuerpo:</p>
-                          <ul className="list-disc pl-5 space-y-1">
-                            {(Array.isArray(cambios?.fisiologia) ? cambios.fisiologia : fallback.fisiologia).map((t: string, i: number) => (
-                              <li key={`fisio-${i}`}>{t}</li>
-                            ))}
-                          </ul>
-                        </>
-                      );
-                    })()
-                  )}
-                  {modalInfoAbierto === 'split' && (
-                    <>
-                      <p>La división de entrenamiento describe cómo se reparten los grupos musculares a lo largo de la semana:</p>
-                      <ul className="list-disc pl-5 space-y-1">
-                        <li><strong>Full Body</strong>: todo el cuerpo en cada sesión. Ideal para 2–3 días/sem.</li>
-                        <li><strong>Upper/Lower</strong>: tren superior y tren inferior alternados. 4 días/sem típicos.</li>
-                        <li><strong>Push/Pull/Legs</strong>: empuje, tirón y piernas. 3–6 días/sem según volumen.</li>
-                        <li><strong>Mixto</strong>: combinación adaptada a tu objetivo, intensidad y disponibilidad.</li>
-                      </ul>
-                      <p className="opacity-90">Tu plan actual: <strong>{splitResumen}</strong>. Esto se ajusta a tus <em>días de gym</em>, intensidad y objetivo para optimizar progreso y recuperación.</p>
-                    </>
-                  )}
-          </div>
-        </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Modal de Plan de Entrenamiento */}
-        <AnimatePresence>
-          {modalEntrenamientoAbierto && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-              onClick={() => setModalEntrenamientoAbierto(false)}
-            >
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                onClick={(e) => e.stopPropagation()}
-                className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl border border-white/10 p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
-              >
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <h2 className="text-2xl font-bold">🏋️ Plan de Entrenamiento</h2>
-                    {splitResumen && (
-                      <span className="text-sm px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-medium">
-                        {splitResumen}
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => setModalEntrenamientoAbierto(false)}
-                    className="text-white/70 hover:text-white transition-colors"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-
-                {/* Botones de semanas */}
-                <div className="flex gap-2 mb-6 flex-wrap">
-                  {[1, 2, 3, 4].map((semana) => (
-                    <button
-                      key={semana}
-                      onClick={() => setSemanaSeleccionada(semana)}
-                      className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                        semanaSeleccionada === semana
-                          ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white'
-                          : 'bg-white/10 text-white/70 hover:bg-white/20'
-                      }`}
-                    >
-                      Semana {semana}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Contenido de la semana seleccionada */}
-                {(() => {
-                  const tp = (plan as unknown as Record<string, unknown>)?.training_plan as TrainingPlan | undefined;
-                  const weeks = tp?.weeks || [];
-                  const semanaActual = weeks.find((w) => (w.week ?? 1) === semanaSeleccionada) || weeks[semanaSeleccionada - 1];
-                  
-                  if (!semanaActual) {
-                    return (
-                      <div className="text-center py-8 text-white/70">
-                        <p>No hay datos de entrenamiento para la Semana {semanaSeleccionada}</p>
-    </div>
-  );
-                  }
-
-                  return (
-                    <div className="space-y-4">
-                      <h3 className="text-lg font-semibold text-cyan-400 mb-4">
-                        Semana {semanaActual.week ?? semanaSeleccionada}
-                      </h3>
-                      {(semanaActual.days || []).map((dia: TrainingDay, di: number) => {
-                        // Función para determinar qué músculos se trabajan en este día
-                        const getMusculosDelDia = (): string | null => {
-                          const tp = (plan as unknown as Record<string, unknown>)?.training_plan as TrainingPlan | undefined;
-                          const splitGeneral = (tp as unknown as Record<string, unknown>)?.split as string | undefined;
-                          
-                          // Si el día tiene un split específico, usarlo
-                          if (dia.split) {
-                            const splitLower = dia.split.toLowerCase();
-                            
-                            // Si es Full Body, mostrar "Full Body"
-                            if (splitLower.includes("full body")) {
-                              return "Full Body";
-                            }
-                            
-                            // Mapear splits comunes a músculos
-                            if (splitLower.includes("push")) {
-                              return "Pecho, Hombros, Tríceps";
-                            } else if (splitLower.includes("pull")) {
-                              return "Espalda, Bíceps, Trapecio";
-                            } else if (splitLower.includes("legs") || splitLower.includes("piernas")) {
-                              return "Cuádriceps, Isquiotibiales, Glúteos, Gemelos";
-                            } else if (splitLower.includes("upper")) {
-                              return "Pecho, Espalda, Hombros, Bíceps, Tríceps";
-                            } else if (splitLower.includes("lower")) {
-                              return "Cuádriceps, Isquiotibiales, Glúteos, Gemelos, Abdominales";
-                            } else if (splitLower.includes("chest") || splitLower.includes("pecho")) {
-                              return "Pecho, Tríceps";
-                            } else if (splitLower.includes("back") || splitLower.includes("espalda")) {
-                              return "Espalda, Bíceps";
-                            } else if (splitLower.includes("shoulders") || splitLower.includes("hombros")) {
-                              return "Hombros, Trapecio";
-                            }
-                          }
-                          
-                          // Si el split general es Full Body, mostrar "Full Body"
-                          if (splitGeneral === "Full Body" || splitGeneral?.toLowerCase().includes("full body")) {
-                            return "Full Body";
-                          }
-                          
-                          // Si no hay split específico, analizar los muscle_group de los ejercicios
-                          if (dia.ejercicios && dia.ejercicios.length > 0) {
-                            const muscleGroups = new Set<string>();
-                            dia.ejercicios.forEach(ej => {
-                              if (ej.muscle_group) {
-                                muscleGroups.add(ej.muscle_group);
-                              }
-                            });
-                            
-                            // Si hay 4 o más músculos diferentes, probablemente es Full Body
-                            if (muscleGroups.size >= 4) {
-                              return "Full Body";
-                            }
-                            
-                            // Devolver los músculos únicos encontrados
-                            if (muscleGroups.size > 0) {
-                              return Array.from(muscleGroups).join(", ");
-                            }
-                          }
-                          
-                          return null;
-                        };
-                        
-                        const musculos = getMusculosDelDia();
-                        
-                        return (
-                        <div key={`dia-${semanaSeleccionada}-${di}`} className="rounded-lg border border-white/10 bg-white/5 p-4">
-                          <h4 className="text-base font-semibold mb-3 text-white">
-                            {dia.day}
-                            {musculos && (
-                              <span className="text-sm font-normal opacity-70 ml-2">({musculos})</span>
-                            )}
-                          </h4>
-                          
-                          {/* Calentamiento */}
-                          {dia.warmup && (
-                            <div className="mb-4 p-3 rounded-md bg-gradient-to-r from-orange-500/20 to-yellow-500/20 border border-orange-500/30">
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className="text-sm font-semibold text-orange-300">🔥 Calentamiento</span>
-                                <span className="text-xs opacity-70">({dia.warmup.duration_minutes} min)</span>
-                              </div>
-                              <p className="text-sm opacity-90 leading-relaxed">{dia.warmup.description}</p>
-                            </div>
-                          )}
-                          
-                          {(dia.ejercicios || []).length > 0 ? (
-                            <ul className="space-y-3">
-                              {(dia.ejercicios || []).map((ejercicio: TrainingExercise, ei: number) => {
-                                const restTime = ejercicio.rest_seconds || ejercicio.rest_sec;
-                                return (
-                                  <li key={`ej-${semanaSeleccionada}-${di}-${ei}`} className="rounded-lg bg-white/5 border border-white/10 p-3">
-                                    <div className="flex-1">
-                                      {/* Header del ejercicio */}
-                                      <div className="flex items-start justify-between gap-2 mb-2">
-                                        <div className="flex-1">
-                                          <div className="flex items-center gap-2 flex-wrap mb-1">
-                                            <span className="font-semibold text-white">{ejercicio.name}</span>
-                                            <span className="text-sm opacity-70">· {ejercicio.sets}x{String(ejercicio.reps)}</span>
-                                            {ejercicio.muscle_group && (
-                                              <span className="text-xs px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-                                                {ejercicio.muscle_group}
-                                              </span>
-                                            )}
-                                          </div>
-                                          {/* Detalles técnicos compactos */}
-                                          <div className="flex items-center gap-3 flex-wrap text-xs opacity-80">
-                                            {ejercicio.rpe && (
-                                              <span className="flex items-center gap-1">
-                                                <span className="opacity-60">RPE:</span>
-                                                <span className="font-medium">{ejercicio.rpe}/10</span>
-                                              </span>
-                                            )}
-                                            {ejercicio.tempo && (
-                                              <span className="flex items-center gap-1">
-                                                <span className="opacity-60">Tempo:</span>
-                                                <span className="font-medium">{ejercicio.tempo}</span>
-                                              </span>
-                                            )}
-                                            {restTime && (
-                                              <span className="flex items-center gap-1">
-                                                <span className="opacity-60">Descanso:</span>
-                                                <span className="font-medium">{restTime}s</span>
-                                              </span>
-                                            )}
-                                          </div>
-                                        </div>
-                                      </div>
-                                      
-                                      {/* Técnica (expandible) */}
-                                      {ejercicio.technique && (
-                                        <details className="mt-2">
-                                          <summary className="text-xs font-medium text-cyan-300 cursor-pointer hover:text-cyan-200">
-                                            💡 Técnica
-                                          </summary>
-                                          <p className="mt-1 text-xs opacity-90 leading-relaxed pl-2 border-l-2 border-cyan-500/30">
-                                            {ejercicio.technique}
-                                          </p>
-                                        </details>
-                                      )}
-                                      
-                                      {/* Progresión */}
-                                      {ejercicio.progression && (
-                                        <details className="mt-2">
-                                          <summary className="text-xs font-medium text-yellow-300 cursor-pointer hover:text-yellow-200">
-                                            📈 Progresión
-                                          </summary>
-                                          <p className="mt-1 text-xs opacity-90 leading-relaxed pl-2 border-l-2 border-yellow-500/30">
-                                            {ejercicio.progression}
-                                          </p>
-                                        </details>
-                                      )}
-                                      
-                                      {/* Cues mentales */}
-                                      {ejercicio.cues && ejercicio.cues.length > 0 && (
-                                        <div className="mt-2">
-                                          <p className="text-xs font-medium text-purple-300 mb-1">🎯 Pistas mentales:</p>
-                                          <ul className="list-disc pl-4 space-y-0.5">
-                                            {ejercicio.cues.map((cue, cueIdx) => (
-                                              <li key={`cue-${ei}-${cueIdx}`} className="text-xs opacity-90">{cue}</li>
-                                            ))}
-                                          </ul>
-                                        </div>
-                                      )}
-                                      
-                                      {/* Alternativa (si hay lesión) */}
-                                      {ejercicio.alternative && (
-                                        <div className="mt-2 p-2 rounded bg-orange-500/10 border border-orange-500/30">
-                                          <p className="text-xs font-medium text-orange-300 mb-1">⚠️ Alternativa (si tienes lesión):</p>
-                                          <p className="text-xs opacity-90">{ejercicio.alternative}</p>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </li>
-                                );
-                              })}
-                            </ul>
-                          ) : (
-                            <p className="text-sm text-white/50">No hay ejercicios registrados para este día</p>
-                          )}
-                        </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* Modal de selección de plan premium */}
-      {premiumModalOpen && authUser && (
-        <PremiumPlanModal
-          isOpen={premiumModalOpen}
-          onClose={() => setPremiumModalOpen(false)}
-          userId={authUser.uid}
-          userEmail={authUser.email || ""}
-        />
-      )}
-
-      {/* Modal de Continuidad de Plan (solo para planes simples) */}
-      {continuityModalOpen && authUser && user && plan && planId && !planMultiFase && (
-        <PlanContinuityModal
-          isOpen={continuityModalOpen}
-          onClose={() => setContinuityModalOpen(false)}
-          planData={{
-            id: planId,
-            plan: plan,
-            user: user,
-            createdAt: new Date(), // La fecha real se carga desde Firestore dentro del modal
-          }}
-          registrosPeso={registrosPeso}
-          userId={authUser.uid}
-        />
-      )}
-
-      {/* Modal de registro de comida fuera del plan */}
-      <FoodTrackingModal
-        isOpen={foodTrackingModalOpen}
-        onClose={() => setFoodTrackingModalOpen(false)}
-        planCalories={plan?.calorias_diarias || 2000}
-        userObjective={user?.objetivo}
-        planId={planId || undefined}
-        userId={authUser?.uid || undefined}
-      />
-
-      {/* Modal de estadísticas semanales */}
-      {planId && (
-        <WeeklyStatsModal
-          isOpen={weeklyStatsModalOpen}
-          onClose={() => setWeeklyStatsModalOpen(false)}
-          planId={planId}
-          userId={authUser?.uid || undefined}
-        />
-      )}
-
-      {/* Modal de información del IMC - se muestra la primera vez que el usuario ve su plan */}
-      {user && (
-        <IMCInfoModal
-          isOpen={imcModalOpen}
-          onClose={() => setImcModalOpen(false)}
-          imc={bmi}
-          pesoActual={user.pesoKg}
-          alturaCm={user.alturaCm}
-          objetivo={user.objetivo}
-          intensidad={user.intensidad}
-          sexo={user.sexo}
-        />
-      )}
-      
-      {/* Modal de Generar Siguiente Mes */}
-      <AnimatePresence>
-        {modalSiguienteMesAbierto && planMultiFase && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => !generandoSiguienteMes && setModalSiguienteMesAbierto(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-slate-900 border border-white/10 rounded-2xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold">
-                  🚀 Generar Mes {planMultiFase.mesActual + 1}
-                </h2>
-                <button
-                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                  onClick={() => !generandoSiguienteMes && setModalSiguienteMesAbierto(false)}
-                  disabled={generandoSiguienteMes}
-                >
-                  ✕
-                </button>
-              </div>
-              
-              <p className="text-sm opacity-70 mb-4">
-                Ingresá tus datos actuales para generar el plan del próximo mes con ajustes personalizados.
-              </p>
-              
-              {/* Info de fase actual */}
-              <div className={`mb-4 p-3 rounded-xl ${
-                planMultiFase.faseActual === "BULK" 
-                  ? "bg-amber-500/10 border border-amber-500/20" 
-                  : planMultiFase.faseActual === "CUT"
-                  ? "bg-cyan-500/10 border border-cyan-500/20"
-                  : "bg-emerald-500/10 border border-emerald-500/20"
-              }`}>
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="font-semibold">Fase actual: {planMultiFase.faseActual}</span>
-                  <span className="opacity-70">• Mes {planMultiFase.mesActual} de {planMultiFase.totalMeses}</span>
-                </div>
-                <p className="text-xs opacity-70 mt-1">
-                  {(() => {
-                    const infoFase = obtenerInfoFaseActual(planMultiFase);
-                    return infoFase.fase?.descripcion || "";
-                  })()}
-                </p>
-              </div>
-              
-              <div className="space-y-4">
-                {/* Peso Actual (OBLIGATORIO) */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Peso Actual (kg) <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                    value={datosSiguienteMes.pesoActual || ""}
-                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, pesoActual: parseFloat(e.target.value) || 0 }))}
-                    placeholder="Ej: 82.5"
-                  />
-                  {planMultiFase.historialMeses[planMultiFase.mesActual - 1] && (
-                    <p className="text-xs opacity-50 mt-1">
-                      Peso al iniciar este mes: {planMultiFase.historialMeses[planMultiFase.mesActual - 1].datosAlIniciar.peso} kg
-                    </p>
-                  )}
-                </div>
-                
-                {/* Cintura Actual (Opcional) */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">Cintura Actual (cm) <span className="text-xs opacity-50">(opcional)</span></label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                    value={datosSiguienteMes.cinturaActual || ""}
-                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, cinturaActual: parseFloat(e.target.value) || 0 }))}
-                    placeholder="Ej: 84"
-                  />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Energía */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Energía</label>
-                    <select
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                      value={datosSiguienteMes.energia}
-                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, energia: e.target.value as typeof prev.energia }))}
-                    >
-                      <option value="muy_baja">😴 Muy baja</option>
-                      <option value="baja">😕 Baja</option>
-                      <option value="normal">😊 Normal</option>
-                      <option value="alta">💪 Alta</option>
-                      <option value="muy_alta">🔥 Muy alta</option>
-                    </select>
-                  </div>
-                  
-                  {/* Recuperación */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Recuperación</label>
-                    <select
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                      value={datosSiguienteMes.recuperacion}
-                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, recuperacion: e.target.value as typeof prev.recuperacion }))}
-                    >
-                      <option value="mala">😓 Mala</option>
-                      <option value="regular">😐 Regular</option>
-                      <option value="normal">😊 Normal</option>
-                      <option value="buena">💪 Buena</option>
-                      <option value="excelente">🌟 Excelente</option>
-                    </select>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Adherencia Comida */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Adherencia Alimentación</label>
-                    <select
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                      value={datosSiguienteMes.adherenciaComida}
-                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, adherenciaComida: e.target.value as typeof prev.adherenciaComida }))}
-                    >
-                      <option value="<50%">{"<50%"} - Muy baja</option>
-                      <option value="50-70%">50-70% - Regular</option>
-                      <option value="70-80%">70-80% - Buena</option>
-                      <option value=">80%">{">80%"} - Excelente</option>
-                    </select>
-                  </div>
-                  
-                  {/* Adherencia Entreno */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Adherencia Entreno</label>
-                    <select
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                      value={datosSiguienteMes.adherenciaEntreno}
-                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, adherenciaEntreno: e.target.value as typeof prev.adherenciaEntreno }))}
-                    >
-                      <option value="<50%">{"<50%"} - Muy baja</option>
-                      <option value="50-70%">50-70% - Regular</option>
-                      <option value="70-80%">70-80% - Buena</option>
-                      <option value=">80%">{">80%"} - Excelente</option>
-                    </select>
-                  </div>
-                </div>
-                
-                {/* Lesiones nuevas */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">Lesiones o molestias nuevas <span className="text-xs opacity-50">(opcional)</span></label>
-                  <input
-                    type="text"
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                    value={datosSiguienteMes.lesionesNuevas}
-                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, lesionesNuevas: e.target.value }))}
-                    placeholder="Ej: Dolor en hombro derecho, molestia en rodilla..."
-                  />
-                </div>
-                
-                {/* Comentarios */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">Ajustes o comentarios <span className="text-xs opacity-50">(opcional)</span></label>
-                  <textarea
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30 resize-none"
-                    rows={2}
-                    value={datosSiguienteMes.comentarios}
-                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, comentarios: e.target.value }))}
-                    placeholder="Ej: Quisiera más variedad en desayunos, menos cardio..."
-                  />
-                </div>
-              </div>
-              
-              {errorSiguienteMes && (
-                <div className="mt-4 p-3 rounded-xl bg-red-500/20 border border-red-500/30 text-red-200 text-sm">
-                  {errorSiguienteMes}
-                </div>
-              )}
-              
-              <div className="flex gap-3 mt-6">
-                <button
-                  className="flex-1 rounded-xl px-4 py-3 bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
-                  onClick={() => setModalSiguienteMesAbierto(false)}
-                  disabled={generandoSiguienteMes}
-                >
-                  Cancelar
-                </button>
-                <button
-                  className={`flex-1 rounded-xl px-4 py-3 font-medium transition-colors disabled:opacity-50 ${
-                    planMultiFase.faseActual === "BULK" 
-                      ? "bg-amber-500/20 border border-amber-500/30 hover:bg-amber-500/30 text-amber-200" 
-                      : planMultiFase.faseActual === "CUT"
-                      ? "bg-cyan-500/20 border border-cyan-500/30 hover:bg-cyan-500/30 text-cyan-200"
-                      : "bg-emerald-500/20 border border-emerald-500/30 hover:bg-emerald-500/30 text-emerald-200"
-                  }`}
-                  onClick={handleGenerarSiguienteMes}
-                  disabled={!datosSiguienteMes.pesoActual || generandoSiguienteMes}
-                >
-                  {generandoSiguienteMes ? "⏳ Generando..." : "🚀 Generar Siguiente Mes"}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-function FetchDetails({ k, dish, onLoaded, onError }: { k: string; dish: string; onLoaded: (p: { ingredientes?: string[]; pasos_preparacion?: string[] }) => void; onError: (msg: string) => void }) {
-  const { user } = usePlanStore();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const resp = await fetch('/api/mealDetails', { 
-          method: 'POST', 
-          headers: { 'Content-Type': 'application/json' }, 
-          body: JSON.stringify({ 
-            dish,
-            tipoDieta: user?.tipoDieta,
-            restricciones: user?.restricciones,
-            preferencias: user?.preferencias,
-            patologias: user?.patologias
-          }) 
-        });
-        if (!resp.ok) {
-          const data = await resp.json().catch(() => null);
-          throw new Error(data?.error || `HTTP ${resp.status}`);
-        }
-        const data = await resp.json();
-        if (!cancelled) {
-          onLoaded({ ingredientes: data.ingredientes, pasos_preparacion: data.pasos_preparacion });
-          setLoading(false);
-        }
-      } catch (e: unknown) {
-        if (!cancelled) {
-          const msg = e instanceof Error ? e.message : 'Error';
-          setError(msg);
-          onError(msg);
-          setLoading(false);
-        }
-      }
-    })();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dish, k, user?.tipoDieta, user?.restricciones, user?.preferencias, user?.patologias]);
-
-  if (loading) return <p className="text-xs opacity-70">Cargando detalles…</p>;
-  if (error) return <p className="text-xs text-red-300">{String(error)}</p>;
-  return null;
-}
-
-
-                    Perfil atlético
-                  </span>
-                </label>
-                <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80">Preferencias (separadas por comas)</span>
-                  <input
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
-                    value={preferenciasTexto}
-                    onChange={(e) => setPreferenciasTexto(e.target.value)}
-                    onBlur={(e) => {
-                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      setDatosEdicion({ ...datosEdicion, preferencias: array });
-                    }}
-                    placeholder="ej: pollo, avena, salmón"
-                  />
-                </label>
-                <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80">Restricciones (separadas por comas)</span>
-                  <input
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
-                    value={restriccionesTexto}
-                    onChange={(e) => setRestriccionesTexto(e.target.value)}
-                    onBlur={(e) => {
-                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      setDatosEdicion({ ...datosEdicion, restricciones: array });
-                    }}
-                    placeholder="ej: gluten, lácteos, cerdo"
-                  />
-                </label>
-                <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80">Patologías (separadas por comas)</span>
-                  <input
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
-                    value={patologiasTexto}
-                    onChange={(e) => setPatologiasTexto(e.target.value)}
-                    onBlur={(e) => {
-                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      setDatosEdicion({ ...datosEdicion, patologias: array });
-                    }}
-                    placeholder="ej: hígado graso, intolerancia a la lactosa, diabetes tipo 2"
-                  />
-                  <p className="text-xs opacity-60 mt-1">
-                    Indica condiciones médicas relevantes para ajustar el plan nutricional
-                  </p>
-                </label>
-                <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80 flex items-center gap-2">
-                    Dolores, lesiones o molestias (separadas por comas)
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                      className="h-4 w-4 opacity-70"
-                    >
-                      <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm1.971-6.279-.675.693A3.375 3.375 0 0 0 12.75 14.25h-1.5a4.875 4.875 0 0 1 1.425-3.45l.93-.936a1.875 1.875 0 1 0-3.195-1.326h-1.5a3.375 3.375 0 1 1 6.03 1.283Z" />
-                    </svg>
-                  </span>
-                  <input
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
-                    value={doloresLesionesTexto}
-                    onChange={(e) => setDoloresLesionesTexto(e.target.value)}
-                    onBlur={(e) => {
-                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      setDatosEdicion({ ...datosEdicion, doloresLesiones: array });
-                    }}
-                    placeholder="ej: rodilla derecha, zona lumbar, hombro izquierdo"
-                  />
-                  <p className="text-xs opacity-60 mt-1">
-                    Ajustamos el entrenamiento para cuidar estas zonas y recomendar movilidad o precalentamientos específicos.
-                  </p>
-                </label>
-                <label className="flex items-start gap-3 md:col-span-2">
-                  <input
-                    type="checkbox"
-                    className="mt-1 h-4 w-4"
-                    checked={!!((datosEdicion as unknown as Record<string, unknown>).preferirRutina)}
-                    onChange={(e) => setDatosEdicion({ ...datosEdicion, preferirRutina: e.target.checked } as unknown as UserInput)}
-                  />
-                  <span className="text-sm opacity-80">
-                    Mantener comidas rutinarias (poca variación entre días)
-                    <span className="block text-xs opacity-60 mt-0.5">
-                      Repetir comidas facilita el seguimiento (p. ej., papa en déficit o pasta en volumen). Podés cambiarlo cuando quieras.
-                    </span>
-                  </span>
-                </label>
-      </div>
-              
-              <div className="flex gap-3 mt-6 justify-end">
-            <button
-                  className="rounded-xl px-6 py-2 text-sm font-medium bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
-                  onClick={() => setModalAbierto(false)}
-                >
-                  Cancelar
-            </button>
-            <button
-                  className="rounded-xl px-6 py-2 text-sm font-medium bg-blue-500/20 border border-blue-500/30 hover:bg-blue-500/30 transition-colors"
-                  onClick={async () => {
-                    if (!datosEdicion) return;
-                    setModalAbierto(false);
-                    setRegenerandoPlan(true);
-                    setErrorRegeneracion(null);
-                    
-                    try {
-                      if (!user) {
-                        throw new Error("No hay datos de usuario disponibles");
-                      }
-                      
-                      // Procesar los arrays de preferencias, restricciones y patologías
-                      const preferenciasArray = preferenciasTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      const restriccionesArray = restriccionesTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      const patologiasArray = patologiasTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      const doloresLesionesArray = doloresLesionesTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      
-                      const bmi = calculateBMI(datosEdicion.pesoKg, datosEdicion.alturaCm);
-                      const nuevasSugerencias = sugerirEntrenamiento(
-                        user.objetivo, // Usar el objetivo original del usuario
-                        user.intensidad, // Usar la intensidad original del usuario
-                        datosEdicion.edad,
-                        bmi,
-                        datosEdicion.atletico
-                      );
-                      
-                      const userActualizado = {
-                        ...user, // Mantener todos los datos originales (objetivo, intensidad, tipoDieta)
-                        ...datosEdicion, // Aplicar cambios de datos básicos
-                        preferencias: preferenciasArray,
-                        restricciones: restriccionesArray,
-                        patologias: patologiasArray,
-                        doloresLesiones: doloresLesionesArray,
-                        diasGym: nuevasSugerencias.diasGym,
-                        diasCardio: Math.ceil(nuevasSugerencias.minutosCaminata / (nuevasSugerencias.minutosCaminata > 45 ? 60 : nuevasSugerencias.minutosCaminata > 30 ? 45 : 30))
-                      };
-                      
-                      const resp = await fetch("/api/generatePlan", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(userActualizado),
-                      });
-                      
-                      if (!resp.ok) {
-                        const data = await resp.json().catch(() => null);
-                        const combined = data?.error && data?.detail ? `${data.error}: ${data.detail}` : (data?.error || data?.detail);
-                        const msg = combined || `No se pudo generar el plan (HTTP ${resp.status})`;
-                        throw new Error(msg);
-                      }
-                      
-                      const nuevoPlan = await resp.json();
-                      
-                      // Mostrar objeto de debug en consola del navegador
-                      if (nuevoPlan._debug_training_plan) {
-                        console.log("=".repeat(80));
-                        console.log("📊 DEBUG: DATOS USADOS PARA GENERAR TRAINING_PLAN (EDITADO)");
-                        console.log("=".repeat(80));
-                        console.log(nuevoPlan._debug_training_plan);
-                        console.log("=".repeat(80));
-                        // También exponerlo globalmente para fácil acceso
-                        (window as unknown as { __TRAINING_PLAN_DEBUG__?: unknown }).__TRAINING_PLAN_DEBUG__ = nuevoPlan._debug_training_plan;
-                        console.log("💡 También disponible en: window.__TRAINING_PLAN_DEBUG__");
-                      }
-                      
-                      setUser(userActualizado);
-                      setPlan(nuevoPlan);
-                      
-                      // Guardar o actualizar en Firestore
-                      try {
-                        const auth = getAuthSafe();
-                        const db = await import("@/lib/firebase").then(m => m.getDbSafe());
-                        
-                        if (auth?.currentUser && db) {
-                          const { collection, doc, updateDoc, addDoc, setDoc, getDoc, serverTimestamp } = await import("firebase/firestore");
-                          
-                          // Actualizar perfil del usuario en la colección "usuarios"
-                          try {
-                            const userRef = doc(db, "usuarios", auth.currentUser.uid);
-                            const userDoc = await getDoc(userRef);
-                            
-                            // Obtener el email del usuario autenticado
-                            const userEmail = auth.currentUser?.email?.toLowerCase() || "";
-                            
-                            const userProfileData: Record<string, unknown> = {
-                              nombre: userActualizado.nombre,
-                              sexo: userActualizado.sexo,
-                              alturaCm: userActualizado.alturaCm,
-                              edad: userActualizado.edad,
-                              peso: userActualizado.pesoKg, // Guardar peso del usuario
-                              objetivo: userActualizado.objetivo, // Guardar objetivo
-                              atletico: Boolean(userActualizado.atletico), // Guardar perfil atlético
-                              doloresLesiones: Array.isArray(userActualizado.doloresLesiones) ? userActualizado.doloresLesiones : [],
-                              updatedAt: serverTimestamp(),
-                            };
-                            
-                            // Agregar tipoDieta solo si tiene valor (no undefined)
-                            if (userActualizado.tipoDieta !== undefined && userActualizado.tipoDieta !== null) {
-                              userProfileData.tipoDieta = userActualizado.tipoDieta;
-                            }
-                            
-                            // Asegurar que email y premium estén presentes
-                            if (!userDoc.exists() || !userDoc.data()?.email) {
-                              userProfileData.email = userEmail;
-                            }
-                            if (!userDoc.exists() || userDoc.data()?.premium === undefined) {
-                              userProfileData.premium = false;
-                            }
-                            
-                            // Agregar medidas opcionales si existen y tienen valores válidos
-                            if (userActualizado.cinturaCm !== undefined && userActualizado.cinturaCm !== null && userActualizado.cinturaCm !== 0) {
-                              userProfileData.cinturaCm = Number(userActualizado.cinturaCm);
-                            }
-                            if (userActualizado.cuelloCm !== undefined && userActualizado.cuelloCm !== null && userActualizado.cuelloCm !== 0) {
-                              userProfileData.cuelloCm = Number(userActualizado.cuelloCm);
-                            }
-                            if (userActualizado.caderaCm !== undefined && userActualizado.caderaCm !== null && userActualizado.caderaCm !== 0) {
-                              userProfileData.caderaCm = Number(userActualizado.caderaCm);
-                            }
-                            
-                            // Limpiar campos undefined antes de guardar
-                            const cleanUserProfileData = Object.fromEntries(
-                              Object.entries(userProfileData).filter(([, v]) => v !== undefined && v !== null)
-                            );
-                            
-                            if (!userDoc.exists()) {
-                              await setDoc(userRef, {
-                                ...cleanUserProfileData,
-                                createdAt: serverTimestamp(),
-                                email: userEmail,
-                                premium: false,
-                              });
-                            } else {
-                              await setDoc(userRef, cleanUserProfileData, { merge: true });
-                            }
-                            console.log("✅ Perfil del usuario actualizado en Firestore (incluye peso)");
-                          } catch (profileError) {
-                            console.error("Error al actualizar perfil del usuario:", profileError);
-                            // No bloqueamos el flujo si falla guardar el perfil
-                          }
-                          
-                          // Limpiar datos: eliminar campos undefined y null
-                          const cleanUser = Object.fromEntries(
-                            Object.entries(userActualizado).filter(([, v]) => v !== undefined && v !== null)
-                          );
-                          
-                          const cleanPlan = JSON.parse(JSON.stringify({ plan: nuevoPlan, user: cleanUser }));
-                          
-                          if (planId) {
-                            // Actualizar plan existente
-                            const planRef = doc(db, "planes", planId);
-                            await updateDoc(planRef, {
-                              plan: cleanPlan,
-                              updatedAt: serverTimestamp(),
-                            });
-                            console.log("Plan actualizado en Firestore desde modal:", planId);
-                          } else {
-                            // Crear nuevo plan (si no tiene ID, es un plan nuevo)
-                            const docRef = await addDoc(collection(db, "planes"), {
-                              userId: auth.currentUser.uid,
-                              plan: cleanPlan,
-                              createdAt: serverTimestamp(),
-                            });
-                            console.log("Plan guardado en Firestore desde modal:", docRef.id);
-                          }
-                        }
-                      } catch (saveError) {
-                        console.error("Error al guardar plan actualizado desde modal:", saveError);
-                        // No bloqueamos el flujo si falla guardar
-                      }
-                      
-                      setValoresOriginales({
-                        objetivo: userActualizado.objetivo,
-                        intensidad: userActualizado.intensidad,
-                        tipoDieta: userActualizado.tipoDieta,
-                      });
-                      setDiasGymEditado(null);
-                      setMinutosCaminataEditado(null);
-                      setHorasSuenoEditado(null);
-                    } catch (err: unknown) {
-                      const message = err instanceof Error ? err.message : "Ocurrió un error";
-                      setErrorRegeneracion(message);
-                      console.error("Error al regenerar plan:", err);
-                    } finally {
-                      setRegenerandoPlan(false);
-                    }
-                  }}
-                >
-                  Aceptar
-            </button>
-          </div>
-        </motion.div>
-          </motion.div>
-        )}
-        </AnimatePresence>
-
-        {/* Modal de carga - Regenerando plan */}
-        <AnimatePresence>
-          {regenerandoPlan && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"
-            >
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                className="glass rounded-2xl p-8 max-w-md w-full text-center"
-              >
-                <div className="mb-4">
-                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-500/20 mb-4">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-      </div>
-                  <h3 className="text-xl font-semibold mb-2">Regenerando plan</h3>
-                  <p className="text-sm opacity-70">
-                    Estamos generando tu nuevo plan personalizado con IA...
-                  </p>
-                </div>
-                {errorRegeneracion && (
-                  <div className="mt-4 p-3 rounded-lg bg-red-500/20 border border-red-500/30 text-red-300 text-sm">
-                    {errorRegeneracion}
-                  </div>
-                )}
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Modal de información (tooltips) */}
-        <AnimatePresence>
-          {modalInfoAbierto && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-4"
-              onClick={() => setModalInfoAbierto(null)}
-            >
-              <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" />
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                className="relative z-10 w-full max-w-md rounded-xl border border-white/10 bg-black/95 p-6 shadow-2xl"
-                onClick={(e) => e.stopPropagation()}
-              >
-            <button
-                  onClick={() => setModalInfoAbierto(null)}
-                  className="absolute right-4 top-4 text-white/70 hover:text-white transition-colors"
-                  aria-label="Cerrar"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="h-5 w-5"
-                  >
-                    <path d="M18 6L6 18M6 6l12 12" />
-                  </svg>
-            </button>
-                <h3 className="text-lg font-semibold mb-4">
-                  {modalInfoAbierto === 'imc' && '¿Qué es el IMC?'}
-                  {modalInfoAbierto === 'macros' && '¿Qué son los macronutrientes?'}
-                  {modalInfoAbierto === 'sueno' && '¿Cómo contar las horas de sueño?'}
-                  {modalInfoAbierto === 'dificultad' && '¿Qué implica la dificultad del plan?'}
-                  {modalInfoAbierto === 'split' && '¿Qué es la división de entrenamiento?'}
-                </h3>
-                <div className="text-sm opacity-90 leading-relaxed space-y-2">
-                  {modalInfoAbierto === 'imc' && (
-                    <p>El Índice de Masa Corporal (IMC) relaciona peso y altura. Es una guía general y no sustituye evaluación clínica.</p>
-                  )}
-                  {modalInfoAbierto === 'macros' && (
-                    <p>Los macronutrientes son proteínas, grasas y carbohidratos. Tu plan reparte las calorías diarias entre ellos para apoyar tu objetivo.</p>
-                  )}
-                  {modalInfoAbierto === 'sueno' && (
-                    <>
-                      <p>Tu objetivo actual: <strong>{typeof horasSuenoActual === 'number' ? horasSuenoActual : (sugerenciaEntrenamiento?.horasSueno ?? 8)}</strong> h por noche.</p>
-                      <p className="opacity-90">Las siestas suman al total diario, pero ideal que sean cortas (20–30 min) y no muy tarde para no afectar el sueño nocturno.</p>
-                    </>
-                  )}
-                  {modalInfoAbierto === 'dificultad' && (
-                    (() => {
-                      const cambios = (plan as unknown as Record<string, unknown>)?.cambios_semanales as Record<string, unknown> | undefined;
-                      const fallback = {
-                        semana1: 'Adaptación: posible fatiga suave y cambios en el apetito. Enfocá en técnica y rutina.',
-                        semana2: 'Mejora de energía y rendimiento. Hambre más estable. El buen descanso acelera la adaptación.',
-                        semana3_4: 'Progreso visible: fuerza/resistencia mejoran; cintura y peso empiezan a reflejar el objetivo.',
-                        post_mes: 'Consolidación de hábitos y ajustes finos para seguir progresando.',
-                        fisiologia: [
-                          'Mejor sensibilidad a la insulina y control de glucosa',
-                          'Adaptaciones musculares (reclutamiento y eficiencia neuromuscular)',
-                          `${user?.objetivo === 'perder_grasa' || user?.objetivo === 'corte' ? 'Déficit calórico → reducción de grasa' : user?.objetivo === 'ganar_masa' || user?.objetivo === 'volumen' ? 'Superávit calórico → síntesis muscular' : 'Balance energético optimizado'}`,
-                          `Recuperación mejorada con ${typeof horasSuenoActual === 'number' ? horasSuenoActual : (sugerenciaEntrenamiento?.horasSueno ?? 8)} h de sueño`
-                        ]
-                      };
-                      return (
-                        <>
-                          <p>
-                            Tu plan está marcado como <strong className="capitalize">{String((plan as unknown as Record<string, unknown>)?.dificultad || 'media')}</strong>
-                            {(plan as unknown as Record<string, unknown>)?.dificultad_detalle ? ` — ${String((plan as unknown as Record<string, unknown>).dificultad_detalle)}` : ''}.
-                          </p>
-                          <p className="mt-2 font-medium">¿Qué vas a sentir:</p>
-                          <ul className="list-disc pl-5 space-y-1">
-                            <li><strong>Semana 1:</strong> {String(cambios?.semana1 || fallback.semana1)}</li>
-                            <li><strong>Semana 2:</strong> {String(cambios?.semana2 || fallback.semana2)}</li>
-                            <li><strong>Semana 3-4:</strong> {String(cambios?.semana3_4 || fallback.semana3_4)}</li>
-                            <li><strong>Después del mes:</strong> {String(cambios?.post_mes || fallback.post_mes)}</li>
-                          </ul>
-                          <p className="mt-2 font-medium">¿Qué cambios pasan en tu cuerpo:</p>
-                          <ul className="list-disc pl-5 space-y-1">
-                            {(Array.isArray(cambios?.fisiologia) ? cambios.fisiologia : fallback.fisiologia).map((t: string, i: number) => (
-                              <li key={`fisio-${i}`}>{t}</li>
-                            ))}
-                          </ul>
-                        </>
-                      );
-                    })()
-                  )}
-                  {modalInfoAbierto === 'split' && (
-                    <>
-                      <p>La división de entrenamiento describe cómo se reparten los grupos musculares a lo largo de la semana:</p>
-                      <ul className="list-disc pl-5 space-y-1">
-                        <li><strong>Full Body</strong>: todo el cuerpo en cada sesión. Ideal para 2–3 días/sem.</li>
-                        <li><strong>Upper/Lower</strong>: tren superior y tren inferior alternados. 4 días/sem típicos.</li>
-                        <li><strong>Push/Pull/Legs</strong>: empuje, tirón y piernas. 3–6 días/sem según volumen.</li>
-                        <li><strong>Mixto</strong>: combinación adaptada a tu objetivo, intensidad y disponibilidad.</li>
-                      </ul>
-                      <p className="opacity-90">Tu plan actual: <strong>{splitResumen}</strong>. Esto se ajusta a tus <em>días de gym</em>, intensidad y objetivo para optimizar progreso y recuperación.</p>
-                    </>
-                  )}
-          </div>
-        </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Modal de Plan de Entrenamiento */}
-        <AnimatePresence>
-          {modalEntrenamientoAbierto && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-              onClick={() => setModalEntrenamientoAbierto(false)}
-            >
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                onClick={(e) => e.stopPropagation()}
-                className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl border border-white/10 p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
-              >
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <h2 className="text-2xl font-bold">🏋️ Plan de Entrenamiento</h2>
-                    {splitResumen && (
-                      <span className="text-sm px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-medium">
-                        {splitResumen}
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => setModalEntrenamientoAbierto(false)}
-                    className="text-white/70 hover:text-white transition-colors"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-
-                {/* Botones de semanas */}
-                <div className="flex gap-2 mb-6 flex-wrap">
-                  {[1, 2, 3, 4].map((semana) => (
-                    <button
-                      key={semana}
-                      onClick={() => setSemanaSeleccionada(semana)}
-                      className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                        semanaSeleccionada === semana
-                          ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white'
-                          : 'bg-white/10 text-white/70 hover:bg-white/20'
-                      }`}
-                    >
-                      Semana {semana}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Contenido de la semana seleccionada */}
-                {(() => {
-                  const tp = (plan as unknown as Record<string, unknown>)?.training_plan as TrainingPlan | undefined;
-                  const weeks = tp?.weeks || [];
-                  const semanaActual = weeks.find((w) => (w.week ?? 1) === semanaSeleccionada) || weeks[semanaSeleccionada - 1];
-                  
-                  if (!semanaActual) {
-                    return (
-                      <div className="text-center py-8 text-white/70">
-                        <p>No hay datos de entrenamiento para la Semana {semanaSeleccionada}</p>
-    </div>
-  );
-                  }
-
-                  return (
-                    <div className="space-y-4">
-                      <h3 className="text-lg font-semibold text-cyan-400 mb-4">
-                        Semana {semanaActual.week ?? semanaSeleccionada}
-                      </h3>
-                      {(semanaActual.days || []).map((dia: TrainingDay, di: number) => {
-                        // Función para determinar qué músculos se trabajan en este día
-                        const getMusculosDelDia = (): string | null => {
-                          const tp = (plan as unknown as Record<string, unknown>)?.training_plan as TrainingPlan | undefined;
-                          const splitGeneral = (tp as unknown as Record<string, unknown>)?.split as string | undefined;
-                          
-                          // Si el día tiene un split específico, usarlo
-                          if (dia.split) {
-                            const splitLower = dia.split.toLowerCase();
-                            
-                            // Si es Full Body, mostrar "Full Body"
-                            if (splitLower.includes("full body")) {
-                              return "Full Body";
-                            }
-                            
-                            // Mapear splits comunes a músculos
-                            if (splitLower.includes("push")) {
-                              return "Pecho, Hombros, Tríceps";
-                            } else if (splitLower.includes("pull")) {
-                              return "Espalda, Bíceps, Trapecio";
-                            } else if (splitLower.includes("legs") || splitLower.includes("piernas")) {
-                              return "Cuádriceps, Isquiotibiales, Glúteos, Gemelos";
-                            } else if (splitLower.includes("upper")) {
-                              return "Pecho, Espalda, Hombros, Bíceps, Tríceps";
-                            } else if (splitLower.includes("lower")) {
-                              return "Cuádriceps, Isquiotibiales, Glúteos, Gemelos, Abdominales";
-                            } else if (splitLower.includes("chest") || splitLower.includes("pecho")) {
-                              return "Pecho, Tríceps";
-                            } else if (splitLower.includes("back") || splitLower.includes("espalda")) {
-                              return "Espalda, Bíceps";
-                            } else if (splitLower.includes("shoulders") || splitLower.includes("hombros")) {
-                              return "Hombros, Trapecio";
-                            }
-                          }
-                          
-                          // Si el split general es Full Body, mostrar "Full Body"
-                          if (splitGeneral === "Full Body" || splitGeneral?.toLowerCase().includes("full body")) {
-                            return "Full Body";
-                          }
-                          
-                          // Si no hay split específico, analizar los muscle_group de los ejercicios
-                          if (dia.ejercicios && dia.ejercicios.length > 0) {
-                            const muscleGroups = new Set<string>();
-                            dia.ejercicios.forEach(ej => {
-                              if (ej.muscle_group) {
-                                muscleGroups.add(ej.muscle_group);
-                              }
-                            });
-                            
-                            // Si hay 4 o más músculos diferentes, probablemente es Full Body
-                            if (muscleGroups.size >= 4) {
-                              return "Full Body";
-                            }
-                            
-                            // Devolver los músculos únicos encontrados
-                            if (muscleGroups.size > 0) {
-                              return Array.from(muscleGroups).join(", ");
-                            }
-                          }
-                          
-                          return null;
-                        };
-                        
-                        const musculos = getMusculosDelDia();
-                        
-                        return (
-                        <div key={`dia-${semanaSeleccionada}-${di}`} className="rounded-lg border border-white/10 bg-white/5 p-4">
-                          <h4 className="text-base font-semibold mb-3 text-white">
-                            {dia.day}
-                            {musculos && (
-                              <span className="text-sm font-normal opacity-70 ml-2">({musculos})</span>
-                            )}
-                          </h4>
-                          
-                          {/* Calentamiento */}
-                          {dia.warmup && (
-                            <div className="mb-4 p-3 rounded-md bg-gradient-to-r from-orange-500/20 to-yellow-500/20 border border-orange-500/30">
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className="text-sm font-semibold text-orange-300">🔥 Calentamiento</span>
-                                <span className="text-xs opacity-70">({dia.warmup.duration_minutes} min)</span>
-                              </div>
-                              <p className="text-sm opacity-90 leading-relaxed">{dia.warmup.description}</p>
-                            </div>
-                          )}
-                          
-                          {(dia.ejercicios || []).length > 0 ? (
-                            <ul className="space-y-3">
-                              {(dia.ejercicios || []).map((ejercicio: TrainingExercise, ei: number) => {
-                                const restTime = ejercicio.rest_seconds || ejercicio.rest_sec;
-                                return (
-                                  <li key={`ej-${semanaSeleccionada}-${di}-${ei}`} className="rounded-lg bg-white/5 border border-white/10 p-3">
-                                    <div className="flex-1">
-                                      {/* Header del ejercicio */}
-                                      <div className="flex items-start justify-between gap-2 mb-2">
-                                        <div className="flex-1">
-                                          <div className="flex items-center gap-2 flex-wrap mb-1">
-                                            <span className="font-semibold text-white">{ejercicio.name}</span>
-                                            <span className="text-sm opacity-70">· {ejercicio.sets}x{String(ejercicio.reps)}</span>
-                                            {ejercicio.muscle_group && (
-                                              <span className="text-xs px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-                                                {ejercicio.muscle_group}
-                                              </span>
-                                            )}
-                                          </div>
-                                          {/* Detalles técnicos compactos */}
-                                          <div className="flex items-center gap-3 flex-wrap text-xs opacity-80">
-                                            {ejercicio.rpe && (
-                                              <span className="flex items-center gap-1">
-                                                <span className="opacity-60">RPE:</span>
-                                                <span className="font-medium">{ejercicio.rpe}/10</span>
-                                              </span>
-                                            )}
-                                            {ejercicio.tempo && (
-                                              <span className="flex items-center gap-1">
-                                                <span className="opacity-60">Tempo:</span>
-                                                <span className="font-medium">{ejercicio.tempo}</span>
-                                              </span>
-                                            )}
-                                            {restTime && (
-                                              <span className="flex items-center gap-1">
-                                                <span className="opacity-60">Descanso:</span>
-                                                <span className="font-medium">{restTime}s</span>
-                                              </span>
-                                            )}
-                                          </div>
-                                        </div>
-                                      </div>
-                                      
-                                      {/* Técnica (expandible) */}
-                                      {ejercicio.technique && (
-                                        <details className="mt-2">
-                                          <summary className="text-xs font-medium text-cyan-300 cursor-pointer hover:text-cyan-200">
-                                            💡 Técnica
-                                          </summary>
-                                          <p className="mt-1 text-xs opacity-90 leading-relaxed pl-2 border-l-2 border-cyan-500/30">
-                                            {ejercicio.technique}
-                                          </p>
-                                        </details>
-                                      )}
-                                      
-                                      {/* Progresión */}
-                                      {ejercicio.progression && (
-                                        <details className="mt-2">
-                                          <summary className="text-xs font-medium text-yellow-300 cursor-pointer hover:text-yellow-200">
-                                            📈 Progresión
-                                          </summary>
-                                          <p className="mt-1 text-xs opacity-90 leading-relaxed pl-2 border-l-2 border-yellow-500/30">
-                                            {ejercicio.progression}
-                                          </p>
-                                        </details>
-                                      )}
-                                      
-                                      {/* Cues mentales */}
-                                      {ejercicio.cues && ejercicio.cues.length > 0 && (
-                                        <div className="mt-2">
-                                          <p className="text-xs font-medium text-purple-300 mb-1">🎯 Pistas mentales:</p>
-                                          <ul className="list-disc pl-4 space-y-0.5">
-                                            {ejercicio.cues.map((cue, cueIdx) => (
-                                              <li key={`cue-${ei}-${cueIdx}`} className="text-xs opacity-90">{cue}</li>
-                                            ))}
-                                          </ul>
-                                        </div>
-                                      )}
-                                      
-                                      {/* Alternativa (si hay lesión) */}
-                                      {ejercicio.alternative && (
-                                        <div className="mt-2 p-2 rounded bg-orange-500/10 border border-orange-500/30">
-                                          <p className="text-xs font-medium text-orange-300 mb-1">⚠️ Alternativa (si tienes lesión):</p>
-                                          <p className="text-xs opacity-90">{ejercicio.alternative}</p>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </li>
-                                );
-                              })}
-                            </ul>
-                          ) : (
-                            <p className="text-sm text-white/50">No hay ejercicios registrados para este día</p>
-                          )}
-                        </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* Modal de selección de plan premium */}
-      {premiumModalOpen && authUser && (
-        <PremiumPlanModal
-          isOpen={premiumModalOpen}
-          onClose={() => setPremiumModalOpen(false)}
-          userId={authUser.uid}
-          userEmail={authUser.email || ""}
-        />
-      )}
-
-      {/* Modal de Continuidad de Plan (solo para planes simples) */}
-      {continuityModalOpen && authUser && user && plan && planId && !planMultiFase && (
-        <PlanContinuityModal
-          isOpen={continuityModalOpen}
-          onClose={() => setContinuityModalOpen(false)}
-          planData={{
-            id: planId,
-            plan: plan,
-            user: user,
-            createdAt: new Date(), // La fecha real se carga desde Firestore dentro del modal
-          }}
-          registrosPeso={registrosPeso}
-          userId={authUser.uid}
-        />
-      )}
-
-      {/* Modal de registro de comida fuera del plan */}
-      <FoodTrackingModal
-        isOpen={foodTrackingModalOpen}
-        onClose={() => setFoodTrackingModalOpen(false)}
-        planCalories={plan?.calorias_diarias || 2000}
-        userObjective={user?.objetivo}
-        planId={planId || undefined}
-        userId={authUser?.uid || undefined}
-      />
-
-      {/* Modal de estadísticas semanales */}
-      {planId && (
-        <WeeklyStatsModal
-          isOpen={weeklyStatsModalOpen}
-          onClose={() => setWeeklyStatsModalOpen(false)}
-          planId={planId}
-          userId={authUser?.uid || undefined}
-        />
-      )}
-
-      {/* Modal de información del IMC - se muestra la primera vez que el usuario ve su plan */}
-      {user && (
-        <IMCInfoModal
-          isOpen={imcModalOpen}
-          onClose={() => setImcModalOpen(false)}
-          imc={bmi}
-          pesoActual={user.pesoKg}
-          alturaCm={user.alturaCm}
-          objetivo={user.objetivo}
-          intensidad={user.intensidad}
-          sexo={user.sexo}
-        />
-      )}
-      
-      {/* Modal de Generar Siguiente Mes */}
-      <AnimatePresence>
-        {modalSiguienteMesAbierto && planMultiFase && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => !generandoSiguienteMes && setModalSiguienteMesAbierto(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-slate-900 border border-white/10 rounded-2xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold">
-                  🚀 Generar Mes {planMultiFase.mesActual + 1}
-                </h2>
-                <button
-                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                  onClick={() => !generandoSiguienteMes && setModalSiguienteMesAbierto(false)}
-                  disabled={generandoSiguienteMes}
-                >
-                  ✕
-                </button>
-              </div>
-              
-              <p className="text-sm opacity-70 mb-4">
-                Ingresá tus datos actuales para generar el plan del próximo mes con ajustes personalizados.
-              </p>
-              
-              {/* Info de fase actual */}
-              <div className={`mb-4 p-3 rounded-xl ${
-                planMultiFase.faseActual === "BULK" 
-                  ? "bg-amber-500/10 border border-amber-500/20" 
-                  : planMultiFase.faseActual === "CUT"
-                  ? "bg-cyan-500/10 border border-cyan-500/20"
-                  : "bg-emerald-500/10 border border-emerald-500/20"
-              }`}>
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="font-semibold">Fase actual: {planMultiFase.faseActual}</span>
-                  <span className="opacity-70">• Mes {planMultiFase.mesActual} de {planMultiFase.totalMeses}</span>
-                </div>
-                <p className="text-xs opacity-70 mt-1">
-                  {(() => {
-                    const infoFase = obtenerInfoFaseActual(planMultiFase);
-                    return infoFase.fase?.descripcion || "";
-                  })()}
-                </p>
-              </div>
-              
-              <div className="space-y-4">
-                {/* Peso Actual (OBLIGATORIO) */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Peso Actual (kg) <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                    value={datosSiguienteMes.pesoActual || ""}
-                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, pesoActual: parseFloat(e.target.value) || 0 }))}
-                    placeholder="Ej: 82.5"
-                  />
-                  {planMultiFase.historialMeses[planMultiFase.mesActual - 1] && (
-                    <p className="text-xs opacity-50 mt-1">
-                      Peso al iniciar este mes: {planMultiFase.historialMeses[planMultiFase.mesActual - 1].datosAlIniciar.peso} kg
-                    </p>
-                  )}
-                </div>
-                
-                {/* Cintura Actual (Opcional) */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">Cintura Actual (cm) <span className="text-xs opacity-50">(opcional)</span></label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                    value={datosSiguienteMes.cinturaActual || ""}
-                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, cinturaActual: parseFloat(e.target.value) || 0 }))}
-                    placeholder="Ej: 84"
-                  />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Energía */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Energía</label>
-                    <select
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                      value={datosSiguienteMes.energia}
-                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, energia: e.target.value as typeof prev.energia }))}
-                    >
-                      <option value="muy_baja">😴 Muy baja</option>
-                      <option value="baja">😕 Baja</option>
-                      <option value="normal">😊 Normal</option>
-                      <option value="alta">💪 Alta</option>
-                      <option value="muy_alta">🔥 Muy alta</option>
-                    </select>
-                  </div>
-                  
-                  {/* Recuperación */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Recuperación</label>
-                    <select
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                      value={datosSiguienteMes.recuperacion}
-                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, recuperacion: e.target.value as typeof prev.recuperacion }))}
-                    >
-                      <option value="mala">😓 Mala</option>
-                      <option value="regular">😐 Regular</option>
-                      <option value="normal">😊 Normal</option>
-                      <option value="buena">💪 Buena</option>
-                      <option value="excelente">🌟 Excelente</option>
-                    </select>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Adherencia Comida */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Adherencia Alimentación</label>
-                    <select
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                      value={datosSiguienteMes.adherenciaComida}
-                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, adherenciaComida: e.target.value as typeof prev.adherenciaComida }))}
-                    >
-                      <option value="<50%">{"<50%"} - Muy baja</option>
-                      <option value="50-70%">50-70% - Regular</option>
-                      <option value="70-80%">70-80% - Buena</option>
-                      <option value=">80%">{">80%"} - Excelente</option>
-                    </select>
-                  </div>
-                  
-                  {/* Adherencia Entreno */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Adherencia Entreno</label>
-                    <select
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                      value={datosSiguienteMes.adherenciaEntreno}
-                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, adherenciaEntreno: e.target.value as typeof prev.adherenciaEntreno }))}
-                    >
-                      <option value="<50%">{"<50%"} - Muy baja</option>
-                      <option value="50-70%">50-70% - Regular</option>
-                      <option value="70-80%">70-80% - Buena</option>
-                      <option value=">80%">{">80%"} - Excelente</option>
-                    </select>
-                  </div>
-                </div>
-                
-                {/* Lesiones nuevas */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">Lesiones o molestias nuevas <span className="text-xs opacity-50">(opcional)</span></label>
-                  <input
-                    type="text"
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                    value={datosSiguienteMes.lesionesNuevas}
-                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, lesionesNuevas: e.target.value }))}
-                    placeholder="Ej: Dolor en hombro derecho, molestia en rodilla..."
-                  />
-                </div>
-                
-                {/* Comentarios */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">Ajustes o comentarios <span className="text-xs opacity-50">(opcional)</span></label>
-                  <textarea
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30 resize-none"
-                    rows={2}
-                    value={datosSiguienteMes.comentarios}
-                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, comentarios: e.target.value }))}
-                    placeholder="Ej: Quisiera más variedad en desayunos, menos cardio..."
-                  />
-                </div>
-              </div>
-              
-              {errorSiguienteMes && (
-                <div className="mt-4 p-3 rounded-xl bg-red-500/20 border border-red-500/30 text-red-200 text-sm">
-                  {errorSiguienteMes}
-                </div>
-              )}
-              
-              <div className="flex gap-3 mt-6">
-                <button
-                  className="flex-1 rounded-xl px-4 py-3 bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
-                  onClick={() => setModalSiguienteMesAbierto(false)}
-                  disabled={generandoSiguienteMes}
-                >
-                  Cancelar
-                </button>
-                <button
-                  className={`flex-1 rounded-xl px-4 py-3 font-medium transition-colors disabled:opacity-50 ${
-                    planMultiFase.faseActual === "BULK" 
-                      ? "bg-amber-500/20 border border-amber-500/30 hover:bg-amber-500/30 text-amber-200" 
-                      : planMultiFase.faseActual === "CUT"
-                      ? "bg-cyan-500/20 border border-cyan-500/30 hover:bg-cyan-500/30 text-cyan-200"
-                      : "bg-emerald-500/20 border border-emerald-500/30 hover:bg-emerald-500/30 text-emerald-200"
-                  }`}
-                  onClick={handleGenerarSiguienteMes}
-                  disabled={!datosSiguienteMes.pesoActual || generandoSiguienteMes}
-                >
-                  {generandoSiguienteMes ? "⏳ Generando..." : "🚀 Generar Siguiente Mes"}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-function FetchDetails({ k, dish, onLoaded, onError }: { k: string; dish: string; onLoaded: (p: { ingredientes?: string[]; pasos_preparacion?: string[] }) => void; onError: (msg: string) => void }) {
-  const { user } = usePlanStore();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const resp = await fetch('/api/mealDetails', { 
-          method: 'POST', 
-          headers: { 'Content-Type': 'application/json' }, 
-          body: JSON.stringify({ 
-            dish,
-            tipoDieta: user?.tipoDieta,
-            restricciones: user?.restricciones,
-            preferencias: user?.preferencias,
-            patologias: user?.patologias
-          }) 
-        });
-        if (!resp.ok) {
-          const data = await resp.json().catch(() => null);
-          throw new Error(data?.error || `HTTP ${resp.status}`);
-        }
-        const data = await resp.json();
-        if (!cancelled) {
-          onLoaded({ ingredientes: data.ingredientes, pasos_preparacion: data.pasos_preparacion });
-          setLoading(false);
-        }
-      } catch (e: unknown) {
-        if (!cancelled) {
-          const msg = e instanceof Error ? e.message : 'Error';
-          setError(msg);
-          onError(msg);
-          setLoading(false);
-        }
-      }
-    })();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dish, k, user?.tipoDieta, user?.restricciones, user?.preferencias, user?.patologias]);
-
-  if (loading) return <p className="text-xs opacity-70">Cargando detalles…</p>;
-  if (error) return <p className="text-xs text-red-300">{String(error)}</p>;
-  return null;
-}
-
-
-                    Perfil atlético
-                  </span>
-                </label>
-                <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80">Preferencias (separadas por comas)</span>
-                  <input
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
-                    value={preferenciasTexto}
-                    onChange={(e) => setPreferenciasTexto(e.target.value)}
-                    onBlur={(e) => {
-                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      setDatosEdicion({ ...datosEdicion, preferencias: array });
-                    }}
-                    placeholder="ej: pollo, avena, salmón"
-                  />
-                </label>
-                <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80">Restricciones (separadas por comas)</span>
-                  <input
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
-                    value={restriccionesTexto}
-                    onChange={(e) => setRestriccionesTexto(e.target.value)}
-                    onBlur={(e) => {
-                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      setDatosEdicion({ ...datosEdicion, restricciones: array });
-                    }}
-                    placeholder="ej: gluten, lácteos, cerdo"
-                  />
-                </label>
-                <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80">Patologías (separadas por comas)</span>
-                  <input
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
-                    value={patologiasTexto}
-                    onChange={(e) => setPatologiasTexto(e.target.value)}
-                    onBlur={(e) => {
-                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      setDatosEdicion({ ...datosEdicion, patologias: array });
-                    }}
-                    placeholder="ej: hígado graso, intolerancia a la lactosa, diabetes tipo 2"
-                  />
-                  <p className="text-xs opacity-60 mt-1">
-                    Indica condiciones médicas relevantes para ajustar el plan nutricional
-                  </p>
-                </label>
-                <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80 flex items-center gap-2">
-                    Dolores, lesiones o molestias (separadas por comas)
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                      className="h-4 w-4 opacity-70"
-                    >
-                      <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm1.971-6.279-.675.693A3.375 3.375 0 0 0 12.75 14.25h-1.5a4.875 4.875 0 0 1 1.425-3.45l.93-.936a1.875 1.875 0 1 0-3.195-1.326h-1.5a3.375 3.375 0 1 1 6.03 1.283Z" />
-                    </svg>
-                  </span>
-                  <input
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
-                    value={doloresLesionesTexto}
-                    onChange={(e) => setDoloresLesionesTexto(e.target.value)}
-                    onBlur={(e) => {
-                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      setDatosEdicion({ ...datosEdicion, doloresLesiones: array });
-                    }}
-                    placeholder="ej: rodilla derecha, zona lumbar, hombro izquierdo"
-                  />
-                  <p className="text-xs opacity-60 mt-1">
-                    Ajustamos el entrenamiento para cuidar estas zonas y recomendar movilidad o precalentamientos específicos.
-                  </p>
-                </label>
-                <label className="flex items-start gap-3 md:col-span-2">
-                  <input
-                    type="checkbox"
-                    className="mt-1 h-4 w-4"
-                    checked={!!((datosEdicion as unknown as Record<string, unknown>).preferirRutina)}
-                    onChange={(e) => setDatosEdicion({ ...datosEdicion, preferirRutina: e.target.checked } as unknown as UserInput)}
-                  />
-                  <span className="text-sm opacity-80">
-                    Mantener comidas rutinarias (poca variación entre días)
-                    <span className="block text-xs opacity-60 mt-0.5">
-                      Repetir comidas facilita el seguimiento (p. ej., papa en déficit o pasta en volumen). Podés cambiarlo cuando quieras.
-                    </span>
-                  </span>
-                </label>
-      </div>
-              
-              <div className="flex gap-3 mt-6 justify-end">
-            <button
-                  className="rounded-xl px-6 py-2 text-sm font-medium bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
-                  onClick={() => setModalAbierto(false)}
-                >
-                  Cancelar
-            </button>
-            <button
-                  className="rounded-xl px-6 py-2 text-sm font-medium bg-blue-500/20 border border-blue-500/30 hover:bg-blue-500/30 transition-colors"
-                  onClick={async () => {
-                    if (!datosEdicion) return;
-                    setModalAbierto(false);
-                    setRegenerandoPlan(true);
-                    setErrorRegeneracion(null);
-                    
-                    try {
-                      if (!user) {
-                        throw new Error("No hay datos de usuario disponibles");
-                      }
-                      
-                      // Procesar los arrays de preferencias, restricciones y patologías
-                      const preferenciasArray = preferenciasTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      const restriccionesArray = restriccionesTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      const patologiasArray = patologiasTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      const doloresLesionesArray = doloresLesionesTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      
-                      const bmi = calculateBMI(datosEdicion.pesoKg, datosEdicion.alturaCm);
-                      const nuevasSugerencias = sugerirEntrenamiento(
-                        user.objetivo, // Usar el objetivo original del usuario
-                        user.intensidad, // Usar la intensidad original del usuario
-                        datosEdicion.edad,
-                        bmi,
-                        datosEdicion.atletico
-                      );
-                      
-                      const userActualizado = {
-                        ...user, // Mantener todos los datos originales (objetivo, intensidad, tipoDieta)
-                        ...datosEdicion, // Aplicar cambios de datos básicos
-                        preferencias: preferenciasArray,
-                        restricciones: restriccionesArray,
-                        patologias: patologiasArray,
-                        doloresLesiones: doloresLesionesArray,
-                        diasGym: nuevasSugerencias.diasGym,
-                        diasCardio: Math.ceil(nuevasSugerencias.minutosCaminata / (nuevasSugerencias.minutosCaminata > 45 ? 60 : nuevasSugerencias.minutosCaminata > 30 ? 45 : 30))
-                      };
-                      
-                      const resp = await fetch("/api/generatePlan", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(userActualizado),
-                      });
-                      
-                      if (!resp.ok) {
-                        const data = await resp.json().catch(() => null);
-                        const combined = data?.error && data?.detail ? `${data.error}: ${data.detail}` : (data?.error || data?.detail);
-                        const msg = combined || `No se pudo generar el plan (HTTP ${resp.status})`;
-                        throw new Error(msg);
-                      }
-                      
-                      const nuevoPlan = await resp.json();
-                      
-                      // Mostrar objeto de debug en consola del navegador
-                      if (nuevoPlan._debug_training_plan) {
-                        console.log("=".repeat(80));
-                        console.log("📊 DEBUG: DATOS USADOS PARA GENERAR TRAINING_PLAN (EDITADO)");
-                        console.log("=".repeat(80));
-                        console.log(nuevoPlan._debug_training_plan);
-                        console.log("=".repeat(80));
-                        // También exponerlo globalmente para fácil acceso
-                        (window as unknown as { __TRAINING_PLAN_DEBUG__?: unknown }).__TRAINING_PLAN_DEBUG__ = nuevoPlan._debug_training_plan;
-                        console.log("💡 También disponible en: window.__TRAINING_PLAN_DEBUG__");
-                      }
-                      
-                      setUser(userActualizado);
-                      setPlan(nuevoPlan);
-                      
-                      // Guardar o actualizar en Firestore
-                      try {
-                        const auth = getAuthSafe();
-                        const db = await import("@/lib/firebase").then(m => m.getDbSafe());
-                        
-                        if (auth?.currentUser && db) {
-                          const { collection, doc, updateDoc, addDoc, setDoc, getDoc, serverTimestamp } = await import("firebase/firestore");
-                          
-                          // Actualizar perfil del usuario en la colección "usuarios"
-                          try {
-                            const userRef = doc(db, "usuarios", auth.currentUser.uid);
-                            const userDoc = await getDoc(userRef);
-                            
-                            // Obtener el email del usuario autenticado
-                            const userEmail = auth.currentUser?.email?.toLowerCase() || "";
-                            
-                            const userProfileData: Record<string, unknown> = {
-                              nombre: userActualizado.nombre,
-                              sexo: userActualizado.sexo,
-                              alturaCm: userActualizado.alturaCm,
-                              edad: userActualizado.edad,
-                              peso: userActualizado.pesoKg, // Guardar peso del usuario
-                              objetivo: userActualizado.objetivo, // Guardar objetivo
-                              atletico: Boolean(userActualizado.atletico), // Guardar perfil atlético
-                              doloresLesiones: Array.isArray(userActualizado.doloresLesiones) ? userActualizado.doloresLesiones : [],
-                              updatedAt: serverTimestamp(),
-                            };
-                            
-                            // Agregar tipoDieta solo si tiene valor (no undefined)
-                            if (userActualizado.tipoDieta !== undefined && userActualizado.tipoDieta !== null) {
-                              userProfileData.tipoDieta = userActualizado.tipoDieta;
-                            }
-                            
-                            // Asegurar que email y premium estén presentes
-                            if (!userDoc.exists() || !userDoc.data()?.email) {
-                              userProfileData.email = userEmail;
-                            }
-                            if (!userDoc.exists() || userDoc.data()?.premium === undefined) {
-                              userProfileData.premium = false;
-                            }
-                            
-                            // Agregar medidas opcionales si existen y tienen valores válidos
-                            if (userActualizado.cinturaCm !== undefined && userActualizado.cinturaCm !== null && userActualizado.cinturaCm !== 0) {
-                              userProfileData.cinturaCm = Number(userActualizado.cinturaCm);
-                            }
-                            if (userActualizado.cuelloCm !== undefined && userActualizado.cuelloCm !== null && userActualizado.cuelloCm !== 0) {
-                              userProfileData.cuelloCm = Number(userActualizado.cuelloCm);
-                            }
-                            if (userActualizado.caderaCm !== undefined && userActualizado.caderaCm !== null && userActualizado.caderaCm !== 0) {
-                              userProfileData.caderaCm = Number(userActualizado.caderaCm);
-                            }
-                            
-                            // Limpiar campos undefined antes de guardar
-                            const cleanUserProfileData = Object.fromEntries(
-                              Object.entries(userProfileData).filter(([, v]) => v !== undefined && v !== null)
-                            );
-                            
-                            if (!userDoc.exists()) {
-                              await setDoc(userRef, {
-                                ...cleanUserProfileData,
-                                createdAt: serverTimestamp(),
-                                email: userEmail,
-                                premium: false,
-                              });
-                            } else {
-                              await setDoc(userRef, cleanUserProfileData, { merge: true });
-                            }
-                            console.log("✅ Perfil del usuario actualizado en Firestore (incluye peso)");
-                          } catch (profileError) {
-                            console.error("Error al actualizar perfil del usuario:", profileError);
-                            // No bloqueamos el flujo si falla guardar el perfil
-                          }
-                          
-                          // Limpiar datos: eliminar campos undefined y null
-                          const cleanUser = Object.fromEntries(
-                            Object.entries(userActualizado).filter(([, v]) => v !== undefined && v !== null)
-                          );
-                          
-                          const cleanPlan = JSON.parse(JSON.stringify({ plan: nuevoPlan, user: cleanUser }));
-                          
-                          if (planId) {
-                            // Actualizar plan existente
-                            const planRef = doc(db, "planes", planId);
-                            await updateDoc(planRef, {
-                              plan: cleanPlan,
-                              updatedAt: serverTimestamp(),
-                            });
-                            console.log("Plan actualizado en Firestore desde modal:", planId);
-                          } else {
-                            // Crear nuevo plan (si no tiene ID, es un plan nuevo)
-                            const docRef = await addDoc(collection(db, "planes"), {
-                              userId: auth.currentUser.uid,
-                              plan: cleanPlan,
-                              createdAt: serverTimestamp(),
-                            });
-                            console.log("Plan guardado en Firestore desde modal:", docRef.id);
-                          }
-                        }
-                      } catch (saveError) {
-                        console.error("Error al guardar plan actualizado desde modal:", saveError);
-                        // No bloqueamos el flujo si falla guardar
-                      }
-                      
-                      setValoresOriginales({
-                        objetivo: userActualizado.objetivo,
-                        intensidad: userActualizado.intensidad,
-                        tipoDieta: userActualizado.tipoDieta,
-                      });
-                      setDiasGymEditado(null);
-                      setMinutosCaminataEditado(null);
-                      setHorasSuenoEditado(null);
-                    } catch (err: unknown) {
-                      const message = err instanceof Error ? err.message : "Ocurrió un error";
-                      setErrorRegeneracion(message);
-                      console.error("Error al regenerar plan:", err);
-                    } finally {
-                      setRegenerandoPlan(false);
-                    }
-                  }}
-                >
-                  Aceptar
-            </button>
-          </div>
-        </motion.div>
-          </motion.div>
-        )}
-        </AnimatePresence>
-
-        {/* Modal de carga - Regenerando plan */}
-        <AnimatePresence>
-          {regenerandoPlan && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"
-            >
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                className="glass rounded-2xl p-8 max-w-md w-full text-center"
-              >
-                <div className="mb-4">
-                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-500/20 mb-4">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-      </div>
-                  <h3 className="text-xl font-semibold mb-2">Regenerando plan</h3>
-                  <p className="text-sm opacity-70">
-                    Estamos generando tu nuevo plan personalizado con IA...
-                  </p>
-                </div>
-                {errorRegeneracion && (
-                  <div className="mt-4 p-3 rounded-lg bg-red-500/20 border border-red-500/30 text-red-300 text-sm">
-                    {errorRegeneracion}
-                  </div>
-                )}
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Modal de información (tooltips) */}
-        <AnimatePresence>
-          {modalInfoAbierto && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-4"
-              onClick={() => setModalInfoAbierto(null)}
-            >
-              <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" />
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                className="relative z-10 w-full max-w-md rounded-xl border border-white/10 bg-black/95 p-6 shadow-2xl"
-                onClick={(e) => e.stopPropagation()}
-              >
-            <button
-                  onClick={() => setModalInfoAbierto(null)}
-                  className="absolute right-4 top-4 text-white/70 hover:text-white transition-colors"
-                  aria-label="Cerrar"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="h-5 w-5"
-                  >
-                    <path d="M18 6L6 18M6 6l12 12" />
-                  </svg>
-            </button>
-                <h3 className="text-lg font-semibold mb-4">
-                  {modalInfoAbierto === 'imc' && '¿Qué es el IMC?'}
-                  {modalInfoAbierto === 'macros' && '¿Qué son los macronutrientes?'}
-                  {modalInfoAbierto === 'sueno' && '¿Cómo contar las horas de sueño?'}
-                  {modalInfoAbierto === 'dificultad' && '¿Qué implica la dificultad del plan?'}
-                  {modalInfoAbierto === 'split' && '¿Qué es la división de entrenamiento?'}
-                </h3>
-                <div className="text-sm opacity-90 leading-relaxed space-y-2">
-                  {modalInfoAbierto === 'imc' && (
-                    <p>El Índice de Masa Corporal (IMC) relaciona peso y altura. Es una guía general y no sustituye evaluación clínica.</p>
-                  )}
-                  {modalInfoAbierto === 'macros' && (
-                    <p>Los macronutrientes son proteínas, grasas y carbohidratos. Tu plan reparte las calorías diarias entre ellos para apoyar tu objetivo.</p>
-                  )}
-                  {modalInfoAbierto === 'sueno' && (
-                    <>
-                      <p>Tu objetivo actual: <strong>{typeof horasSuenoActual === 'number' ? horasSuenoActual : (sugerenciaEntrenamiento?.horasSueno ?? 8)}</strong> h por noche.</p>
-                      <p className="opacity-90">Las siestas suman al total diario, pero ideal que sean cortas (20–30 min) y no muy tarde para no afectar el sueño nocturno.</p>
-                    </>
-                  )}
-                  {modalInfoAbierto === 'dificultad' && (
-                    (() => {
-                      const cambios = (plan as unknown as Record<string, unknown>)?.cambios_semanales as Record<string, unknown> | undefined;
-                      const fallback = {
-                        semana1: 'Adaptación: posible fatiga suave y cambios en el apetito. Enfocá en técnica y rutina.',
-                        semana2: 'Mejora de energía y rendimiento. Hambre más estable. El buen descanso acelera la adaptación.',
-                        semana3_4: 'Progreso visible: fuerza/resistencia mejoran; cintura y peso empiezan a reflejar el objetivo.',
-                        post_mes: 'Consolidación de hábitos y ajustes finos para seguir progresando.',
-                        fisiologia: [
-                          'Mejor sensibilidad a la insulina y control de glucosa',
-                          'Adaptaciones musculares (reclutamiento y eficiencia neuromuscular)',
-                          `${user?.objetivo === 'perder_grasa' || user?.objetivo === 'corte' ? 'Déficit calórico → reducción de grasa' : user?.objetivo === 'ganar_masa' || user?.objetivo === 'volumen' ? 'Superávit calórico → síntesis muscular' : 'Balance energético optimizado'}`,
-                          `Recuperación mejorada con ${typeof horasSuenoActual === 'number' ? horasSuenoActual : (sugerenciaEntrenamiento?.horasSueno ?? 8)} h de sueño`
-                        ]
-                      };
-                      return (
-                        <>
-                          <p>
-                            Tu plan está marcado como <strong className="capitalize">{String((plan as unknown as Record<string, unknown>)?.dificultad || 'media')}</strong>
-                            {(plan as unknown as Record<string, unknown>)?.dificultad_detalle ? ` — ${String((plan as unknown as Record<string, unknown>).dificultad_detalle)}` : ''}.
-                          </p>
-                          <p className="mt-2 font-medium">¿Qué vas a sentir:</p>
-                          <ul className="list-disc pl-5 space-y-1">
-                            <li><strong>Semana 1:</strong> {String(cambios?.semana1 || fallback.semana1)}</li>
-                            <li><strong>Semana 2:</strong> {String(cambios?.semana2 || fallback.semana2)}</li>
-                            <li><strong>Semana 3-4:</strong> {String(cambios?.semana3_4 || fallback.semana3_4)}</li>
-                            <li><strong>Después del mes:</strong> {String(cambios?.post_mes || fallback.post_mes)}</li>
-                          </ul>
-                          <p className="mt-2 font-medium">¿Qué cambios pasan en tu cuerpo:</p>
-                          <ul className="list-disc pl-5 space-y-1">
-                            {(Array.isArray(cambios?.fisiologia) ? cambios.fisiologia : fallback.fisiologia).map((t: string, i: number) => (
-                              <li key={`fisio-${i}`}>{t}</li>
-                            ))}
-                          </ul>
-                        </>
-                      );
-                    })()
-                  )}
-                  {modalInfoAbierto === 'split' && (
-                    <>
-                      <p>La división de entrenamiento describe cómo se reparten los grupos musculares a lo largo de la semana:</p>
-                      <ul className="list-disc pl-5 space-y-1">
-                        <li><strong>Full Body</strong>: todo el cuerpo en cada sesión. Ideal para 2–3 días/sem.</li>
-                        <li><strong>Upper/Lower</strong>: tren superior y tren inferior alternados. 4 días/sem típicos.</li>
-                        <li><strong>Push/Pull/Legs</strong>: empuje, tirón y piernas. 3–6 días/sem según volumen.</li>
-                        <li><strong>Mixto</strong>: combinación adaptada a tu objetivo, intensidad y disponibilidad.</li>
-                      </ul>
-                      <p className="opacity-90">Tu plan actual: <strong>{splitResumen}</strong>. Esto se ajusta a tus <em>días de gym</em>, intensidad y objetivo para optimizar progreso y recuperación.</p>
-                    </>
-                  )}
-          </div>
-        </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Modal de Plan de Entrenamiento */}
-        <AnimatePresence>
-          {modalEntrenamientoAbierto && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-              onClick={() => setModalEntrenamientoAbierto(false)}
-            >
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                onClick={(e) => e.stopPropagation()}
-                className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl border border-white/10 p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
-              >
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <h2 className="text-2xl font-bold">🏋️ Plan de Entrenamiento</h2>
-                    {splitResumen && (
-                      <span className="text-sm px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-medium">
-                        {splitResumen}
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => setModalEntrenamientoAbierto(false)}
-                    className="text-white/70 hover:text-white transition-colors"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-
-                {/* Botones de semanas */}
-                <div className="flex gap-2 mb-6 flex-wrap">
-                  {[1, 2, 3, 4].map((semana) => (
-                    <button
-                      key={semana}
-                      onClick={() => setSemanaSeleccionada(semana)}
-                      className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                        semanaSeleccionada === semana
-                          ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white'
-                          : 'bg-white/10 text-white/70 hover:bg-white/20'
-                      }`}
-                    >
-                      Semana {semana}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Contenido de la semana seleccionada */}
-                {(() => {
-                  const tp = (plan as unknown as Record<string, unknown>)?.training_plan as TrainingPlan | undefined;
-                  const weeks = tp?.weeks || [];
-                  const semanaActual = weeks.find((w) => (w.week ?? 1) === semanaSeleccionada) || weeks[semanaSeleccionada - 1];
-                  
-                  if (!semanaActual) {
-                    return (
-                      <div className="text-center py-8 text-white/70">
-                        <p>No hay datos de entrenamiento para la Semana {semanaSeleccionada}</p>
-    </div>
-  );
-                  }
-
-                  return (
-                    <div className="space-y-4">
-                      <h3 className="text-lg font-semibold text-cyan-400 mb-4">
-                        Semana {semanaActual.week ?? semanaSeleccionada}
-                      </h3>
-                      {(semanaActual.days || []).map((dia: TrainingDay, di: number) => {
-                        // Función para determinar qué músculos se trabajan en este día
-                        const getMusculosDelDia = (): string | null => {
-                          const tp = (plan as unknown as Record<string, unknown>)?.training_plan as TrainingPlan | undefined;
-                          const splitGeneral = (tp as unknown as Record<string, unknown>)?.split as string | undefined;
-                          
-                          // Si el día tiene un split específico, usarlo
-                          if (dia.split) {
-                            const splitLower = dia.split.toLowerCase();
-                            
-                            // Si es Full Body, mostrar "Full Body"
-                            if (splitLower.includes("full body")) {
-                              return "Full Body";
-                            }
-                            
-                            // Mapear splits comunes a músculos
-                            if (splitLower.includes("push")) {
-                              return "Pecho, Hombros, Tríceps";
-                            } else if (splitLower.includes("pull")) {
-                              return "Espalda, Bíceps, Trapecio";
-                            } else if (splitLower.includes("legs") || splitLower.includes("piernas")) {
-                              return "Cuádriceps, Isquiotibiales, Glúteos, Gemelos";
-                            } else if (splitLower.includes("upper")) {
-                              return "Pecho, Espalda, Hombros, Bíceps, Tríceps";
-                            } else if (splitLower.includes("lower")) {
-                              return "Cuádriceps, Isquiotibiales, Glúteos, Gemelos, Abdominales";
-                            } else if (splitLower.includes("chest") || splitLower.includes("pecho")) {
-                              return "Pecho, Tríceps";
-                            } else if (splitLower.includes("back") || splitLower.includes("espalda")) {
-                              return "Espalda, Bíceps";
-                            } else if (splitLower.includes("shoulders") || splitLower.includes("hombros")) {
-                              return "Hombros, Trapecio";
-                            }
-                          }
-                          
-                          // Si el split general es Full Body, mostrar "Full Body"
-                          if (splitGeneral === "Full Body" || splitGeneral?.toLowerCase().includes("full body")) {
-                            return "Full Body";
-                          }
-                          
-                          // Si no hay split específico, analizar los muscle_group de los ejercicios
-                          if (dia.ejercicios && dia.ejercicios.length > 0) {
-                            const muscleGroups = new Set<string>();
-                            dia.ejercicios.forEach(ej => {
-                              if (ej.muscle_group) {
-                                muscleGroups.add(ej.muscle_group);
-                              }
-                            });
-                            
-                            // Si hay 4 o más músculos diferentes, probablemente es Full Body
-                            if (muscleGroups.size >= 4) {
-                              return "Full Body";
-                            }
-                            
-                            // Devolver los músculos únicos encontrados
-                            if (muscleGroups.size > 0) {
-                              return Array.from(muscleGroups).join(", ");
-                            }
-                          }
-                          
-                          return null;
-                        };
-                        
-                        const musculos = getMusculosDelDia();
-                        
-                        return (
-                        <div key={`dia-${semanaSeleccionada}-${di}`} className="rounded-lg border border-white/10 bg-white/5 p-4">
-                          <h4 className="text-base font-semibold mb-3 text-white">
-                            {dia.day}
-                            {musculos && (
-                              <span className="text-sm font-normal opacity-70 ml-2">({musculos})</span>
-                            )}
-                          </h4>
-                          
-                          {/* Calentamiento */}
-                          {dia.warmup && (
-                            <div className="mb-4 p-3 rounded-md bg-gradient-to-r from-orange-500/20 to-yellow-500/20 border border-orange-500/30">
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className="text-sm font-semibold text-orange-300">🔥 Calentamiento</span>
-                                <span className="text-xs opacity-70">({dia.warmup.duration_minutes} min)</span>
-                              </div>
-                              <p className="text-sm opacity-90 leading-relaxed">{dia.warmup.description}</p>
-                            </div>
-                          )}
-                          
-                          {(dia.ejercicios || []).length > 0 ? (
-                            <ul className="space-y-3">
-                              {(dia.ejercicios || []).map((ejercicio: TrainingExercise, ei: number) => {
-                                const restTime = ejercicio.rest_seconds || ejercicio.rest_sec;
-                                return (
-                                  <li key={`ej-${semanaSeleccionada}-${di}-${ei}`} className="rounded-lg bg-white/5 border border-white/10 p-3">
-                                    <div className="flex-1">
-                                      {/* Header del ejercicio */}
-                                      <div className="flex items-start justify-between gap-2 mb-2">
-                                        <div className="flex-1">
-                                          <div className="flex items-center gap-2 flex-wrap mb-1">
-                                            <span className="font-semibold text-white">{ejercicio.name}</span>
-                                            <span className="text-sm opacity-70">· {ejercicio.sets}x{String(ejercicio.reps)}</span>
-                                            {ejercicio.muscle_group && (
-                                              <span className="text-xs px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-                                                {ejercicio.muscle_group}
-                                              </span>
-                                            )}
-                                          </div>
-                                          {/* Detalles técnicos compactos */}
-                                          <div className="flex items-center gap-3 flex-wrap text-xs opacity-80">
-                                            {ejercicio.rpe && (
-                                              <span className="flex items-center gap-1">
-                                                <span className="opacity-60">RPE:</span>
-                                                <span className="font-medium">{ejercicio.rpe}/10</span>
-                                              </span>
-                                            )}
-                                            {ejercicio.tempo && (
-                                              <span className="flex items-center gap-1">
-                                                <span className="opacity-60">Tempo:</span>
-                                                <span className="font-medium">{ejercicio.tempo}</span>
-                                              </span>
-                                            )}
-                                            {restTime && (
-                                              <span className="flex items-center gap-1">
-                                                <span className="opacity-60">Descanso:</span>
-                                                <span className="font-medium">{restTime}s</span>
-                                              </span>
-                                            )}
-                                          </div>
-                                        </div>
-                                      </div>
-                                      
-                                      {/* Técnica (expandible) */}
-                                      {ejercicio.technique && (
-                                        <details className="mt-2">
-                                          <summary className="text-xs font-medium text-cyan-300 cursor-pointer hover:text-cyan-200">
-                                            💡 Técnica
-                                          </summary>
-                                          <p className="mt-1 text-xs opacity-90 leading-relaxed pl-2 border-l-2 border-cyan-500/30">
-                                            {ejercicio.technique}
-                                          </p>
-                                        </details>
-                                      )}
-                                      
-                                      {/* Progresión */}
-                                      {ejercicio.progression && (
-                                        <details className="mt-2">
-                                          <summary className="text-xs font-medium text-yellow-300 cursor-pointer hover:text-yellow-200">
-                                            📈 Progresión
-                                          </summary>
-                                          <p className="mt-1 text-xs opacity-90 leading-relaxed pl-2 border-l-2 border-yellow-500/30">
-                                            {ejercicio.progression}
-                                          </p>
-                                        </details>
-                                      )}
-                                      
-                                      {/* Cues mentales */}
-                                      {ejercicio.cues && ejercicio.cues.length > 0 && (
-                                        <div className="mt-2">
-                                          <p className="text-xs font-medium text-purple-300 mb-1">🎯 Pistas mentales:</p>
-                                          <ul className="list-disc pl-4 space-y-0.5">
-                                            {ejercicio.cues.map((cue, cueIdx) => (
-                                              <li key={`cue-${ei}-${cueIdx}`} className="text-xs opacity-90">{cue}</li>
-                                            ))}
-                                          </ul>
-                                        </div>
-                                      )}
-                                      
-                                      {/* Alternativa (si hay lesión) */}
-                                      {ejercicio.alternative && (
-                                        <div className="mt-2 p-2 rounded bg-orange-500/10 border border-orange-500/30">
-                                          <p className="text-xs font-medium text-orange-300 mb-1">⚠️ Alternativa (si tienes lesión):</p>
-                                          <p className="text-xs opacity-90">{ejercicio.alternative}</p>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </li>
-                                );
-                              })}
-                            </ul>
-                          ) : (
-                            <p className="text-sm text-white/50">No hay ejercicios registrados para este día</p>
-                          )}
-                        </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* Modal de selección de plan premium */}
-      {premiumModalOpen && authUser && (
-        <PremiumPlanModal
-          isOpen={premiumModalOpen}
-          onClose={() => setPremiumModalOpen(false)}
-          userId={authUser.uid}
-          userEmail={authUser.email || ""}
-        />
-      )}
-
-      {/* Modal de Continuidad de Plan (solo para planes simples) */}
-      {continuityModalOpen && authUser && user && plan && planId && !planMultiFase && (
-        <PlanContinuityModal
-          isOpen={continuityModalOpen}
-          onClose={() => setContinuityModalOpen(false)}
-          planData={{
-            id: planId,
-            plan: plan,
-            user: user,
-            createdAt: new Date(), // La fecha real se carga desde Firestore dentro del modal
-          }}
-          registrosPeso={registrosPeso}
-          userId={authUser.uid}
-        />
-      )}
-
-      {/* Modal de registro de comida fuera del plan */}
-      <FoodTrackingModal
-        isOpen={foodTrackingModalOpen}
-        onClose={() => setFoodTrackingModalOpen(false)}
-        planCalories={plan?.calorias_diarias || 2000}
-        userObjective={user?.objetivo}
-        planId={planId || undefined}
-        userId={authUser?.uid || undefined}
-      />
-
-      {/* Modal de estadísticas semanales */}
-      {planId && (
-        <WeeklyStatsModal
-          isOpen={weeklyStatsModalOpen}
-          onClose={() => setWeeklyStatsModalOpen(false)}
-          planId={planId}
-          userId={authUser?.uid || undefined}
-        />
-      )}
-
-      {/* Modal de información del IMC - se muestra la primera vez que el usuario ve su plan */}
-      {user && (
-        <IMCInfoModal
-          isOpen={imcModalOpen}
-          onClose={() => setImcModalOpen(false)}
-          imc={bmi}
-          pesoActual={user.pesoKg}
-          alturaCm={user.alturaCm}
-          objetivo={user.objetivo}
-          intensidad={user.intensidad}
-          sexo={user.sexo}
-        />
-      )}
-      
-      {/* Modal de Generar Siguiente Mes */}
-      <AnimatePresence>
-        {modalSiguienteMesAbierto && planMultiFase && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => !generandoSiguienteMes && setModalSiguienteMesAbierto(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-slate-900 border border-white/10 rounded-2xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold">
-                  🚀 Generar Mes {planMultiFase.mesActual + 1}
-                </h2>
-                <button
-                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                  onClick={() => !generandoSiguienteMes && setModalSiguienteMesAbierto(false)}
-                  disabled={generandoSiguienteMes}
-                >
-                  ✕
-                </button>
-              </div>
-              
-              <p className="text-sm opacity-70 mb-4">
-                Ingresá tus datos actuales para generar el plan del próximo mes con ajustes personalizados.
-              </p>
-              
-              {/* Info de fase actual */}
-              <div className={`mb-4 p-3 rounded-xl ${
-                planMultiFase.faseActual === "BULK" 
-                  ? "bg-amber-500/10 border border-amber-500/20" 
-                  : planMultiFase.faseActual === "CUT"
-                  ? "bg-cyan-500/10 border border-cyan-500/20"
-                  : "bg-emerald-500/10 border border-emerald-500/20"
-              }`}>
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="font-semibold">Fase actual: {planMultiFase.faseActual}</span>
-                  <span className="opacity-70">• Mes {planMultiFase.mesActual} de {planMultiFase.totalMeses}</span>
-                </div>
-                <p className="text-xs opacity-70 mt-1">
-                  {(() => {
-                    const infoFase = obtenerInfoFaseActual(planMultiFase);
-                    return infoFase.fase?.descripcion || "";
-                  })()}
-                </p>
-              </div>
-              
-              <div className="space-y-4">
-                {/* Peso Actual (OBLIGATORIO) */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Peso Actual (kg) <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                    value={datosSiguienteMes.pesoActual || ""}
-                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, pesoActual: parseFloat(e.target.value) || 0 }))}
-                    placeholder="Ej: 82.5"
-                  />
-                  {planMultiFase.historialMeses[planMultiFase.mesActual - 1] && (
-                    <p className="text-xs opacity-50 mt-1">
-                      Peso al iniciar este mes: {planMultiFase.historialMeses[planMultiFase.mesActual - 1].datosAlIniciar.peso} kg
-                    </p>
-                  )}
-                </div>
-                
-                {/* Cintura Actual (Opcional) */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">Cintura Actual (cm) <span className="text-xs opacity-50">(opcional)</span></label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                    value={datosSiguienteMes.cinturaActual || ""}
-                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, cinturaActual: parseFloat(e.target.value) || 0 }))}
-                    placeholder="Ej: 84"
-                  />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Energía */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Energía</label>
-                    <select
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                      value={datosSiguienteMes.energia}
-                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, energia: e.target.value as typeof prev.energia }))}
-                    >
-                      <option value="muy_baja">😴 Muy baja</option>
-                      <option value="baja">😕 Baja</option>
-                      <option value="normal">😊 Normal</option>
-                      <option value="alta">💪 Alta</option>
-                      <option value="muy_alta">🔥 Muy alta</option>
-                    </select>
-                  </div>
-                  
-                  {/* Recuperación */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Recuperación</label>
-                    <select
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                      value={datosSiguienteMes.recuperacion}
-                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, recuperacion: e.target.value as typeof prev.recuperacion }))}
-                    >
-                      <option value="mala">😓 Mala</option>
-                      <option value="regular">😐 Regular</option>
-                      <option value="normal">😊 Normal</option>
-                      <option value="buena">💪 Buena</option>
-                      <option value="excelente">🌟 Excelente</option>
-                    </select>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Adherencia Comida */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Adherencia Alimentación</label>
-                    <select
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                      value={datosSiguienteMes.adherenciaComida}
-                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, adherenciaComida: e.target.value as typeof prev.adherenciaComida }))}
-                    >
-                      <option value="<50%">{"<50%"} - Muy baja</option>
-                      <option value="50-70%">50-70% - Regular</option>
-                      <option value="70-80%">70-80% - Buena</option>
-                      <option value=">80%">{">80%"} - Excelente</option>
-                    </select>
-                  </div>
-                  
-                  {/* Adherencia Entreno */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Adherencia Entreno</label>
-                    <select
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                      value={datosSiguienteMes.adherenciaEntreno}
-                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, adherenciaEntreno: e.target.value as typeof prev.adherenciaEntreno }))}
-                    >
-                      <option value="<50%">{"<50%"} - Muy baja</option>
-                      <option value="50-70%">50-70% - Regular</option>
-                      <option value="70-80%">70-80% - Buena</option>
-                      <option value=">80%">{">80%"} - Excelente</option>
-                    </select>
-                  </div>
-                </div>
-                
-                {/* Lesiones nuevas */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">Lesiones o molestias nuevas <span className="text-xs opacity-50">(opcional)</span></label>
-                  <input
-                    type="text"
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                    value={datosSiguienteMes.lesionesNuevas}
-                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, lesionesNuevas: e.target.value }))}
-                    placeholder="Ej: Dolor en hombro derecho, molestia en rodilla..."
-                  />
-                </div>
-                
-                {/* Comentarios */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">Ajustes o comentarios <span className="text-xs opacity-50">(opcional)</span></label>
-                  <textarea
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30 resize-none"
-                    rows={2}
-                    value={datosSiguienteMes.comentarios}
-                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, comentarios: e.target.value }))}
-                    placeholder="Ej: Quisiera más variedad en desayunos, menos cardio..."
-                  />
-                </div>
-              </div>
-              
-              {errorSiguienteMes && (
-                <div className="mt-4 p-3 rounded-xl bg-red-500/20 border border-red-500/30 text-red-200 text-sm">
-                  {errorSiguienteMes}
-                </div>
-              )}
-              
-              <div className="flex gap-3 mt-6">
-                <button
-                  className="flex-1 rounded-xl px-4 py-3 bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
-                  onClick={() => setModalSiguienteMesAbierto(false)}
-                  disabled={generandoSiguienteMes}
-                >
-                  Cancelar
-                </button>
-                <button
-                  className={`flex-1 rounded-xl px-4 py-3 font-medium transition-colors disabled:opacity-50 ${
-                    planMultiFase.faseActual === "BULK" 
-                      ? "bg-amber-500/20 border border-amber-500/30 hover:bg-amber-500/30 text-amber-200" 
-                      : planMultiFase.faseActual === "CUT"
-                      ? "bg-cyan-500/20 border border-cyan-500/30 hover:bg-cyan-500/30 text-cyan-200"
-                      : "bg-emerald-500/20 border border-emerald-500/30 hover:bg-emerald-500/30 text-emerald-200"
-                  }`}
-                  onClick={handleGenerarSiguienteMes}
-                  disabled={!datosSiguienteMes.pesoActual || generandoSiguienteMes}
-                >
-                  {generandoSiguienteMes ? "⏳ Generando..." : "🚀 Generar Siguiente Mes"}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-function FetchDetails({ k, dish, onLoaded, onError }: { k: string; dish: string; onLoaded: (p: { ingredientes?: string[]; pasos_preparacion?: string[] }) => void; onError: (msg: string) => void }) {
-  const { user } = usePlanStore();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const resp = await fetch('/api/mealDetails', { 
-          method: 'POST', 
-          headers: { 'Content-Type': 'application/json' }, 
-          body: JSON.stringify({ 
-            dish,
-            tipoDieta: user?.tipoDieta,
-            restricciones: user?.restricciones,
-            preferencias: user?.preferencias,
-            patologias: user?.patologias
-          }) 
-        });
-        if (!resp.ok) {
-          const data = await resp.json().catch(() => null);
-          throw new Error(data?.error || `HTTP ${resp.status}`);
-        }
-        const data = await resp.json();
-        if (!cancelled) {
-          onLoaded({ ingredientes: data.ingredientes, pasos_preparacion: data.pasos_preparacion });
-          setLoading(false);
-        }
-      } catch (e: unknown) {
-        if (!cancelled) {
-          const msg = e instanceof Error ? e.message : 'Error';
-          setError(msg);
-          onError(msg);
-          setLoading(false);
-        }
-      }
-    })();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dish, k, user?.tipoDieta, user?.restricciones, user?.preferencias, user?.patologias]);
-
-  if (loading) return <p className="text-xs opacity-70">Cargando detalles…</p>;
-  if (error) return <p className="text-xs text-red-300">{String(error)}</p>;
-  return null;
-}
-
-
-                    Perfil atlético
-                  </span>
-                </label>
-                <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80">Preferencias (separadas por comas)</span>
-                  <input
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
-                    value={preferenciasTexto}
-                    onChange={(e) => setPreferenciasTexto(e.target.value)}
-                    onBlur={(e) => {
-                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      setDatosEdicion({ ...datosEdicion, preferencias: array });
-                    }}
-                    placeholder="ej: pollo, avena, salmón"
-                  />
-                </label>
-                <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80">Restricciones (separadas por comas)</span>
-                  <input
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
-                    value={restriccionesTexto}
-                    onChange={(e) => setRestriccionesTexto(e.target.value)}
-                    onBlur={(e) => {
-                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      setDatosEdicion({ ...datosEdicion, restricciones: array });
-                    }}
-                    placeholder="ej: gluten, lácteos, cerdo"
-                  />
-                </label>
-                <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80">Patologías (separadas por comas)</span>
-                  <input
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
-                    value={patologiasTexto}
-                    onChange={(e) => setPatologiasTexto(e.target.value)}
-                    onBlur={(e) => {
-                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      setDatosEdicion({ ...datosEdicion, patologias: array });
-                    }}
-                    placeholder="ej: hígado graso, intolerancia a la lactosa, diabetes tipo 2"
-                  />
-                  <p className="text-xs opacity-60 mt-1">
-                    Indica condiciones médicas relevantes para ajustar el plan nutricional
-                  </p>
-                </label>
-                <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80 flex items-center gap-2">
-                    Dolores, lesiones o molestias (separadas por comas)
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                      className="h-4 w-4 opacity-70"
-                    >
-                      <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm1.971-6.279-.675.693A3.375 3.375 0 0 0 12.75 14.25h-1.5a4.875 4.875 0 0 1 1.425-3.45l.93-.936a1.875 1.875 0 1 0-3.195-1.326h-1.5a3.375 3.375 0 1 1 6.03 1.283Z" />
-                    </svg>
-                  </span>
-                  <input
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
-                    value={doloresLesionesTexto}
-                    onChange={(e) => setDoloresLesionesTexto(e.target.value)}
-                    onBlur={(e) => {
-                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      setDatosEdicion({ ...datosEdicion, doloresLesiones: array });
-                    }}
-                    placeholder="ej: rodilla derecha, zona lumbar, hombro izquierdo"
-                  />
-                  <p className="text-xs opacity-60 mt-1">
-                    Ajustamos el entrenamiento para cuidar estas zonas y recomendar movilidad o precalentamientos específicos.
-                  </p>
-                </label>
-                <label className="flex items-start gap-3 md:col-span-2">
-                  <input
-                    type="checkbox"
-                    className="mt-1 h-4 w-4"
-                    checked={!!((datosEdicion as unknown as Record<string, unknown>).preferirRutina)}
-                    onChange={(e) => setDatosEdicion({ ...datosEdicion, preferirRutina: e.target.checked } as unknown as UserInput)}
-                  />
-                  <span className="text-sm opacity-80">
-                    Mantener comidas rutinarias (poca variación entre días)
-                    <span className="block text-xs opacity-60 mt-0.5">
-                      Repetir comidas facilita el seguimiento (p. ej., papa en déficit o pasta en volumen). Podés cambiarlo cuando quieras.
-                    </span>
-                  </span>
-                </label>
-      </div>
-              
-              <div className="flex gap-3 mt-6 justify-end">
-            <button
-                  className="rounded-xl px-6 py-2 text-sm font-medium bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
-                  onClick={() => setModalAbierto(false)}
-                >
-                  Cancelar
-            </button>
-            <button
-                  className="rounded-xl px-6 py-2 text-sm font-medium bg-blue-500/20 border border-blue-500/30 hover:bg-blue-500/30 transition-colors"
-                  onClick={async () => {
-                    if (!datosEdicion) return;
-                    setModalAbierto(false);
-                    setRegenerandoPlan(true);
-                    setErrorRegeneracion(null);
-                    
-                    try {
-                      if (!user) {
-                        throw new Error("No hay datos de usuario disponibles");
-                      }
-                      
-                      // Procesar los arrays de preferencias, restricciones y patologías
-                      const preferenciasArray = preferenciasTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      const restriccionesArray = restriccionesTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      const patologiasArray = patologiasTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      const doloresLesionesArray = doloresLesionesTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      
-                      const bmi = calculateBMI(datosEdicion.pesoKg, datosEdicion.alturaCm);
-                      const nuevasSugerencias = sugerirEntrenamiento(
-                        user.objetivo, // Usar el objetivo original del usuario
-                        user.intensidad, // Usar la intensidad original del usuario
-                        datosEdicion.edad,
-                        bmi,
-                        datosEdicion.atletico
-                      );
-                      
-                      const userActualizado = {
-                        ...user, // Mantener todos los datos originales (objetivo, intensidad, tipoDieta)
-                        ...datosEdicion, // Aplicar cambios de datos básicos
-                        preferencias: preferenciasArray,
-                        restricciones: restriccionesArray,
-                        patologias: patologiasArray,
-                        doloresLesiones: doloresLesionesArray,
-                        diasGym: nuevasSugerencias.diasGym,
-                        diasCardio: Math.ceil(nuevasSugerencias.minutosCaminata / (nuevasSugerencias.minutosCaminata > 45 ? 60 : nuevasSugerencias.minutosCaminata > 30 ? 45 : 30))
-                      };
-                      
-                      const resp = await fetch("/api/generatePlan", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(userActualizado),
-                      });
-                      
-                      if (!resp.ok) {
-                        const data = await resp.json().catch(() => null);
-                        const combined = data?.error && data?.detail ? `${data.error}: ${data.detail}` : (data?.error || data?.detail);
-                        const msg = combined || `No se pudo generar el plan (HTTP ${resp.status})`;
-                        throw new Error(msg);
-                      }
-                      
-                      const nuevoPlan = await resp.json();
-                      
-                      // Mostrar objeto de debug en consola del navegador
-                      if (nuevoPlan._debug_training_plan) {
-                        console.log("=".repeat(80));
-                        console.log("📊 DEBUG: DATOS USADOS PARA GENERAR TRAINING_PLAN (EDITADO)");
-                        console.log("=".repeat(80));
-                        console.log(nuevoPlan._debug_training_plan);
-                        console.log("=".repeat(80));
-                        // También exponerlo globalmente para fácil acceso
-                        (window as unknown as { __TRAINING_PLAN_DEBUG__?: unknown }).__TRAINING_PLAN_DEBUG__ = nuevoPlan._debug_training_plan;
-                        console.log("💡 También disponible en: window.__TRAINING_PLAN_DEBUG__");
-                      }
-                      
-                      setUser(userActualizado);
-                      setPlan(nuevoPlan);
-                      
-                      // Guardar o actualizar en Firestore
-                      try {
-                        const auth = getAuthSafe();
-                        const db = await import("@/lib/firebase").then(m => m.getDbSafe());
-                        
-                        if (auth?.currentUser && db) {
-                          const { collection, doc, updateDoc, addDoc, setDoc, getDoc, serverTimestamp } = await import("firebase/firestore");
-                          
-                          // Actualizar perfil del usuario en la colección "usuarios"
-                          try {
-                            const userRef = doc(db, "usuarios", auth.currentUser.uid);
-                            const userDoc = await getDoc(userRef);
-                            
-                            // Obtener el email del usuario autenticado
-                            const userEmail = auth.currentUser?.email?.toLowerCase() || "";
-                            
-                            const userProfileData: Record<string, unknown> = {
-                              nombre: userActualizado.nombre,
-                              sexo: userActualizado.sexo,
-                              alturaCm: userActualizado.alturaCm,
-                              edad: userActualizado.edad,
-                              peso: userActualizado.pesoKg, // Guardar peso del usuario
-                              objetivo: userActualizado.objetivo, // Guardar objetivo
-                              atletico: Boolean(userActualizado.atletico), // Guardar perfil atlético
-                              doloresLesiones: Array.isArray(userActualizado.doloresLesiones) ? userActualizado.doloresLesiones : [],
-                              updatedAt: serverTimestamp(),
-                            };
-                            
-                            // Agregar tipoDieta solo si tiene valor (no undefined)
-                            if (userActualizado.tipoDieta !== undefined && userActualizado.tipoDieta !== null) {
-                              userProfileData.tipoDieta = userActualizado.tipoDieta;
-                            }
-                            
-                            // Asegurar que email y premium estén presentes
-                            if (!userDoc.exists() || !userDoc.data()?.email) {
-                              userProfileData.email = userEmail;
-                            }
-                            if (!userDoc.exists() || userDoc.data()?.premium === undefined) {
-                              userProfileData.premium = false;
-                            }
-                            
-                            // Agregar medidas opcionales si existen y tienen valores válidos
-                            if (userActualizado.cinturaCm !== undefined && userActualizado.cinturaCm !== null && userActualizado.cinturaCm !== 0) {
-                              userProfileData.cinturaCm = Number(userActualizado.cinturaCm);
-                            }
-                            if (userActualizado.cuelloCm !== undefined && userActualizado.cuelloCm !== null && userActualizado.cuelloCm !== 0) {
-                              userProfileData.cuelloCm = Number(userActualizado.cuelloCm);
-                            }
-                            if (userActualizado.caderaCm !== undefined && userActualizado.caderaCm !== null && userActualizado.caderaCm !== 0) {
-                              userProfileData.caderaCm = Number(userActualizado.caderaCm);
-                            }
-                            
-                            // Limpiar campos undefined antes de guardar
-                            const cleanUserProfileData = Object.fromEntries(
-                              Object.entries(userProfileData).filter(([, v]) => v !== undefined && v !== null)
-                            );
-                            
-                            if (!userDoc.exists()) {
-                              await setDoc(userRef, {
-                                ...cleanUserProfileData,
-                                createdAt: serverTimestamp(),
-                                email: userEmail,
-                                premium: false,
-                              });
-                            } else {
-                              await setDoc(userRef, cleanUserProfileData, { merge: true });
-                            }
-                            console.log("✅ Perfil del usuario actualizado en Firestore (incluye peso)");
-                          } catch (profileError) {
-                            console.error("Error al actualizar perfil del usuario:", profileError);
-                            // No bloqueamos el flujo si falla guardar el perfil
-                          }
-                          
-                          // Limpiar datos: eliminar campos undefined y null
-                          const cleanUser = Object.fromEntries(
-                            Object.entries(userActualizado).filter(([, v]) => v !== undefined && v !== null)
-                          );
-                          
-                          const cleanPlan = JSON.parse(JSON.stringify({ plan: nuevoPlan, user: cleanUser }));
-                          
-                          if (planId) {
-                            // Actualizar plan existente
-                            const planRef = doc(db, "planes", planId);
-                            await updateDoc(planRef, {
-                              plan: cleanPlan,
-                              updatedAt: serverTimestamp(),
-                            });
-                            console.log("Plan actualizado en Firestore desde modal:", planId);
-                          } else {
-                            // Crear nuevo plan (si no tiene ID, es un plan nuevo)
-                            const docRef = await addDoc(collection(db, "planes"), {
-                              userId: auth.currentUser.uid,
-                              plan: cleanPlan,
-                              createdAt: serverTimestamp(),
-                            });
-                            console.log("Plan guardado en Firestore desde modal:", docRef.id);
-                          }
-                        }
-                      } catch (saveError) {
-                        console.error("Error al guardar plan actualizado desde modal:", saveError);
-                        // No bloqueamos el flujo si falla guardar
-                      }
-                      
-                      setValoresOriginales({
-                        objetivo: userActualizado.objetivo,
-                        intensidad: userActualizado.intensidad,
-                        tipoDieta: userActualizado.tipoDieta,
-                      });
-                      setDiasGymEditado(null);
-                      setMinutosCaminataEditado(null);
-                      setHorasSuenoEditado(null);
-                    } catch (err: unknown) {
-                      const message = err instanceof Error ? err.message : "Ocurrió un error";
-                      setErrorRegeneracion(message);
-                      console.error("Error al regenerar plan:", err);
-                    } finally {
-                      setRegenerandoPlan(false);
-                    }
-                  }}
-                >
-                  Aceptar
-            </button>
-          </div>
-        </motion.div>
-          </motion.div>
-        )}
-        </AnimatePresence>
-
-        {/* Modal de carga - Regenerando plan */}
-        <AnimatePresence>
-          {regenerandoPlan && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"
-            >
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                className="glass rounded-2xl p-8 max-w-md w-full text-center"
-              >
-                <div className="mb-4">
-                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-500/20 mb-4">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-      </div>
-                  <h3 className="text-xl font-semibold mb-2">Regenerando plan</h3>
-                  <p className="text-sm opacity-70">
-                    Estamos generando tu nuevo plan personalizado con IA...
-                  </p>
-                </div>
-                {errorRegeneracion && (
-                  <div className="mt-4 p-3 rounded-lg bg-red-500/20 border border-red-500/30 text-red-300 text-sm">
-                    {errorRegeneracion}
-                  </div>
-                )}
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Modal de información (tooltips) */}
-        <AnimatePresence>
-          {modalInfoAbierto && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-4"
-              onClick={() => setModalInfoAbierto(null)}
-            >
-              <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" />
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                className="relative z-10 w-full max-w-md rounded-xl border border-white/10 bg-black/95 p-6 shadow-2xl"
-                onClick={(e) => e.stopPropagation()}
-              >
-            <button
-                  onClick={() => setModalInfoAbierto(null)}
-                  className="absolute right-4 top-4 text-white/70 hover:text-white transition-colors"
-                  aria-label="Cerrar"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="h-5 w-5"
-                  >
-                    <path d="M18 6L6 18M6 6l12 12" />
-                  </svg>
-            </button>
-                <h3 className="text-lg font-semibold mb-4">
-                  {modalInfoAbierto === 'imc' && '¿Qué es el IMC?'}
-                  {modalInfoAbierto === 'macros' && '¿Qué son los macronutrientes?'}
-                  {modalInfoAbierto === 'sueno' && '¿Cómo contar las horas de sueño?'}
-                  {modalInfoAbierto === 'dificultad' && '¿Qué implica la dificultad del plan?'}
-                  {modalInfoAbierto === 'split' && '¿Qué es la división de entrenamiento?'}
-                </h3>
-                <div className="text-sm opacity-90 leading-relaxed space-y-2">
-                  {modalInfoAbierto === 'imc' && (
-                    <p>El Índice de Masa Corporal (IMC) relaciona peso y altura. Es una guía general y no sustituye evaluación clínica.</p>
-                  )}
-                  {modalInfoAbierto === 'macros' && (
-                    <p>Los macronutrientes son proteínas, grasas y carbohidratos. Tu plan reparte las calorías diarias entre ellos para apoyar tu objetivo.</p>
-                  )}
-                  {modalInfoAbierto === 'sueno' && (
-                    <>
-                      <p>Tu objetivo actual: <strong>{typeof horasSuenoActual === 'number' ? horasSuenoActual : (sugerenciaEntrenamiento?.horasSueno ?? 8)}</strong> h por noche.</p>
-                      <p className="opacity-90">Las siestas suman al total diario, pero ideal que sean cortas (20–30 min) y no muy tarde para no afectar el sueño nocturno.</p>
-                    </>
-                  )}
-                  {modalInfoAbierto === 'dificultad' && (
-                    (() => {
-                      const cambios = (plan as unknown as Record<string, unknown>)?.cambios_semanales as Record<string, unknown> | undefined;
-                      const fallback = {
-                        semana1: 'Adaptación: posible fatiga suave y cambios en el apetito. Enfocá en técnica y rutina.',
-                        semana2: 'Mejora de energía y rendimiento. Hambre más estable. El buen descanso acelera la adaptación.',
-                        semana3_4: 'Progreso visible: fuerza/resistencia mejoran; cintura y peso empiezan a reflejar el objetivo.',
-                        post_mes: 'Consolidación de hábitos y ajustes finos para seguir progresando.',
-                        fisiologia: [
-                          'Mejor sensibilidad a la insulina y control de glucosa',
-                          'Adaptaciones musculares (reclutamiento y eficiencia neuromuscular)',
-                          `${user?.objetivo === 'perder_grasa' || user?.objetivo === 'corte' ? 'Déficit calórico → reducción de grasa' : user?.objetivo === 'ganar_masa' || user?.objetivo === 'volumen' ? 'Superávit calórico → síntesis muscular' : 'Balance energético optimizado'}`,
-                          `Recuperación mejorada con ${typeof horasSuenoActual === 'number' ? horasSuenoActual : (sugerenciaEntrenamiento?.horasSueno ?? 8)} h de sueño`
-                        ]
-                      };
-                      return (
-                        <>
-                          <p>
-                            Tu plan está marcado como <strong className="capitalize">{String((plan as unknown as Record<string, unknown>)?.dificultad || 'media')}</strong>
-                            {(plan as unknown as Record<string, unknown>)?.dificultad_detalle ? ` — ${String((plan as unknown as Record<string, unknown>).dificultad_detalle)}` : ''}.
-                          </p>
-                          <p className="mt-2 font-medium">¿Qué vas a sentir:</p>
-                          <ul className="list-disc pl-5 space-y-1">
-                            <li><strong>Semana 1:</strong> {String(cambios?.semana1 || fallback.semana1)}</li>
-                            <li><strong>Semana 2:</strong> {String(cambios?.semana2 || fallback.semana2)}</li>
-                            <li><strong>Semana 3-4:</strong> {String(cambios?.semana3_4 || fallback.semana3_4)}</li>
-                            <li><strong>Después del mes:</strong> {String(cambios?.post_mes || fallback.post_mes)}</li>
-                          </ul>
-                          <p className="mt-2 font-medium">¿Qué cambios pasan en tu cuerpo:</p>
-                          <ul className="list-disc pl-5 space-y-1">
-                            {(Array.isArray(cambios?.fisiologia) ? cambios.fisiologia : fallback.fisiologia).map((t: string, i: number) => (
-                              <li key={`fisio-${i}`}>{t}</li>
-                            ))}
-                          </ul>
-                        </>
-                      );
-                    })()
-                  )}
-                  {modalInfoAbierto === 'split' && (
-                    <>
-                      <p>La división de entrenamiento describe cómo se reparten los grupos musculares a lo largo de la semana:</p>
-                      <ul className="list-disc pl-5 space-y-1">
-                        <li><strong>Full Body</strong>: todo el cuerpo en cada sesión. Ideal para 2–3 días/sem.</li>
-                        <li><strong>Upper/Lower</strong>: tren superior y tren inferior alternados. 4 días/sem típicos.</li>
-                        <li><strong>Push/Pull/Legs</strong>: empuje, tirón y piernas. 3–6 días/sem según volumen.</li>
-                        <li><strong>Mixto</strong>: combinación adaptada a tu objetivo, intensidad y disponibilidad.</li>
-                      </ul>
-                      <p className="opacity-90">Tu plan actual: <strong>{splitResumen}</strong>. Esto se ajusta a tus <em>días de gym</em>, intensidad y objetivo para optimizar progreso y recuperación.</p>
-                    </>
-                  )}
-          </div>
-        </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Modal de Plan de Entrenamiento */}
-        <AnimatePresence>
-          {modalEntrenamientoAbierto && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-              onClick={() => setModalEntrenamientoAbierto(false)}
-            >
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                onClick={(e) => e.stopPropagation()}
-                className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl border border-white/10 p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
-              >
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <h2 className="text-2xl font-bold">🏋️ Plan de Entrenamiento</h2>
-                    {splitResumen && (
-                      <span className="text-sm px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-medium">
-                        {splitResumen}
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => setModalEntrenamientoAbierto(false)}
-                    className="text-white/70 hover:text-white transition-colors"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-
-                {/* Botones de semanas */}
-                <div className="flex gap-2 mb-6 flex-wrap">
-                  {[1, 2, 3, 4].map((semana) => (
-                    <button
-                      key={semana}
-                      onClick={() => setSemanaSeleccionada(semana)}
-                      className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                        semanaSeleccionada === semana
-                          ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white'
-                          : 'bg-white/10 text-white/70 hover:bg-white/20'
-                      }`}
-                    >
-                      Semana {semana}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Contenido de la semana seleccionada */}
-                {(() => {
-                  const tp = (plan as unknown as Record<string, unknown>)?.training_plan as TrainingPlan | undefined;
-                  const weeks = tp?.weeks || [];
-                  const semanaActual = weeks.find((w) => (w.week ?? 1) === semanaSeleccionada) || weeks[semanaSeleccionada - 1];
-                  
-                  if (!semanaActual) {
-                    return (
-                      <div className="text-center py-8 text-white/70">
-                        <p>No hay datos de entrenamiento para la Semana {semanaSeleccionada}</p>
-    </div>
-  );
-                  }
-
-                  return (
-                    <div className="space-y-4">
-                      <h3 className="text-lg font-semibold text-cyan-400 mb-4">
-                        Semana {semanaActual.week ?? semanaSeleccionada}
-                      </h3>
-                      {(semanaActual.days || []).map((dia: TrainingDay, di: number) => {
-                        // Función para determinar qué músculos se trabajan en este día
-                        const getMusculosDelDia = (): string | null => {
-                          const tp = (plan as unknown as Record<string, unknown>)?.training_plan as TrainingPlan | undefined;
-                          const splitGeneral = (tp as unknown as Record<string, unknown>)?.split as string | undefined;
-                          
-                          // Si el día tiene un split específico, usarlo
-                          if (dia.split) {
-                            const splitLower = dia.split.toLowerCase();
-                            
-                            // Si es Full Body, mostrar "Full Body"
-                            if (splitLower.includes("full body")) {
-                              return "Full Body";
-                            }
-                            
-                            // Mapear splits comunes a músculos
-                            if (splitLower.includes("push")) {
-                              return "Pecho, Hombros, Tríceps";
-                            } else if (splitLower.includes("pull")) {
-                              return "Espalda, Bíceps, Trapecio";
-                            } else if (splitLower.includes("legs") || splitLower.includes("piernas")) {
-                              return "Cuádriceps, Isquiotibiales, Glúteos, Gemelos";
-                            } else if (splitLower.includes("upper")) {
-                              return "Pecho, Espalda, Hombros, Bíceps, Tríceps";
-                            } else if (splitLower.includes("lower")) {
-                              return "Cuádriceps, Isquiotibiales, Glúteos, Gemelos, Abdominales";
-                            } else if (splitLower.includes("chest") || splitLower.includes("pecho")) {
-                              return "Pecho, Tríceps";
-                            } else if (splitLower.includes("back") || splitLower.includes("espalda")) {
-                              return "Espalda, Bíceps";
-                            } else if (splitLower.includes("shoulders") || splitLower.includes("hombros")) {
-                              return "Hombros, Trapecio";
-                            }
-                          }
-                          
-                          // Si el split general es Full Body, mostrar "Full Body"
-                          if (splitGeneral === "Full Body" || splitGeneral?.toLowerCase().includes("full body")) {
-                            return "Full Body";
-                          }
-                          
-                          // Si no hay split específico, analizar los muscle_group de los ejercicios
-                          if (dia.ejercicios && dia.ejercicios.length > 0) {
-                            const muscleGroups = new Set<string>();
-                            dia.ejercicios.forEach(ej => {
-                              if (ej.muscle_group) {
-                                muscleGroups.add(ej.muscle_group);
-                              }
-                            });
-                            
-                            // Si hay 4 o más músculos diferentes, probablemente es Full Body
-                            if (muscleGroups.size >= 4) {
-                              return "Full Body";
-                            }
-                            
-                            // Devolver los músculos únicos encontrados
-                            if (muscleGroups.size > 0) {
-                              return Array.from(muscleGroups).join(", ");
-                            }
-                          }
-                          
-                          return null;
-                        };
-                        
-                        const musculos = getMusculosDelDia();
-                        
-                        return (
-                        <div key={`dia-${semanaSeleccionada}-${di}`} className="rounded-lg border border-white/10 bg-white/5 p-4">
-                          <h4 className="text-base font-semibold mb-3 text-white">
-                            {dia.day}
-                            {musculos && (
-                              <span className="text-sm font-normal opacity-70 ml-2">({musculos})</span>
-                            )}
-                          </h4>
-                          
-                          {/* Calentamiento */}
-                          {dia.warmup && (
-                            <div className="mb-4 p-3 rounded-md bg-gradient-to-r from-orange-500/20 to-yellow-500/20 border border-orange-500/30">
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className="text-sm font-semibold text-orange-300">🔥 Calentamiento</span>
-                                <span className="text-xs opacity-70">({dia.warmup.duration_minutes} min)</span>
-                              </div>
-                              <p className="text-sm opacity-90 leading-relaxed">{dia.warmup.description}</p>
-                            </div>
-                          )}
-                          
-                          {(dia.ejercicios || []).length > 0 ? (
-                            <ul className="space-y-3">
-                              {(dia.ejercicios || []).map((ejercicio: TrainingExercise, ei: number) => {
-                                const restTime = ejercicio.rest_seconds || ejercicio.rest_sec;
-                                return (
-                                  <li key={`ej-${semanaSeleccionada}-${di}-${ei}`} className="rounded-lg bg-white/5 border border-white/10 p-3">
-                                    <div className="flex-1">
-                                      {/* Header del ejercicio */}
-                                      <div className="flex items-start justify-between gap-2 mb-2">
-                                        <div className="flex-1">
-                                          <div className="flex items-center gap-2 flex-wrap mb-1">
-                                            <span className="font-semibold text-white">{ejercicio.name}</span>
-                                            <span className="text-sm opacity-70">· {ejercicio.sets}x{String(ejercicio.reps)}</span>
-                                            {ejercicio.muscle_group && (
-                                              <span className="text-xs px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-                                                {ejercicio.muscle_group}
-                                              </span>
-                                            )}
-                                          </div>
-                                          {/* Detalles técnicos compactos */}
-                                          <div className="flex items-center gap-3 flex-wrap text-xs opacity-80">
-                                            {ejercicio.rpe && (
-                                              <span className="flex items-center gap-1">
-                                                <span className="opacity-60">RPE:</span>
-                                                <span className="font-medium">{ejercicio.rpe}/10</span>
-                                              </span>
-                                            )}
-                                            {ejercicio.tempo && (
-                                              <span className="flex items-center gap-1">
-                                                <span className="opacity-60">Tempo:</span>
-                                                <span className="font-medium">{ejercicio.tempo}</span>
-                                              </span>
-                                            )}
-                                            {restTime && (
-                                              <span className="flex items-center gap-1">
-                                                <span className="opacity-60">Descanso:</span>
-                                                <span className="font-medium">{restTime}s</span>
-                                              </span>
-                                            )}
-                                          </div>
-                                        </div>
-                                      </div>
-                                      
-                                      {/* Técnica (expandible) */}
-                                      {ejercicio.technique && (
-                                        <details className="mt-2">
-                                          <summary className="text-xs font-medium text-cyan-300 cursor-pointer hover:text-cyan-200">
-                                            💡 Técnica
-                                          </summary>
-                                          <p className="mt-1 text-xs opacity-90 leading-relaxed pl-2 border-l-2 border-cyan-500/30">
-                                            {ejercicio.technique}
-                                          </p>
-                                        </details>
-                                      )}
-                                      
-                                      {/* Progresión */}
-                                      {ejercicio.progression && (
-                                        <details className="mt-2">
-                                          <summary className="text-xs font-medium text-yellow-300 cursor-pointer hover:text-yellow-200">
-                                            📈 Progresión
-                                          </summary>
-                                          <p className="mt-1 text-xs opacity-90 leading-relaxed pl-2 border-l-2 border-yellow-500/30">
-                                            {ejercicio.progression}
-                                          </p>
-                                        </details>
-                                      )}
-                                      
-                                      {/* Cues mentales */}
-                                      {ejercicio.cues && ejercicio.cues.length > 0 && (
-                                        <div className="mt-2">
-                                          <p className="text-xs font-medium text-purple-300 mb-1">🎯 Pistas mentales:</p>
-                                          <ul className="list-disc pl-4 space-y-0.5">
-                                            {ejercicio.cues.map((cue, cueIdx) => (
-                                              <li key={`cue-${ei}-${cueIdx}`} className="text-xs opacity-90">{cue}</li>
-                                            ))}
-                                          </ul>
-                                        </div>
-                                      )}
-                                      
-                                      {/* Alternativa (si hay lesión) */}
-                                      {ejercicio.alternative && (
-                                        <div className="mt-2 p-2 rounded bg-orange-500/10 border border-orange-500/30">
-                                          <p className="text-xs font-medium text-orange-300 mb-1">⚠️ Alternativa (si tienes lesión):</p>
-                                          <p className="text-xs opacity-90">{ejercicio.alternative}</p>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </li>
-                                );
-                              })}
-                            </ul>
-                          ) : (
-                            <p className="text-sm text-white/50">No hay ejercicios registrados para este día</p>
-                          )}
-                        </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* Modal de selección de plan premium */}
-      {premiumModalOpen && authUser && (
-        <PremiumPlanModal
-          isOpen={premiumModalOpen}
-          onClose={() => setPremiumModalOpen(false)}
-          userId={authUser.uid}
-          userEmail={authUser.email || ""}
-        />
-      )}
-
-      {/* Modal de Continuidad de Plan (solo para planes simples) */}
-      {continuityModalOpen && authUser && user && plan && planId && !planMultiFase && (
-        <PlanContinuityModal
-          isOpen={continuityModalOpen}
-          onClose={() => setContinuityModalOpen(false)}
-          planData={{
-            id: planId,
-            plan: plan,
-            user: user,
-            createdAt: new Date(), // La fecha real se carga desde Firestore dentro del modal
-          }}
-          registrosPeso={registrosPeso}
-          userId={authUser.uid}
-        />
-      )}
-
-      {/* Modal de registro de comida fuera del plan */}
-      <FoodTrackingModal
-        isOpen={foodTrackingModalOpen}
-        onClose={() => setFoodTrackingModalOpen(false)}
-        planCalories={plan?.calorias_diarias || 2000}
-        userObjective={user?.objetivo}
-        planId={planId || undefined}
-        userId={authUser?.uid || undefined}
-      />
-
-      {/* Modal de estadísticas semanales */}
-      {planId && (
-        <WeeklyStatsModal
-          isOpen={weeklyStatsModalOpen}
-          onClose={() => setWeeklyStatsModalOpen(false)}
-          planId={planId}
-          userId={authUser?.uid || undefined}
-        />
-      )}
-
-      {/* Modal de información del IMC - se muestra la primera vez que el usuario ve su plan */}
-      {user && (
-        <IMCInfoModal
-          isOpen={imcModalOpen}
-          onClose={() => setImcModalOpen(false)}
-          imc={bmi}
-          pesoActual={user.pesoKg}
-          alturaCm={user.alturaCm}
-          objetivo={user.objetivo}
-          intensidad={user.intensidad}
-          sexo={user.sexo}
-        />
-      )}
-      
-      {/* Modal de Generar Siguiente Mes */}
-      <AnimatePresence>
-        {modalSiguienteMesAbierto && planMultiFase && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => !generandoSiguienteMes && setModalSiguienteMesAbierto(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-slate-900 border border-white/10 rounded-2xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold">
-                  🚀 Generar Mes {planMultiFase.mesActual + 1}
-                </h2>
-                <button
-                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                  onClick={() => !generandoSiguienteMes && setModalSiguienteMesAbierto(false)}
-                  disabled={generandoSiguienteMes}
-                >
-                  ✕
-                </button>
-              </div>
-              
-              <p className="text-sm opacity-70 mb-4">
-                Ingresá tus datos actuales para generar el plan del próximo mes con ajustes personalizados.
-              </p>
-              
-              {/* Info de fase actual */}
-              <div className={`mb-4 p-3 rounded-xl ${
-                planMultiFase.faseActual === "BULK" 
-                  ? "bg-amber-500/10 border border-amber-500/20" 
-                  : planMultiFase.faseActual === "CUT"
-                  ? "bg-cyan-500/10 border border-cyan-500/20"
-                  : "bg-emerald-500/10 border border-emerald-500/20"
-              }`}>
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="font-semibold">Fase actual: {planMultiFase.faseActual}</span>
-                  <span className="opacity-70">• Mes {planMultiFase.mesActual} de {planMultiFase.totalMeses}</span>
-                </div>
-                <p className="text-xs opacity-70 mt-1">
-                  {(() => {
-                    const infoFase = obtenerInfoFaseActual(planMultiFase);
-                    return infoFase.fase?.descripcion || "";
-                  })()}
-                </p>
-              </div>
-              
-              <div className="space-y-4">
-                {/* Peso Actual (OBLIGATORIO) */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Peso Actual (kg) <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                    value={datosSiguienteMes.pesoActual || ""}
-                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, pesoActual: parseFloat(e.target.value) || 0 }))}
-                    placeholder="Ej: 82.5"
-                  />
-                  {planMultiFase.historialMeses[planMultiFase.mesActual - 1] && (
-                    <p className="text-xs opacity-50 mt-1">
-                      Peso al iniciar este mes: {planMultiFase.historialMeses[planMultiFase.mesActual - 1].datosAlIniciar.peso} kg
-                    </p>
-                  )}
-                </div>
-                
-                {/* Cintura Actual (Opcional) */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">Cintura Actual (cm) <span className="text-xs opacity-50">(opcional)</span></label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                    value={datosSiguienteMes.cinturaActual || ""}
-                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, cinturaActual: parseFloat(e.target.value) || 0 }))}
-                    placeholder="Ej: 84"
-                  />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Energía */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Energía</label>
-                    <select
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                      value={datosSiguienteMes.energia}
-                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, energia: e.target.value as typeof prev.energia }))}
-                    >
-                      <option value="muy_baja">😴 Muy baja</option>
-                      <option value="baja">😕 Baja</option>
-                      <option value="normal">😊 Normal</option>
-                      <option value="alta">💪 Alta</option>
-                      <option value="muy_alta">🔥 Muy alta</option>
-                    </select>
-                  </div>
-                  
-                  {/* Recuperación */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Recuperación</label>
-                    <select
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                      value={datosSiguienteMes.recuperacion}
-                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, recuperacion: e.target.value as typeof prev.recuperacion }))}
-                    >
-                      <option value="mala">😓 Mala</option>
-                      <option value="regular">😐 Regular</option>
-                      <option value="normal">😊 Normal</option>
-                      <option value="buena">💪 Buena</option>
-                      <option value="excelente">🌟 Excelente</option>
-                    </select>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Adherencia Comida */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Adherencia Alimentación</label>
-                    <select
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                      value={datosSiguienteMes.adherenciaComida}
-                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, adherenciaComida: e.target.value as typeof prev.adherenciaComida }))}
-                    >
-                      <option value="<50%">{"<50%"} - Muy baja</option>
-                      <option value="50-70%">50-70% - Regular</option>
-                      <option value="70-80%">70-80% - Buena</option>
-                      <option value=">80%">{">80%"} - Excelente</option>
-                    </select>
-                  </div>
-                  
-                  {/* Adherencia Entreno */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Adherencia Entreno</label>
-                    <select
-                      className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                      value={datosSiguienteMes.adherenciaEntreno}
-                      onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, adherenciaEntreno: e.target.value as typeof prev.adherenciaEntreno }))}
-                    >
-                      <option value="<50%">{"<50%"} - Muy baja</option>
-                      <option value="50-70%">50-70% - Regular</option>
-                      <option value="70-80%">70-80% - Buena</option>
-                      <option value=">80%">{">80%"} - Excelente</option>
-                    </select>
-                  </div>
-                </div>
-                
-                {/* Lesiones nuevas */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">Lesiones o molestias nuevas <span className="text-xs opacity-50">(opcional)</span></label>
-                  <input
-                    type="text"
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30"
-                    value={datosSiguienteMes.lesionesNuevas}
-                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, lesionesNuevas: e.target.value }))}
-                    placeholder="Ej: Dolor en hombro derecho, molestia en rodilla..."
-                  />
-                </div>
-                
-                {/* Comentarios */}
-                <div>
-                  <label className="block text-sm font-medium mb-1">Ajustes o comentarios <span className="text-xs opacity-50">(opcional)</span></label>
-                  <textarea
-                    className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 outline-none focus:border-white/30 resize-none"
-                    rows={2}
-                    value={datosSiguienteMes.comentarios}
-                    onChange={(e) => setDatosSiguienteMes(prev => ({ ...prev, comentarios: e.target.value }))}
-                    placeholder="Ej: Quisiera más variedad en desayunos, menos cardio..."
-                  />
-                </div>
-              </div>
-              
-              {errorSiguienteMes && (
-                <div className="mt-4 p-3 rounded-xl bg-red-500/20 border border-red-500/30 text-red-200 text-sm">
-                  {errorSiguienteMes}
-                </div>
-              )}
-              
-              <div className="flex gap-3 mt-6">
-                <button
-                  className="flex-1 rounded-xl px-4 py-3 bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
-                  onClick={() => setModalSiguienteMesAbierto(false)}
-                  disabled={generandoSiguienteMes}
-                >
-                  Cancelar
-                </button>
-                <button
-                  className={`flex-1 rounded-xl px-4 py-3 font-medium transition-colors disabled:opacity-50 ${
-                    planMultiFase.faseActual === "BULK" 
-                      ? "bg-amber-500/20 border border-amber-500/30 hover:bg-amber-500/30 text-amber-200" 
-                      : planMultiFase.faseActual === "CUT"
-                      ? "bg-cyan-500/20 border border-cyan-500/30 hover:bg-cyan-500/30 text-cyan-200"
-                      : "bg-emerald-500/20 border border-emerald-500/30 hover:bg-emerald-500/30 text-emerald-200"
-                  }`}
-                  onClick={handleGenerarSiguienteMes}
-                  disabled={!datosSiguienteMes.pesoActual || generandoSiguienteMes}
-                >
-                  {generandoSiguienteMes ? "⏳ Generando..." : "🚀 Generar Siguiente Mes"}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-function FetchDetails({ k, dish, onLoaded, onError }: { k: string; dish: string; onLoaded: (p: { ingredientes?: string[]; pasos_preparacion?: string[] }) => void; onError: (msg: string) => void }) {
-  const { user } = usePlanStore();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const resp = await fetch('/api/mealDetails', { 
-          method: 'POST', 
-          headers: { 'Content-Type': 'application/json' }, 
-          body: JSON.stringify({ 
-            dish,
-            tipoDieta: user?.tipoDieta,
-            restricciones: user?.restricciones,
-            preferencias: user?.preferencias,
-            patologias: user?.patologias
-          }) 
-        });
-        if (!resp.ok) {
-          const data = await resp.json().catch(() => null);
-          throw new Error(data?.error || `HTTP ${resp.status}`);
-        }
-        const data = await resp.json();
-        if (!cancelled) {
-          onLoaded({ ingredientes: data.ingredientes, pasos_preparacion: data.pasos_preparacion });
-          setLoading(false);
-        }
-      } catch (e: unknown) {
-        if (!cancelled) {
-          const msg = e instanceof Error ? e.message : 'Error';
-          setError(msg);
-          onError(msg);
-          setLoading(false);
-        }
-      }
-    })();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dish, k, user?.tipoDieta, user?.restricciones, user?.preferencias, user?.patologias]);
-
-  if (loading) return <p className="text-xs opacity-70">Cargando detalles…</p>;
-  if (error) return <p className="text-xs text-red-300">{String(error)}</p>;
-  return null;
-}
-
-
-                    Perfil atlético
-                  </span>
-                </label>
-                <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80">Preferencias (separadas por comas)</span>
-                  <input
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
-                    value={preferenciasTexto}
-                    onChange={(e) => setPreferenciasTexto(e.target.value)}
-                    onBlur={(e) => {
-                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      setDatosEdicion({ ...datosEdicion, preferencias: array });
-                    }}
-                    placeholder="ej: pollo, avena, salmón"
-                  />
-                </label>
-                <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80">Restricciones (separadas por comas)</span>
-                  <input
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
-                    value={restriccionesTexto}
-                    onChange={(e) => setRestriccionesTexto(e.target.value)}
-                    onBlur={(e) => {
-                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      setDatosEdicion({ ...datosEdicion, restricciones: array });
-                    }}
-                    placeholder="ej: gluten, lácteos, cerdo"
-                  />
-                </label>
-                <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80">Patologías (separadas por comas)</span>
-                  <input
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
-                    value={patologiasTexto}
-                    onChange={(e) => setPatologiasTexto(e.target.value)}
-                    onBlur={(e) => {
-                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      setDatosEdicion({ ...datosEdicion, patologias: array });
-                    }}
-                    placeholder="ej: hígado graso, intolerancia a la lactosa, diabetes tipo 2"
-                  />
-                  <p className="text-xs opacity-60 mt-1">
-                    Indica condiciones médicas relevantes para ajustar el plan nutricional
-                  </p>
-                </label>
-                <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80 flex items-center gap-2">
-                    Dolores, lesiones o molestias (separadas por comas)
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                      className="h-4 w-4 opacity-70"
-                    >
-                      <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm1.971-6.279-.675.693A3.375 3.375 0 0 0 12.75 14.25h-1.5a4.875 4.875 0 0 1 1.425-3.45l.93-.936a1.875 1.875 0 1 0-3.195-1.326h-1.5a3.375 3.375 0 1 1 6.03 1.283Z" />
-                    </svg>
-                  </span>
-                  <input
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
-                    value={doloresLesionesTexto}
-                    onChange={(e) => setDoloresLesionesTexto(e.target.value)}
-                    onBlur={(e) => {
-                      const array = e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      setDatosEdicion({ ...datosEdicion, doloresLesiones: array });
-                    }}
-                    placeholder="ej: rodilla derecha, zona lumbar, hombro izquierdo"
-                  />
-                  <p className="text-xs opacity-60 mt-1">
-                    Ajustamos el entrenamiento para cuidar estas zonas y recomendar movilidad o precalentamientos específicos.
-                  </p>
-                </label>
-                <label className="flex items-start gap-3 md:col-span-2">
-                  <input
-                    type="checkbox"
-                    className="mt-1 h-4 w-4"
-                    checked={!!((datosEdicion as unknown as Record<string, unknown>).preferirRutina)}
-                    onChange={(e) => setDatosEdicion({ ...datosEdicion, preferirRutina: e.target.checked } as unknown as UserInput)}
-                  />
-                  <span className="text-sm opacity-80">
-                    Mantener comidas rutinarias (poca variación entre días)
-                    <span className="block text-xs opacity-60 mt-0.5">
-                      Repetir comidas facilita el seguimiento (p. ej., papa en déficit o pasta en volumen). Podés cambiarlo cuando quieras.
-                    </span>
-                  </span>
-                </label>
-      </div>
-              
-              <div className="flex gap-3 mt-6 justify-end">
-            <button
-                  className="rounded-xl px-6 py-2 text-sm font-medium bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
-                  onClick={() => setModalAbierto(false)}
-                >
-                  Cancelar
-            </button>
-            <button
-                  className="rounded-xl px-6 py-2 text-sm font-medium bg-blue-500/20 border border-blue-500/30 hover:bg-blue-500/30 transition-colors"
-                  onClick={async () => {
-                    if (!datosEdicion) return;
-                    setModalAbierto(false);
-                    setRegenerandoPlan(true);
-                    setErrorRegeneracion(null);
-                    
-                    try {
-                      if (!user) {
-                        throw new Error("No hay datos de usuario disponibles");
-                      }
-                      
-                      // Procesar los arrays de preferencias, restricciones y patologías
-                      const preferenciasArray = preferenciasTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      const restriccionesArray = restriccionesTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      const patologiasArray = patologiasTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      const doloresLesionesArray = doloresLesionesTexto.split(",").map((s: string) => s.trim()).filter(Boolean);
-                      
-                      const bmi = calculateBMI(datosEdicion.pesoKg, datosEdicion.alturaCm);
-                      const nuevasSugerencias = sugerirEntrenamiento(
-                        user.objetivo, // Usar el objetivo original del usuario
-                        user.intensidad, // Usar la intensidad original del usuario
-                        datosEdicion.edad,
-                        bmi,
-                        datosEdicion.atletico
-                      );
-                      
-                      const userActualizado = {
-                        ...user, // Mantener todos los datos originales (objetivo, intensidad, tipoDieta)
-                        ...datosEdicion, // Aplicar cambios de datos básicos
-                        preferencias: preferenciasArray,
-                        restricciones: restriccionesArray,
-                        patologias: patologiasArray,
-                        doloresLesiones: doloresLesionesArray,
-                        diasGym: nuevasSugerencias.diasGym,
-                        diasCardio: Math.ceil(nuevasSugerencias.minutosCaminata / (nuevasSugerencias.minutosCaminata > 45 ? 60 : nuevasSugerencias.minutosCaminata > 30 ? 45 : 30))
-                      };
-                      
-                      const resp = await fetch("/api/generatePlan", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(userActualizado),
-                      });
-                      
-                      if (!resp.ok) {
-                        const data = await resp.json().catch(() => null);
-                        const combined = data?.error && data?.detail ? `${data.error}: ${data.detail}` : (data?.error || data?.detail);
-                        const msg = combined || `No se pudo generar el plan (HTTP ${resp.status})`;
-                        throw new Error(msg);
-                      }
-                      
-                      const nuevoPlan = await resp.json();
-                      
-                      // Mostrar objeto de debug en consola del navegador
-                      if (nuevoPlan._debug_training_plan) {
-                        console.log("=".repeat(80));
-                        console.log("📊 DEBUG: DATOS USADOS PARA GENERAR TRAINING_PLAN (EDITADO)");
-                        console.log("=".repeat(80));
-                        console.log(nuevoPlan._debug_training_plan);
-                        console.log("=".repeat(80));
-                        // También exponerlo globalmente para fácil acceso
-                        (window as unknown as { __TRAINING_PLAN_DEBUG__?: unknown }).__TRAINING_PLAN_DEBUG__ = nuevoPlan._debug_training_plan;
-                        console.log("💡 También disponible en: window.__TRAINING_PLAN_DEBUG__");
-                      }
-                      
-                      setUser(userActualizado);
-                      setPlan(nuevoPlan);
-                      
-                      // Guardar o actualizar en Firestore
-                      try {
-                        const auth = getAuthSafe();
-                        const db = await import("@/lib/firebase").then(m => m.getDbSafe());
-                        
-                        if (auth?.currentUser && db) {
-                          const { collection, doc, updateDoc, addDoc, setDoc, getDoc, serverTimestamp } = await import("firebase/firestore");
-                          
-                          // Actualizar perfil del usuario en la colección "usuarios"
-                          try {
-                            const userRef = doc(db, "usuarios", auth.currentUser.uid);
-                            const userDoc = await getDoc(userRef);
-                            
-                            // Obtener el email del usuario autenticado
-                            const userEmail = auth.currentUser?.email?.toLowerCase() || "";
-                            
-                            const userProfileData: Record<string, unknown> = {
-                              nombre: userActualizado.nombre,
-                              sexo: userActualizado.sexo,
-                              alturaCm: userActualizado.alturaCm,
-                              edad: userActualizado.edad,
-                              peso: userActualizado.pesoKg, // Guardar peso del usuario
-                              objetivo: userActualizado.objetivo, // Guardar objetivo
-                              atletico: Boolean(userActualizado.atletico), // Guardar perfil atlético
-                              doloresLesiones: Array.isArray(userActualizado.doloresLesiones) ? userActualizado.doloresLesiones : [],
-                              updatedAt: serverTimestamp(),
-                            };
-                            
-                            // Agregar tipoDieta solo si tiene valor (no undefined)
-                            if (userActualizado.tipoDieta !== undefined && userActualizado.tipoDieta !== null) {
-                              userProfileData.tipoDieta = userActualizado.tipoDieta;
-                            }
-                            
-                            // Asegurar que email y premium estén presentes
-                            if (!userDoc.exists() || !userDoc.data()?.email) {
-                              userProfileData.email = userEmail;
-                            }
-                            if (!userDoc.exists() || userDoc.data()?.premium === undefined) {
-                              userProfileData.premium = false;
-                            }
-                            
-                            // Agregar medidas opcionales si existen y tienen valores válidos
-                            if (userActualizado.cinturaCm !== undefined && userActualizado.cinturaCm !== null && userActualizado.cinturaCm !== 0) {
-                              userProfileData.cinturaCm = Number(userActualizado.cinturaCm);
-                            }
-                            if (userActualizado.cuelloCm !== undefined && userActualizado.cuelloCm !== null && userActualizado.cuelloCm !== 0) {
-                              userProfileData.cuelloCm = Number(userActualizado.cuelloCm);
-                            }
-                            if (userActualizado.caderaCm !== undefined && userActualizado.caderaCm !== null && userActualizado.caderaCm !== 0) {
-                              userProfileData.caderaCm = Number(userActualizado.caderaCm);
-                            }
-                            
-                            // Limpiar campos undefined antes de guardar
-                            const cleanUserProfileData = Object.fromEntries(
-                              Object.entries(userProfileData).filter(([, v]) => v !== undefined && v !== null)
-                            );
-                            
-                            if (!userDoc.exists()) {
-                              await setDoc(userRef, {
-                                ...cleanUserProfileData,
-                                createdAt: serverTimestamp(),
-                                email: userEmail,
-                                premium: false,
-                              });
-                            } else {
-                              await setDoc(userRef, cleanUserProfileData, { merge: true });
-                            }
-                            console.log("✅ Perfil del usuario actualizado en Firestore (incluye peso)");
-                          } catch (profileError) {
-                            console.error("Error al actualizar perfil del usuario:", profileError);
-                            // No bloqueamos el flujo si falla guardar el perfil
-                          }
-                          
-                          // Limpiar datos: eliminar campos undefined y null
-                          const cleanUser = Object.fromEntries(
-                            Object.entries(userActualizado).filter(([, v]) => v !== undefined && v !== null)
-                          );
-                          
-                          const cleanPlan = JSON.parse(JSON.stringify({ plan: nuevoPlan, user: cleanUser }));
-                          
-                          if (planId) {
-                            // Actualizar plan existente
-                            const planRef = doc(db, "planes", planId);
-                            await updateDoc(planRef, {
-                              plan: cleanPlan,
-                              updatedAt: serverTimestamp(),
-                            });
-                            console.log("Plan actualizado en Firestore desde modal:", planId);
-                          } else {
-                            // Crear nuevo plan (si no tiene ID, es un plan nuevo)
-                            const docRef = await addDoc(collection(db, "planes"), {
-                              userId: auth.currentUser.uid,
-                              plan: cleanPlan,
-                              createdAt: serverTimestamp(),
-                            });
-                            console.log("Plan guardado en Firestore desde modal:", docRef.id);
-                          }
-                        }
-                      } catch (saveError) {
-                        console.error("Error al guardar plan actualizado desde modal:", saveError);
-                        // No bloqueamos el flujo si falla guardar
-                      }
-                      
-                      setValoresOriginales({
-                        objetivo: userActualizado.objetivo,
-                        intensidad: userActualizado.intensidad,
-                        tipoDieta: userActualizado.tipoDieta,
-                      });
-                      setDiasGymEditado(null);
-                      setMinutosCaminataEditado(null);
-                      setHorasSuenoEditado(null);
-                    } catch (err: unknown) {
-                      const message = err instanceof Error ? err.message : "Ocurrió un error";
-                      setErrorRegeneracion(message);
-                      console.error("Error al regenerar plan:", err);
-                    } finally {
-                      setRegenerandoPlan(false);
-                    }
-                  }}
-                >
-                  Aceptar
-            </button>
-          </div>
-        </motion.div>
-          </motion.div>
-        )}
-        </AnimatePresence>
-
-        {/* Modal de carga - Regenerando plan */}
-        <AnimatePresence>
-          {regenerandoPlan && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"
-            >
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                className="glass rounded-2xl p-8 max-w-md w-full text-center"
-              >
-                <div className="mb-4">
-                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-500/20 mb-4">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-      </div>
-                  <h3 className="text-xl font-semibold mb-2">Regenerando plan</h3>
-                  <p className="text-sm opacity-70">
-                    Estamos generando tu nuevo plan personalizado con IA...
-                  </p>
-                </div>
-                {errorRegeneracion && (
-                  <div className="mt-4 p-3 rounded-lg bg-red-500/20 border border-red-500/30 text-red-300 text-sm">
-                    {errorRegeneracion}
-                  </div>
-                )}
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Modal de información (tooltips) */}
-        <AnimatePresence>
-          {modalInfoAbierto && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-4"
-              onClick={() => setModalInfoAbierto(null)}
-            >
-              <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" />
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                className="relative z-10 w-full max-w-md rounded-xl border border-white/10 bg-black/95 p-6 shadow-2xl"
-                onClick={(e) => e.stopPropagation()}
-              >
-            <button
-                  onClick={() => setModalInfoAbierto(null)}
-                  className="absolute right-4 top-4 text-white/70 hover:text-white transition-colors"
-                  aria-label="Cerrar"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="h-5 w-5"
-                  >
-                    <path d="M18 6L6 18M6 6l12 12" />
-                  </svg>
-            </button>
-                <h3 className="text-lg font-semibold mb-4">
-                  {modalInfoAbierto === 'imc' && '¿Qué es el IMC?'}
-                  {modalInfoAbierto === 'macros' && '¿Qué son los macronutrientes?'}
-                  {modalInfoAbierto === 'sueno' && '¿Cómo contar las horas de sueño?'}
-                  {modalInfoAbierto === 'dificultad' && '¿Qué implica la dificultad del plan?'}
-                  {modalInfoAbierto === 'split' && '¿Qué es la división de entrenamiento?'}
-                </h3>
-                <div className="text-sm opacity-90 leading-relaxed space-y-2">
-                  {modalInfoAbierto === 'imc' && (
-                    <p>El Índice de Masa Corporal (IMC) relaciona peso y altura. Es una guía general y no sustituye evaluación clínica.</p>
-                  )}
-                  {modalInfoAbierto === 'macros' && (
-                    <p>Los macronutrientes son proteínas, grasas y carbohidratos. Tu plan reparte las calorías diarias entre ellos para apoyar tu objetivo.</p>
-                  )}
-                  {modalInfoAbierto === 'sueno' && (
-                    <>
-                      <p>Tu objetivo actual: <strong>{typeof horasSuenoActual === 'number' ? horasSuenoActual : (sugerenciaEntrenamiento?.horasSueno ?? 8)}</strong> h por noche.</p>
-                      <p className="opacity-90">Las siestas suman al total diario, pero ideal que sean cortas (20–30 min) y no muy tarde para no afectar el sueño nocturno.</p>
-                    </>
-                  )}
-                  {modalInfoAbierto === 'dificultad' && (
-                    (() => {
-                      const cambios = (plan as unknown as Record<string, unknown>)?.cambios_semanales as Record<string, unknown> | undefined;
-                      const fallback = {
-                        semana1: 'Adaptación: posible fatiga suave y cambios en el apetito. Enfocá en técnica y rutina.',
-                        semana2: 'Mejora de energía y rendimiento. Hambre más estable. El buen descanso acelera la adaptación.',
-                        semana3_4: 'Progreso visible: fuerza/resistencia mejoran; cintura y peso empiezan a reflejar el objetivo.',
-                        post_mes: 'Consolidación de hábitos y ajustes finos para seguir progresando.',
-                        fisiologia: [
-                          'Mejor sensibilidad a la insulina y control de glucosa',
-                          'Adaptaciones musculares (reclutamiento y eficiencia neuromuscular)',
-                          `${user?.objetivo === 'perder_grasa' || user?.objetivo === 'corte' ? 'Déficit calórico → reducción de grasa' : user?.objetivo === 'ganar_masa' || user?.objetivo === 'volumen' ? 'Superávit calórico → síntesis muscular' : 'Balance energético optimizado'}`,
-                          `Recuperación mejorada con ${typeof horasSuenoActual === 'number' ? horasSuenoActual : (sugerenciaEntrenamiento?.horasSueno ?? 8)} h de sueño`
-                        ]
-                      };
-                      return (
-                        <>
-                          <p>
-                            Tu plan está marcado como <strong className="capitalize">{String((plan as unknown as Record<string, unknown>)?.dificultad || 'media')}</strong>
-                            {(plan as unknown as Record<string, unknown>)?.dificultad_detalle ? ` — ${String((plan as unknown as Record<string, unknown>).dificultad_detalle)}` : ''}.
-                          </p>
-                          <p className="mt-2 font-medium">¿Qué vas a sentir:</p>
-                          <ul className="list-disc pl-5 space-y-1">
-                            <li><strong>Semana 1:</strong> {String(cambios?.semana1 || fallback.semana1)}</li>
-                            <li><strong>Semana 2:</strong> {String(cambios?.semana2 || fallback.semana2)}</li>
-                            <li><strong>Semana 3-4:</strong> {String(cambios?.semana3_4 || fallback.semana3_4)}</li>
-                            <li><strong>Después del mes:</strong> {String(cambios?.post_mes || fallback.post_mes)}</li>
-                          </ul>
-                          <p className="mt-2 font-medium">¿Qué cambios pasan en tu cuerpo:</p>
-                          <ul className="list-disc pl-5 space-y-1">
-                            {(Array.isArray(cambios?.fisiologia) ? cambios.fisiologia : fallback.fisiologia).map((t: string, i: number) => (
-                              <li key={`fisio-${i}`}>{t}</li>
-                            ))}
-                          </ul>
-                        </>
-                      );
-                    })()
-                  )}
-                  {modalInfoAbierto === 'split' && (
-                    <>
-                      <p>La división de entrenamiento describe cómo se reparten los grupos musculares a lo largo de la semana:</p>
-                      <ul className="list-disc pl-5 space-y-1">
-                        <li><strong>Full Body</strong>: todo el cuerpo en cada sesión. Ideal para 2–3 días/sem.</li>
-                        <li><strong>Upper/Lower</strong>: tren superior y tren inferior alternados. 4 días/sem típicos.</li>
-                        <li><strong>Push/Pull/Legs</strong>: empuje, tirón y piernas. 3–6 días/sem según volumen.</li>
-                        <li><strong>Mixto</strong>: combinación adaptada a tu objetivo, intensidad y disponibilidad.</li>
-                      </ul>
-                      <p className="opacity-90">Tu plan actual: <strong>{splitResumen}</strong>. Esto se ajusta a tus <em>días de gym</em>, intensidad y objetivo para optimizar progreso y recuperación.</p>
-                    </>
-                  )}
-          </div>
-        </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Modal de Plan de Entrenamiento */}
-        <AnimatePresence>
-          {modalEntrenamientoAbierto && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-              onClick={() => setModalEntrenamientoAbierto(false)}
-            >
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                onClick={(e) => e.stopPropagation()}
-                className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl border border-white/10 p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
-              >
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <h2 className="text-2xl font-bold">🏋️ Plan de Entrenamiento</h2>
-                    {splitResumen && (
-                      <span className="text-sm px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-medium">
-                        {splitResumen}
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => setModalEntrenamientoAbierto(false)}
-                    className="text-white/70 hover:text-white transition-colors"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-
-                {/* Botones de semanas */}
-                <div className="flex gap-2 mb-6 flex-wrap">
-                  {[1, 2, 3, 4].map((semana) => (
-                    <button
-                      key={semana}
-                      onClick={() => setSemanaSeleccionada(semana)}
-                      className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                        semanaSeleccionada === semana
-                          ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white'
-                          : 'bg-white/10 text-white/70 hover:bg-white/20'
-                      }`}
-                    >
-                      Semana {semana}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Contenido de la semana seleccionada */}
-                {(() => {
-                  const tp = (plan as unknown as Record<string, unknown>)?.training_plan as TrainingPlan | undefined;
-                  const weeks = tp?.weeks || [];
-                  const semanaActual = weeks.find((w) => (w.week ?? 1) === semanaSeleccionada) || weeks[semanaSeleccionada - 1];
-                  
-                  if (!semanaActual) {
-                    return (
-                      <div className="text-center py-8 text-white/70">
-                        <p>No hay datos de entrenamiento para la Semana {semanaSeleccionada}</p>
-    </div>
-  );
-                  }
-
-                  return (
-                    <div className="space-y-4">
-                      <h3 className="text-lg font-semibold text-cyan-400 mb-4">
-                        Semana {semanaActual.week ?? semanaSeleccionada}
-                      </h3>
-                      {(semanaActual.days || []).map((dia: TrainingDay, di: number) => {
-                        // Función para determinar qué músculos se trabajan en este día
-                        const getMusculosDelDia = (): string | null => {
-                          const tp = (plan as unknown as Record<string, unknown>)?.training_plan as TrainingPlan | undefined;
-                          const splitGeneral = (tp as unknown as Record<string, unknown>)?.split as string | undefined;
-                          
-                          // Si el día tiene un split específico, usarlo
-                          if (dia.split) {
-                            const splitLower = dia.split.toLowerCase();
-                            
-                            // Si es Full Body, mostrar "Full Body"
-                            if (splitLower.includes("full body")) {
-                              return "Full Body";
-                            }
-                            
-                            // Mapear splits comunes a músculos
-                            if (splitLower.includes("push")) {
-                              return "Pecho, Hombros, Tríceps";
-                            } else if (splitLower.includes("pull")) {
-                              return "Espalda, Bíceps, Trapecio";
-                            } else if (splitLower.includes("legs") || splitLower.includes("piernas")) {
-                              return "Cuádriceps, Isquiotibiales, Glúteos, Gemelos";
-                            } else if (splitLower.includes("upper")) {
-                              return "Pecho, Espalda, Hombros, Bíceps, Tríceps";
-                            } else if (splitLower.includes("lower")) {
-                              return "Cuádriceps, Isquiotibiales, Glúteos, Gemelos, Abdominales";
-                            } else if (splitLower.includes("chest") || splitLower.includes("pecho")) {
-                              return "Pecho, Tríceps";
-                            } else if (splitLower.includes("back") || splitLower.includes("espalda")) {
-                              return "Espalda, Bíceps";
-                            } else if (splitLower.includes("shoulders") || splitLower.includes("hombros")) {
-                              return "Hombros, Trapecio";
-                            }
-                          }
-                          
-                          // Si el split general es Full Body, mostrar "Full Body"
-                          if (splitGeneral === "Full Body" || splitGeneral?.toLowerCase().includes("full body")) {
-                            return "Full Body";
-                          }
-                          
-                          // Si no hay split específico, analizar los muscle_group de los ejercicios
-                          if (dia.ejercicios && dia.ejercicios.length > 0) {
-                            const muscleGroups = new Set<string>();
-                            dia.ejercicios.forEach(ej => {
-                              if (ej.muscle_group) {
-                                muscleGroups.add(ej.muscle_group);
-                              }
-                            });
-                            
-                            // Si hay 4 o más músculos diferentes, probablemente es Full Body
-                            if (muscleGroups.size >= 4) {
-                              return "Full Body";
-                            }
-                            
-                            // Devolver los músculos únicos encontrados
-                            if (muscleGroups.size > 0) {
-                              return Array.from(muscleGroups).join(", ");
-                            }
-                          }
-                          
-                          return null;
-                        };
-                        
-                        const musculos = getMusculosDelDia();
-                        
-                        return (
-                        <div key={`dia-${semanaSeleccionada}-${di}`} className="rounded-lg border border-white/10 bg-white/5 p-4">
-                          <h4 className="text-base font-semibold mb-3 text-white">
-                            {dia.day}
-                            {musculos && (
-                              <span className="text-sm font-normal opacity-70 ml-2">({musculos})</span>
-                            )}
-                          </h4>
-                          
-                          {/* Calentamiento */}
-                          {dia.warmup && (
-                            <div className="mb-4 p-3 rounded-md bg-gradient-to-r from-orange-500/20 to-yellow-500/20 border border-orange-500/30">
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className="text-sm font-semibold text-orange-300">🔥 Calentamiento</span>
-                                <span className="text-xs opacity-70">({dia.warmup.duration_minutes} min)</span>
-                              </div>
-                              <p className="text-sm opacity-90 leading-relaxed">{dia.warmup.description}</p>
-                            </div>
-                          )}
-                          
-                          {(dia.ejercicios || []).length > 0 ? (
-                            <ul className="space-y-3">
-                              {(dia.ejercicios || []).map((ejercicio: TrainingExercise, ei: number) => {
-                                const restTime = ejercicio.rest_seconds || ejercicio.rest_sec;
-                                return (
-                                  <li key={`ej-${semanaSeleccionada}-${di}-${ei}`} className="rounded-lg bg-white/5 border border-white/10 p-3">
-                                    <div className="flex-1">
-                                      {/* Header del ejercicio */}
-                                      <div className="flex items-start justify-between gap-2 mb-2">
-                                        <div className="flex-1">
-                                          <div className="flex items-center gap-2 flex-wrap mb-1">
-                                            <span className="font-semibold text-white">{ejercicio.name}</span>
-                                            <span className="text-sm opacity-70">· {ejercicio.sets}x{String(ejercicio.reps)}</span>
-                                            {ejercicio.muscle_group && (
-                                              <span className="text-xs px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-                                                {ejercicio.muscle_group}
-                                              </span>
-                                            )}
-                                          </div>
-                                          {/* Detalles técnicos compactos */}
-                                          <div className="flex items-center gap-3 flex-wrap text-xs opacity-80">
-                                            {ejercicio.rpe && (
-                                              <span className="flex items-center gap-1">
-                                                <span className="opacity-60">RPE:</span>
-                                                <span className="font-medium">{ejercicio.rpe}/10</span>
-                                              </span>
-                                            )}
-                                            {ejercicio.tempo && (
-                                              <span className="flex items-center gap-1">
-                                                <span className="opacity-60">Tempo:</span>
-                                                <span className="font-medium">{ejercicio.tempo}</span>
-                                              </span>
-                                            )}
-                                            {restTime && (
-                                              <span className="flex items-center gap-1">
-                                                <span className="opacity-60">Descanso:</span>
-                                                <span className="font-medium">{restTime}s</span>
-                                              </span>
-                                            )}
-                                          </div>
-                                        </div>
-                                      </div>
-                                      
-                                      {/* Técnica (expandible) */}
-                                      {ejercicio.technique && (
-                                        <details className="mt-2">
-                                          <summary className="text-xs font-medium text-cyan-300 cursor-pointer hover:text-cyan-200">
-                                            💡 Técnica
-                                          </summary>
-                                          <p className="mt-1 text-xs opacity-90 leading-relaxed pl-2 border-l-2 border-cyan-500/30">
-                                            {ejercicio.technique}
-                                          </p>
-                                        </details>
-                                      )}
-                                      
-                                      {/* Progresión */}
-                                      {ejercicio.progression && (
-                                        <details className="mt-2">
-                                          <summary className="text-xs font-medium text-yellow-300 cursor-pointer hover:text-yellow-200">
-                                            📈 Progresión
-                                          </summary>
-                                          <p className="mt-1 text-xs opacity-90 leading-relaxed pl-2 border-l-2 border-yellow-500/30">
-                                            {ejercicio.progression}
-                                          </p>
-                                        </details>
-                                      )}
-                                      
-                                      {/* Cues mentales */}
-                                      {ejercicio.cues && ejercicio.cues.length > 0 && (
-                                        <div className="mt-2">
-                                          <p className="text-xs font-medium text-purple-300 mb-1">🎯 Pistas mentales:</p>
-                                          <ul className="list-disc pl-4 space-y-0.5">
-                                            {ejercicio.cues.map((cue, cueIdx) => (
-                                              <li key={`cue-${ei}-${cueIdx}`} className="text-xs opacity-90">{cue}</li>
-                                            ))}
-                                          </ul>
-                                        </div>
-                                      )}
-                                      
-                                      {/* Alternativa (si hay lesión) */}
-                                      {ejercicio.alternative && (
-                                        <div className="mt-2 p-2 rounded bg-orange-500/10 border border-orange-500/30">
-                                          <p className="text-xs font-medium text-orange-300 mb-1">⚠️ Alternativa (si tienes lesión):</p>
-                                          <p className="text-xs opacity-90">{ejercicio.alternative}</p>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </li>
-                                );
-                              })}
-                            </ul>
-                          ) : (
-                            <p className="text-sm text-white/50">No hay ejercicios registrados para este día</p>
-                          )}
-                        </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* Modal de selección de plan premium */}
-      {premiumModalOpen && authUser && (
-        <PremiumPlanModal
-          isOpen={premiumModalOpen}
-          onClose={() => setPremiumModalOpen(false)}
-          userId={authUser.uid}
-          userEmail={authUser.email || ""}
-        />
-      )}
-
-      {/* Modal de Continuidad de Plan (solo para planes simples) */}
-      {continuityModalOpen && authUser && user && plan && planId && !planMultiFase && (
-        <PlanContinuityModal
-          isOpen={continuityModalOpen}
-          onClose={() => setContinuityModalOpen(false)}
-          planData={{
-            id: planId,
-            plan: plan,
-            user: user,
-            createdAt: new Date(), // La fecha real se carga desde Firestore dentro del modal
-          }}
-          registrosPeso={registrosPeso}
-          userId={authUser.uid}
-        />
-      )}
 
       {/* Modal de registro de comida fuera del plan */}
       <FoodTrackingModal

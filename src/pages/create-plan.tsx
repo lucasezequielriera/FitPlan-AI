@@ -297,7 +297,7 @@ function crearPlanMultiFase(
 
 export default function CreatePlan() {
   const router = useRouter();
-  const { setUser, setPlan, setPlanId, setPlanMultiFase } = usePlanStore();
+  const { setUser, setPlan, setPlanId, setPlanMultiFase, setPlanCreatedAt } = usePlanStore();
   const { user: authUser, loading: authLoading } = useAuthStore();
 
   useEffect(() => {
@@ -1068,9 +1068,20 @@ export default function CreatePlan() {
         // Timer ya no es necesario con streaming real
       setProgress(100);
       updateChecklistStep('completo', 'completed');
+
+      // Si tenemos createdAt del snapshot de Firestore, guardarlo en el store
+      try {
+        // Nota: si el plan fue guardado automáticamente arriba, createdAt estará en Firestore.
+        // Aquí solo aseguramos que, al menos, la fecha de inicio coincida con "ahora".
+        const now = new Date();
+        setPlanCreatedAt(now.toISOString());
+      } catch {
+        // Silenciar errores
+      }
+
       // Esperar un momento para mostrar el checklist completo antes de redirigir
       await new Promise(resolve => setTimeout(resolve, 800));
-    router.push("/plan");
+      router.push("/plan");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Ocurrió un error";
       setError(message);

@@ -45,7 +45,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Obtener todos los usuarios usando Admin SDK (sin restricciones de reglas)
-    const usersSnapshot = await db.collection("usuarios").limit(1000).get();
+    // Reducir el límite para evitar exceder cuota (500 en lugar de 1000)
+    const usersSnapshot = await db.collection("usuarios").limit(500).get();
 
     // Función auxiliar para convertir timestamps de Firestore Admin a formato serializable
     const convertTimestamp = (timestamp: unknown): unknown => {

@@ -259,3 +259,7 @@ para consolidar adaptaciones.
 **Desarrollado con:** Next.js, TypeScript, Framer Motion  
 ✅ **100% funcional y listo para uso**
 
+
+
+
+

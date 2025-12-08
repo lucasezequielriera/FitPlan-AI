@@ -14,7 +14,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const db = getAdminDb();
     if (!db) {
-      return res.status(500).json({ error: "Firebase Admin SDK no configurado" });
+      // Si Firebase Admin no está configurado, retornar éxito silencioso
+      // para no romper el flujo del usuario (esta funcionalidad es opcional)
+      console.warn("⚠️ Firebase Admin SDK no configurado, snapshot mensual no se guardará");
+      return res.status(200).json({ 
+        message: "Snapshot mensual omitido (Firebase Admin no configurado)",
+        skipped: true
+      });
     }
 
     const { userId, planId, planData, userData } = req.body;
@@ -57,8 +63,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       snapshotMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     }
 
-    // Datos del snapshot mensual
-    const snapshotData = {
+    // Función helper para limpiar valores undefined
+    const cleanObject = (obj: Record<string, any>): Record<string, any> => {
+      const cleaned: Record<string, any> = {};
+      for (const [key, value] of Object.entries(obj)) {
+        if (value !== undefined) {
+          if (value && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
+            cleaned[key] = cleanObject(value);
+          } else {
+            cleaned[key] = value;
+          }
+        }
+      }
+      return cleaned;
+    };
+
+    // Datos del snapshot mensual (filtrar undefined)
+    const snapshotDataRaw = {
       userId,
       planId,
       snapshotMonth,
@@ -78,6 +99,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       createdAt: FieldValue.serverTimestamp(),
       planCreatedAt: planCreatedDate,
     };
+
+    // Limpiar valores undefined antes de guardar
+    const snapshotData = cleanObject(snapshotDataRaw);
 
     // Guardar en historial_mensual/{userId}/{mes-año}
     const historyRef = db.collection("historial_mensual").doc(userId).collection("meses").doc(snapshotMonth);
