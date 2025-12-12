@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import React, { useEffect, useState, useRef, useMemo } from "react";
+import React, { useEffect, useState, useRef, useMemo, type ReactNode, type ReactElement } from "react";
 import { usePlanStore } from "@/store/planStore";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Goal, TipoDieta, Intensidad, UserInput, PlanMultiFase } from "@/types/plan";
@@ -15,7 +15,7 @@ import PlanContinuityModal from "@/components/PlanContinuityModal";
 import MonthChangesModal from "@/components/MonthChangesModal";
 // ExerciseSetTracker removido temporalmente
 import TrainingCalendar from "@/components/TrainingCalendar";
-import type { TrainingDayPlan } from "@/types/plan";
+import type { TrainingDayPlan, TrainingWeekPlan } from "@/types/plan";
 import { getAuthSafe, getDbSafe } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { useAuthStore } from "@/store/authStore";
@@ -237,6 +237,7 @@ export default function PlanPage() {
   const [semanaSeleccionada, setSemanaSeleccionada] = useState<number>(1);
   const [diasExpandidos, setDiasExpandidos] = useState<Record<string, boolean>>({});
   const [vistaPlan, setVistaPlan] = useState<'entrenamiento' | 'alimentacion'>('alimentacion');
+  const [calendarResetKey, setCalendarResetKey] = useState(0);
   // Estados para calendario de entrenamiento
   const [selectedTrainingDate, setSelectedTrainingDate] = useState<Date | null>(null);
   const [selectedDayData, setSelectedDayData] = useState<{ day: TrainingDayPlan; week: number; dayIndex: number } | null>(null);
@@ -256,7 +257,934 @@ export default function PlanPage() {
   // Ya no se hacen llamadas al backend al seleccionar un día del calendario
   // Solo se muestran los datos del plan que ya están cargados en memoria
   
-  // Componente para mostrar el entrenamiento de un día específico
+  // Componente rediseñado para registrar pesos con RM y porcentajes de esfuerzo
+  function ExerciseWeightTracker({
+    exercise,
+    exerciseIndex,
+    week,
+    dayIndex,
+    dayName,
+    planId,
+    userId,
+    date,
+  }: {
+    exercise: TrainingExercise;
+    exerciseIndex?: number;
+    week: number;
+    dayIndex: number;
+    dayName: string;
+    planId?: string;
+    userId?: string;
+    date?: Date | null;
+  }) {
+    const [weights, setWeights] = useState<number[]>(() => Array(exercise.sets).fill(0));
+    const [reps, setReps] = useState<number[]>(() => Array(exercise.sets).fill(0));
+    const [rm, setRm] = useState<number | null>(null);
+    const [percentages, setPercentages] = useState<number[]>([]);
+    const [previousWeights, setPreviousWeights] = useState<number[] | null>(null);
+    const [previousReps, setPreviousReps] = useState<number[] | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [saved, setSaved] = useState(false);
+    const [comparison, setComparison] = useState<"better" | "same" | "worse" | null>(null);
+    const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const weightsRef = useRef(weights);
+    const repsRef = useRef(reps);
+    const rmRef = useRef(rm);
+    
+    // Mantener refs actualizados para el cleanup
+    useEffect(() => {
+      weightsRef.current = weights;
+    }, [weights]);
+    
+    useEffect(() => {
+      repsRef.current = reps;
+    }, [reps]);
+    
+    useEffect(() => {
+      rmRef.current = rm;
+    }, [rm]);
+    
+    // Cleanup: guardar valores pendientes cuando el componente se desmonte
+    useEffect(() => {
+      return () => {
+        // Cancelar timeout pendiente y guardar inmediatamente
+        if (saveTimeoutRef.current) {
+          clearTimeout(saveTimeoutRef.current);
+          // Guardar los valores actuales antes de desmontar
+          const currentWeights = weightsRef.current;
+          const currentReps = repsRef.current;
+          const currentRm = rmRef.current;
+          
+          if (currentWeights.some(w => w > 0) || currentReps.some(r => r > 0) || currentRm) {
+            // Guardar en localStorage como backup inmediato
+            const storageKey = `exercise_weight_${userId || 'local'}_${planId || 'local'}_${exercise.name}_${week}_${dayIndex}_${dayName}`;
+            if (typeof window !== "undefined") {
+              localStorage.setItem(storageKey, JSON.stringify(currentWeights));
+              localStorage.setItem(`${storageKey}_reps`, JSON.stringify(currentReps));
+              if (currentRm !== null && currentRm > 0) {
+                localStorage.setItem(`${storageKey}_rm`, currentRm.toString());
+              }
+            }
+            
+            // Intentar guardar en Firestore (sin await para no bloquear el desmontaje)
+            if (planId && userId) {
+              // Usar los valores actuales del estado a través de los refs
+              const saveData = async () => {
+                try {
+                  const { getDbSafe } = await import("@/lib/firebase");
+                  const { collection, query, where, getDocs, setDoc, doc, serverTimestamp } = await import("firebase/firestore");
+                  const db = getDbSafe();
+                  
+                  if (db) {
+                    const weightData = {
+                      userId,
+                      planId,
+                      exerciseName: exercise.name,
+                      week,
+                      day: dayName,
+                      dayIndex,
+                      rm: currentRm !== null && currentRm > 0 ? currentRm : null,
+                      sets: currentWeights.map((weight, i) => ({
+                        setNumber: i + 1,
+                        weight,
+                        reps: exercise.reps,
+                        actualReps: currentReps[i] > 0 ? currentReps[i] : null,
+                        percentage: null, // No calculamos porcentajes en cleanup
+                        completed: weight > 0,
+                        date: new Date().toISOString(),
+                      })),
+                      date: date ? date.toISOString() : new Date().toISOString(),
+                      updatedAt: serverTimestamp(),
+                    };
+                    
+                    const existingQuery = query(
+                      collection(db, "exercise_weights"),
+                      where("userId", "==", userId),
+                      where("planId", "==", planId),
+                      where("exerciseName", "==", exercise.name),
+                      where("week", "==", week),
+                      where("day", "==", dayName),
+                      where("dayIndex", "==", dayIndex)
+                    );
+                    
+                    const existingDocs = await getDocs(existingQuery);
+                    
+                    if (!existingDocs.empty) {
+                      const existingDoc = existingDocs.docs[0];
+                      const docRef = doc(db, "exercise_weights", existingDoc.id);
+                      await setDoc(docRef, weightData, { merge: true });
+                    } else {
+                      const docRef = doc(collection(db, "exercise_weights"));
+                      await setDoc(docRef, {
+                        ...weightData,
+                        createdAt: serverTimestamp(),
+                      });
+                    }
+                  }
+                } catch (e) {
+                  console.error("Error guardando en cleanup:", e);
+                }
+              };
+              
+              saveData();
+            }
+          }
+        }
+      };
+    }, [planId, userId, exercise.name, exercise.reps, week, dayIndex, dayName, date]);
+
+    // Cargar pesos anteriores y RM desde Firestore y localStorage
+    useEffect(() => {
+      const loadPrevious = async () => {
+        if (!exercise.name) {
+          setLoading(false);
+          return;
+        }
+
+        try {
+          // Primero intentar cargar desde localStorage (más rápido)
+          const storageKey = `exercise_weight_${userId || 'local'}_${planId || 'local'}_${exercise.name}_${week}_${dayIndex}_${dayName}`;
+          if (typeof window !== "undefined") {
+            const saved = localStorage.getItem(storageKey);
+            if (saved) {
+              try {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length === exercise.sets) {
+                  setWeights(parsed);
+                }
+              } catch (e) {
+                console.error("Error parseando localStorage:", e);
+              }
+            }
+
+            // Cargar RM desde localStorage con precisión completa
+            const savedRm = localStorage.getItem(`${storageKey}_rm`);
+            if (savedRm) {
+              const rmValue = parseFloat(savedRm);
+              if (!isNaN(rmValue) && rmValue > 0) {
+                setRm(rmValue);
+                console.log("📥 RM cargado desde localStorage:", rmValue, "tipo:", typeof rmValue);
+              }
+            }
+            
+            // Cargar repeticiones desde localStorage
+            const savedReps = localStorage.getItem(`${storageKey}_reps`);
+            if (savedReps) {
+              try {
+                const parsed = JSON.parse(savedReps);
+                if (Array.isArray(parsed) && parsed.length === exercise.sets) {
+                  setReps(parsed);
+                }
+              } catch (e) {
+                console.error("Error parseando repeticiones desde localStorage:", e);
+              }
+            }
+          }
+
+          // Luego cargar desde Firestore
+          if (planId && userId) {
+            const { getDbSafe } = await import("@/lib/firebase");
+            const { collection, query, where, orderBy, limit, getDocs } = await import("firebase/firestore");
+            const db = getDbSafe();
+            
+            if (db) {
+              // Primero intentar cargar el registro específico de este día
+              const specificQuery = query(
+                collection(db, "exercise_weights"),
+                where("userId", "==", userId),
+                where("planId", "==", planId),
+                where("exerciseName", "==", exercise.name),
+                where("week", "==", week),
+                where("day", "==", dayName),
+                where("dayIndex", "==", dayIndex)
+              );
+              
+              const specificSnap = await getDocs(specificQuery);
+              
+              if (!specificSnap.empty) {
+                // Cargar los pesos y repeticiones del día específico
+                const data = specificSnap.docs[0].data();
+                if (data.sets?.length) {
+                  // Ordenar los sets por setNumber para asegurar el orden correcto
+                  const sortedSets = [...data.sets].sort((a: { setNumber: number }, b: { setNumber: number }) => 
+                    (a.setNumber || 0) - (b.setNumber || 0)
+                  );
+                  const dayWeights = sortedSets.map((s: { weight: number }) => s.weight || 0);
+                  const dayReps = sortedSets.map((s: { actualReps?: number; reps?: number | string }) => {
+                    // Priorizar actualReps (repeticiones reales), luego reps
+                    if (s.actualReps !== undefined && s.actualReps !== null) {
+                      return typeof s.actualReps === 'number' ? s.actualReps : parseInt(String(s.actualReps)) || 0;
+                    }
+                    // Si no hay actualReps, intentar parsear reps
+                    if (s.reps !== undefined && s.reps !== null) {
+                      const repsValue = typeof s.reps === 'number' ? s.reps : parseInt(String(s.reps)) || 0;
+                      return repsValue;
+                    }
+                    return 0;
+                  });
+                  console.log("📥 Pesos del día cargados:", dayWeights, "Repeticiones:", dayReps);
+                  setWeights(dayWeights);
+                  setReps(dayReps);
+                }
+              }
+              
+              // Cargar el RM del ÚLTIMO registro de este ejercicio (sin importar el día)
+              // Esto asegura que siempre se muestre el último RM que pusiste
+              const rmQuery = query(
+                collection(db, "exercise_weights"),
+                where("userId", "==", userId),
+                where("planId", "==", planId),
+                where("exerciseName", "==", exercise.name),
+                orderBy("date", "desc"),
+                limit(10) // Buscar en los últimos 10 registros
+              );
+              
+              const rmSnap = await getDocs(rmQuery);
+              
+              if (!rmSnap.empty) {
+                // Buscar el primer registro que tenga RM
+                for (const doc of rmSnap.docs) {
+                  const rmData = doc.data();
+                  if (rmData.rm !== null && rmData.rm !== undefined) {
+                    const rmValue = typeof rmData.rm === 'number' ? rmData.rm : parseFloat(rmData.rm);
+                    if (!isNaN(rmValue) && rmValue > 0) {
+                      setRm(rmValue);
+                      console.log("📥 RM cargado desde Firestore (último valor):", rmValue, "del día:", rmData.day, "semana:", rmData.week);
+                      break; // Usar el primero que encontremos con RM
+                    }
+                  }
+                }
+              }
+              
+              // Buscar el último registro de este ejercicio de OTRO día (para mostrar como "anterior")
+              // IMPORTANTE: No mostrar valores del mismo día como "anteriores"
+              const lastQuery = query(
+                collection(db, "exercise_weights"),
+                where("userId", "==", userId),
+                where("planId", "==", planId),
+                where("exerciseName", "==", exercise.name),
+                orderBy("date", "desc"),
+                limit(50) // Buscar más registros para asegurar encontrar uno de otro día
+              );
+              
+              const lastSnap = await getDocs(lastQuery);
+              
+              if (!lastSnap.empty) {
+                // Obtener la fecha del día actual para comparación más precisa
+                const currentDateStr = date ? new Date(date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+                
+                // Buscar el primer registro que NO sea del mismo día y que tenga sets válidos
+                for (const doc of lastSnap.docs) {
+                  const lastData = doc.data();
+                  
+                  // Comparación más estricta: verificar semana, día, dayIndex Y fecha
+                  const isSameDay = lastData.week === week && 
+                                   lastData.day === dayName && 
+                                   lastData.dayIndex === dayIndex;
+                  
+                  // También comparar por fecha si está disponible
+                  let isSameDate = false;
+                  if (lastData.date) {
+                    const lastDateStr = typeof lastData.date === 'string' 
+                      ? lastData.date.split('T')[0] 
+                      : new Date(lastData.date).toISOString().split('T')[0];
+                    isSameDate = lastDateStr === currentDateStr;
+                  }
+                  
+                  // Excluir si es el mismo día O la misma fecha
+                  if (isSameDay || isSameDate) {
+                    console.log("⏭️ Saltando registro del mismo día:", {
+                      semana: lastData.week,
+                      dia: lastData.day,
+                      dayIndex: lastData.dayIndex,
+                      fecha: lastData.date,
+                      esMismoDia: isSameDay,
+                      esMismaFecha: isSameDate
+                    });
+                    continue; // Saltar este registro, es del mismo día
+                  }
+                  
+                  // Si encontramos un registro de otro día, usarlo como "anterior"
+                  if (lastData.sets?.length && Array.isArray(lastData.sets)) {
+                    // Ordenar los sets por setNumber para asegurar el orden correcto
+                    const sortedSets = [...lastData.sets]
+                      .filter((s: any) => s && typeof s === 'object' && 'setNumber' in s && 'weight' in s)
+                      .sort((a: { setNumber: number }, b: { setNumber: number }) => 
+                        (a.setNumber || 0) - (b.setNumber || 0)
+                      );
+                    
+                    // Mapear solo si tenemos sets válidos
+                    if (sortedSets.length > 0) {
+                      const prevWeights = sortedSets.map((s: { weight: number }) => {
+                        const weight = s.weight;
+                        // Validar que el peso sea un número válido
+                        return (typeof weight === 'number' && !isNaN(weight) && weight >= 0) ? weight : 0;
+                      });
+                      
+                      const prevReps = sortedSets.map((s: any) => {
+                        // Priorizar actualReps (repeticiones reales), luego reps
+                        if (s.actualReps !== undefined && s.actualReps !== null) {
+                          return typeof s.actualReps === 'number' ? s.actualReps : parseInt(String(s.actualReps)) || 0;
+                        }
+                        if (s.reps !== undefined && s.reps !== null) {
+                          const repsValue = typeof s.reps === 'number' ? s.reps : parseInt(String(s.reps)) || 0;
+                          return repsValue;
+                        }
+                        return 0;
+                      });
+                      
+                      // Solo usar si hay al menos un peso mayor a 0
+                      if (prevWeights.some(w => w > 0)) {
+                        console.log("📥 Pesos anteriores cargados (de OTRO día):", {
+                          pesos: prevWeights,
+                          repeticiones: prevReps,
+                          setsOriginales: lastData.sets,
+                          setsOrdenados: sortedSets,
+                          delDia: lastData.day,
+                          semana: lastData.week,
+                          dayIndex: lastData.dayIndex,
+                          fecha: lastData.date,
+                          ejercicio: exercise.name,
+                          diaActual: { week, day: dayName, dayIndex, fecha: currentDateStr }
+                        });
+                        setPreviousWeights(prevWeights);
+                        setPreviousReps(prevReps);
+                        break; // Usar el primero que encontremos de otro día con datos válidos
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.error("Error cargando pesos anteriores:", e);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      loadPrevious();
+    }, [exercise.name, exercise.sets, planId, userId, week, dayIndex, dayName, date]);
+
+    // Calcular porcentajes basados en RM y RPE usando OpenAI
+    useEffect(() => {
+      const calculatePercentages = async () => {
+        if (!rm || rm <= 0) {
+          setPercentages([]);
+          return;
+        }
+
+        try {
+          // Llamar a OpenAI para calcular porcentajes basados en RPE y series
+          const response = await fetch("/api/calculateExercisePercentages", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              rm,
+              sets: exercise.sets,
+              reps: exercise.reps,
+              rpe: exercise.rpe || 8,
+            }),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            setPercentages(data.percentages || []);
+          } else {
+            // Fallback: cálculo manual básico
+            const basePercentage = exercise.rpe ? 
+              (exercise.rpe >= 9 ? 90 : exercise.rpe >= 8 ? 85 : exercise.rpe >= 7 ? 80 : 75) : 80;
+            const calculated = Array(exercise.sets).fill(0).map((_, i) => {
+              // Primera serie puede ser 5% menos, última serie igual
+              if (i === 0 && exercise.sets > 1) return basePercentage - 5;
+              return basePercentage;
+            });
+            setPercentages(calculated);
+          }
+        } catch (e) {
+          console.error("Error calculando porcentajes:", e);
+          // Fallback manual
+          const basePercentage = exercise.rpe ? 
+            (exercise.rpe >= 9 ? 90 : exercise.rpe >= 8 ? 85 : exercise.rpe >= 7 ? 80 : 75) : 80;
+          const calculated = Array(exercise.sets).fill(0).map((_, i) => {
+            if (i === 0 && exercise.sets > 1) return basePercentage - 5;
+            return basePercentage;
+          });
+          setPercentages(calculated);
+        }
+      };
+
+      calculatePercentages();
+    }, [rm, exercise.sets, exercise.reps, exercise.rpe]);
+
+    // Comparar pesos actuales con anteriores
+    useEffect(() => {
+      if (!previousWeights || weights.every(w => w === 0)) {
+        setComparison(null);
+        return;
+      }
+
+      const currentAvg = weights.filter(w => w > 0).length > 0
+        ? weights.filter(w => w > 0).reduce((a, b) => a + b, 0) / weights.filter(w => w > 0).length
+        : 0;
+      const previousAvg = previousWeights.reduce((a, b) => a + b, 0) / previousWeights.length;
+      
+      if (currentAvg === 0) {
+        setComparison(null);
+        return;
+      }
+      
+      const diff = currentAvg - previousAvg;
+      const threshold = 0.5; // kg
+
+      if (Math.abs(diff) < threshold) {
+        setComparison("same");
+      } else if (diff > 0) {
+        setComparison("better");
+      } else {
+        setComparison("worse");
+      }
+    }, [weights, previousWeights]);
+
+    const saveWeights = async (weightsToSave: number[]) => {
+      // Guardar siempre, incluso si todos los pesos son 0 O si solo hay RM
+      // Esto asegura que el RM se guarde siempre y persista
+      
+      console.log("🔄 Iniciando guardado de pesos:", {
+        exercise: exercise.name,
+        weights: weightsToSave,
+        planId: planId || "NO HAY",
+        userId: userId || "NO HAY",
+        week,
+        dayIndex,
+        dayName,
+        rm: rm || "NO HAY",
+      });
+
+      setSaving(true);
+      try {
+        // Guardar en localStorage como backup (siempre)
+        const storageKey = `exercise_weight_${userId || 'local'}_${planId || 'local'}_${exercise.name}_${week}_${dayIndex}_${dayName}`;
+        if (typeof window !== "undefined") {
+          localStorage.setItem(storageKey, JSON.stringify(weightsToSave));
+          localStorage.setItem(`${storageKey}_reps`, JSON.stringify(reps));
+          if (rm !== null && rm > 0) {
+            // Guardar RM con precisión completa
+            localStorage.setItem(`${storageKey}_rm`, rm.toString());
+            console.log("💾 RM guardado en localStorage (desde saveWeights):", rm, "tipo:", typeof rm);
+          }
+          console.log("💾 Guardado en localStorage:", { storageKey, weights: weightsToSave, reps, rm, rmType: typeof rm });
+        }
+
+        // Guardar en Firestore si hay planId y userId
+        // IMPORTANTE: Guardar siempre, incluso si solo hay RM (sin pesos)
+        if (planId && userId) {
+          const { getDbSafe } = await import("@/lib/firebase");
+          const { collection, query, where, getDocs, setDoc, doc, serverTimestamp } = await import("firebase/firestore");
+          const db = getDbSafe();
+          
+          if (db) {
+            const weightData = {
+              userId,
+              planId,
+              exerciseName: exercise.name,
+              week,
+              day: dayName,
+              dayIndex,
+              // Guardar RM con precisión completa, sin redondeo
+              rm: rm !== null && rm > 0 ? rm : null,
+              sets: weightsToSave.map((weight, i) => ({
+                setNumber: i + 1,
+                weight,
+                reps: exercise.reps, // Repeticiones objetivo del plan
+                actualReps: reps[i] > 0 ? reps[i] : null, // Repeticiones reales que hizo el usuario
+                percentage: percentages[i] || null,
+                completed: weight > 0,
+                date: new Date().toISOString(),
+              })),
+              date: date ? date.toISOString() : new Date().toISOString(),
+              updatedAt: serverTimestamp(),
+            };
+            
+            console.log("📤 Guardando en Firestore:", {
+              rm: rm !== null && rm > 0 ? rm : null,
+              rmTipo: typeof rm,
+              pesos: weightsToSave,
+              tienePesos: weightsToSave.some(w => w > 0),
+              tieneRM: rm !== null && rm > 0
+            });
+
+            // Buscar si ya existe un documento para este ejercicio, semana, día y dayIndex
+            const existingQuery = query(
+              collection(db, "exercise_weights"),
+              where("userId", "==", userId),
+              where("planId", "==", planId),
+              where("exerciseName", "==", exercise.name),
+              where("week", "==", week),
+              where("day", "==", dayName),
+              where("dayIndex", "==", dayIndex)
+            );
+
+            const existingDocs = await getDocs(existingQuery);
+            
+            if (!existingDocs.empty) {
+              // Actualizar documento existente - REEMPLAZAR completamente (no merge) para evitar valores antiguos
+              const existingDoc = existingDocs.docs[0];
+              const docRef = doc(db, "exercise_weights", existingDoc.id);
+              // Usar setDoc sin merge para reemplazar completamente el documento
+              await setDoc(docRef, {
+                ...weightData,
+                createdAt: existingDoc.data().createdAt || serverTimestamp(), // Preservar createdAt original
+              });
+              console.log("✅ Datos actualizados en Firestore (reemplazado completamente). ID:", existingDoc.id, {
+                rm: weightData.rm,
+                tienePesos: weightData.sets.some(s => s.weight > 0)
+              });
+            } else {
+              // Crear nuevo documento (incluso si solo hay RM, sin pesos)
+              const docRef = doc(collection(db, "exercise_weights"));
+              await setDoc(docRef, {
+                ...weightData,
+                createdAt: serverTimestamp(),
+              });
+              console.log("✅ Nuevo documento creado en Firestore. ID:", docRef.id, {
+                rm: weightData.rm,
+                tienePesos: weightData.sets.some(s => s.weight > 0)
+              });
+            }
+          } else {
+            console.warn("⚠️ Firestore no disponible, solo guardado en localStorage");
+          }
+        } else {
+          console.warn("💾 Guardado solo en localStorage (sin planId/userId)", { 
+            planId: planId || "undefined", 
+            userId: userId || "undefined" 
+          });
+        }
+        
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
+      } catch (e) {
+        console.error("❌ Error guardando pesos:", e);
+        // Mostrar error más descriptivo
+        const errorMessage = e instanceof Error ? e.message : "Error desconocido";
+        console.error("Detalles del error:", errorMessage);
+        console.error("Stack:", e instanceof Error ? e.stack : "N/A");
+        alert(`Error al guardar: ${errorMessage}. Los datos se guardaron localmente.`);
+      } finally {
+        setSaving(false);
+      }
+    };
+
+    const handleWeightChange = (idx: number, val: number) => {
+      const next = [...weights];
+      next[idx] = Math.max(0, val);
+      setWeights(next);
+      setSaved(false);
+      
+      // Guardar inmediatamente en localStorage
+      const storageKey = `exercise_weight_${userId || 'local'}_${planId || 'local'}_${exercise.name}_${week}_${dayIndex}_${dayName}`;
+      if (typeof window !== "undefined") {
+        localStorage.setItem(storageKey, JSON.stringify(next));
+        console.log("💾 Guardado inmediato en localStorage:", { serie: idx + 1, peso: val, todos: next });
+      }
+      
+      // Guardar en Firestore con delay corto (500ms) para evitar demasiadas llamadas mientras escribe
+      // Pero guardar siempre, incluso si todos son 0 (para limpiar)
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = setTimeout(() => {
+        console.log("⏰ Guardando pesos en Firestore...");
+        saveWeights(next);
+      }, 500);
+    };
+
+    const handleRepsChange = (idx: number, val: number) => {
+      const next = [...reps];
+      next[idx] = Math.max(0, Math.floor(val)); // Solo números enteros
+      setReps(next);
+      setSaved(false);
+      
+      // Guardar inmediatamente en localStorage
+      const storageKey = `exercise_weight_${userId || 'local'}_${planId || 'local'}_${exercise.name}_${week}_${dayIndex}_${dayName}`;
+      if (typeof window !== "undefined") {
+        localStorage.setItem(`${storageKey}_reps`, JSON.stringify(next));
+        console.log("💾 Repeticiones guardadas en localStorage:", { serie: idx + 1, reps: val, todos: next });
+      }
+      
+      // Guardar en Firestore con delay corto
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = setTimeout(() => {
+        console.log("⏰ Guardando repeticiones en Firestore...");
+        saveWeights(weights);
+      }, 500);
+    };
+
+    const handleRmChange = (val: number) => {
+      console.log("🔄 handleRmChange llamado con:", val, "tipo:", typeof val);
+      
+      // Preservar el valor exacto, incluso si es 0 (el usuario puede querer limpiar el campo)
+      const newRm = val > 0 ? val : null;
+      console.log("✅ Nuevo RM establecido:", newRm, "tipo:", typeof newRm);
+      setRm(newRm);
+      
+      // Guardar RM en localStorage inmediatamente con precisión completa
+      const storageKey = `exercise_weight_${userId || 'local'}_${planId || 'local'}_${exercise.name}_${week}_${dayIndex}_${dayName}`;
+      if (typeof window !== "undefined" && newRm !== null) {
+        // Guardar como número completo, sin redondeo
+        const rmString = newRm.toString();
+        localStorage.setItem(`${storageKey}_rm`, rmString);
+        console.log("💾 RM guardado en localStorage:", {
+          valor: newRm,
+          string: rmString,
+          tipo: typeof newRm,
+          longitud: rmString.length
+        });
+      }
+      
+      // Guardar RM en Firestore inmediatamente (incluso sin pesos)
+      // Esto asegura que el RM se guarde siempre y persista para futuros días
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = setTimeout(() => {
+        console.log("⏰ Guardando RM en Firestore...");
+        // Guardar RM incluso si no hay pesos todavía
+        saveWeights(weights);
+      }, 500);
+    };
+
+    const getSuggestedWeight = (setIndex: number): number | null => {
+      if (!rm || !percentages[setIndex]) return null;
+      return Math.round((rm * percentages[setIndex]) / 100);
+    };
+
+    const avgWeight = weights.some(w => w > 0)
+      ? weights.filter(w => w > 0).reduce((a, b) => a + b, 0) / weights.filter(w => w > 0).length
+      : 0;
+
+    const previousAvg = previousWeights
+      ? previousWeights.reduce((a, b) => a + b, 0) / previousWeights.length
+      : 0;
+
+    if (loading) {
+      return (
+        <div className="mt-3 pt-3 border-t border-white/10">
+          <div className="flex items-center justify-center py-4">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-cyan-400"></div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-white/10">
+        {/* Header con comparación */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0 mb-3 sm:mb-4">
+          <h4 className="text-sm sm:text-base font-semibold text-cyan-300 flex items-center gap-2">
+            💪 Registro de Pesos
+          </h4>
+          {comparison && previousWeights && (
+            <div className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg text-xs font-medium ${
+              comparison === "better" ? "bg-green-500/20 text-green-300 border border-green-500/30" :
+              comparison === "worse" ? "bg-red-500/20 text-red-300 border border-red-500/30" :
+              "bg-blue-500/20 text-blue-300 border border-blue-500/30"
+            }`}>
+              {comparison === "better" && "📈 Mejoraste!"}
+              {comparison === "same" && "➡️ Igual"}
+              {comparison === "worse" && "📉 Baja"}
+              {comparison !== "same" && ` ${Math.abs(avgWeight - previousAvg).toFixed(1)}kg`}
+            </div>
+          )}
+        </div>
+
+        {/* Input de RM */}
+        <div className="mb-3 sm:mb-4 p-2 sm:p-3 rounded-lg bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/20">
+          <label className="text-xs sm:text-sm font-medium text-purple-300 mb-1.5 sm:mb-2 block">
+            🎯 RM (Repetición Máxima) - Opcional
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              inputMode="decimal"
+              value={rm !== null ? rm.toString() : ""}
+              onChange={(e) => {
+                const value = e.target.value.trim();
+                console.log("🔤 Input RM cambiado:", value, "longitud:", value.length);
+                
+                // Permitir solo números y punto decimal
+                const validPattern = /^-?\d*\.?\d*$/;
+                if (value === "" || validPattern.test(value)) {
+                  if (value === "" || value === null || value === "-" || value === ".") {
+                    // Permitir campo vacío, signo negativo o punto mientras se escribe
+                    setRm(null);
+                  } else {
+                    // Parsear el valor completo
+                    const numValue = parseFloat(value);
+                    console.log("🔢 Valor parseado:", numValue, "tipo:", typeof numValue, "string original:", value);
+                    
+                    if (!isNaN(numValue) && numValue > 0) {
+                      setRm(numValue);
+                      handleRmChange(numValue);
+                    } else {
+                      setRm(null);
+                    }
+                  }
+                }
+              }}
+              onBlur={(e) => {
+                // Al perder el foco, asegurar que el valor sea válido
+                const value = e.target.value.trim();
+                if (value === "" || value === null || value === "-" || value === ".") {
+                  setRm(null);
+                } else {
+                  const numValue = parseFloat(value);
+                  console.log("💾 RM final después de blur:", numValue, "string:", value);
+                  if (!isNaN(numValue) && numValue > 0) {
+                    setRm(numValue);
+                    handleRmChange(numValue);
+                  } else {
+                    setRm(null);
+                  }
+                }
+              }}
+              placeholder="Ej: 100"
+              className="flex-1 px-2 sm:px-3 py-1.5 sm:py-2 text-sm sm:text-base bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-purple-500/50 focus:bg-white/15"
+            />
+            <span className="text-xs sm:text-sm text-white/60">kg</span>
+          </div>
+          {rm && (
+            <p className="text-xs text-purple-300/80 mt-1.5 sm:mt-2">
+              Con este RM, se calcularán los porcentajes de esfuerzo para cada serie
+            </p>
+          )}
+        </div>
+
+        {/* Inputs de pesos por serie */}
+        <div className="space-y-1.5 sm:space-y-2">
+          {Array.from({ length: exercise.sets }).map((_, i) => {
+            const suggestedWeight = getSuggestedWeight(i);
+            const previousWeight = previousWeights?.[i] || null;
+            const previousRep = previousReps?.[i] || null;
+            const hasWeight = weights[i] > 0;
+            const hasReps = reps[i] > 0;
+            const isComplete = hasWeight && hasReps; // Completo: tiene peso Y repeticiones
+            const isIncomplete = (hasWeight || hasReps) && !isComplete; // Incompleto: solo tiene uno
+            const hasPrevious = previousWeight || previousRep; // Tiene valores anteriores pero no los ha cargado
+            const repsObjective = typeof exercise.reps === 'string' ? exercise.reps : `${exercise.reps}`;
+
+            return (
+              <div
+                key={i}
+                className={`p-1.5 sm:p-2 rounded-md border transition-all ${
+                  isComplete
+                    ? "bg-green-500/10 border-green-500/30"
+                    : isIncomplete
+                    ? "bg-yellow-500/10 border-yellow-500/30"
+                    : hasPrevious
+                    ? "bg-orange-500/10 border-orange-500/30"
+                    : "bg-white/5 border-white/10"
+                }`}
+              >
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  {/* Número de serie */}
+                  <div className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-md bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center">
+                    <span className="text-xs font-bold text-cyan-300">{i + 1}</span>
+                  </div>
+
+                  {/* Inputs de peso y repeticiones - responsive */}
+                  <div className="flex-1 flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 sm:gap-2">
+                    {/* Input de peso */}
+                    <div className="flex items-center gap-1 flex-1">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.5"
+                        value={weights[i] || ""}
+                        onChange={(e) => handleWeightChange(i, parseFloat(e.target.value) || 0)}
+                        placeholder={suggestedWeight ? suggestedWeight.toString() : previousWeight ? previousWeight.toString() : "0"}
+                        className="flex-1 px-2 py-1.5 sm:py-2 text-sm sm:text-base font-semibold bg-white/10 border border-white/20 rounded-md text-white placeholder-white/30 focus:outline-none focus:border-cyan-500/50 focus:bg-white/15 text-center"
+                      />
+                      <span className="text-xs sm:text-sm text-white/60 w-6 sm:w-8">kg</span>
+                    </div>
+                    
+                    {/* Input de repeticiones */}
+                    <div className="flex items-center gap-1 flex-1">
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={reps[i] || ""}
+                        onChange={(e) => handleRepsChange(i, parseInt(e.target.value) || 0)}
+                        placeholder={previousRep ? previousRep.toString() : repsObjective}
+                        className="flex-1 px-2 py-1.5 sm:py-2 text-sm sm:text-base bg-white/10 border border-white/20 rounded-md text-white placeholder-white/30 focus:outline-none focus:border-orange-500/50 focus:bg-white/15 text-center"
+                      />
+                      <span className="text-xs sm:text-sm text-white/60 w-10 sm:w-12">reps</span>
+                    </div>
+                  </div>
+
+                  {/* Indicador de estado */}
+                  {isComplete ? (
+                    // Verde: Completo (tiene peso Y repeticiones)
+                    <div className="flex-shrink-0">
+                      <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-green-500 flex items-center justify-center" title="Completo: peso y repeticiones">
+                        <svg className="w-3 h-3 sm:w-4 sm:h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                    </div>
+                  ) : isIncomplete ? (
+                    // Amarillo: Incompleto (solo tiene peso O solo repeticiones)
+                    <div className="flex-shrink-0">
+                      <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-yellow-500 flex items-center justify-center" title="Incompleto: falta peso o repeticiones">
+                        <svg className="w-3 h-3 sm:w-4 sm:h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                      </div>
+                    </div>
+                  ) : hasPrevious ? (
+                    // Naranja: Tiene valores anteriores pero no los ha cargado
+                    <div className="flex-shrink-0">
+                      <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-orange-500 flex items-center justify-center" title="Tienes valores anteriores, completa los datos">
+                        <svg className="w-3 h-3 sm:w-4 sm:h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+                
+                {/* Info adicional (más compacta) - responsive */}
+                <div className="flex items-center gap-1.5 sm:gap-2 text-xs mt-1 ml-8 sm:ml-10 flex-wrap">
+                  {percentages[i] && (
+                    <span className="text-purple-300/80">
+                      {percentages[i]}% RM
+                    </span>
+                  )}
+                  {previousWeight && (
+                    <span className="text-white/40">
+                      <span className="hidden sm:inline">Anterior: </span>{previousWeight}kg
+                    </span>
+                  )}
+                  {previousRep && (
+                    <span className="text-white/40">
+                      <span className="hidden sm:inline">Reps: </span>{previousRep}
+                    </span>
+                  )}
+                  {suggestedWeight && !hasWeight && (
+                    <span className="text-cyan-300/60">
+                      <span className="hidden sm:inline">Sug: </span>{suggestedWeight}kg
+                    </span>
+                  )}
+                  {!hasReps && !previousRep && (
+                    <span className="text-orange-300/60">
+                      <span className="hidden sm:inline">Obj: </span>{repsObjective}
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Resumen */}
+        {avgWeight > 0 && (
+          <div className="mt-4 p-3 rounded-lg bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/20">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-white/70">Promedio de hoy:</span>
+              <span className="text-base font-bold text-cyan-300">{avgWeight.toFixed(1)} kg</span>
+            </div>
+            {previousAvg > 0 && (
+              <div className="flex items-center justify-between mt-1">
+                <span className="text-xs text-white/70">Promedio anterior:</span>
+                <span className="text-sm font-medium text-white/60">{previousAvg.toFixed(1)} kg</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Estado de guardado */}
+        {(saving || saved) && (
+          <div className="mt-3 text-center">
+            {saving && (
+              <span className="text-xs text-cyan-400 flex items-center justify-center gap-2">
+                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-cyan-400"></div>
+                Guardando...
+              </span>
+            )}
+            {saved && !saving && (
+              <span className="text-xs text-green-400 flex items-center justify-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Guardado automáticamente
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const DayTrainingPanel = ({
     dayData,
     week,
@@ -408,7 +1336,17 @@ export default function PlanPage() {
                       </div>
                     )}
                     
-                    {/* Tracker de pesos por serie - REMOVIDO TEMPORALMENTE */}
+                    {/* Tracker de pesos */}
+                    <ExerciseWeightTracker
+                      exercise={ejercicio}
+                      exerciseIndex={ei}
+                      week={week}
+                      dayIndex={dayIndex}
+                      dayName={dayData.day}
+                      planId={planId}
+                      userId={userId}
+                      date={date}
+                    />
                   </div>
                 </li>
               );
@@ -495,7 +1433,49 @@ export default function PlanPage() {
   
   // Estados para modal de cambios (planes multi-fase)
   const [monthChangesModalOpen, setMonthChangesModalOpen] = useState(false);
-  const [monthChangesData, setMonthChangesData] = useState<any>(null);
+  // Tipo para datos de cambios mensuales (planes multi-fase)
+  type MonthChangesData = {
+    mesAnterior: number;
+    mesNuevo: number;
+    faseAnterior: string;
+    faseNueva: string;
+    cambiaFase: boolean;
+    nutricion: {
+      caloriasAnterior: number;
+      caloriasNueva: number;
+      diferenciaCalorias: number;
+      macrosAnterior: { proteinas: string; carbohidratos: string; grasas: string };
+      macrosNuevo: { proteinas: string; carbohidratos: string; grasas: string };
+      cambioMacros: {
+        proteinas: number;
+        carbohidratos: number;
+        grasas: number;
+      };
+    };
+    entrenamiento: {
+      diasGymAnterior: number;
+      diasGymNuevo: number;
+      cambioVolumen: "aumentado" | "reducido" | "mantenido";
+      ejerciciosNuevos: number;
+      descripcionCambios: string;
+    };
+    ajustesAplicados: string[];
+    razonCambios: string;
+    progresoUsuario?: {
+      pesoInicial: number;
+      pesoActual: number;
+      pesoObjetivo: number;
+      cambioPesoTotal: number;
+      cambioPesoUltimoMes: number;
+      porcentajeHaciaObjetivo: number;
+      mesesCompletados: number;
+      totalMeses: number;
+      adherenciaPromedio: number;
+      tendenciaEnergia: "mejorando" | "estable" | "empeorando";
+      tendenciaRecuperacion: "mejorando" | "estable" | "empeorando";
+    };
+  };
+  const [monthChangesData, setMonthChangesData] = useState<MonthChangesData | null>(null);
 
   // Ref para prevenir cargas duplicadas de registros de peso
   const loadingRegistrosPesoRef = useRef(false);
@@ -1386,10 +2366,10 @@ export default function PlanPage() {
         const diasGymNuevo = nuevoPlan.training_plan?.weeks?.[0]?.days?.length || user.diasGym || 4;
         
         // Contar ejercicios totales
-        const ejerciciosAnterior = mesAnteriorCompleto?.planEntrenamiento?.weeks?.reduce((acc: number, week: any) => 
-          acc + (week.days?.reduce((dayAcc: number, day: any) => dayAcc + (day.ejercicios?.length || 0), 0) || 0), 0) || 0;
-        const ejerciciosNuevo = nuevoPlan.training_plan?.weeks?.reduce((acc: number, week: any) => 
-          acc + (week.days?.reduce((dayAcc: number, day: any) => dayAcc + (day.ejercicios?.length || 0), 0) || 0), 0) || 0;
+        const ejerciciosAnterior = mesAnteriorCompleto?.planEntrenamiento?.weeks?.reduce((acc: number, week: TrainingWeekPlan) => 
+          acc + (week.days?.reduce((dayAcc: number, day: TrainingDayPlan) => dayAcc + (day.ejercicios?.length || 0), 0) || 0), 0) || 0;
+        const ejerciciosNuevo = nuevoPlan.training_plan?.weeks?.reduce((acc: number, week: TrainingWeekPlan) => 
+          acc + (week.days?.reduce((dayAcc: number, day: TrainingDayPlan) => dayAcc + (day.ejercicios?.length || 0), 0) || 0), 0) || 0;
         
         let cambioVolumen: "aumentado" | "reducido" | "mantenido" = "mantenido";
         if (ejerciciosNuevo > ejerciciosAnterior + 2) cambioVolumen = "aumentado";
@@ -1527,7 +2507,10 @@ export default function PlanPage() {
         progresoUsuario: calcularProgresoUsuario()
       };
       
-      setMonthChangesData(cambiosData);
+      setMonthChangesData({
+        ...cambiosData,
+        cambiaFase: cambiosData.cambiaFase ?? false,
+      });
       
       // Cerrar modal de datos y abrir modal de cambios
       setModalSiguienteMesAbierto(false);
@@ -1558,7 +2541,7 @@ export default function PlanPage() {
   // Renderizar recomendaciones de entrenamiento como ReactNode
   const renderRecomendacionesEntrenamiento = (): React.ReactNode => {
     if (!sugerenciaEntrenamientoAjustada) return null;
-  return (
+    const content: React.ReactElement = (
     <div key="sugerencias-entrenamiento" className="mt-6 rounded-xl border border-white/10 p-4 bg-gradient-to-r from-white/5 to-white/10">
       <h2 className="text-lg font-semibold mb-3">💪 Recomendaciones de entrenamiento y recuperación</h2>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1729,7 +2712,9 @@ export default function PlanPage() {
       )}
     </div>
     );
+    return content;
   };
+
 
   return (
     <div className="min-h-screen">
@@ -1839,7 +2824,7 @@ export default function PlanPage() {
             {/* Banner de Continuidad - Planes simples al 90-100% */}
             {!planMultiFase && planId && authUser && (() => {
               const ContinuityBanner = () => {
-                const [planData, setPlanData] = useState<any>(null);
+                const [planData, setPlanData] = useState<Record<string, unknown> | null>(null);
                 const [progress, setProgress] = useState(0);
                 
                 useEffect(() => {
@@ -2780,8 +3765,8 @@ export default function PlanPage() {
 
           <p className="mt-4 text-sm opacity-80">{String((plan as unknown as Record<string, unknown>)?.mensaje_motivacional || '')}</p>
 
-          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-          {(renderRecomendacionesEntrenamiento() as any)}
+          {/* @ts-ignore */}
+          {renderRecomendacionesEntrenamiento() as any}
 
           {/* Selector de vista (Entrenamiento/Alimentación) - Centrado */}
           <div className="mt-6 flex items-center justify-center gap-3">
@@ -2791,6 +3776,7 @@ export default function PlanPage() {
               onClick={() => {
                   if (isPremium) {
                     setVistaPlan('entrenamiento');
+                    setCalendarResetKey(prev => prev + 1); // Forzar reset del calendario
                   }
                 }}
                 disabled={!isPremium}
@@ -2829,9 +3815,11 @@ export default function PlanPage() {
           {vistaPlan === 'entrenamiento' && isPremium && (plan as unknown as Record<string, unknown>)?.training_plan && (
             <div className="mt-6">
               <TrainingCalendar
+                key={`training-calendar-${vistaPlan}-${calendarResetKey}`}
                 trainingPlan={(plan as unknown as Record<string, unknown>)?.training_plan as unknown as import("@/types/plan").TrainingPlan}
                 planStartDate={fechaInicioPlan || new Date()}
                 planDurationDays={plan?.duracion_plan_dias || 30}
+                resetToCurrentMonth={true}
                 onDaySelect={(date, dayData, week, dayIndex) => {
                   // Prevenir procesamiento duplicado
                   if (processingSelectionRef.current) {
@@ -4052,6 +5040,8 @@ export default function PlanPage() {
                     week={selectedDayData.week}
                     dayIndex={selectedDayData.dayIndex}
                     date={selectedTrainingDate}
+                    planId={planId}
+                    userId={authUser?.uid}
                   />
                 ) : selectedTrainingDate && !selectedDayData ? (
                   // Día seleccionado pero sin entrenamiento
@@ -4286,8 +5276,18 @@ export default function PlanPage() {
                                           <p className="text-xs opacity-90">{ejercicio.alternative}</p>
                                         </div>
                                       )}
-                                      
-                                      {/* Tracker de pesos por serie - REMOVIDO TEMPORALMENTE */}
+                    
+                    {/* Tracker de pesos */}
+                    <ExerciseWeightTracker
+                      exercise={ejercicio}
+                      exerciseIndex={ei}
+                      week={semanaActual.week ?? semanaSeleccionada}
+                      dayIndex={di}
+                      dayName={dia.day}
+                      planId={planId}
+                      userId={authUser?.uid}
+                      date={null}
+                    />
                                     </div>
                                   </li>
                                 );
@@ -4348,7 +5348,10 @@ export default function PlanPage() {
               setMonthChangesModalOpen(false);
               setMonthChangesData(null);
             }}
-            cambios={monthChangesData}
+            cambios={{
+              ...monthChangesData,
+              cambioFase: monthChangesData.cambiaFase,
+            } as Omit<typeof monthChangesData, 'cambiaFase'> & { cambioFase: boolean }}
           />
         )}
       </AnimatePresence>

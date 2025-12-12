@@ -9,7 +9,10 @@
     "lint": "eslint",
     "test": "jest",
     "test:watch": "jest --watch",
-    "cypress:open": "cypress open"
+    "cypress:open": "cypress open",
+    "weights:check-duplicates": "node scripts/check-duplicate-weights.js",
+    "weights:delete-all": "node scripts/delete-all-weights.js",
+    "weights:delete-duplicates": "node scripts/delete-duplicate-weights.js"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.4",
@@ -44,7 +47,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "baseline-browser-mapping": "^2.9.4",
+    "baseline-browser-mapping": "^2.9.5",
     "cypress": "^14.5.4",
     "eslint": "^9",
     "eslint-config-next": "16.0.1",

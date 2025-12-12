@@ -2,12 +2,24 @@ import { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
 import type { TrainingPlan, TrainingDayPlan } from "@/types/plan";
 
+// Mapear días de la semana (constante fuera del componente)
+const dayNameMap: Record<string, number> = {
+  'domingo': 0, 'Domingo': 0,
+  'lunes': 1, 'Lunes': 1,
+  'martes': 2, 'Martes': 2,
+  'miercoles': 3, 'miércoles': 3, 'Miércoles': 3,
+  'jueves': 4, 'Jueves': 4,
+  'viernes': 5, 'Viernes': 5,
+  'sabado': 6, 'sábado': 6, 'Sábado': 6,
+};
+
 interface TrainingCalendarProps {
   trainingPlan: TrainingPlan;
   onDaySelect: (date: Date, dayData: TrainingDayPlan | null, week: number, dayIndex: number) => void;
   selectedDate: Date | null;
   planStartDate?: Date;
   planDurationDays?: number;
+  resetToCurrentMonth?: boolean; // Nueva prop para forzar reset al mes actual
 }
 
 export default function TrainingCalendar({
@@ -16,26 +28,24 @@ export default function TrainingCalendar({
   selectedDate,
   planStartDate,
   planDurationDays = 30,
+  resetToCurrentMonth = false,
 }: TrainingCalendarProps) {
-  // Inicializar con el mes de inicio del plan, o el mes actual si no hay planStartDate
-  const initialMonth = useMemo(() => {
-    if (planStartDate) {
-      return new Date(planStartDate.getFullYear(), planStartDate.getMonth(), 1);
-    }
-    return new Date();
-  }, [planStartDate?.getTime()]);
+  // IMPORTANTE: currentMonth es solo para MOSTRAR qué mes ver en el calendario
+  // Debe SIEMPRE inicializar con el mes ACTUAL, no con el mes de inicio del plan
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
   
-  const [currentMonth, setCurrentMonth] = useState(initialMonth);
-  
-  // Actualizar currentMonth cuando cambie planStartDate
+  // Resetear al mes actual cada vez que se abre la vista de entrenamiento
+  // Esto asegura que el usuario vea el mes actual al abrir el calendario
   useEffect(() => {
-    if (planStartDate) {
-      const newMonth = new Date(planStartDate.getFullYear(), planStartDate.getMonth(), 1);
-      setCurrentMonth(newMonth);
-    }
-  }, [planStartDate?.getTime()]);
+    const now = new Date();
+    const currentMonthDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    setCurrentMonth(currentMonthDate);
+  }, [resetToCurrentMonth]); // Reset cuando cambia resetToCurrentMonth (cuando se abre la vista)
 
-  // Calcular fecha de inicio del plan
+  // Calcular fecha de inicio del plan (para calcular los días de entrenamiento)
   const startDate = useMemo(() => {
     if (planStartDate) {
       const date = new Date(planStartDate);
@@ -45,18 +55,7 @@ export default function TrainingCalendar({
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     return today;
-  }, [planStartDate?.getTime()]);
-
-  // Mapear días de la semana
-  const dayNameMap: Record<string, number> = {
-    'domingo': 0, 'Domingo': 0,
-    'lunes': 1, 'Lunes': 1,
-    'martes': 2, 'Martes': 2,
-    'miercoles': 3, 'miércoles': 3, 'Miércoles': 3,
-    'jueves': 4, 'Jueves': 4,
-    'viernes': 5, 'Viernes': 5,
-    'sabado': 6, 'sábado': 6, 'Sábado': 6,
-  };
+  }, [planStartDate]);
 
   // Crear mapa simple de fecha -> datos de entrenamiento
   const trainingMap = useMemo(() => {
@@ -105,7 +104,8 @@ export default function TrainingCalendar({
     });
 
     return map;
-  }, [trainingPlan.weeks, startDate.getTime(), planDurationDays]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trainingPlan.weeks, startDate, planDurationDays]);
 
   // Calcular fecha de fin del plan (1 mes desde la fecha de inicio)
   const planEndDate = useMemo(() => {
@@ -114,7 +114,7 @@ export default function TrainingCalendar({
     endDate.setMonth(endDate.getMonth() + 1);
     endDate.setHours(23, 59, 59, 999);
     return endDate;
-  }, [startDate.getTime()]);
+  }, [startDate]);
 
   // Generar días del calendario
   const calendarDays = useMemo(() => {
@@ -188,7 +188,7 @@ export default function TrainingCalendar({
     }
 
     return days;
-  }, [currentMonth, trainingMap, startDate.getTime(), planEndDate?.getTime()]);
+  }, [currentMonth, trainingMap, startDate, planEndDate]);
 
   const monthNames = [
     "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
