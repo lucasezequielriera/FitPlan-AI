@@ -569,7 +569,7 @@ export default function PlanPage() {
                   if (lastData.sets?.length && Array.isArray(lastData.sets)) {
                     // Ordenar los sets por setNumber para asegurar el orden correcto
                     const sortedSets = [...lastData.sets]
-                      .filter((s: any) => s && typeof s === 'object' && 'setNumber' in s && 'weight' in s)
+                      .filter((s: { setNumber: number; weight: number } | undefined) => s && typeof s === 'object' && 'setNumber' in s && 'weight' in s)
                       .sort((a: { setNumber: number }, b: { setNumber: number }) => 
                         (a.setNumber || 0) - (b.setNumber || 0)
                       );
@@ -582,7 +582,7 @@ export default function PlanPage() {
                         return (typeof weight === 'number' && !isNaN(weight) && weight >= 0) ? weight : 0;
                       });
                       
-                      const prevReps = sortedSets.map((s: any) => {
+                      const prevReps = sortedSets.map((s: { setNumber: number; weight: number; actualReps?: number; reps?: number | string }) => {
                         // Priorizar actualReps (repeticiones reales), luego reps
                         if (s.actualReps !== undefined && s.actualReps !== null) {
                           return typeof s.actualReps === 'number' ? s.actualReps : parseInt(String(s.actualReps)) || 0;
@@ -2091,7 +2091,7 @@ export default function PlanPage() {
       ) : null);
   
   // Ajustar sugerencias de entrenamiento según lesiones para comparación
-  const sugerenciaEntrenamientoAjustada = sugerenciaEntrenamiento ? {
+  const sugerenciaEntrenamientoAjustada: ReturnType<typeof sugerirEntrenamiento> | null = sugerenciaEntrenamiento ? {
     ...sugerenciaEntrenamiento,
     diasGym: ajustarDiasGymPorLesiones(sugerenciaEntrenamiento.diasGym)
   } : null;
@@ -2538,182 +2538,6 @@ export default function PlanPage() {
     }
   };
 
-  // Renderizar recomendaciones de entrenamiento como ReactNode
-  const renderRecomendacionesEntrenamiento = (): React.ReactNode => {
-    if (!sugerenciaEntrenamientoAjustada) return null;
-    const content: React.ReactElement = (
-    <div key="sugerencias-entrenamiento" className="mt-6 rounded-xl border border-white/10 p-4 bg-gradient-to-r from-white/5 to-white/10">
-      <h2 className="text-lg font-semibold mb-3">💪 Recomendaciones de entrenamiento y recuperación</h2>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-sm font-medium opacity-90">
-              Días de gym:
-              <span className="ml-2 text-xs opacity-70">
-                (≈ {(() => {
-                  const min = minutosGymEditado !== null ? minutosGymEditado : (Number((plan as unknown as Record<string, unknown>)?.minutos_sesion_gym) || 75);
-                  const total = Math.max(0, Math.round(min));
-                  const h = Math.floor(total / 60);
-                  const m = total % 60;
-                  const hStr = h > 0 ? `${h} h` : "0 h";
-                  const mStr = m > 0 ? ` ${m} min` : "";
-                  return `${hStr}${mStr} por día`;
-                })()})
-              </span>
-            </p>
-            {sugerenciaEntrenamientoAjustada.diasGym !== diasGymActual && (
-              <span className="text-xs opacity-70">(sugerido: {sugerenciaEntrenamientoAjustada.diasGym})</span>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="number"
-              min="0"
-              max="7"
-              value={diasGymActual}
-              onChange={(e) => setDiasGymEditado(Number(e.target.value))}
-              className="text-2xl font-bold bg-transparent border-b-2 border-white/20 focus:border-white/50 outline-none w-16"
-            />
-            <span className="text-2xl font-bold">días por semana</span>
-          </div>
-          <div className="flex items-center gap-2 mt-2">
-            <span className="text-sm opacity-80 min-w-[130px]">Duración por sesión:</span>
-            <input
-              type="number"
-              min="30"
-              max="240"
-              step="5"
-              value={minutosGymEditado !== null ? minutosGymEditado : (Number((plan as unknown as Record<string, unknown>)?.minutos_sesion_gym) || 75)}
-              onChange={(e) => setMinutosGymEditado(Number(e.target.value))}
-              className="text-lg font-semibold bg-transparent border-b-2 border-white/20 focus:border-white/50 outline-none w-24"
-            />
-            <span className="text-sm font-medium">min</span>
-          </div>
-          <p className="text-xs opacity-75 mt-1">Entrenamiento de fuerza con pesas</p>
-        </div>
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-sm font-medium opacity-90">Caminata diaria:</p>
-            {sugerenciaEntrenamientoAjustada.minutosCaminata !== minutosCaminataActual && (
-              <span className="text-xs opacity-70">(sugerido: {sugerenciaEntrenamientoAjustada.minutosCaminata})</span>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="number"
-              min="0"
-              max="120"
-              step="5"
-              value={minutosCaminataActual}
-              onChange={(e) => setMinutosCaminataEditado(Number(e.target.value))}
-              className="text-2xl font-bold bg-transparent border-b-2 border-white/20 focus:border-white/50 outline-none w-16"
-            />
-            <span className="text-2xl font-bold">minutos</span>
-          </div>
-          <p className="text-xs opacity-75 mt-1">Caminata moderada todos los días</p>
-        </div>
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-sm font-medium opacity-90 flex items-center gap-2">
-              Horas de sueño:
-              <button
-                type="button"
-                onClick={() => setModalInfoAbierto('sueno')}
-                className="inline-flex items-center cursor-pointer hover:opacity-100 transition-opacity"
-                aria-label="Info sueño y siesta"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  className="h-4 w-4 opacity-90"
-                >
-                  <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm1.971-6.279-.675.693A3.375 3.375 0 0 0 12.75 14.25h-1.5a4.875 4.875 0 0 1 1.425-3.45l.93-.936a1.875 1.875 0 1 0-3.195-1.326h-1.5a3.375 3.375 0 1 1 6.03 1.283Z" />
-                </svg>
-              </button>
-            </p>
-            {sugerenciaEntrenamientoAjustada.horasSueno !== horasSuenoActual && (
-              <span className="text-xs opacity-70">(sugerido: {sugerenciaEntrenamientoAjustada.horasSueno})</span>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="number"
-              min="5"
-              max="12"
-              step="0.5"
-              value={horasSuenoActual}
-              onChange={(e) => setHorasSuenoEditado(Number(e.target.value))}
-              className="text-2xl font-bold bg-transparent border-b-2 border-white/20 focus:border-white/50 outline-none w-20"
-            />
-            <span className="text-2xl font-bold">horas</span>
-          </div>
-          <p className="text-xs opacity-75 mt-1">Para óptima recuperación diaria</p>
-        </div>
-      </div>
-      <p className="mt-3 text-sm opacity-80 leading-relaxed">
-        {sugerenciaEntrenamientoAjustada.descripcion}
-      </p>
-      
-      {/* Análisis de cambios */}
-      {analisisCambios && (analisisCambios.pros.length > 0 || analisisCambios.contras.length > 0) && (
-        <div className="mt-4 pt-4 border-t border-white/10">
-          <h3 className="text-sm font-semibold mb-3">📊 Impacto de tus cambios:</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {analisisCambios.pros.length > 0 && (
-              <div>
-                <p className="text-sm font-medium text-emerald-400 mb-2">✅ Pros:</p>
-                <ul className="space-y-1">
-                  {analisisCambios.pros.map((pro, idx) => (
-                    <li key={`pro-${idx}-${pro}`} className="text-xs opacity-90 flex items-start gap-2">
-                      <span className="text-emerald-400 mt-1">•</span>
-                      <span>{pro}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {analisisCambios.contras.length > 0 && (
-              <div>
-                <p className="text-sm font-medium text-orange-400 mb-2">⚠️ Contras:</p>
-                <ul className="space-y-1">
-                  {analisisCambios.contras.map((contra, idx) => (
-                    <li key={`contra-${idx}-${contra}`} className="text-xs opacity-90 flex items-start gap-2">
-                      <span className="text-orange-400 mt-1">•</span>
-                      <span>{contra}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-      {user?.doloresLesiones && user.doloresLesiones.filter((s: string) => typeof s === "string" && s.trim().length > 0).length > 0 && (
-        <div className="mt-4 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-100">
-          <p className="font-medium text-cyan-100 flex items-center gap-2">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              className="h-4 w-4"
-            >
-              <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm1.971-6.279-.675.693A3.375 3.375 0 0 0 12.75 14.25h-1.5a4.875 4.875 0 0 1 1.425-3.45l.93-.936a1.875 1.875 0 1 0-3.195-1.326h-1.5a3.375 3.375 0 1 1 6.03 1.283Z" />
-            </svg>
-            Entrenamiento adaptado para proteger:
-          </p>
-          <p className="mt-1 text-cyan-100/80">
-            {user.doloresLesiones.filter((s: string) => typeof s === "string" && s.trim().length > 0).join(", ")}
-          </p>
-          <p className="mt-1 opacity-80">
-            Incluye calentamientos dirigidos, variaciones seguras y recordatorios de técnica para evitar agravar estas zonas.
-          </p>
-        </div>
-      )}
-    </div>
-    );
-    return content;
-  };
 
 
   return (
@@ -3765,8 +3589,180 @@ export default function PlanPage() {
 
           <p className="mt-4 text-sm opacity-80">{String((plan as unknown as Record<string, unknown>)?.mensaje_motivacional || '')}</p>
 
-          {/* @ts-ignore */}
-          {renderRecomendacionesEntrenamiento() as any}
+          {/* @ts-expect-error - TypeScript infiere unknown para sugerenciaEntrenamientoAjustada pero el tipo real es ReturnType<typeof sugerirEntrenamiento> | null */}
+          {(() => {
+            const rec: ReturnType<typeof sugerirEntrenamiento> | null = sugerenciaEntrenamientoAjustada as ReturnType<typeof sugerirEntrenamiento> | null;
+            if (!rec) return null;
+            return (
+            <div key="sugerencias-entrenamiento" className="mt-6 rounded-xl border border-white/10 p-4 bg-gradient-to-r from-white/5 to-white/10">
+              <h2 className="text-lg font-semibold mb-3">💪 Recomendaciones de entrenamiento y recuperación</h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-sm font-medium opacity-90">
+                      Días de gym:
+                      <span className="ml-2 text-xs opacity-70">
+                        (≈ {(() => {
+                          const min = minutosGymEditado !== null ? minutosGymEditado : (Number((plan as unknown as Record<string, unknown>)?.minutos_sesion_gym) || 75);
+                          const total = Math.max(0, Math.round(min));
+                          const h = Math.floor(total / 60);
+                          const m = total % 60;
+                          const hStr = h > 0 ? `${h} h` : "0 h";
+                          const mStr = m > 0 ? ` ${m} min` : "";
+                          return `${hStr}${mStr} por día`;
+                        })()})
+                      </span>
+                    </p>
+                    {rec.diasGym !== diasGymActual && (
+                      <span className="text-xs opacity-70">(sugerido: {rec.diasGym})</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      max="7"
+                      value={diasGymActual}
+                      onChange={(e) => setDiasGymEditado(Number(e.target.value))}
+                      className="text-2xl font-bold bg-transparent border-b-2 border-white/20 focus:border-white/50 outline-none w-16"
+                    />
+                    <span className="text-2xl font-bold">días por semana</span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-sm opacity-80 min-w-[130px]">Duración por sesión:</span>
+                    <input
+                      type="number"
+                      min="30"
+                      max="240"
+                      step="5"
+                      value={minutosGymEditado !== null ? minutosGymEditado : (Number((plan as unknown as Record<string, unknown>)?.minutos_sesion_gym) || 75)}
+                      onChange={(e) => setMinutosGymEditado(Number(e.target.value))}
+                      className="text-lg font-semibold bg-transparent border-b-2 border-white/20 focus:border-white/50 outline-none w-24"
+                    />
+                    <span className="text-sm font-medium">min</span>
+                  </div>
+                  <p className="text-xs opacity-75 mt-1">Entrenamiento de fuerza con pesas</p>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-sm font-medium opacity-90">Caminata diaria:</p>
+                    {rec.minutosCaminata !== minutosCaminataActual && (
+                      <span className="text-xs opacity-70">(sugerido: {rec.minutosCaminata})</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      max="120"
+                      step="5"
+                      value={minutosCaminataActual}
+                      onChange={(e) => setMinutosCaminataEditado(Number(e.target.value))}
+                      className="text-2xl font-bold bg-transparent border-b-2 border-white/20 focus:border-white/50 outline-none w-16"
+                    />
+                    <span className="text-2xl font-bold">minutos</span>
+                  </div>
+                  <p className="text-xs opacity-75 mt-1">Caminata moderada todos los días</p>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-sm font-medium opacity-90 flex items-center gap-2">
+                      Horas de sueño:
+                      <button
+                        type="button"
+                        onClick={() => setModalInfoAbierto('sueno')}
+                        className="inline-flex items-center cursor-pointer hover:opacity-100 transition-opacity"
+                        aria-label="Info sueño y siesta"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="currentColor"
+                          className="h-4 w-4 opacity-90"
+                        >
+                          <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm1.971-6.279-.675.693A3.375 3.375 0 0 0 12.75 14.25h-1.5a4.875 4.875 0 0 1 1.425-3.45l.93-.936a1.875 1.875 0 1 0-3.195-1.326h-1.5a3.375 3.375 0 1 1 6.03 1.283Z" />
+                        </svg>
+                      </button>
+                    </p>
+                    {rec.horasSueno !== horasSuenoActual && (
+                      <span className="text-xs opacity-70">(sugerido: {rec.horasSueno})</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="5"
+                      max="12"
+                      step="0.5"
+                      value={horasSuenoActual}
+                      onChange={(e) => setHorasSuenoEditado(Number(e.target.value))}
+                      className="text-2xl font-bold bg-transparent border-b-2 border-white/20 focus:border-white/50 outline-none w-20"
+                    />
+                    <span className="text-2xl font-bold">horas</span>
+                  </div>
+                  <p className="text-xs opacity-75 mt-1">Para óptima recuperación diaria</p>
+                </div>
+              </div>
+              <p className="mt-3 text-sm opacity-80 leading-relaxed">
+                {rec.descripcion}
+              </p>
+              {analisisCambios && (analisisCambios.pros.length > 0 || analisisCambios.contras.length > 0) && (
+                <div className="mt-4 pt-4 border-t border-white/10">
+                  <h3 className="text-sm font-semibold mb-3">📊 Impacto de tus cambios:</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {analisisCambios.pros.length > 0 && (
+                      <div>
+                        <p className="text-sm font-medium text-emerald-400 mb-2">✅ Pros:</p>
+                        <ul className="space-y-1">
+                          {analisisCambios.pros.map((pro, idx) => (
+                            <li key={`pro-${idx}-${pro}`} className="text-xs opacity-90 flex items-start gap-2">
+                              <span className="text-emerald-400 mt-1">•</span>
+                              <span>{pro}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {analisisCambios.contras.length > 0 && (
+                      <div>
+                        <p className="text-sm font-medium text-orange-400 mb-2">⚠️ Contras:</p>
+                        <ul className="space-y-1">
+                          {analisisCambios.contras.map((contra, idx) => (
+                            <li key={`contra-${idx}-${contra}`} className="text-xs opacity-90 flex items-start gap-2">
+                              <span className="text-orange-400 mt-1">•</span>
+                              <span>{contra}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              {user?.doloresLesiones && user.doloresLesiones.filter((s: string) => typeof s === "string" && s.trim().length > 0).length > 0 && (
+                <div className="mt-4 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-100">
+                  <p className="font-medium text-cyan-100 flex items-center gap-2">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      className="h-4 w-4"
+                    >
+                      <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm1.971-6.279-.675.693A3.375 3.375 0 0 0 12.75 14.25h-1.5a4.875 4.875 0 0 1 1.425-3.45l.93-.936a1.875 1.875 0 1 0-3.195-1.326h-1.5a3.375 3.375 0 1 1 6.03 1.283Z" />
+                    </svg>
+                    Entrenamiento adaptado para proteger:
+                  </p>
+                  <p className="mt-1 text-cyan-100/80">
+                    {user.doloresLesiones.filter((s: string) => typeof s === "string" && s.trim().length > 0).join(", ")}
+                  </p>
+                  <p className="mt-1 opacity-80">
+                    Incluye calentamientos dirigidos, variaciones seguras y recordatorios de técnica para evitar agravar estas zonas.
+                  </p>
+                </div>
+              )}
+            </div>
+            );
+          })() as React.ReactNode}
 
           {/* Selector de vista (Entrenamiento/Alimentación) - Centrado */}
           <div className="mt-6 flex items-center justify-center gap-3">
