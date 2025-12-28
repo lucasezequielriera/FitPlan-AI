@@ -1324,14 +1324,14 @@ export default function Admin() {
                 <p className="text-2xl font-bold text-green-400">
                   ${revenueStats.actualMonthly.toLocaleString('es-AR')}
                 </p>
-                <p className="text-white/40 text-xs mt-1">ARS (confirmado)</p>
+                <p className="text-white/40 text-xs mt-1">ARS / {(revenueStats.actualMonthly / 2000).toFixed(2)} EUR</p>
               </div>
               <div>
                 <p className="text-white/60 text-xs mb-1">Ganancia Mensual Estimada</p>
                 <p className="text-2xl font-bold text-yellow-400">
                   ${revenueStats.estimatedMonthly.toLocaleString('es-AR')}
                 </p>
-                <p className="text-white/40 text-xs mt-1">ARS (proyección)</p>
+                <p className="text-white/40 text-xs mt-1">ARS / {(revenueStats.estimatedMonthly / 2000).toFixed(2)} EUR</p>
               </div>
               <div>
                 <p className="text-white/60 text-xs mb-1">Premium Activos (Este Mes)</p>
@@ -1362,6 +1362,7 @@ export default function Admin() {
                   <p className="text-xl font-bold text-cyan-400">
                     ${revenueStats.estimatedAnnual.toLocaleString('es-AR')} ARS
                   </p>
+                  <p className="text-white/40 text-xs mt-1">{(revenueStats.estimatedAnnual / 2000).toFixed(2)} EUR</p>
                 </div>
                 <div className="text-right">
                   <p className="text-white/60 text-sm">Total Premium</p>
@@ -1392,7 +1393,9 @@ export default function Admin() {
                     const status = getPaymentStatus(u);
                     return status.status === "unpaid" && u.premium;
                   });
-                  alert(`${pendingUsers.length} usuarios premium están sin pagar este mes. Total a recuperar: $${(pendingUsers.length * 2000).toLocaleString('es-AR')} ARS`);
+                  const totalARS = pendingUsers.length * 2000;
+                  const totalEUR = pendingUsers.length * 1;
+                  alert(`${pendingUsers.length} usuarios premium están sin pagar este mes. Total a recuperar: $${totalARS.toLocaleString('es-AR')} ARS / ${totalEUR.toFixed(2)} EUR`);
                 }}
                 className="w-full px-4 py-2 rounded-lg bg-orange-500/20 border border-orange-500/30 text-orange-400 hover:bg-orange-500/30 transition-colors text-sm"
               >
@@ -1400,7 +1403,9 @@ export default function Admin() {
               </button>
               <button
                 onClick={() => {
-                  alert(`${revenueStats.renewingSoon} usuarios renovarán en los próximos 7 días. Total esperado: $${(revenueStats.renewingSoon * 2000).toLocaleString('es-AR')} ARS`);
+                  const totalRenewARS = revenueStats.renewingSoon * 2000;
+                  const totalRenewEUR = revenueStats.renewingSoon * 1;
+                  alert(`${revenueStats.renewingSoon} usuarios renovarán en los próximos 7 días. Total esperado: $${totalRenewARS.toLocaleString('es-AR')} ARS / ${totalRenewEUR.toFixed(2)} EUR`);
                 }}
                 className="w-full px-4 py-2 rounded-lg bg-blue-500/20 border border-blue-500/30 text-blue-400 hover:bg-blue-500/30 transition-colors text-sm"
               >
@@ -2308,9 +2313,9 @@ export default function Admin() {
                       className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="">Seleccionar tipo de plan...</option>
-                      <option value="monthly">Mensual ($30.000 ARS)</option>
-                      <option value="quarterly">Trimestral ($75.000 ARS)</option>
-                      <option value="annual">Anual ($250.000 ARS)</option>
+                      <option value="monthly">Mensual ($2.000 ARS / 1 EUR)</option>
+                      <option value="quarterly">Trimestral ($5.400 ARS / 2.70 EUR)</option>
+                      <option value="annual">Anual ($21.600 ARS / 10.80 EUR)</option>
                     </select>
                   </div>
                 )}
