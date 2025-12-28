@@ -411,9 +411,16 @@ export default function Admin() {
   // Función para calcular estadísticas de ganancias basadas en datos reales
   const calculateRevenueStats = async () => {
     const PLAN_PRICES = {
-      monthly: 2000,
-      quarterly: 5400,
-      annual: 21600,
+      ARS: {
+        monthly: 2000,
+        quarterly: 5400,
+        annual: 21600,
+      },
+      EUR: {
+        monthly: 1,
+        quarterly: 2.70,
+        annual: 10.80,
+      },
     };
     
     const premiumUsersList = users.filter(u => u.premium && u.email?.toLowerCase() !== "admin@fitplan-ai.com");
@@ -441,7 +448,7 @@ export default function Admin() {
       
       // Si no hay monto de pago, estimar basado en el tipo de plan
       if (paymentAmount === 0 && user.premiumPlanType) {
-        paymentAmount = PLAN_PRICES[user.premiumPlanType as keyof typeof PLAN_PRICES] || 2000;
+        paymentAmount = PLAN_PRICES.ARS[user.premiumPlanType as keyof typeof PLAN_PRICES.ARS] || 2000;
       }
       
       // Verificar si el pago fue este mes
@@ -480,14 +487,14 @@ export default function Admin() {
       if (status.status === "paid" || status.status === "expiring") {
         // Calcular el valor mensual equivalente según el tipo de plan
         if (user.premiumPlanType === "monthly") {
-          estimatedMonthly += PLAN_PRICES.monthly;
+          estimatedMonthly += PLAN_PRICES.ARS.monthly;
         } else if (user.premiumPlanType === "quarterly") {
-          estimatedMonthly += PLAN_PRICES.quarterly / 3; // Dividir por 3 meses
+          estimatedMonthly += PLAN_PRICES.ARS.quarterly / 3; // Dividir por 3 meses
         } else if (user.premiumPlanType === "annual") {
-          estimatedMonthly += PLAN_PRICES.annual / 12; // Dividir por 12 meses
+          estimatedMonthly += PLAN_PRICES.ARS.annual / 12; // Dividir por 12 meses
         } else {
           // Fallback a precio mensual estándar
-          estimatedMonthly += PLAN_PRICES.monthly;
+          estimatedMonthly += PLAN_PRICES.ARS.monthly;
         }
       }
     });
@@ -1400,8 +1407,9 @@ export default function Admin() {
                 Renovaciones Próximas
               </button>
               <div className="pt-3 border-t border-white/10">
-                <p className="text-white/60 text-xs mb-2">Precio mensual actual</p>
+                <p className="text-white/60 text-xs mb-2">Precios mensuales actuales</p>
                 <p className="text-lg font-bold text-white">$2,000 ARS</p>
+                <p className="text-lg font-bold text-white">1.00 EUR</p>
               </div>
             </div>
           </motion.div>
