@@ -411,9 +411,9 @@ export default function Admin() {
   // Función para calcular estadísticas de ganancias basadas en datos reales
   const calculateRevenueStats = async () => {
     const PLAN_PRICES = {
-      monthly: 30000,
-      quarterly: 75000,
-      annual: 250000,
+      monthly: 2000,
+      quarterly: 5400,
+      annual: 21600,
     };
     
     const premiumUsersList = users.filter(u => u.premium && u.email?.toLowerCase() !== "admin@fitplan-ai.com");
@@ -441,7 +441,7 @@ export default function Admin() {
       
       // Si no hay monto de pago, estimar basado en el tipo de plan
       if (paymentAmount === 0 && user.premiumPlanType) {
-        paymentAmount = PLAN_PRICES[user.premiumPlanType as keyof typeof PLAN_PRICES] || 30000;
+        paymentAmount = PLAN_PRICES[user.premiumPlanType as keyof typeof PLAN_PRICES] || 2000;
       }
       
       // Verificar si el pago fue este mes
@@ -1385,7 +1385,7 @@ export default function Admin() {
                     const status = getPaymentStatus(u);
                     return status.status === "unpaid" && u.premium;
                   });
-                  alert(`${pendingUsers.length} usuarios premium están sin pagar este mes. Total a recuperar: $${(pendingUsers.length * 25000).toLocaleString('es-AR')} ARS`);
+                  alert(`${pendingUsers.length} usuarios premium están sin pagar este mes. Total a recuperar: $${(pendingUsers.length * 2000).toLocaleString('es-AR')} ARS`);
                 }}
                 className="w-full px-4 py-2 rounded-lg bg-orange-500/20 border border-orange-500/30 text-orange-400 hover:bg-orange-500/30 transition-colors text-sm"
               >
@@ -1393,7 +1393,7 @@ export default function Admin() {
               </button>
               <button
                 onClick={() => {
-                  alert(`${revenueStats.renewingSoon} usuarios renovarán en los próximos 7 días. Total esperado: $${(revenueStats.renewingSoon * 25000).toLocaleString('es-AR')} ARS`);
+                  alert(`${revenueStats.renewingSoon} usuarios renovarán en los próximos 7 días. Total esperado: $${(revenueStats.renewingSoon * 2000).toLocaleString('es-AR')} ARS`);
                 }}
                 className="w-full px-4 py-2 rounded-lg bg-blue-500/20 border border-blue-500/30 text-blue-400 hover:bg-blue-500/30 transition-colors text-sm"
               >
@@ -1401,7 +1401,7 @@ export default function Admin() {
               </button>
               <div className="pt-3 border-t border-white/10">
                 <p className="text-white/60 text-xs mb-2">Precio mensual actual</p>
-                <p className="text-lg font-bold text-white">$25,000 ARS</p>
+                <p className="text-lg font-bold text-white">$2,000 ARS</p>
               </div>
             </div>
           </motion.div>
@@ -1702,9 +1702,9 @@ export default function Admin() {
                                     // Fallback: calcular monto basado en el tipo de plan si premiumPayment es null
                                     if (amount === null && user.premiumPlanType) {
                                       const planPrices: Record<string, number> = {
-                                        monthly: 30000,
-                                        quarterly: 75000,
-                                        annual: 250000,
+                                        monthly: 2000,
+                                        quarterly: 5400,
+                                        annual: 21600,
                                       };
                                       amount = planPrices[user.premiumPlanType] || null;
                                     }
@@ -2109,9 +2109,9 @@ export default function Admin() {
                                     
                                     if (amount === null && user.premiumPlanType) {
                                       const planPrices: Record<string, number> = {
-                                        monthly: 30000,
-                                        quarterly: 75000,
-                                        annual: 250000,
+                                        monthly: 2000,
+                                        quarterly: 5400,
+                                        annual: 21600,
                                       };
                                       amount = planPrices[user.premiumPlanType] || null;
                                     }
@@ -2912,7 +2912,7 @@ export default function Admin() {
                         value={newPayment.amount}
                         onChange={(e) => setNewPayment({ ...newPayment, amount: e.target.value })}
                         className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="30000"
+                        placeholder="2000"
                       />
                     </div>
                     <div>
