@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useRouter } from "next/router";
 import React, { useEffect, useState, useRef, useMemo, type ReactNode, type ReactElement } from "react";
 import { usePlanStore } from "@/store/planStore";
@@ -2540,7 +2539,6 @@ export default function PlanPage() {
   };
 
   // Renderizar recomendaciones de entrenamiento
-  // @ts-ignore
   const recomendacionesEntrenamientoJSX = (() => {
     const rec = sugerenciaEntrenamientoAjustada as ReturnType<typeof sugerirEntrenamiento> | null;
     if (!rec) return null;
@@ -2713,7 +2711,7 @@ export default function PlanPage() {
       )}
     </div>
     );
-  })();
+  })() as unknown as React.ReactNode;
 
   return (
     <div className="min-h-screen">
@@ -3764,8 +3762,9 @@ export default function PlanPage() {
 
           <p className="mt-4 text-sm opacity-80">{String((plan as unknown as Record<string, unknown>)?.mensaje_motivacional || '')}</p>
 
-          {/* @ts-ignore */}
-          {recomendacionesEntrenamientoJSX}
+          {/* @ts-expect-error - TypeScript infiere unknown pero recomendacionesEntrenamientoJSX es React.ReactNode */}
+          {/* eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-return */}
+          {recomendacionesEntrenamientoJSX as unknown as React.ReactNode}
 
           {/* Selector de vista (Entrenamiento/Alimentación) - Centrado */}
           <div className="mt-6 flex items-center justify-center gap-3">

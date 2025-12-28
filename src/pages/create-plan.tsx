@@ -9,6 +9,7 @@ import { doc, getDoc, collection, query, where, getDocs } from "firebase/firesto
 import type { UserInput, Goal, TipoDieta, Intensidad, PlanMultiFase, FaseMultiFase, HistorialMes, Suplemento, PlanAIResponse } from "@/types/plan";
 import Navbar from "@/components/Navbar";
 import { calculateBMR, calculateTDEE } from "@/utils/calculations";
+import PremiumPlanModal from "@/components/PremiumPlanModal";
 
 const objetivoDescripciones: Record<Goal, string> = {
   perder_grasa: "Reduce tu porcentaje de grasa corporal mediante un déficit calórico controlado. Ideal si buscás perder peso de forma saludable, mejorando tu composición corporal y salud general. El plan incluirá un déficit moderado de calorías mientras mantiene tus músculos.",
@@ -374,6 +375,7 @@ export default function CreatePlan() {
   const [canCreatePlan, setCanCreatePlan] = useState(true);
   const [planLimitMessage, setPlanLimitMessage] = useState<string | null>(null);
   const [nombreError, setNombreError] = useState<string | null>(null);
+  const [premiumModalOpen, setPremiumModalOpen] = useState(false);
   const [edadError, setEdadError] = useState<string | null>(null);
   const [alturaError, setAlturaError] = useState<string | null>(null);
   const [pesoError, setPesoError] = useState<string | null>(null);
@@ -480,14 +482,9 @@ export default function CreatePlan() {
         const planCount = querySnapshot.size;
         setIsFirstPlan(planCount === 0);
 
-        // Si no es premium y ya tiene 1 plan, no puede crear más
-        if (!userPremium && planCount >= 1) {
-          setCanCreatePlan(false);
-          setPlanLimitMessage("Ya tienes un plan creado. Los usuarios gratuitos solo pueden crear 1 plan. ¡Actualiza a Premium para crear planes ilimitados!");
-        } else {
-          setCanCreatePlan(true);
-          setPlanLimitMessage(null);
-        }
+        // Todas las opciones están habilitadas, el pago se requiere antes de generar el plan
+        setCanCreatePlan(true);
+        setPlanLimitMessage(null);
 
         setUserDataLoaded(true);
       } catch (error) {
@@ -501,15 +498,68 @@ export default function CreatePlan() {
     }
   }, [authUser, authLoading, userDataLoaded]);
 
+  // Verificar si viene de un pago exitoso y continuar con la generación
+  useEffect(() => {
+    const checkPaymentSuccess = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const continueAfterPayment = urlParams.get("continue");
+      
+      if ((continueAfterPayment === "true" || urlParams.get("generate") === "true") && authUser && userDataLoaded) {
+        // Verificar si el usuario es premium ahora
+        try {
+          const auth = getAuthSafe();
+          if (!auth?.currentUser) return;
+          
+          const db = getDbSafe();
+          if (!db) return;
+          
+          const { doc, getDoc } = await import("firebase/firestore");
+          const userRef = doc(db, "usuarios", auth.currentUser.uid);
+          const userDoc = await getDoc(userRef);
+          
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            if (userData.premium === true) {
+              // Restaurar el formulario guardado si existe
+              const pendingForm = localStorage.getItem("pendingPlanForm");
+              if (pendingForm) {
+                try {
+                  const savedData = JSON.parse(pendingForm);
+                  setForm(savedData.form);
+                  setRestriccionesTexto(savedData.restriccionesTexto || "");
+                  setPreferenciasTexto(savedData.preferenciasTexto || "");
+                  setPatologiasTexto(savedData.patologiasTexto || "");
+                  setDoloresLesionesTexto(savedData.doloresLesionesTexto || "");
+                  setStep(savedData.step || 1);
+                  localStorage.removeItem("pendingPlanForm");
+                } catch (e) {
+                  console.error("Error al restaurar formulario:", e);
+                }
+              }
+              
+              // Usuario es premium, continuar con la generación del plan
+              // Limpiar el parámetro de la URL
+              window.history.replaceState({}, "", "/create-plan");
+              // Llamar a onSubmit para generar el plan después de un breve delay
+              setTimeout(() => {
+                onSubmit();
+              }, 1000);
+            }
+          }
+        } catch (error) {
+          console.error("Error al verificar estado premium:", error);
+        }
+      }
+    };
+
+    if (authUser && !authLoading && userDataLoaded) {
+      checkPaymentSuccess();
+    }
+  }, [authUser, authLoading, userDataLoaded]);
+
   // Determinar si el objetivo es básico o premium
   const esObjetivoBasico = form.objetivo === "perder_grasa" || form.objetivo === "mantener" || form.objetivo === "ganar_masa";
 
-  // Asegurar que si no es premium, la intensidad sea leve
-  useEffect(() => {
-    if (userDataLoaded && !isPremium && form.intensidad !== "leve" && !esObjetivoBasico) {
-      setForm((prev) => ({ ...prev, intensidad: "leve" }));
-    }
-  }, [isPremium, userDataLoaded, esObjetivoBasico, form.intensidad]);
 
   function update<K extends keyof UserInput>(key: K, value: UserInput[K]) {
     setForm((p) => {
@@ -522,11 +572,7 @@ export default function CreatePlan() {
           nuevo.intensidad = "leve";
         }
       }
-      // Si el usuario no es premium y selecciona moderada o intensa, resetear a leve
-      if (key === "intensidad" && !isPremium && (value === "moderada" || value === "intensa")) {
-        nuevo.intensidad = "leve";
-        alert("Las opciones Moderada e Intensa requieren plan Premium. Se ha configurado en Leve.");
-      }
+      // Todas las opciones están habilitadas, el pago se requiere antes de generar el plan
       return nuevo;
     });
   }
@@ -590,12 +636,46 @@ export default function CreatePlan() {
     }
   }, [form.restricciones?.length, form.preferencias?.length, form.patologias?.length, form.doloresLesiones?.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function onSubmit() {
-    // Verificar si puede crear plan antes de continuar
-    if (!canCreatePlan) {
-      alert("Ya tienes un plan creado. Los usuarios gratuitos solo pueden crear 1 plan. ¡Actualiza a Premium para crear planes ilimitados!");
-      router.push("/dashboard");
+  // Función para abrir el modal de planes premium
+  function handleGeneratePlan() {
+    if (!authUser) {
+      alert("Debes estar registrado para generar un plan");
       return;
+    }
+
+    // Guardar el estado del formulario en localStorage para continuar después del pago
+    const formDataToSave = {
+      form,
+      restriccionesTexto,
+      preferenciasTexto,
+      patologiasTexto,
+      doloresLesionesTexto,
+      step,
+    };
+    localStorage.setItem("pendingPlanForm", JSON.stringify(formDataToSave));
+
+    // Abrir el modal de planes premium
+    setPremiumModalOpen(true);
+  }
+
+  async function onSubmit() {
+    // Verificar si hay un formulario pendiente guardado (después del pago)
+    const pendingForm = localStorage.getItem("pendingPlanForm");
+    if (pendingForm) {
+      try {
+        const savedData = JSON.parse(pendingForm);
+        // Restaurar el estado del formulario
+        setForm(savedData.form);
+        setRestriccionesTexto(savedData.restriccionesTexto || "");
+        setPreferenciasTexto(savedData.preferenciasTexto || "");
+        setPatologiasTexto(savedData.patologiasTexto || "");
+        setDoloresLesionesTexto(savedData.doloresLesionesTexto || "");
+        setStep(savedData.step || 1);
+        // Limpiar el formulario guardado
+        localStorage.removeItem("pendingPlanForm");
+      } catch (e) {
+        console.error("Error al restaurar formulario:", e);
+      }
     }
 
     // Resetear checklist
@@ -1324,22 +1404,22 @@ export default function CreatePlan() {
                   <option value="mantener">Mantener peso - Conservar tu peso actual</option>
                   <option value="ganar_masa">Aumentar peso - Ganancia simple de peso</option>
                     </optgroup>
-                    <optgroup label={isPremium ? "🌟 PREMIUM - Objetivos avanzados (Activos)" : "🌟 PREMIUM - Objetivos avanzados (Desbloquea todo el potencial)"}>
-                      <option value="recomposicion" disabled={!isPremium}>🔥 Transformación Total - Quema grasa y construye músculo simultáneamente</option>
-                      <option value="definicion" disabled={!isPremium}>💎 Definición Extrema - Logra músculos marcados con bajo % de grasa corporal</option>
-                      <option value="volumen" disabled={!isPremium}>💪 Hipertrofia Máxima - Maximiza el crecimiento muscular con periodización avanzada</option>
-                      <option value="corte" disabled={!isPremium}>⚡ Corte Avanzado - Reducción de grasa preservando masa muscular (más preciso que perder peso)</option>
-                      <option value="mantenimiento_avanzado" disabled={!isPremium}>🎯 Mantenimiento Elite - Optimización avanzada para atletas experimentados</option>
+                    <optgroup label="🌟 Objetivos avanzados">
+                      <option value="recomposicion">🔥 Transformación Total - Quema grasa y construye músculo simultáneamente</option>
+                      <option value="definicion">💎 Definición Extrema - Logra músculos marcados con bajo % de grasa corporal</option>
+                      <option value="volumen">💪 Hipertrofia Máxima - Maximiza el crecimiento muscular con periodización avanzada</option>
+                      <option value="corte">⚡ Corte Avanzado - Reducción de grasa preservando masa muscular (más preciso que perder peso)</option>
+                      <option value="mantenimiento_avanzado">🎯 Mantenimiento Elite - Optimización avanzada para atletas experimentados</option>
                     </optgroup>
-                    <optgroup label={isPremium ? "🏆 PREMIUM - Para Atletas y Deportistas (Activos)" : "🏆 PREMIUM - Para Atletas y Deportistas (Desbloquea con suscripción)"}>
-                      <option value="rendimiento_deportivo" disabled={!isPremium}>🏃 Rendimiento Deportivo - Nutrición periodizada para tu deporte específico</option>
-                      <option value="powerlifting" disabled={!isPremium}>🏋️ Powerlifting/Fuerza - Maximiza tu fuerza en los levantamientos principales</option>
-                      <option value="resistencia" disabled={!isPremium}>🚴 Resistencia/Endurance - Running, ciclismo, triatlón y deportes de larga duración</option>
-                      <option value="atleta_elite" disabled={!isPremium}>👑 Atleta Elite - El nivel más exigente para competidores de alto rendimiento</option>
+                    <optgroup label="🏆 Para Atletas y Deportistas">
+                      <option value="rendimiento_deportivo">🏃 Rendimiento Deportivo - Nutrición periodizada para tu deporte específico</option>
+                      <option value="powerlifting">🏋️ Powerlifting/Fuerza - Maximiza tu fuerza en los levantamientos principales</option>
+                      <option value="resistencia">🚴 Resistencia/Endurance - Running, ciclismo, triatlón y deportes de larga duración</option>
+                      <option value="atleta_elite">👑 Atleta Elite - El nivel más exigente para competidores de alto rendimiento</option>
                     </optgroup>
-                    <optgroup label={isPremium ? "🔄 PREMIUM - Transformación con Fases (Activos)" : "🔄 PREMIUM - Transformación con Fases (Desbloquea con suscripción)"}>
-                      <option value="bulk_cut" disabled={!isPremium}>🔄 Bulk + Cut - Gana músculo máximo, luego corta para quedar definido con abs</option>
-                      <option value="lean_bulk" disabled={!isPremium}>💎 Lean Bulk - Gana músculo limpio minimizando grasa (más lento pero sin corte)</option>
+                    <optgroup label="🔄 Transformación con Fases">
+                      <option value="bulk_cut">🔄 Bulk + Cut - Gana músculo máximo, luego corta para quedar definido con abs</option>
+                      <option value="lean_bulk">💎 Lean Bulk - Gana músculo limpio minimizando grasa (más lento pero sin corte)</option>
                     </optgroup>
                   </select>
                 </label>
@@ -1581,7 +1661,6 @@ export default function CreatePlan() {
                 <label className="flex flex-col gap-1">
                   <span className="text-sm opacity-80">
                     Tipo de dieta (opcional)
-                    {!isPremium && <span className="text-xs opacity-60 ml-1 block mt-0.5">Las dietas premium requieren suscripción</span>}
                   </span>
                   <select 
                     className="rounded-xl bg-white/5 px-3 py-2 text-white" 
@@ -1596,19 +1675,19 @@ export default function CreatePlan() {
                       <option value="vegana">Vegana (Solo alimentos de origen vegetal)</option>
                       <option value="low_carb">Low Carb (Reducción moderada de carbohidratos)</option>
                     </optgroup>
-                    <optgroup label={isPremium ? "🌟 PREMIUM - Dietas avanzadas (Activas)" : "🌟 PREMIUM - Dietas avanzadas (Desbloquea con suscripción)"}>
-                      <option value="antiinflamatoria" disabled={!isPremium}>🔥 Antiinflamatoria - Reduce inflamación crónica y optimiza recuperación</option>
-                      <option value="atkins" disabled={!isPremium}>⚡ Atkins - Baja en carbohidratos con fases progresivas avanzadas</option>
-                      <option value="clinica_mayo" disabled={!isPremium}>🏥 Clínica Mayo - Programa de hábitos saludables con control de porciones</option>
-                      <option value="dash" disabled={!isPremium}>❤️ DASH - Diseñada para reducir presión arterial y salud cardiovascular</option>
-                      <option value="flexitariana" disabled={!isPremium}>🌱 Flexitariana - Principalmente vegetal con flexibilidad estratégica</option>
-                      <option value="keto" disabled={!isPremium}>💪 Keto - Alta en grasas, muy baja en carbohidratos, optimización avanzada</option>
-                      <option value="mind" disabled={!isPremium}>🧠 MIND - Mediterránea + DASH enfocada en salud cerebral y prevención</option>
-                      <option value="menopausia" disabled={!isPremium}>🌸 Menopausia - Adaptada específicamente para mujeres en transición hormonal</option>
-                      <option value="paleo" disabled={!isPremium}>🏃 Paleo - Alimentos naturales sin procesar, enfoque ancestral</option>
-                      <option value="pescatariana" disabled={!isPremium}>🐟 Pescatariana - Vegetariana con pescados y mariscos estratégicos</option>
-                      <option value="sin_gluten" disabled={!isPremium}>🌾 Sin Gluten - Planificación avanzada para celíacos y sensibilidad</option>
-                      <option value="tlc" disabled={!isPremium}>📊 TLC - Cambios terapéuticos para reducir colesterol de manera precisa</option>
+                    <optgroup label="🌟 Dietas avanzadas">
+                      <option value="antiinflamatoria">🔥 Antiinflamatoria - Reduce inflamación crónica y optimiza recuperación</option>
+                      <option value="atkins">⚡ Atkins - Baja en carbohidratos con fases progresivas avanzadas</option>
+                      <option value="clinica_mayo">🏥 Clínica Mayo - Programa de hábitos saludables con control de porciones</option>
+                      <option value="dash">❤️ DASH - Diseñada para reducir presión arterial y salud cardiovascular</option>
+                      <option value="flexitariana">🌱 Flexitariana - Principalmente vegetal con flexibilidad estratégica</option>
+                      <option value="keto">💪 Keto - Alta en grasas, muy baja en carbohidratos, optimización avanzada</option>
+                      <option value="mind">🧠 MIND - Mediterránea + DASH enfocada en salud cerebral y prevención</option>
+                      <option value="menopausia">🌸 Menopausia - Adaptada específicamente para mujeres en transición hormonal</option>
+                      <option value="paleo">🏃 Paleo - Alimentos naturales sin procesar, enfoque ancestral</option>
+                      <option value="pescatariana">🐟 Pescatariana - Vegetariana con pescados y mariscos estratégicos</option>
+                      <option value="sin_gluten">🌾 Sin Gluten - Planificación avanzada para celíacos y sensibilidad</option>
+                      <option value="tlc">📊 TLC - Cambios terapéuticos para reducir colesterol de manera precisa</option>
                     </optgroup>
                   </select>
               </label>
@@ -1645,9 +1724,6 @@ export default function CreatePlan() {
                     {esObjetivoBasico && (
                       <span className="text-xs opacity-60 ml-1">(Fija en Leve para objetivos básicos)</span>
                     )}
-                    {!isPremium && !esObjetivoBasico && (
-                      <span className="text-xs opacity-60 ml-1">(Leve disponible. Actualiza a Premium para Moderada e Intensa)</span>
-                    )}
                   </span>
                   <select 
                     className="rounded-xl bg-white/5 px-3 py-2 cursor-pointer text-white"
@@ -1656,16 +1732,16 @@ export default function CreatePlan() {
                     onChange={(e) => update("intensidad", e.target.value as UserInput["intensidad"])}
                   >
                     <option value="leve">Leve - Cambios graduales y sostenibles</option>
-                    <optgroup label={isPremium ? "🌟 PREMIUM (Activas)" : "🌟 PREMIUM (Desbloquea con suscripción)"}>
-                      <option value="moderada" disabled={!isPremium || esObjetivoBasico}>
+                    <optgroup label="🌟 Intensidades avanzadas">
+                      <option value="moderada" >
                         Moderada - Balance entre resultados y sostenibilidad
                       </option>
-                      <option value="intensa" disabled={!isPremium || esObjetivoBasico}>
+                      <option value="intensa" >
                         Intensa - Resultados más rápidos, mayor disciplina
                       </option>
                     </optgroup>
-                    <optgroup label={isPremium ? "🔥 ULTRA - Para Atletas (Activo)" : "🔥 ULTRA - Para Atletas (Desbloquea con suscripción)"}>
-                      <option value="ultra" disabled={!isPremium || esObjetivoBasico}>
+                    <optgroup label="🔥 ULTRA - Para Atletas">
+                      <option value="ultra" >
                         🔥 Ultra - Máximo rendimiento, solo atletas comprometidos
                       </option>
                     </optgroup>
@@ -1860,28 +1936,15 @@ export default function CreatePlan() {
               </button>
             ) : (
               <>
-                {!canCreatePlan && planLimitMessage && (
-                  <div className="mb-4 p-4 rounded-xl bg-yellow-500/20 border border-yellow-500/30 text-yellow-300 text-sm">
-                    <p className="mb-3">{planLimitMessage}</p>
-                    <button
-                      onClick={() => router.push("/dashboard")}
-                      className="px-4 py-2 rounded-lg bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-medium transition-all"
-                    >
-                      Ver Plan Premium
-                    </button>
-                  </div>
-                )}
                 <button
                   className="rounded-full px-5 py-2 text-sm font-medium text-white disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{
-                    background: canCreatePlan
-                      ? "linear-gradient(90deg, var(--brand-start), var(--brand-mid), var(--brand-end))"
-                      : "linear-gradient(90deg, #666, #666)",
+                    background: "linear-gradient(90deg, var(--brand-start), var(--brand-mid), var(--brand-end))",
                   }}
-                  onClick={onSubmit}
-                  disabled={loading || !canCreatePlan}
+                  onClick={handleGeneratePlan}
+                  disabled={loading}
                 >
-                  {loading ? "Generando..." : "Generar mi plan"}
+                  {loading ? "Generando..." : "Pagar y generar plan"}
                 </button>
               </>
             )}
@@ -1987,6 +2050,17 @@ export default function CreatePlan() {
             )}
               </div>
         </motion.div>
+      )}
+
+      {/* Modal de planes premium */}
+      {authUser && authUser.uid && authUser.email && (
+        <PremiumPlanModal
+          isOpen={premiumModalOpen}
+          onClose={() => setPremiumModalOpen(false)}
+          userId={authUser.uid}
+          userEmail={authUser.email}
+          returnUrl={`${typeof window !== "undefined" ? window.location.origin : ""}/create-plan?continue=true&generate=true`}
+        />
       )}
     </div>
   );

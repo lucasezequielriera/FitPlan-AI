@@ -202,12 +202,21 @@ export default function PaymentSuccess() {
                   <li>✓ Análisis avanzado de progreso</li>
                 </ul>
               </div>
-              <button
-                onClick={() => router.push("/dashboard")}
-                className="px-6 py-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-medium transition-all shadow-lg shadow-green-500/20"
-              >
-                Ir a mi Dashboard
-              </button>
+              {router.query.redirect === "create-plan" ? (
+                <button
+                  onClick={() => router.push("/create-plan?continue=true")}
+                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-medium transition-all shadow-lg shadow-green-500/20"
+                >
+                  Continuar con la creación del plan
+                </button>
+              ) : (
+                <button
+                  onClick={() => router.push("/dashboard")}
+                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-medium transition-all shadow-lg shadow-green-500/20"
+                >
+                  Ir a mi Dashboard
+                </button>
+              )}
             </>
           ) : (
             <>

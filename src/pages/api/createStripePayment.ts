@@ -17,23 +17,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: "userId y userEmail son requeridos" });
   }
 
-  // Definir precios según el tipo de plan (en USD para usuarios internacionales)
-  // Mensual: $10/mes | Trimestral: $7/mes ($21 total) | Anual: $5/mes ($60 total)
-  const planPrices: Record<string, { price: number; title: string; description: string }> = {
+  // Definir precios según el tipo de plan (en EUR para usuarios internacionales)
+  // Precio: 1 EUR/mes
+  const planPrices: Record<string, { price: number; title: string; description: string; currency: string }> = {
     monthly: {
-      price: 10, // $10 USD/mes
+      price: 1, // 1 EUR/mes
+      currency: "eur",
       title: "Plan Premium Mensual - FitPlan AI",
       description: "Acceso premium mensual a objetivos avanzados, dietas personalizadas y análisis avanzado",
     },
     quarterly: {
-      price: 21, // $7 USD/mes x 3 = $21 USD total (30% ahorro)
+      price: 2.70, // 0.90 EUR/mes x 3 = 2.70 EUR total (10% ahorro)
+      currency: "eur",
       title: "Plan Premium Trimestral - FitPlan AI",
-      description: "Acceso premium trimestral (3 meses) - $7/mes - Ahorrás 30%",
+      description: "Acceso premium trimestral (3 meses) - 0.90 EUR/mes - Ahorrás 10%",
     },
     annual: {
-      price: 60, // $5 USD/mes x 12 = $60 USD total (50% ahorro)
+      price: 10.80, // 0.90 EUR/mes x 12 = 10.80 EUR total (10% ahorro)
+      currency: "eur",
       title: "Plan Premium Anual - FitPlan AI",
-      description: "Acceso premium anual (12 meses) - $5/mes - Ahorrás 50%",
+      description: "Acceso premium anual (12 meses) - 0.90 EUR/mes - Ahorrás 10%",
     },
   };
 
@@ -53,24 +56,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Crear una sesión de checkout de Stripe
+    const currency = selectedPlan.currency || "eur";
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: [
         {
           price_data: {
-            currency: "usd",
+            currency: currency,
             product_data: {
               name: selectedPlan.title,
               description: selectedPlan.description,
             },
-            unit_amount: selectedPlan.price * 100, // Stripe usa centavos
+            unit_amount: Math.round(selectedPlan.price * 100), // Stripe usa centavos/céntimos
           },
           quantity: 1,
         },
       ],
       mode: "payment",
       customer_email: userEmail,
-      success_url: `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}&provider=stripe`,
+      success_url: `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}&provider=stripe&redirect=create-plan`,
       cancel_url: `${baseUrl}/payment/failure?provider=stripe`,
       metadata: {
         userId: userId,

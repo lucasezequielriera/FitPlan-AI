@@ -17,23 +17,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   // Definir precios según el tipo de plan (en ARS para Argentina)
-  // Equivalente a: Mensual $10 USD | Trimestral $7/mes | Anual $5/mes
-  // Tasa aproximada: 1 USD = 1440 ARS
+  // Precio: $1 USD/mes (conversión a dolar blue)
+  // Tasa aproximada dolar blue: 1 USD = 2000 ARS (ajustar según cotización actual)
   const planPrices: Record<string, { price: number; title: string; description: string }> = {
     monthly: {
-      price: 14400, // ~$10 USD/mes
+      price: 2000, // $1 USD/mes (dolar blue)
       title: "Plan Premium Mensual - FitPlan AI",
       description: "Acceso premium mensual a objetivos avanzados, dietas personalizadas y análisis avanzado",
     },
     quarterly: {
-      price: 30000, // ~$7 USD/mes x 3 = $21 USD (~$30.000 ARS) - 30% ahorro
+      price: 5400, // $0.90 USD/mes x 3 = $2.70 USD (~5400 ARS) - 10% ahorro
       title: "Plan Premium Trimestral - FitPlan AI",
-      description: "Acceso premium trimestral (3 meses) - Ahorrás 30%",
+      description: "Acceso premium trimestral (3 meses) - Ahorrás 10%",
     },
     annual: {
-      price: 85000, // ~$5 USD/mes x 12 = $60 USD (~$85.000 ARS) - 50% ahorro
+      price: 21600, // $0.90 USD/mes x 12 = $10.80 USD (~21600 ARS) - 10% ahorro
       title: "Plan Premium Anual - FitPlan AI",
-      description: "Acceso premium anual (12 meses) - Ahorrás 50%",
+      description: "Acceso premium anual (12 meses) - Ahorrás 10%",
     },
   };
 
@@ -69,7 +69,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
       external_reference: `${userId}|${planType || 'monthly'}`, // userId|planType para identificar usuario y tipo de plan
       back_urls: {
-        success: `${baseUrl}/payment/success`,
+        success: `${baseUrl}/payment/success?redirect=create-plan`,
         failure: `${baseUrl}/payment/failure`,
         pending: `${baseUrl}/payment/pending`,
       },

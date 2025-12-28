@@ -7,6 +7,7 @@ interface PremiumPlanModalProps {
   onClose: () => void;
   userId: string;
   userEmail: string;
+  returnUrl?: string;
 }
 
 type PlanType = "monthly" | "quarterly" | "annual";
@@ -22,63 +23,63 @@ interface Plan {
   popular?: boolean;
 }
 
-// Planes en ARS (MercadoPago) - Tasa ~1440 ARS/USD
-// Mensual: $10 USD | Trimestral: $7/mes | Anual: $5/mes
+// Planes en ARS (MercadoPago) - $1 USD/mes (dolar blue)
+// Tasa aproximada: 1 USD = 2000 ARS (ajustar según cotización actual)
 const plansARS: Plan[] = [
   {
     type: "monthly",
     name: "Plan Mensual",
-    price: 14400, // ~$10 USD
+    price: 2000, // $1 USD/mes (dolar blue)
     period: "mes",
   },
   {
     type: "quarterly",
     name: "Plan Trimestral",
-    price: 30000, // ~$7 USD/mes x 3
+    price: 5400, // 0.90 USD/mes x 3 = 2.70 USD (~5400 ARS)
     period: "3 meses",
-    savings: "Ahorrás 30% ($7/mes)",
+    savings: "Ahorrás 10%",
     popular: true,
   },
   {
     type: "annual",
     name: "Plan Anual",
-    price: 85000, // ~$5 USD/mes x 12
+    price: 21600, // 0.90 USD/mes x 12 = 10.80 USD (~21600 ARS)
     period: "12 meses",
-    savings: "Ahorrás 50% ($5/mes)",
+    savings: "Ahorrás 10%",
   },
 ];
 
-// Planes en USD (Stripe) - Precio internacional
+// Planes en EUR (Stripe) - 1 EUR/mes
 const plansEUR: Plan[] = [
   {
     type: "monthly",
     name: "Plan Mensual",
-    price: 10, // $10 USD/mes
-    priceEUR: 10,
+    price: 1, // 1 EUR/mes
+    priceEUR: 1,
     period: "mes",
   },
   {
     type: "quarterly",
     name: "Plan Trimestral",
-    price: 21, // $7 USD/mes x 3 = $21
-    priceEUR: 21,
+    price: 2.70, // 0.90 EUR/mes x 3 = 2.70 EUR
+    priceEUR: 2.70,
     period: "3 meses",
-    savings: "Ahorrás 30%",
-    savingsEUR: "$7/mes",
+    savings: "Ahorrás 10%",
+    savingsEUR: "0.90 EUR/mes",
     popular: true,
   },
   {
     type: "annual",
     name: "Plan Anual",
-    price: 60, // $5 USD/mes x 12 = $60
-    priceEUR: 60,
+    price: 10.80, // 0.90 EUR/mes x 12 = 10.80 EUR
+    priceEUR: 10.80,
     period: "12 meses",
-    savings: "Ahorrás 50%",
-    savingsEUR: "$5/mes",
+    savings: "Ahorrás 10%",
+    savingsEUR: "0.90 EUR/mes",
   },
 ];
 
-export default function PremiumPlanModal({ isOpen, onClose, userId, userEmail }: PremiumPlanModalProps) {
+export default function PremiumPlanModal({ isOpen, onClose, userId, userEmail, returnUrl }: PremiumPlanModalProps) {
   const [selectedPlan, setSelectedPlan] = useState<PlanType | null>(null);
   const [processing, setProcessing] = useState(false);
   const [paymentProvider, setPaymentProvider] = useState<"stripe" | "mercadopago" | null>(null);
@@ -128,6 +129,7 @@ export default function PremiumPlanModal({ isOpen, onClose, userId, userEmail }:
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId,
+          returnUrl: returnUrl || `${typeof window !== "undefined" ? window.location.origin : ""}/payment/success?redirect=create-plan`,
           userEmail,
           planType,
         }),
@@ -219,14 +221,16 @@ export default function PremiumPlanModal({ isOpen, onClose, userId, userEmail }:
                 <h3 className="text-lg sm:text-xl font-bold text-white mb-2">{plan.name}</h3>
                 <div className="mb-4">
                   <span className="text-3xl sm:text-4xl font-bold text-white">
-                    ${plan.price.toLocaleString(paymentProvider === "stripe" ? "en-US" : "es-AR")}
+                    {paymentProvider === "stripe" 
+                      ? `${plan.price.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+                      : `$${plan.price.toLocaleString("es-AR")}`
+                    }
                   </span>
-                  <span className="text-white/60 text-sm ml-1">{paymentProvider === "stripe" ? "USD" : "ARS"}</span>
                 </div>
                 <p className="text-white/60 text-sm mb-4">{plan.period}</p>
-                {((paymentProvider === "stripe" && plan.savingsEUR) || (paymentProvider === "mercadopago" && plan.savings)) && (
+                {plan.savings && (
                   <p className="text-green-400 text-sm font-medium mb-4">
-                    {paymentProvider === "stripe" ? plan.savingsEUR : plan.savings}
+                    {plan.savings}
                   </p>
                 )}
 
