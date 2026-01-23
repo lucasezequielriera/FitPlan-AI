@@ -39,7 +39,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       userData.peso = Number(peso);
     }
     
+    // Si es un nuevo usuario, intentar obtener y guardar la ubicación desde la IP del request
     if (!userDoc.exists()) {
+      try {
+        // Obtener la IP del cliente
+        const forwarded = req.headers["x-forwarded-for"];
+        const ip = forwarded 
+          ? (typeof forwarded === "string" ? forwarded.split(",")[0].trim() : forwarded[0])
+          : req.headers["x-real-ip"] || req.socket.remoteAddress || "";
+        
+        const clientIp = typeof ip === "string" ? ip : (Array.isArray(ip) ? ip[0] : String(ip || req.socket.remoteAddress || ""));
+        
+        // Obtener ubicación usando ip-api.com
+        let locationUrl = "http://ip-api.com/json/?fields=status,country,countryCode,city,regionName";
+        if (clientIp && clientIp !== "unknown" && clientIp !== "::1" && typeof clientIp === "string" && !clientIp.startsWith("127.")) {
+          locationUrl = `http://ip-api.com/json/${clientIp}?fields=status,country,countryCode,city,regionName`;
+        }
+        
+        const locationResponse = await fetch(locationUrl);
+        
+        if (locationResponse.ok) {
+          const locationData = await locationResponse.json();
+          if (locationData.status === "success") {
+            if (locationData.city) {
+              userData.ciudad = locationData.city;
+            }
+            if (locationData.country) {
+              userData.pais = locationData.country;
+            }
+            console.log("✅ Ubicación del usuario obtenida y guardada:", { ciudad: locationData.city, pais: locationData.country });
+          }
+        }
+      } catch (locationError) {
+        console.warn("⚠️ No se pudo obtener ubicación del usuario:", locationError);
+        // No bloquear el registro si falla obtener la ubicación
+      }
+      
       // Crear nuevo perfil
       await setDoc(userRef, {
         ...userData,

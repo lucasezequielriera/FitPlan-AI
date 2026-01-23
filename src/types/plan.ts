@@ -324,4 +324,3 @@ export function calcularProgresoTotal(plan: PlanMultiFase): {
     adherenciaPromedio,
   };
 }
-

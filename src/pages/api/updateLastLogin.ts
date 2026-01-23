@@ -31,11 +31,54 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(404).json({ error: "Usuario no encontrado" });
     }
 
-    // Actualizar lastLogin usando Admin SDK
-    await userRef.update({
+    const userData = userDoc.data();
+    const updateData: Record<string, unknown> = {
       lastLogin: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
-    });
+    };
+
+    // Si el usuario no tiene país guardado, intentar obtenerlo ahora
+    if (!userData?.pais) {
+      try {
+        // Obtener la IP del cliente
+        const forwarded = req.headers["x-forwarded-for"];
+        const ip = forwarded 
+          ? (typeof forwarded === "string" ? forwarded.split(",")[0].trim() : forwarded[0])
+          : req.headers["x-real-ip"] || req.socket.remoteAddress || "";
+
+        const clientIp = typeof ip === "string" ? ip : (Array.isArray(ip) ? ip[0] : String(ip || req.socket.remoteAddress || ""));
+
+        // Obtener ubicación usando ip-api.com
+        let locationUrl = "http://ip-api.com/json/?fields=status,country,countryCode,city,regionName";
+        if (clientIp && clientIp !== "unknown" && clientIp !== "::1" && typeof clientIp === "string" && !clientIp.startsWith("127.")) {
+          locationUrl = `http://ip-api.com/json/${clientIp}?fields=status,country,countryCode,city,regionName`;
+        }
+
+        const locationResponse = await fetch(locationUrl);
+
+        if (locationResponse.ok) {
+          const locationData = await locationResponse.json();
+          if (locationData.status === "success") {
+            if (locationData.city && !userData.ciudad) {
+              updateData.ciudad = locationData.city;
+            }
+            if (locationData.country) {
+              updateData.pais = locationData.country;
+            }
+            console.log(`✅ Ubicación capturada para usuario existente ${userId}:`, { 
+              ciudad: locationData.city, 
+              pais: locationData.country 
+            });
+          }
+        }
+      } catch (locationError) {
+        console.warn(`⚠️ No se pudo obtener ubicación para usuario ${userId}:`, locationError);
+        // No bloquear la actualización de lastLogin si falla obtener la ubicación
+      }
+    }
+
+    // Actualizar lastLogin (y ubicación si se obtuvo)
+    await userRef.update(updateData);
 
     console.log(`✅ lastLogin actualizado para usuario ${userId}`);
     return res.status(200).json({ success: true });

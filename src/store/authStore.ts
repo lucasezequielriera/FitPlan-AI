@@ -59,6 +59,17 @@ export const useAuthStore = create<AuthState>((set) => ({
             updatedAt: serverTimestamp(),
           });
           console.log("✅ Documento de usuario creado en Firestore");
+          
+          // Guardar ubicación del usuario inmediatamente después del registro (no bloqueante)
+          fetch("/api/saveUserLocation", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId: userCredential.user.uid }),
+          }).catch((err) => {
+            console.warn("⚠️ No se pudo guardar ubicación del usuario:", err);
+            // No bloquear el registro si falla guardar la ubicación
+          });
+          
           // Nota: La notificación de Telegram se enviará cuando se cree el perfil completo en saveUserProfile.ts
         } catch (firestoreError) {
           console.error("Error al crear documento en Firestore:", firestoreError);

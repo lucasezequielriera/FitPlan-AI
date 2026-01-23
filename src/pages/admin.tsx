@@ -197,12 +197,13 @@ export default function Admin() {
       expiresAt = convertTimestampToDate(user.premiumExpiresAt);
     }
 
-    // Si no hay fecha de vencimiento, calcular basado en premiumLastPay y planType (fallback)
-    if (!expiresAt && user.premiumLastPay) {
-      const lastPayDate = convertTimestampToDate(user.premiumLastPay);
-      if (lastPayDate) {
-        expiresAt = new Date(lastPayDate);
+    // Si no hay fecha de vencimiento o está vencida pero el status es "active",
+    // recalcular basándose en el planType actual (puede ser que se acaba de activar)
+    if (!expiresAt || (expiresAt && expiresAt.getTime() < now.getTime() && user.premiumStatus === "active")) {
+      // Si el status es "active" pero la fecha está vencida, recalcular desde ahora
+      if (user.premiumStatus === "active") {
         const planType = user.premiumPlanType || "monthly";
+        expiresAt = new Date(now);
         switch (planType) {
           case "monthly":
             expiresAt.setMonth(expiresAt.getMonth() + 1);
@@ -214,31 +215,85 @@ export default function Admin() {
             expiresAt.setFullYear(expiresAt.getFullYear() + 1);
             break;
         }
+        console.log("🔄 Recalculando fecha de vencimiento para usuario activo:", {
+          userId: user.id,
+          email: user.email,
+          planType,
+          nuevaFecha: expiresAt.toISOString()
+        });
+      } else if (user.premiumLastPay) {
+        // Fallback: calcular basado en premiumLastPay y planType
+        const lastPayDate = convertTimestampToDate(user.premiumLastPay);
+        if (lastPayDate) {
+          expiresAt = new Date(lastPayDate);
+          const planType = user.premiumPlanType || "monthly";
+          switch (planType) {
+            case "monthly":
+              expiresAt.setMonth(expiresAt.getMonth() + 1);
+              break;
+            case "quarterly":
+              expiresAt.setMonth(expiresAt.getMonth() + 3);
+              break;
+            case "annual":
+              expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+              break;
+          }
+        }
       }
     }
 
     if (!expiresAt) {
-      // Si no hay fecha de vencimiento, considerar como sin pagar
-      return { 
-        status: "unpaid", 
-        label: "Sin Fecha", 
-        color: "red",
-        expiresAt: null,
-        daysUntilExpiry: null
-      };
+      // Si no hay fecha de vencimiento y el status no es active, considerar como sin pagar
+      if (user.premiumStatus !== "active") {
+        return { 
+          status: "unpaid", 
+          label: "Sin Fecha", 
+          color: "red",
+          expiresAt: null,
+          daysUntilExpiry: null
+        };
+      }
+      // Si el status es active pero no hay fecha, calcular desde ahora
+      const planType = user.premiumPlanType || "monthly";
+      expiresAt = new Date(now);
+      switch (planType) {
+        case "monthly":
+          expiresAt.setMonth(expiresAt.getMonth() + 1);
+          break;
+        case "quarterly":
+          expiresAt.setMonth(expiresAt.getMonth() + 3);
+          break;
+        case "annual":
+          expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+          break;
+      }
     }
 
     const diffTime = expiresAt.getTime() - now.getTime();
     const daysUntilExpiry = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-    // Si ya venció
-    if (daysUntilExpiry < 0) {
+    // Si ya venció Y el status no es "active", entonces está vencido
+    // Si el status es "active", considerar como activo aunque la fecha esté vencida
+    // (puede ser que se acaba de activar y la fecha aún no se actualizó en la DB)
+    if (daysUntilExpiry < 0 && user.premiumStatus !== "active") {
       return { 
         status: "expired", 
         label: "Vencido", 
         color: "red",
         expiresAt,
         daysUntilExpiry
+      };
+    }
+    
+    // Si el status es "active", siempre mostrar como activo aunque la fecha esté vencida
+    // (la fecha se actualizará en la próxima recarga)
+    if (user.premiumStatus === "active" && daysUntilExpiry < 0) {
+      return { 
+        status: "paid", 
+        label: "Activo", 
+        color: "green",
+        expiresAt,
+        daysUntilExpiry: 0 // Mostrar como 0 días aunque esté vencida temporalmente
       };
     }
 
@@ -256,7 +311,7 @@ export default function Admin() {
     // Si está vigente
     return { 
       status: "paid", 
-      label: "Pagado", 
+      label: "Activo", 
       color: "green",
       expiresAt,
       daysUntilExpiry
@@ -925,6 +980,23 @@ export default function Admin() {
   };
 
   const handleEdit = (user: User) => {
+    // Console log detallado del usuario para debug
+    console.log("=".repeat(80));
+    console.log("👤 USUARIO SELECCIONADO PARA EDITAR:");
+    console.log("=".repeat(80));
+    console.log("ID:", user.id);
+    console.log("Email:", user.email);
+    console.log("Nombre:", user.nombre);
+    console.log("Premium:", user.premium);
+    console.log("Premium Status:", user.premiumStatus);
+    console.log("Premium Plan Type:", user.premiumPlanType);
+    console.log("Premium Since:", user.premiumSince);
+    console.log("Premium Expires At:", user.premiumExpiresAt);
+    console.log("Premium Last Pay:", user.premiumLastPay);
+    console.log("Premium Payment:", user.premiumPayment);
+    console.log("Usuario completo:", JSON.stringify(user, null, 2));
+    console.log("=".repeat(80));
+    
     setEditingUser(user);
     setEditForm({
       nombre: user.nombre || "",
@@ -1024,11 +1096,51 @@ export default function Admin() {
         updateData.premium = Boolean(editForm.premium);
         updateData.premiumStatus = editForm.premium ? "active" : "inactive";
         if (editForm.premium) {
-          updateData.premiumSince = new Date().toISOString();
+          // Si se activa premium, establecer premiumSince si no existe
+          if (!editingUser.premiumSince) {
+            updateData.premiumSince = new Date().toISOString();
+          }
+          
+          // CRÍTICO: SIEMPRE establecer fecha de vencimiento cuando se activa premium
+          // Usar el planType del formulario, o el existente, o "monthly" por defecto
+          const planType = editForm.premiumPlanType || editingUser.premiumPlanType || "monthly";
+          const now = new Date();
+          let expiresAt = new Date();
+          
+          if (planType === "monthly") {
+            expiresAt.setMonth(now.getMonth() + 1);
+          } else if (planType === "quarterly") {
+            expiresAt.setMonth(now.getMonth() + 3);
+          } else if (planType === "annual") {
+            expiresAt.setFullYear(now.getFullYear() + 1);
+          } else {
+            // Fallback a mensual
+            expiresAt.setMonth(now.getMonth() + 1);
+          }
+          
+          updateData.premiumExpiresAt = expiresAt.toISOString();
+          console.log("📅 Estableciendo fecha de vencimiento:", {
+            planType,
+            expiresAt: expiresAt.toISOString(),
+            now: now.toISOString()
+          });
         }
       }
       if (editForm.premiumPlanType !== undefined) {
         updateData.premiumPlanType = editForm.premiumPlanType || null;
+        // Si se cambia el planType y el usuario es premium, actualizar fecha de vencimiento
+        if (editForm.premium && editForm.premiumPlanType) {
+          const now = new Date();
+          let expiresAt = new Date();
+          if (editForm.premiumPlanType === "monthly") {
+            expiresAt.setMonth(now.getMonth() + 1);
+          } else if (editForm.premiumPlanType === "quarterly") {
+            expiresAt.setMonth(now.getMonth() + 3);
+          } else if (editForm.premiumPlanType === "annual") {
+            expiresAt.setFullYear(now.getFullYear() + 1);
+          }
+          updateData.premiumExpiresAt = expiresAt.toISOString();
+        }
       }
       if (editForm.sexo !== undefined) updateData.sexo = editForm.sexo;
       if (editForm.alturaCm !== undefined) updateData.alturaCm = editForm.alturaCm ? Number(editForm.alturaCm) : null;
@@ -1042,7 +1154,7 @@ export default function Admin() {
       if (editForm.ciudad !== undefined) updateData.ciudad = editForm.ciudad || null;
       if (editForm.pais !== undefined) updateData.pais = editForm.pais || null;
 
-      console.log("💾 Enviando cambios al API...");
+      console.log("💾 Enviando cambios al API...", { updateData, editingUserId: editingUser.id });
       
       // Usar el endpoint API que tiene permisos de Admin SDK
       const response = await fetch("/api/admin/updateUser", {
@@ -1059,22 +1171,15 @@ export default function Admin() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: "Error desconocido" }));
+        console.error("❌ Error en la respuesta del API:", errorData);
         throw new Error(errorData.error || `Error HTTP ${response.status}`);
       }
 
       const result = await response.json();
       console.log("✅ Cambios guardados exitosamente:", result);
 
-      // Actualizar el usuario en la lista local sin recargar todo
-      setUsers(prevUsers => 
-        prevUsers.map(user => 
-          user.id === editingUser.id 
-            ? { ...user, ...updateData }
-            : user
-        )
-      );
-
-      // Recargar estadísticas para actualizar los contadores
+      // Recargar la lista de usuarios para obtener los datos actualizados desde Firestore
+      // Esto asegura que todos los campos se actualicen correctamente
       await loadUserStats(adminMeta.lastUsersCheck ?? null);
       
       setEditingUser(null);
@@ -1512,13 +1617,13 @@ export default function Admin() {
                     >
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
                         <div className="flex items-center gap-2">
-                          <span>{user.nombre || "N/A"}</span>
+                          <span>{user.nombre || user.email || "N/A"}</span>
                           {isNewUser && (
                             <span className="px-2 py-0.5 text-[10px] uppercase tracking-wide rounded-full bg-green-500/30 text-green-100 border border-green-500/40">
                               Nuevo
                             </span>
                           )}
-                          {user.pais && (
+                          {(user.pais || user.ciudad) && (
                             <div className="relative group">
                               <span
                                 onClick={() => {
@@ -1530,7 +1635,7 @@ export default function Admin() {
                                 }}
                                 className="text-xl cursor-pointer touch-manipulation"
                               >
-                                {getCountryFlag(user.pais)}
+                                {user.pais ? getCountryFlag(user.pais) : "🌍"}
                               </span>
                               {/* Tooltip (click en mobile, hover en desktop) */}
                               <div
@@ -1869,13 +1974,13 @@ export default function Admin() {
                     {/* Header con nombre y badges */}
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-base font-semibold text-white">{user.nombre || "N/A"}</h3>
+                        <h3 className="text-base font-semibold text-white">{user.nombre || user.email || "N/A"}</h3>
                         {isNewUser && (
                           <span className="px-2 py-0.5 text-[10px] uppercase tracking-wide rounded-full bg-green-500/30 text-green-100 border border-green-500/40">
                             Nuevo
                           </span>
                         )}
-                        {user.pais && (
+                        {(user.pais || user.ciudad) && (
                           <div className="relative group">
                             <span
                               onClick={() => {
@@ -1887,7 +1992,7 @@ export default function Admin() {
                               }}
                               className="text-xl cursor-pointer touch-manipulation"
                             >
-                              {getCountryFlag(user.pais)}
+                              {user.pais ? getCountryFlag(user.pais) : "🌍"}
                             </span>
                             {/* Tooltip (click en mobile, hover en desktop) */}
                             <div
