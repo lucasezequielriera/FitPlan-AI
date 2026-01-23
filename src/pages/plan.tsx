@@ -3959,8 +3959,18 @@ export default function PlanPage() {
               <TrainingCalendar
                 key={`training-calendar-${vistaPlan}-${calendarResetKey}`}
                 trainingPlan={(plan as unknown as Record<string, unknown>)?.training_plan as unknown as import("@/types/plan").TrainingPlan}
-                planStartDate={fechaInicioPlan || new Date()}
-                planDurationDays={plan?.duracion_plan_dias || 30}
+                // Para planes multi-fase, usar como inicio la fecha de la etapa/mes actual (30 días)
+                // Para planes simples, usar la fecha de inicio completa del plan y su duración
+                planStartDate={
+                  planMultiFase
+                    ? (fechaInicioEtapaActual || fechaInicioPlan || new Date())
+                    : (fechaInicioPlan || new Date())
+                }
+                planDurationDays={
+                  planMultiFase
+                    ? 30
+                    : (plan?.duracion_plan_dias || 30)
+                }
                 resetToCurrentMonth={true}
                 onDaySelect={(date, dayData, week, dayIndex) => {
                   // Prevenir procesamiento duplicado
