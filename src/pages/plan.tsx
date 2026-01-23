@@ -5574,6 +5574,8 @@ export default function PlanPage() {
               
               <p className="text-sm opacity-70 mb-4">
                 Ingresá tus datos actuales para generar el plan del próximo mes con ajustes personalizados.
+                Este proceso puede tardar hasta <span className="font-semibold text-emerald-300">1 minuto</span>. 
+                No cierres esta página mientras se genera la nueva etapa.
               </p>
               
               {/* Info de fase actual */}

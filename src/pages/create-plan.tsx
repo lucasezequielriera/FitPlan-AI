@@ -2024,6 +2024,10 @@ export default function CreatePlan() {
               <h3 className="text-white text-xl font-semibold tracking-wide">
                 Generando tu plan personalizado
               </h3>
+              <p className="text-sm text-white/80 max-w-md mx-auto">
+                Este proceso puede tardar hasta <span className="font-semibold text-blue-300">1 minuto</span>. 
+                No cierres esta ventana ni recargues la página mientras preparamos tu plan.
+              </p>
               <motion.div 
                 className="flex items-center justify-center gap-1"
                 animate={{ opacity: [0.5, 1, 0.5] }}
