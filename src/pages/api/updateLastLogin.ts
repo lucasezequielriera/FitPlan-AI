@@ -32,13 +32,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const userData = userDoc.data();
+    if (!userData) {
+      return res.status(404).json({ error: "Datos del usuario no encontrados" });
+    }
+
     const updateData: Record<string, unknown> = {
       lastLogin: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     };
 
     // Si el usuario no tiene país guardado, intentar obtenerlo ahora
-    if (!userData?.pais) {
+    if (!userData.pais) {
       try {
         // Obtener la IP del cliente
         const forwarded = req.headers["x-forwarded-for"];
