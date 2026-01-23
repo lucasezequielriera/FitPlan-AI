@@ -5,6 +5,7 @@ import { Poppins } from "next/font/google";
 import { useEffect } from "react";
 import { useAuthStore } from "@/store/authStore";
 import Footer from "@/components/Footer";
+import ContactButton from "@/components/ContactButton";
 
 const poppins = Poppins({ subsets: ["latin"], weight: ["300","400","500","600","700"], variable: "--font-sans" });
 
@@ -70,6 +71,7 @@ export default function App({ Component, pageProps }: AppProps) {
       <div className={`${poppins.className} min-h-screen flex flex-col`}>
         <Component {...pageProps} />
         <Footer />
+        <ContactButton />
       </div>
     </>
   );
