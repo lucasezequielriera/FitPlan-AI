@@ -1008,7 +1008,7 @@ export default function PlanPage() {
                 }
               }}
               placeholder="Ej: 100"
-              className="flex-1 px-2 sm:px-3 py-1.5 sm:py-2 text-sm sm:text-base bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-purple-500/50 focus:bg-white/15"
+              className="w-[100px] px-2 sm:px-3 py-1.5 sm:py-2 text-sm sm:text-base bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-purple-500/50 focus:bg-white/15"
             />
             <span className="text-xs sm:text-sm text-white/60">kg</span>
           </div>
@@ -1054,7 +1054,7 @@ export default function PlanPage() {
                   {/* Inputs de peso y repeticiones - responsive */}
                   <div className="flex-1 flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 sm:gap-2">
                     {/* Input de peso */}
-                    <div className="flex items-center gap-1 flex-1">
+                    <div className="flex items-center gap-1">
                       <input
                         type="number"
                         min="0"
@@ -1062,13 +1062,13 @@ export default function PlanPage() {
                         value={weights[i] || ""}
                         onChange={(e) => handleWeightChange(i, parseFloat(e.target.value) || 0)}
                         placeholder={suggestedWeight ? suggestedWeight.toString() : previousWeight ? previousWeight.toString() : "0"}
-                        className="flex-1 px-2 py-1.5 sm:py-2 text-sm sm:text-base font-semibold bg-white/10 border border-white/20 rounded-md text-white placeholder-white/30 focus:outline-none focus:border-cyan-500/50 focus:bg-white/15 text-center"
+                        className="w-[100px] px-2 py-1.5 sm:py-2 text-sm sm:text-base font-semibold bg-white/10 border border-white/20 rounded-md text-white placeholder-white/30 focus:outline-none focus:border-cyan-500/50 focus:bg-white/15 text-center"
                       />
                       <span className="text-xs sm:text-sm text-white/60 w-6 sm:w-8">kg</span>
                     </div>
                     
                     {/* Input de repeticiones */}
-                    <div className="flex items-center gap-1 flex-1">
+                    <div className="flex items-center gap-1">
                       <input
                         type="number"
                         min="0"
@@ -1076,7 +1076,7 @@ export default function PlanPage() {
                         value={reps[i] || ""}
                         onChange={(e) => handleRepsChange(i, parseInt(e.target.value) || 0)}
                         placeholder={previousRep ? previousRep.toString() : repsObjective}
-                        className="flex-1 px-2 py-1.5 sm:py-2 text-sm sm:text-base bg-white/10 border border-white/20 rounded-md text-white placeholder-white/30 focus:outline-none focus:border-orange-500/50 focus:bg-white/15 text-center"
+                        className="w-[100px] px-2 py-1.5 sm:py-2 text-sm sm:text-base bg-white/10 border border-white/20 rounded-md text-white placeholder-white/30 focus:outline-none focus:border-orange-500/50 focus:bg-white/15 text-center"
                       />
                       <span className="text-xs sm:text-sm text-white/60 w-10 sm:w-12">reps</span>
                     </div>
@@ -1477,6 +1477,20 @@ export default function PlanPage() {
   };
   const [monthChangesData, setMonthChangesData] = useState<MonthChangesData | null>(null);
 
+  // Peso actual priorizando el último registro de seguimiento (si existe)
+  const pesoActualDesdeRegistros = registrosPeso.length > 0
+    ? registrosPeso.reduce<{ fecha: string; peso: number } | null>((acc, curr) => {
+        if (!acc) return curr;
+        if (!acc.fecha) return curr;
+        if (!curr.fecha) return acc;
+        return curr.fecha > acc.fecha ? curr : acc;
+      }, null)?.peso
+    : null;
+
+  const pesoActual = pesoActualDesdeRegistros && pesoActualDesdeRegistros > 0
+    ? pesoActualDesdeRegistros
+    : user?.pesoKg || 0;
+
   // Ref para prevenir cargas duplicadas de registros de peso
   const loadingRegistrosPesoRef = useRef(false);
   const lastLoadedPlanIdRef = useRef<string | null>(null);
@@ -1505,10 +1519,26 @@ export default function PlanPage() {
         if (planDoc.exists()) {
           const data = planDoc.data();
           if (data.registrosPeso && Array.isArray(data.registrosPeso)) {
-            setRegistrosPeso(data.registrosPeso.map((r: Record<string, unknown>) => ({
+            const registros = data.registrosPeso.map((r: Record<string, unknown>) => ({
               fecha: String(r.fecha || ''),
               peso: Number(r.peso || 0)
-            })));
+            }));
+            setRegistrosPeso(registros);
+
+            // Actualizar el peso actual del usuario en el store con el último registro
+            if (user && registros.length > 0) {
+              const ultimoRegistro = registros.reduce((acc, curr) => {
+                // Comparar por fecha (YYYY-MM-DD) o, si es igual, por orden en el array
+                if (!acc) return curr;
+                if (!acc.fecha) return curr;
+                if (!curr.fecha) return acc;
+                return curr.fecha > acc.fecha ? curr : acc;
+              });
+
+              if (ultimoRegistro && ultimoRegistro.peso > 0 && ultimoRegistro.peso !== user.pesoKg) {
+                setUser({ ...user, pesoKg: ultimoRegistro.peso });
+              }
+            }
           }
         }
       } catch (error) {
@@ -1519,7 +1549,7 @@ export default function PlanPage() {
     };
     
     loadRegistrosPeso();
-  }, [planId]);
+  }, [planId, setUser, user]);
   
   // Mostrar modal de IMC solo la primera vez que el usuario ve su plan
   useEffect(() => {
@@ -1659,29 +1689,65 @@ export default function PlanPage() {
   // Vista por defecto: alimentación
   // (el usuario puede cambiar entre alimentación y entrenamiento con los botones)
   
-  // Calcular progreso del plan (solo si tenemos la fecha de inicio)
+  // Fecha de inicio de la etapa actual (para planes multi-fase)
+  const fechaInicioEtapaActual = useMemo(() => {
+    if (!planMultiFase) return null;
+    try {
+      const mesIndex = (planMultiFase.mesActual || 1) - 1;
+      const mesData = planMultiFase.historialMeses?.[mesIndex];
+      let inicio: Date | null = null;
+
+      if (mesData?.fechaGeneracion) {
+        inicio = new Date(mesData.fechaGeneracion);
+      } else if (planMultiFase.fechaInicio) {
+        inicio = new Date(planMultiFase.fechaInicio);
+      }
+
+      if (!inicio || isNaN(inicio.getTime())) return null;
+      inicio.setHours(0, 0, 0, 0);
+      return inicio;
+    } catch {
+      return null;
+    }
+  }, [planMultiFase]);
+
+  // Calcular progreso del plan:
+  // - Para planes multi-fase: según la fecha de inicio de la etapa/mes actual (ventana de 30 días)
+  // - Para planes simples: según la fecha de inicio del plan completo y su duración
   const progresoPlan = useMemo(() => {
+    const ahora = new Date();
+
+    // Caso 1: plan multi-fase -> usar etapa actual (30 días)
+    if (planMultiFase && fechaInicioEtapaActual) {
+      const inicio = fechaInicioEtapaActual;
+      const diffTime = ahora.getTime() - inicio.getTime();
+
+      // Usar horas para evitar 0% el primer día
+      const diffHours = diffTime / (1000 * 60 * 60);
+      const diffDays = Math.max(0, diffHours / 24);
+
+      const totalDays = 30;
+      const porcentaje = Math.min(100, Math.max(0, (diffDays / totalDays) * 100));
+      const diasTranscurridos = Math.min(totalDays, Math.max(0, Math.ceil(diffDays)));
+
+      return { diasTranscurridos, porcentaje };
+    }
+
+    // Caso 2: plan simple -> usar fechaInicioPlan y duracion_plan_dias
     if (!fechaInicioPlan) {
-      // Si aún no tenemos la fecha, retornar 0% temporalmente
       return { diasTranscurridos: 0, porcentaje: 0 };
     }
 
-      const ahora = new Date();
     const diffTime = ahora.getTime() - fechaInicioPlan.getTime();
-
-    // Igual que en el dashboard: usar horas para que el progreso no sea 0% todo el primer día
     const diffHours = diffTime / (1000 * 60 * 60);
-    const diffDays = Math.max(0, diffHours / 24); // días con decimales
+    const diffDays = Math.max(0, diffHours / 24);
 
-    // Si el plan no tiene duracion_plan_dias, asumir 30 días (igual que en el dashboard)
     const totalDays = plan?.duracion_plan_dias || 30;
     const porcentaje = Math.min(100, Math.max(0, (diffDays / totalDays) * 100));
-
-    // Días transcurridos para mostrar: redondear hacia arriba pero nunca superar la duración
     const diasTranscurridos = Math.min(totalDays, Math.max(0, Math.ceil(diffDays)));
 
     return { diasTranscurridos, porcentaje };
-  }, [fechaInicioPlan, plan?.duracion_plan_dias]);
+  }, [planMultiFase, fechaInicioEtapaActual, fechaInicioPlan, plan?.duracion_plan_dias]);
   
   // Guardar valores originales para comparar
   const [valoresOriginales, setValoresOriginales] = useState<{
@@ -2764,7 +2830,7 @@ export default function PlanPage() {
                   
                   <div className="flex items-center gap-4 text-sm">
                     <div className="flex items-center gap-2">
-                      <span className="opacity-70">Peso actual:</span>
+                      <span className="opacity-70">Peso inicial:</span>
                       <span className="font-semibold">
                         {planMultiFase.historialMeses[planMultiFase.mesActual - 1]?.datosAlIniciar.peso || planMultiFase.datosIniciales.pesoInicial} kg
                       </span>
@@ -2892,7 +2958,7 @@ export default function PlanPage() {
             })()}
 
             {/* Banner de Continuidad - Planes Multi-Fase mes a mes */}
-            {planMultiFase && planMultiFase.tipo !== "simple" && planId && authUser && (() => {
+            {planMultiFase && planMultiFase.tipo !== "simple" && planId && (() => {
               const MultiPhaseContinuityBanner = () => {
                 const [mesProgress, setMesProgress] = useState(0);
                 const [fechaInicioMesActual, setFechaInicioMesActual] = useState<Date | null>(null);
@@ -2900,30 +2966,86 @@ export default function PlanPage() {
                 useEffect(() => {
                   const loadData = async () => {
                     try {
-                      const db = getDbSafe();
-                      if (!db) {
-                        return;
-                      }
+                      // Obtener fecha de inicio del mes actual
+                      const mesActualIndex = planMultiFase.mesActual - 1;
+                      const mesActualData = planMultiFase.historialMeses[mesActualIndex];
                       
-                      const planRef = doc(db, "planes", planId);
-                      const planDoc = await getDoc(planRef);
+                      console.log("🔍 DEBUG MultiPhase Banner:", {
+                        mesActual: planMultiFase.mesActual,
+                        mesActualIndex,
+                        totalMeses: planMultiFase.totalMeses,
+                        historialMesesLength: planMultiFase.historialMeses.length,
+                        mesActualData: mesActualData ? {
+                          mesNumero: mesActualData.mesNumero,
+                          fechaGeneracion: mesActualData.fechaGeneracion,
+                          faseEnEsteMes: mesActualData.faseEnEsteMes
+                        } : null,
+                        todosLosMeses: planMultiFase.historialMeses.map(m => ({
+                          mesNumero: m.mesNumero,
+                          fechaGeneracion: m.fechaGeneracion,
+                          fase: m.faseEnEsteMes
+                        }))
+                      });
                       
-                      if (planDoc.exists()) {
-                        const data = planDoc.data();
+                      if (mesActualData && mesActualData.fechaGeneracion) {
+                        const fechaInicio = new Date(mesActualData.fechaGeneracion);
+                        setFechaInicioMesActual(fechaInicio);
                         
-                        // Obtener fecha de inicio del mes actual
-                        const mesActualIndex = planMultiFase.mesActual - 1;
-                        const mesActualData = planMultiFase.historialMeses[mesActualIndex];
+                        // Calcular progreso del mes actual (30 días)
+                        // Normalizar fechas a medianoche para cálculo más preciso
+                        const now = new Date();
+                        const inicioNormalizado = new Date(fechaInicio.getFullYear(), fechaInicio.getMonth(), fechaInicio.getDate());
+                        const ahoraNormalizado = new Date(now.getFullYear(), now.getMonth(), now.getDate());
                         
-                        if (mesActualData && mesActualData.fechaGeneracion) {
-                          const fechaInicio = new Date(mesActualData.fechaGeneracion);
-                          setFechaInicioMesActual(fechaInicio);
-                          
-                          // Calcular progreso del mes actual (30 días)
+                        const diffTime = ahoraNormalizado.getTime() - inicioNormalizado.getTime();
+                        const diffDays = diffTime / (1000 * 60 * 60 * 24);
+                        const prog = Math.min(100, Math.max(0, (diffDays / 30) * 100));
+                        
+                        console.log("📊 Progreso del mes calculado:", {
+                          fechaInicioOriginal: fechaInicio.toISOString(),
+                          fechaInicioNormalizada: inicioNormalizado.toISOString().split('T')[0],
+                          ahoraOriginal: now.toISOString(),
+                          ahoraNormalizada: ahoraNormalizado.toISOString().split('T')[0],
+                          diffDays: diffDays.toFixed(2),
+                          diasCompletos: Math.floor(diffDays),
+                          progreso: prog.toFixed(2) + "%",
+                          mesActual: planMultiFase.mesActual,
+                          totalMeses: planMultiFase.totalMeses,
+                          mostrarBanner: prog >= 90 && planMultiFase.mesActual < planMultiFase.totalMeses
+                        });
+                        
+                        setMesProgress(prog);
+                      } else {
+                        // Fallback: usar la fecha del plan completo si no hay fecha del mes
+                        console.warn("⚠️ No se encontró fechaGeneracion para el mes actual, usando fallback:", {
+                          mesActual: planMultiFase.mesActual,
+                          mesActualIndex,
+                          historialMeses: planMultiFase.historialMeses.map(m => ({
+                            mesNumero: m.mesNumero,
+                            tieneFecha: !!m.fechaGeneracion
+                          }))
+                        });
+                        
+                        // Intentar usar la fecha del primer mes o la fecha de inicio del plan
+                        const primerMes = planMultiFase.historialMeses[0];
+                        if (primerMes && primerMes.fechaGeneracion) {
+                          const fechaInicio = new Date(primerMes.fechaGeneracion);
+                          // Calcular días desde el inicio del plan
                           const now = new Date();
                           const diffTime = now.getTime() - fechaInicio.getTime();
                           const diffDays = diffTime / (1000 * 60 * 60 * 24);
-                          const prog = Math.min(100, Math.max(0, (diffDays / 30) * 100));
+                          // Asumir que cada mes son 30 días
+                          const diasDesdeInicio = diffDays;
+                          const diasDelMesActual = diasDesdeInicio - ((planMultiFase.mesActual - 1) * 30);
+                          const prog = Math.min(100, Math.max(0, (diasDelMesActual / 30) * 100));
+                          
+                          console.log("📊 Progreso calculado con fallback:", {
+                            diasDesdeInicio: diasDesdeInicio.toFixed(2),
+                            diasDelMesActual: diasDelMesActual.toFixed(2),
+                            progreso: prog.toFixed(2) + "%"
+                          });
+                          
+                          setFechaInicioMesActual(fechaInicio);
                           setMesProgress(prog);
                         }
                       }
@@ -2935,12 +3057,25 @@ export default function PlanPage() {
                   loadData();
                 }, []);
                 
-                // Solo mostrar si el mes actual está al 90-100% Y no es el último mes
-                // TEMPORAL: Usando 5% para testing
-                // Solo mostrar si el mes actual está al 90-100% Y no es el último mes
-                if (!fechaInicioMesActual || mesProgress < 90 || planMultiFase.mesActual >= planMultiFase.totalMeses) {
-                  return null;
-                }
+                // Mostrar el banner solo cuando:
+                // - Tengamos una fecha de inicio válida
+                // - No estemos en el último mes del plan
+                // - El progreso del mes actual sea >= 90% (casi completado)
+                const puedeMostrar = !!fechaInicioMesActual && 
+                                     planMultiFase.mesActual < planMultiFase.totalMeses &&
+                                     mesProgress >= 90;
+                
+                console.log("🔍 Condición para mostrar banner:", {
+                  tieneFecha: !!fechaInicioMesActual,
+                  progreso: mesProgress.toFixed(2) + "%",
+                  progresoOk: mesProgress >= 90,
+                  mesActual: planMultiFase.mesActual,
+                  totalMeses: planMultiFase.totalMeses,
+                  noEsUltimo: planMultiFase.mesActual < planMultiFase.totalMeses,
+                  puedeMostrar
+                });
+                
+                if (!puedeMostrar) return null;
                 
                 const siguienteMes = planMultiFase.mesActual + 1;
                 const siguienteFase = planMultiFase.fases.find(f => f.mesesIncluidos.includes(siguienteMes));
@@ -3460,7 +3595,7 @@ export default function PlanPage() {
           <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
             <div className="rounded-xl border border-white/10 bg-black/30 p-4">
               <p className="text-sm opacity-70">Peso actual</p>
-              <p className="text-2xl font-bold">{user?.pesoKg || 0} kg</p>
+              <p className="text-2xl font-bold">{pesoActual} kg</p>
               {user?.alturaCm ? (
                 <div className="mt-2 space-y-1">
                   <p className="text-xs opacity-75">Altura: {user.alturaCm} cm</p>
@@ -3587,11 +3722,18 @@ export default function PlanPage() {
               <p className="text-sm font-medium opacity-70 mb-3">Progreso del plan</p>
                   <div className="space-y-3">
                 <div>
-                  <p className="text-xs opacity-70 mb-1">Fecha de inicio:</p>
-                  <p className="text-sm font-medium">
-                    {fechaInicioPlan ? fechaInicioPlan.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Cargando...'}
+                  <p className="text-xs opacity-70 mb-1">
+                    {planMultiFase ? "Inicio de la etapa actual:" : "Fecha de inicio del plan:"}
                   </p>
-                        </div>
+                  <p className="text-sm font-medium">
+                    {(planMultiFase ? fechaInicioEtapaActual : fechaInicioPlan)
+                      ? (planMultiFase ? fechaInicioEtapaActual : fechaInicioPlan)!.toLocaleDateString(
+                          'es-ES',
+                          { day: 'numeric', month: 'short', year: 'numeric' }
+                        )
+                      : 'Cargando...'}
+                  </p>
+                </div>
                 {plan?.dificultad && (
                   <div>
                     <p className="text-xs opacity-70 mb-1 flex items-center gap-2">
