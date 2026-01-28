@@ -177,31 +177,10 @@ export default function PlanPage() {
   useEffect(() => {
     if (typeof window === 'undefined' || !plan || !user || !planId) return;
 
-    // Limpiar todas las claves de localStorage relacionadas con este plan
     try {
-      // Limpiar fecha de inicio del plan
+      // Mantener claves útiles (registros de peso, etc.) y solo limpiar las que ya no se usan
       const fechaInicioKey = `fecha_inicio_${user.nombre}_${plan.duracion_plan_dias || 30}`;
       localStorage.removeItem(fechaInicioKey);
-
-      // Limpiar modal de IMC
-      const imcModalKey = `imc_modal_shown_${planId}`;
-      localStorage.removeItem(imcModalKey);
-
-      // Limpiar registros de peso
-      const pesoKey = `peso_${planId}`;
-      localStorage.removeItem(pesoKey);
-
-      // Limpiar cualquier otra clave relacionada con el plan (por si acaso)
-      const planRelatedKeys: string[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && (key.includes(planId) || key.includes(user.nombre))) {
-          planRelatedKeys.push(key);
-        }
-      }
-      planRelatedKeys.forEach(key => localStorage.removeItem(key));
-
-      console.log('✅ Caché de localStorage limpiada al entrar al plan');
     } catch (error) {
       console.error('Error al limpiar localStorage:', error);
     }
@@ -1748,6 +1727,22 @@ export default function PlanPage() {
 
     return { diasTranscurridos, porcentaje };
   }, [planMultiFase, fechaInicioEtapaActual, fechaInicioPlan, plan?.duracion_plan_dias]);
+
+  // Determinar si el acceso gratuito de 30 días al plan está vencido (solo aplica a usuarios no premium)
+  const freeAccessExpired = useMemo(() => {
+    if (isPremium) return false;
+    if (!fechaInicioPlan) return false;
+
+    try {
+      const now = new Date();
+      const diffTime = now.getTime() - fechaInicioPlan.getTime();
+      const diffHours = diffTime / (1000 * 60 * 60);
+      const diffDays = diffHours / 24;
+      return diffDays >= 30;
+    } catch {
+      return false;
+    }
+  }, [isPremium, fechaInicioPlan]);
   
   // Guardar valores originales para comparar
   const [valoresOriginales, setValoresOriginales] = useState<{

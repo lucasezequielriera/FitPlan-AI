@@ -231,6 +231,30 @@ export default function Dashboard() {
   };
 
   const handlePlanClick = (plan: SavedPlan) => {
+    // Si no es premium y el plan tiene más de 30 días, bloquear acceso
+    try {
+      const createdDate =
+        plan.createdAt?.toDate?.() ||
+        (plan.createdAt?.seconds ? new Date(plan.createdAt.seconds * 1000) : undefined);
+
+      if (!isPremium && createdDate) {
+        const now = new Date();
+        const diffTime = now.getTime() - createdDate.getTime();
+        const diffHours = diffTime / (1000 * 60 * 60);
+        const diffDays = diffHours / 24;
+
+        if (diffDays >= 30) {
+          alert(
+            "Tu plan gratuito de 30 días ya venció.\n\nPara seguir accediendo y generar nuevas etapas, necesitás ser usuario Premium."
+          );
+          setPremiumModalOpen(true);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("No se pudo calcular la antigüedad del plan:", e);
+    }
+
     // Cargar el plan en el store y navegar a la vista del plan
     setUser(plan.plan.user as unknown as Parameters<typeof setUser>[0]);
     setPlan(plan.plan.plan as unknown as Parameters<typeof setPlan>[0]);
