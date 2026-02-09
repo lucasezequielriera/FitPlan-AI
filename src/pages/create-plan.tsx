@@ -636,26 +636,16 @@ export default function CreatePlan() {
     }
   }, [form.restricciones?.length, form.preferencias?.length, form.patologias?.length, form.doloresLesiones?.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Función para abrir el modal de planes premium
+  // Función para generar el plan directamente (sin bloquear por pago)
   function handleGeneratePlan() {
     if (!authUser) {
       alert("Debes estar registrado para generar un plan");
       return;
     }
-
-    // Guardar el estado del formulario en localStorage para continuar después del pago
-    const formDataToSave = {
-      form,
-      restriccionesTexto,
-      preferenciasTexto,
-      patologiasTexto,
-      doloresLesionesTexto,
-      step,
-    };
-    localStorage.setItem("pendingPlanForm", JSON.stringify(formDataToSave));
-
-    // Abrir el modal de planes premium
-    setPremiumModalOpen(true);
+    // Antes: se abría el modal de planes premium y se pedía pagar antes de generar.
+    // Ahora: el usuario puede generar su plan gratuitamente. El pago se usa luego para
+    // acceso Premium y continuidad, no para la generación inicial.
+    onSubmit();
   }
 
   async function onSubmit() {
@@ -1944,7 +1934,7 @@ export default function CreatePlan() {
                   onClick={handleGeneratePlan}
                   disabled={loading}
                 >
-                  {loading ? "Generando..." : "Pagar y generar plan"}
+                  {loading ? "Generando..." : "Generar mi plan gratis"}
                 </button>
               </>
             )}
