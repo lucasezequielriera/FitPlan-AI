@@ -43,10 +43,19 @@ export default function Footer() {
         </div>
 
         {/* Copyright */}
-        <div className="text-center text-white/40 text-xs">
-          <p>© {currentYear} FitPlan AI. Todos los derechos reservados.</p>
-          <p className="mt-1">
-            Hecho con ❤️ para ayudarte a alcanzar tus metas de salud y fitness.
+        <div className="flex flex-col sm:flex-row justify-between items-center text-white/40 text-xs gap-2">
+          <p>© 2024 FitPlan AI. All rights reserved.</p>
+          <p>
+            Website by{" "}
+            <a
+              href="https://www.lucasriera.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-white/60 hover:text-white transition-colors underline"
+            >
+              Lucas Riera
+            </a>
+            {" "}· Web Development &amp; Design
           </p>
         </div>
       </div>

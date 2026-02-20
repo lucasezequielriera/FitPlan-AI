@@ -209,7 +209,7 @@ export default function Navbar() {
               <h1 className="text-base sm:text-lg font-semibold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent truncate">
                 FitPlan AI
               </h1>
-              <p className="text-[10px] opacity-60 hidden sm:block">Plan nutricional inteligente</p>
+              <p className="text-[10px] opacity-60 hidden sm:block">Plan nutricional y entrenamiento inteligente</p>
             </div>
           </div>
 
