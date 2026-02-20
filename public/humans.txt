@@ -1,0 +1,12 @@
+/* TEAM */
+Developer & Designer: Lucas Riera
+Site: https://www.lucasriera.com
+Contact: fitplanai.oficial@gmail.com
+Location: Argentina
+
+/* SITE */
+Name: FitPlan AI
+URL: https://www.fitplan-ai.com
+Standards: HTML5, CSS3, JavaScript
+Components: Next.js, React, TypeScript, Firebase, Tailwind CSS
+Software: Visual Studio Code, Cursor

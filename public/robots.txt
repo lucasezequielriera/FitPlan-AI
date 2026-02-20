@@ -1,6 +1,17 @@
+# FitPlan AI - robots.txt
 User-agent: *
 Allow: /
+Disallow: /api/
+Disallow: /admin
+Disallow: /_next/
+Disallow: /404
 
+# Sitemap
 Sitemap: https://www.fitplan-ai.com/sitemap.xml
 
+# Crawl-delay (optional, for polite bots)
+User-agent: AhrefsBot
+Crawl-delay: 10
 
+User-agent: SemrushBot
+Crawl-delay: 10

@@ -1,22 +1,31 @@
 {
-  "name": "FitPlan AI",
-  "short_name": "FitPlanAI",
+  "name": "FitPlan AI - Plan de Alimentación y Entrenamiento Inteligente",
+  "short_name": "FitPlan AI",
+  "description": "Creá tu plan de alimentación y entrenamiento personalizado con inteligencia artificial. Diseñado por nutricionistas y entrenadores profesionales.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0b1220",
   "theme_color": "#0b1220",
+  "orientation": "portrait-primary",
+  "lang": "es-AR",
+  "categories": ["health", "fitness", "food"],
   "icons": [
     {
       "src": "/brand/icon-social.png",
       "sizes": "1080x1080",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/brand/icon-social-transparent.png",
+      "sizes": "1080x1080",
+      "type": "image/png",
+      "purpose": "maskable"
     },
     {
       "src": "/favicon.svg",
-      "sizes": "512x512",
+      "sizes": "any",
       "type": "image/svg+xml"
     }
   ]
 }
-
-

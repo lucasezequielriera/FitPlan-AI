@@ -10,6 +10,7 @@ import type { UserInput, Goal, TipoDieta, Intensidad, PlanMultiFase, FaseMultiFa
 import Navbar from "@/components/Navbar";
 import { calculateBMR, calculateTDEE } from "@/utils/calculations";
 import PremiumPlanModal from "@/components/PremiumPlanModal";
+import Head from "next/head";
 
 const objetivoDescripciones: Record<Goal, string> = {
   perder_grasa: "Reduce tu porcentaje de grasa corporal mediante un déficit calórico controlado. Ideal si buscás perder peso de forma saludable, mejorando tu composición corporal y salud general. El plan incluirá un déficit moderado de calorías mientras mantiene tus músculos.",
@@ -1174,6 +1175,14 @@ export default function CreatePlan() {
 
   return (
     <div className="min-h-screen">
+      <Head>
+        <title>Crear Plan Personalizado | FitPlan AI</title>
+        <meta name="description" content="Creá tu plan de alimentación y entrenamiento personalizado con inteligencia artificial. Completá el formulario y recibí tu plan en minutos." />
+        <meta name="robots" content="noindex, nofollow" />
+        <meta property="og:title" content="Crear Plan Personalizado | FitPlan AI" />
+        <meta property="og:description" content="Diseñá tu plan de alimentación y entrenamiento personalizado en minutos con IA." />
+        <meta property="og:url" content="https://www.fitplan-ai.com/create-plan" />
+      </Head>
       <Navbar />
       <div className="px-4 py-8 md:px-8">
         <div className="mx-auto max-w-3xl">

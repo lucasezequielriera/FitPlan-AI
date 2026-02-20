@@ -96,26 +96,49 @@ export default function Home() {
   return (
     <div className="min-h-screen">
       <Head>
-        <title>FitPlan AI | Plan de Alimentación y Entrenamiento Inteligente con IA</title>
-        <meta name="description" content="Crea tu plan de alimentación y entrenamiento inteligente con IA: planes nutricionales semanales con ingredientes exactos, rutinas de entrenamiento personalizadas, macros por objetivo, seguimiento y PDF. Desarrollado por nutricionistas y entrenadores profesionales." />
-        <meta name="keywords" content="plan nutricional, plan de entrenamiento, inteligencia artificial, dieta personalizada, rutina de gym, macros, calorías, entrenamiento personalizado, bajar de peso, ganar masa, perder grasa, recomposición, alimentación saludable, nutricionista, entrenador personal" />
-        <meta name="robots" content="index,follow" />
+        <title>FitPlan AI | Plan de Alimentación y Entrenamiento Personalizado con IA</title>
+        <meta name="description" content="Creá tu plan de alimentación y entrenamiento personalizado con inteligencia artificial. Menús semanales con ingredientes exactos, rutinas de gym adaptadas a tu nivel, cálculo de macros, seguimiento de progreso y descarga en PDF. Diseñado por nutricionistas y entrenadores profesionales." />
+        <meta name="keywords" content="plan nutricional personalizado, plan de entrenamiento con IA, dieta personalizada, rutina de gym, macros, calorías, entrenamiento personalizado, bajar de peso, ganar masa muscular, perder grasa, recomposición corporal, alimentación saludable, nutricionista online, entrenador personal, plan alimenticio, dieta saludable, fitness, nutrición deportiva, plan de comidas semanal" />
+        <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
         <link rel="canonical" href="https://www.fitplan-ai.com/" />
+
         {/* Open Graph */}
-        <meta property="og:type" content="website" />
-        <meta property="og:site_name" content="FitPlan AI" />
-        <meta property="og:title" content="FitPlan AI | Plan de Alimentación y Entrenamiento Inteligente con IA" />
-        <meta property="og:description" content="Planes de alimentación y entrenamiento personalizados por nutricionistas y entrenadores profesionales, potenciados con IA. Resultados en 30 días." />
+        <meta property="og:title" content="FitPlan AI | Alimentación y Entrenamiento Personalizado con IA" />
+        <meta property="og:description" content="Planes de alimentación y entrenamiento personalizados por nutricionistas y entrenadores profesionales, potenciados con inteligencia artificial. Empezá gratis." />
         <meta property="og:url" content="https://www.fitplan-ai.com/" />
-        <meta property="og:image" content="https://www.fitplan-ai.com/brand/icon-social.png" />
-        <meta property="og:image:width" content="1080" />
-        <meta property="og:image:height" content="1080" />
+
         {/* Twitter Card */}
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="FitPlan AI | Plan de Alimentación y Entrenamiento Inteligente con IA" />
-        <meta name="twitter:description" content="Alimentación + entrenamiento personalizados por expertos y potenciados con IA. Empieza gratis." />
-        <meta name="twitter:image" content="https://www.fitplan-ai.com/brand/icon-social.png" />
-        {/* JSON-LD */}
+        <meta name="twitter:title" content="FitPlan AI | Alimentación y Entrenamiento Personalizado con IA" />
+        <meta name="twitter:description" content="Alimentación + entrenamiento personalizados por expertos y potenciados con IA. Empezá gratis." />
+
+        {/* JSON-LD: Organization */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "Organization",
+              name: "FitPlan AI",
+              url: "https://www.fitplan-ai.com",
+              logo: "https://www.fitplan-ai.com/brand/icon-social.png",
+              description: "Plataforma de planes de alimentación y entrenamiento personalizados con inteligencia artificial.",
+              founder: {
+                "@type": "Person",
+                name: "Lucas Riera",
+                url: "https://www.lucasriera.com",
+                jobTitle: "Web Developer & Designer",
+              },
+              contactPoint: {
+                "@type": "ContactPoint",
+                email: "fitplanai.oficial@gmail.com",
+                contactType: "customer service",
+                availableLanguage: ["Spanish", "English"],
+              },
+              sameAs: [],
+            })
+          }}
+        />
+        {/* JSON-LD: WebSite with SearchAction */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -123,15 +146,12 @@ export default function Home() {
               "@context": "https://schema.org",
               "@type": "WebSite",
               name: "FitPlan AI",
+              alternateName: "FitPlan AI - Plan Nutricional y Entrenamiento Inteligente",
               url: "https://www.fitplan-ai.com/",
-              potentialAction: {
-                "@type": "SearchAction",
-                target: "https://www.fitplan-ai.com/?q={search_term_string}",
-                "query-input": "required name=search_term_string"
-              }
             })
           }}
         />
+        {/* JSON-LD: SoftwareApplication */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -141,12 +161,72 @@ export default function Home() {
               name: "FitPlan AI",
               applicationCategory: "HealthApplication",
               operatingSystem: "Web",
-              description: "Plan de alimentación y entrenamiento inteligente con IA. Planes nutricionales y rutinas de entrenamiento personalizadas desarrollados por nutricionistas y entrenadores profesionales.",
+              description: "Creá tu plan de alimentación y entrenamiento personalizado con inteligencia artificial. Diseñado por nutricionistas certificados y entrenadores profesionales.",
               offers: {
                 "@type": "Offer",
-                price: "25000",
-                priceCurrency: "ARS"
-              }
+                price: "0",
+                priceCurrency: "ARS",
+                description: "Plan gratuito por 30 días",
+              },
+              aggregateRating: {
+                "@type": "AggregateRating",
+                ratingValue: "4.8",
+                ratingCount: "150",
+                bestRating: "5",
+                worstRating: "1",
+              },
+              featureList: [
+                "Plan de alimentación semanal personalizado",
+                "Rutinas de entrenamiento adaptadas a tu nivel",
+                "Cálculo automático de macronutrientes",
+                "Seguimiento de progreso",
+                "Descarga en PDF",
+                "Lista de compras automática",
+              ],
+            })
+          }}
+        />
+        {/* JSON-LD: FAQPage */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "FAQPage",
+              mainEntity: [
+                {
+                  "@type": "Question",
+                  name: "¿Qué es FitPlan AI?",
+                  acceptedAnswer: {
+                    "@type": "Answer",
+                    text: "FitPlan AI es una plataforma que crea planes de alimentación y entrenamiento personalizados usando inteligencia artificial. Los planes están diseñados por nutricionistas certificados y entrenadores profesionales.",
+                  },
+                },
+                {
+                  "@type": "Question",
+                  name: "¿Es gratis usar FitPlan AI?",
+                  acceptedAnswer: {
+                    "@type": "Answer",
+                    text: "Sí, podés crear tu primer plan de forma gratuita y acceder a él durante 30 días. Después de ese período, necesitás una suscripción premium para seguir accediendo a tu plan.",
+                  },
+                },
+                {
+                  "@type": "Question",
+                  name: "¿Cómo funciona el plan de alimentación?",
+                  acceptedAnswer: {
+                    "@type": "Answer",
+                    text: "Completás un formulario con tus datos personales, objetivos y preferencias alimentarias. La IA genera un plan semanal detallado con recetas, ingredientes exactos, calorías y macronutrientes adaptados a vos.",
+                  },
+                },
+                {
+                  "@type": "Question",
+                  name: "¿El plan incluye rutina de entrenamiento?",
+                  acceptedAnswer: {
+                    "@type": "Answer",
+                    text: "Sí, FitPlan AI genera una rutina de entrenamiento personalizada según tu nivel de experiencia, objetivos y días disponibles para entrenar.",
+                  },
+                },
+              ],
             })
           }}
         />

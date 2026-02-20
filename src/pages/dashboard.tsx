@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
+import Head from "next/head";
 import { motion, AnimatePresence } from "framer-motion";
 import { createPortal } from "react-dom";
 import { useAuthStore } from "@/store/authStore";
@@ -389,6 +390,13 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen overflow-x-hidden max-w-full">
+      <Head>
+        <title>Mi Dashboard | FitPlan AI</title>
+        <meta name="description" content="Gestioná tus planes de alimentación y entrenamiento personalizados. Seguimiento de progreso, peso y métricas de salud." />
+        <meta name="robots" content="noindex, nofollow" />
+        <meta property="og:title" content="Mi Dashboard | FitPlan AI" />
+        <meta property="og:url" content="https://www.fitplan-ai.com/dashboard" />
+      </Head>
       <Navbar />
       <div className="px-3 py-4 sm:px-4 sm:py-8 md:px-8 max-w-full overflow-x-hidden">
         <div className="mx-auto max-w-6xl w-full">
