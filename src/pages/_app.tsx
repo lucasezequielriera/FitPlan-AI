@@ -6,6 +6,8 @@ import { useEffect } from "react";
 import { useAuthStore } from "@/store/authStore";
 import Footer from "@/components/Footer";
 import ContactButton from "@/components/ContactButton";
+import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const poppins = Poppins({ subsets: ["latin"], weight: ["300","400","500","600","700"], variable: "--font-sans" });
 
@@ -94,6 +96,8 @@ export default function App({ Component, pageProps }: AppProps) {
         <Footer />
         <ContactButton />
       </div>
+      <Analytics />
+      <SpeedInsights />
     </>
   );
 }
