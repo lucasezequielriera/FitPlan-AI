@@ -44,6 +44,12 @@ const nextConfig: NextConfig = {
         destination: "/",
         permanent: true,
       },
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "fitplan-ai.com" }],
+        destination: "https://www.fitplan-ai.com/:path*",
+        permanent: true,
+      },
     ];
   },
 };

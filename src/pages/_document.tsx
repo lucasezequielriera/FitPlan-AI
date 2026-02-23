@@ -8,9 +8,9 @@ export default function Document() {
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta name="google-site-verification" content="AIU1Vt4igVkJkeerKrtEXN7CIczzApOEcfqpsJ3LL-I" />
 
-        {/* Favicons */}
-        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-        <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+        {/* Favicons - .ico first for max compatibility */}
+        <link rel="icon" href="/favicon.ico" sizes="32x32" />
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
         <link rel="apple-touch-icon" sizes="180x180" href="/brand/icon-social.png" />
 
         {/* Author credit */}
