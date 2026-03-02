@@ -850,11 +850,13 @@ export default function CreatePlan() {
         const payload = { 
           ...formFinal, 
           firstPlan: isFirstPlan,
-          // Datos calculados para que OpenAI use valores consistentes
+          // Datos calculados para que OpenAI/Templates use valores consistentes
           _tdeeCalculado: tdeeCalculado,
           _caloriasObjetivo: caloriasObjetivo,
           _bmrCalculado: bmrCalculado,
           _macrosObjetivo: macrosCalculados,
+          // ID del usuario para verificar premium status
+          userId: authUser?.uid,
         };
 
         // Usar streaming para mostrar progreso real (temporalmente desactivado)

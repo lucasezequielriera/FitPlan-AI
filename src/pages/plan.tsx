@@ -1660,11 +1660,12 @@ export default function PlanPage() {
   }, [user]);
 
   // Si el usuario no es premium y está viendo entrenamiento, cambiar a alimentación
-  useEffect(() => {
-    if (!isPremium && vistaPlan === 'entrenamiento') {
-      setVistaPlan('alimentacion');
-    }
-  }, [isPremium, vistaPlan]);
+  // DESBLOQUEADO TEMPORALMENTE: permitir que usuarios gratuitos vean entrenamiento con templates
+  // useEffect(() => {
+  //   if (!isPremium && vistaPlan === 'entrenamiento') {
+  //     setVistaPlan('alimentacion');
+  //   }
+  // }, [isPremium, vistaPlan]);
   
   // Vista por defecto: alimentación
   // (el usuario puede cambiar entre alimentación y entrenamiento con los botones)
@@ -3919,33 +3920,18 @@ export default function PlanPage() {
             <button
                 type="button"
               onClick={() => {
-                  if (isPremium) {
-                    setVistaPlan('entrenamiento');
-                    setCalendarResetKey(prev => prev + 1); // Forzar reset del calendario
-                  }
+                  // Desbloqueado temporalmente para probar entrenamiento con templates
+                  setVistaPlan('entrenamiento');
+                  setCalendarResetKey(prev => prev + 1); // Forzar reset del calendario
                 }}
-                disabled={!isPremium}
                 className={`px-4 py-2.5 text-sm font-medium rounded-lg border transition-colors relative ${
-                  !isPremium 
-                    ? 'bg-white/5 border-white/10 text-white/40 cursor-not-allowed opacity-50' 
-                    : vistaPlan === 'entrenamiento' 
-                      ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300' 
-                      : 'bg-white/5 border-white/10 text-white/80 hover:bg-white/10'
+                  vistaPlan === 'entrenamiento' 
+                    ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300' 
+                    : 'bg-white/5 border-white/10 text-white/80 hover:bg-white/10'
                 }`}
               >
                 🏋️ Ver entrenamiento
-                {!isPremium && (
-                  <span className="ml-1.5 text-xs">🌟</span>
-                )}
             </button>
-              {!isPremium && (
-                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gradient-to-r from-yellow-500/95 to-orange-500/95 text-white text-xs font-medium rounded-lg shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 border border-yellow-400/50">
-                  💳 Requiere Premium para ver el contenido
-                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
-                    <div className="w-2 h-2 bg-gradient-to-r from-yellow-500 to-orange-500 rotate-45 border-r border-b border-yellow-400/50"></div>
-                  </div>
-                </div>
-              )}
             </div>
             <button
               type="button"
@@ -3957,7 +3943,7 @@ export default function PlanPage() {
           </div>
 
           {/* Calendario de entrenamiento */}
-          {vistaPlan === 'entrenamiento' && isPremium && (plan as unknown as Record<string, unknown>)?.training_plan && (
+          {vistaPlan === 'entrenamiento' && (plan as unknown as Record<string, unknown>)?.training_plan && (
             <div className="mt-6">
               <TrainingCalendar
                 key={`training-calendar-${vistaPlan}-${calendarResetKey}`}

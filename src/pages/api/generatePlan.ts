@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { UserInput } from "@/types/plan";
+import { generateTemplateBasedPlan } from "@/lib/templatePlans";
 
 // Interface para contexto multi-fase
 interface ContextoMultiFase {
@@ -86,7 +87,84 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return res.status(503).json({ error: "OPENAI_API_KEY no configurada" });
+  
+  // ============================================================================
+  // VERIFICAR SI EL USUARIO ES PREMIUM PARA DECIDIR: TEMPLATES VS OPENAI
+  // ============================================================================
+  const userId = (req.body as Record<string, unknown>).userId as string | undefined;
+  let isPremium = false;
+  
+  // Obtener estado premium del usuario si está disponible
+  if (userId) {
+    try {
+      const { getDbSafe } = await import("@/lib/firebase");
+      const db = getDbSafe();
+      if (db) {
+        const { doc, getDoc } = await import("firebase/firestore");
+        const userRef = doc(db, "usuarios", userId);
+        const userDoc = await getDoc(userRef);
+        if (userDoc.exists()) {
+          isPremium = Boolean(userDoc.data().premium ?? false);
+          console.log(`👤 Estado del usuario: ${isPremium ? "PREMIUM ✨" : "FREE 🆓"}`);
+        }
+      }
+    } catch (error) {
+      console.warn("⚠️ No se pudo verificar estado premium, asumiendo FREE:", error instanceof Error ? error.message : String(error));
+      isPremium = false;
+    }
+  }
+
+  // ============================================================================
+  // MODO 1: USUARIOS GRATUITOS - TEMPLATES (Sin costo, instantáneo)
+  // ============================================================================
+  if (!isPremium) {
+    console.log("🆓 [TEMPLATES] Generando plan sin IA para usuario FREE...");
+    try {
+      const plan = await generateTemplateBasedPlan(
+        input,
+        tdeeDelFrontend || 2000,
+        caloriasObjetivoDelFrontend || 2000,
+        macrosDelFrontend || { proteinas: "150g", grasas: "70g", carbohidratos: "240g" }
+      );
+      console.log("✅ [TEMPLATES] Plan generado con éxito sin IA");
+      return res.status(200).json({
+        ...plan,
+        _planType: "template", // Indicar que fue generado con templates
+        _message: "Plan generado con plantillas inteligentes. Actualiza a Premium para planes personalizados con IA."
+      });
+    } catch (error) {
+      console.error("❌ [TEMPLATES] Error al generar plan con templates:", error instanceof Error ? error.message : String(error));
+      return res.status(500).json({
+        error: "Error generando plan",
+        detail: error instanceof Error ? error.message : "Error desconocido con templates"
+      });
+    }
+  }
+
+  // ============================================================================
+  // MODO 2: USUARIOS PREMIUM - OPENAI (Personalización máxima)
+  // ============================================================================
+  if (!apiKey) {
+    console.warn("⚠️ Usuario PREMIUM pero OpenAI no configurada. Fallback a templates...");
+    try {
+      const plan = await generateTemplateBasedPlan(
+        input,
+        tdeeDelFrontend || 2000,
+        caloriasObjetivoDelFrontend || 2000,
+        macrosDelFrontend || { proteinas: "150g", grasas: "70g", carbohidratos: "240g" }
+      );
+      console.log("✅ Fallback a templates exitoso");
+      return res.status(200).json({
+        ...plan,
+        _planType: "template_fallback",
+        _message: "Plan generado con templates (OpenAI no disponible)"
+      });
+    } catch (error) {
+      return res.status(503).json({ error: "OPENAI_API_KEY no configurada y templates fallaron" });
+    }
+  }
+
+  console.log("✨ [PREMIUM] Generando plan personalizado con OpenAI para usuario PREMIUM...");
 
   try {
     // Prompt mejorado: estructura clara y específica
