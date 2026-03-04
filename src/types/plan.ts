@@ -7,6 +7,7 @@ export type Intensidad = "leve" | "moderada" | "intensa" | "ultra";
 export type TipoDieta = "estandar" | "mediterranea" | "vegana" | "vegetariana" | "keto" | "paleo" | "low_carb" | "flexitariana" | "dash" | "pescatariana" | "atkins" | "sin_gluten" | "antiinflamatoria" | "mind" | "clinica_mayo" | "tlc" | "menopausia";
 
 export interface UserInput {
+  // Los campos siguientes son aceptados y almacenados, pero muchos son opcionales en el formulario
   nombre: string;
   edad: number;
   pesoKg: number;
@@ -16,6 +17,8 @@ export interface UserInput {
   actividad: ActivityLevel | number; // number = días de actividad física por semana (0-7) - Legacy, mantener para compatibilidad
   diasGym?: number; // días de entrenamiento con pesas por semana (0-7)
   diasCardio?: number; // días de cardio por semana (0-7)
+  nivelExperiencia?: "principiante" | "intermedio" | "avanzado"; // nuevo para plantillas
+  equipamiento?: "gimnasio" | "casa" | "sin_equipo"; // opciones iniciales de equipo
   objetivo: Goal;
   intensidad: Intensidad;
   tipoDieta?: TipoDieta;
@@ -75,6 +78,9 @@ export interface PlanAIResponse {
   };
   // Plan de entrenamiento generado por IA
   training_plan?: TrainingPlan;
+  // Campos de debugging/metadatos usados por el flujo FREE/templates
+  _debug_training_plan?: TrainingPlan;
+  _planType?: "template" | "openai";
   // Extras (opcionales) generados por IA
   lista_compras?: string[];
   progresion_semanal?: { semana: number; ajuste_calorias_pct: number; motivo?: string }[];

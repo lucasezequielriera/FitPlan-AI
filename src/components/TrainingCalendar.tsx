@@ -70,7 +70,13 @@ export default function TrainingCalendar({
         const dayName = day.day?.trim();
         if (!dayName) return;
         
-        const dayOfWeek = dayNameMap[dayName] ?? dayNameMap[dayName.toLowerCase()];
+        // si la plantilla ya incluye un índice de weekday, úsalo
+        let dayOfWeek: number | undefined;
+        if ((day as any).weekday !== undefined) {
+          dayOfWeek = (day as any).weekday as number;
+        } else {
+          dayOfWeek = dayNameMap[dayName] ?? dayNameMap[dayName.toLowerCase()];
+        }
         if (dayOfWeek === undefined) return;
 
         // Calcular todas las fechas para este día de la semana dentro del rango del plan

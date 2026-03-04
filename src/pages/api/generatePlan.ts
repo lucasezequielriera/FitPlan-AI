@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { UserInput } from "@/types/plan";
 import { generateTemplateBasedPlan } from "@/lib/templatePlans";
+import { getAdminDb } from "@/lib/firebase-admin";
 
 // Interface para contexto multi-fase
 interface ContextoMultiFase {
@@ -41,6 +42,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const tdeeDelFrontend = input._tdeeCalculado;
   const caloriasObjetivoDelFrontend = input._caloriasObjetivo;
   const macrosDelFrontend = input._macrosObjetivo;
+  // Datos nuevos de versión de plantillas
+  const diasGymUsuario = input.diasGym;
+  const diasCardioUsuario = input.diasCardio;
+  const nivelUsuario = input.nivelExperiencia;
+  const equipamientoUsuario = input.equipamiento;
+  if (diasGymUsuario !== undefined || diasCardioUsuario !== undefined || nivelUsuario || equipamientoUsuario) {
+    console.log("📌 [INPUT] diasGym", diasGymUsuario, "diasCardio", diasCardioUsuario, "nivel", nivelUsuario, "equipo", equipamientoUsuario);
+  }
   
   // Log de valores precalculados
   if (tdeeDelFrontend || caloriasObjetivoDelFrontend) {
@@ -97,16 +106,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // Obtener estado premium del usuario si está disponible
   if (userId) {
     try {
-      const { getDbSafe } = await import("@/lib/firebase");
-      const db = getDbSafe();
-      if (db) {
-        const { doc, getDoc } = await import("firebase/firestore");
-        const userRef = doc(db, "usuarios", userId);
-        const userDoc = await getDoc(userRef);
-        if (userDoc.exists()) {
-          isPremium = Boolean(userDoc.data().premium ?? false);
-          console.log(`👤 Estado del usuario: ${isPremium ? "PREMIUM ✨" : "FREE 🆓"}`);
-        }
+      const adminDb = getAdminDb();
+      if (adminDb) {
+        const userDoc = await adminDb.collection("usuarios").doc(userId).get();
+        isPremium = Boolean(userDoc.exists ? (userDoc.data()?.premium ?? false) : false);
+        console.log(`👤 Estado del usuario (admin): ${isPremium ? "PREMIUM ✨" : "FREE 🆓"}`);
+      } else {
+        console.warn("⚠️ Firebase Admin no disponible, asumiendo FREE para evitar fallos");
       }
     } catch (error) {
       console.warn("⚠️ No se pudo verificar estado premium, asumiendo FREE:", error instanceof Error ? error.message : String(error));
@@ -127,6 +133,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         macrosDelFrontend || { proteinas: "150g", grasas: "70g", carbohidratos: "240g" }
       );
       console.log("✅ [TEMPLATES] Plan generado con éxito sin IA");
+      console.log("📋 [TEMPLATES] Training plan generado:", !!plan.training_plan, "- Semanas:", plan.training_plan?.weeks?.length || 0);
+      if (plan.training_plan?.weeks && plan.training_plan.weeks.length > 0) {
+        console.log("📋 [TEMPLATES] Primera semana - Días:", plan.training_plan.weeks[0].days?.length || 0);
+      }
       return res.status(200).json({
         ...plan,
         _planType: "template", // Indicar que fue generado con templates

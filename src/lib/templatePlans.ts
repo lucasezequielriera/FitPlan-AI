@@ -5,7 +5,7 @@
  * Genera planes personalizados basados en templates y cálculos automáticos
  */
 
-import type { UserInput, PlanAIResponse, TrainingPlan, Comida, DiaPlan, TrainingExercise } from "@/types/plan";
+import type { UserInput, PlanAIResponse, TrainingPlan, Comida, DiaPlan, TrainingExercise, TrainingDayPlan } from "@/types/plan";
 
 // ============================================================================
 // TEMPLATES DE COMIDAS POR TIPO DE DIETA
@@ -315,7 +315,26 @@ export async function generateTemplateBasedPlan(
   });
 
   // 3. Seleccionar plan de entrenamiento
-  const trainingPlan = generarPlanEntrenamiento(objetivo, intensidad);
+  const diasGym = typeof user.diasGym === 'number' && user.diasGym > 0 ? user.diasGym : 3;
+  const nivel = user.nivelExperiencia || "intermedio";
+  const equip = user.equipamiento || "gimnasio";
+  let trainingPlan = generarPlanEntrenamiento(objetivo, intensidad, nivel, equip);
+  console.log(`📐 [TEMPLATES] Plan seleccionado tiene ${trainingPlan.weeks?.[0]?.days?.length || 0} días; usuario pide ${diasGym} días/semana (nivel=${nivel}, equipo=${equip})`);
+  trainingPlan = ajustarDiasEntrenamiento(trainingPlan, diasGym);
+
+  // reorganizar según distribución muscular ideal para el número de días
+  trainingPlan = distribuirGruposMusculares(trainingPlan, diasGym, objetivo, intensidad, equip);
+
+  // después de la distribución y regeneración, aplicar variación para mezclar
+  trainingPlan = aplicarVariacionEjercicios(trainingPlan);
+
+  // aplicar modificaciones según equipamiento
+  if (equip === "sin_equipo") {
+    trainingPlan = aplicarFiltroSinEquipo(trainingPlan);
+  }
+  console.log(`📐 [TEMPLATES] Después de ajuste, el plan tendrá ${trainingPlan.weeks?.[0]?.days?.length || 0} días`);
+  // mark for debugging
+  (trainingPlan as any)._debug = true;
 
   // 4. Generar proyecciones motivacionales
   const proyecciones = generarProyecciones(user, objetivo, caloriasObjetivo);
@@ -336,6 +355,8 @@ export async function generateTemplateBasedPlan(
     dificultad: getDificultad(intensidad),
     dificultad_detalle: getDificultadDetalle(intensidad),
     training_plan: trainingPlan,
+    // include debug copy so frontend can log full structure
+    _debug_training_plan: trainingPlan,
     lista_compras: generarListaCompras(tipoDieta),
     distribucion_diaria_pct: {
       desayuno: 25,
@@ -350,15 +371,60 @@ export async function generateTemplateBasedPlan(
 // FUNCIONES AUXILIARES
 // ============================================================================
 
-function generarPlanEntrenamiento(objetivo: string, intensidad: string): TrainingPlan {
+function generarPlanEntrenamiento(objetivo: string, intensidad: string, nivel: string = "intermedio", equipamiento: string = "gimnasio"): TrainingPlan {
   // Seleccionar training template según objetivo e intensidad
-  const templates = (templateEntrenamientos as any)[objetivo];
+  // Mapear objetivos similares a los templates disponibles
+  console.log(`📋 [TEMPLATES] Generando entrenamiento: objetivo="${objetivo}" intensidad="${intensidad}" nivel="${nivel}" equipo="${equipamiento}"`);
+  
+  let objetivoNormalizado = objetivo.toLowerCase();
+  
+  // Mapear definicion, corte, lean_bulk → perder_grasa
+  if (objetivoNormalizado.includes("definicion") || objetivoNormalizado.includes("corte") || objetivoNormalizado.includes("lean_bulk")) {
+    objetivoNormalizado = "perder_grasa";
+    console.log(`📋 [TEMPLATES] Objetivo mapeado a perder_grasa`);
+  }
+  // Mapear volumen, bulk, ganar_musculo → ganar_masa
+  else if (objetivoNormalizado.includes("volumen") || objetivoNormalizado.includes("bulk") || objetivoNormalizado.includes("ganar_musculo")) {
+    objetivoNormalizado = "ganar_masa";
+    console.log(`📋 [TEMPLATES] Objetivo mapeado a ganar_masa`);
+  }
+  // Mapear mantenimiento a moderada de perder_grasa (puedo personalizar si necesitas)
+  else if (objetivoNormalizado.includes("mantenimiento")) {
+    objetivoNormalizado = "perder_grasa";
+    intensidad = "moderada";
+    console.log(`📋 [TEMPLATES] Objetivo mapeado a perder_grasa con intensidad moderada`);
+  }
+  
+  // Normalizar intensidad
+  let intensidadNormalizada = intensidad.toLowerCase();
+  if (intensidadNormalizada.includes("alta") || intensidadNormalizada.includes("intensa")) {
+    intensidadNormalizada = "moderada";
+    console.log(`📋 [TEMPLATES] Intensidad normalizada a moderada (era intensa)`);
+  } else if (intensidadNormalizada.includes("baja") || intensidadNormalizada.includes("light")) {
+    intensidadNormalizada = "leve";
+    console.log(`📋 [TEMPLATES] Intensidad normalizada a leve (era baja)`);
+  } else {
+    intensidadNormalizada = "moderada";
+  }
+  
+  const templates = (templateEntrenamientos as any)[objetivoNormalizado];
+  console.log(`📋 [TEMPLATES] Buscando template: ${objetivoNormalizado}/${intensidadNormalizada}`);
 
-  if (templates && templates[intensidad]) {
-    return templates[intensidad];
+  if (templates && templates[intensidadNormalizada]) {
+    const selectedTemplate = templates[intensidadNormalizada];
+    console.log(`✅ [TEMPLATES] Template encontrado: ${objetivoNormalizado}/${intensidadNormalizada} - ${selectedTemplate.weeks?.[0]?.days?.length || 0} días`);
+    return selectedTemplate;
   }
 
-  // Fallback a full body si no existe combinación
+  // Fallback: si no existe, usar el primero disponible
+  if (templates) {
+    const primeraIntensidad = Object.keys(templates)[0];
+    console.log(`⚠️ [TEMPLATES] Fallback: usando ${objetivoNormalizado}/${primeraIntensidad}`);
+    return templates[primeraIntensidad];
+  }
+
+  // Último fallback a full body si no existe objetivo
+  console.warn(`⚠️ [TEMPLATES] No se encontró objetivo "${objetivo}", fallback a Full Body básico`);
   return {
     split: "Full Body 3x/week",
     weeks: [
@@ -377,6 +443,109 @@ function generarPlanEntrenamiento(objetivo: string, intensidad: string): Trainin
       },
     ],
   };
+}
+
+// Ajusta un plan de entrenamiento para que tenga exactamente `diasGym` días a la
+// semana. Si el template original tiene más días, se recorta. Si tiene menos,
+// se rellenan con copias de los ejercicios existentes pero se distribuyen en otros
+// días de la semana evitando nombres duplicados para que el calendario pueda
+// mapearlos correctamente.
+function ajustarDiasEntrenamiento(plan: TrainingPlan, diasGym: number): TrainingPlan {
+  if (!plan.weeks) return plan;
+
+  const weekdays = [
+    "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo",
+  ];
+
+const nuevasWeeks = plan.weeks.map((week, weekIdx) => {
+    const originalDays = week.days || [];
+    // filtramos sólo los días con ejercicios
+    const ejerciciosDays = originalDays.filter(d => d.ejercicios && d.ejercicios.length > 0);
+
+    const resultDays: TrainingDayPlan[] = [];
+    // clonamos lista para poder sacar elementos usados en fallback
+    const unused = [...ejerciciosDays];
+
+    for (const wd of weekdays) {
+      if (resultDays.length >= diasGym) break;
+      // buscar día que coincida con el weekday y que no hayamos incluido ya
+      const foundIndex = ejerciciosDays.findIndex(
+        (d) => d.day.startsWith(wd) && !resultDays.includes(d)
+      );
+      if (foundIndex !== -1) {
+        const found = ejerciciosDays[foundIndex];
+        const suffix = found.day.includes("-") ? found.day.substring(found.day.indexOf("-")) : "";
+        resultDays.push({ ...found, day: `${wd} ${suffix}`.trim() });
+        // marcar como usado también en unused
+        const ui = unused.indexOf(found);
+        if (ui !== -1) unused.splice(ui, 1);
+      } else if (unused.length > 0) {
+        // usar el siguiente sin usar
+        const source = unused.shift()!;
+        const suffix = source.day.includes("-") ? source.day.substring(source.day.indexOf("-")) : "";
+        resultDays.push({ ...source, day: `${wd} ${suffix}`.trim() });
+      } else if (ejerciciosDays.length > 0) {
+        // si ya se acabaron los sin usar, rotar entre los originales
+        const source = ejerciciosDays[resultDays.length % ejerciciosDays.length];
+        const suffix = source.day.includes("-") ? source.day.substring(source.day.indexOf("-")) : "";
+        resultDays.push({ ...source, day: `${wd} ${suffix}`.trim() });
+      }
+    }
+
+    while (resultDays.length < diasGym) {
+      const last = resultDays[resultDays.length - 1] || { day: weekdays[resultDays.length] || "Día", ejercicios: [] };
+      const wd = weekdays[resultDays.length % weekdays.length];
+      resultDays.push({ ...last, day: wd });
+    }
+
+    // renombrar días de la semana a "Día 1", "Día 2", etc. por semana
+    // y asignar un weekday numérico para facilitar el mapeo en el calendario
+    const renombrados = resultDays.map((d, idx) => {
+      // calcular día de la semana básico (lunes=1 por defecto)
+      const spacing = Math.floor(7 / diasGym) || 1;
+      const weekday = (1 + idx * spacing) % 7; // 0=domingo
+      return { ...d, day: `Día ${idx + 1}`, weekday } as any;
+    });
+
+    return { ...week, days: renombrados };
+  });
+
+  let newSplit = plan.split;
+  if (newSplit) {
+    newSplit = newSplit.replace(/\d+x\/week/, `${diasGym}x/week`);
+  }
+
+  return { ...plan, weeks: nuevasWeeks, split: newSplit };
+}
+
+// Reemplaza algunos ejercicios por alternativas sin equipo si el usuario no dispone de
+// gimnasio. Simple y minimalista, solo cubre algunos movimientos comunes.
+function aplicarFiltroSinEquipo(plan: TrainingPlan): TrainingPlan {
+  const reemplazos: Record<string, string> = {
+    "Press de Banca": "Flexiones de suelo",
+    "Press Inclinado": "Flexiones inclinadas",
+    "Press de Hombro": "Pike push-ups",
+    "Remo": "Remo invertido",
+    "Jalón Lateral": "Pull-ups asistidas o remo invertido",
+    "Sentadilla": "Sentadilla sin peso (air squat)",
+    "Peso Muerto": "Peso muerto a una pierna (pistol squat asist"+"ido)",
+  };
+
+  const newWeeks = plan.weeks.map(week => ({
+    ...week,
+    days: week.days?.map(day => ({
+      ...day,
+      ejercicios: day.ejercicios?.map(ex => {
+        const reemplazo = reemplazos[ex.name];
+        if (reemplazo) {
+          return { ...ex, name: `${reemplazo} (sin equipo)` };
+        }
+        return ex;
+      })
+    }))
+  }));
+
+  return { ...plan, weeks: newWeeks };
 }
 
 function generarProyecciones(
@@ -450,6 +619,222 @@ function getDificultad(intensidad: string): "facil" | "media" | "dificil" {
   if (intensidad === "moderada") return "media";
   return "facil";
 }
+
+
+// pool de ejercicios alternativos por grupo muscular (usado para completar días pequeños)
+const ejercicioPool: Record<string, string[]> = {
+  Piernas: [
+    "Sentadilla frontal",
+    "Leg Press",
+    "Curl Femoral",
+    "Extensiones de Piernas",
+    "Prensa de Piernas",
+    "Pantorrillas"
+  ],
+  Pecho: [
+    "Press de Banca",
+    "Press Inclinado",
+    "Fondos en paralelas",
+    "Aperturas con mancuernas",
+    "Prensa de Pecho"
+  ],
+  Espalda: [
+    "Remo con barra",
+    "Jalón Lateral",
+    "Peso Muerto",
+    "Pull Ups",
+    "Remo con mancuerna"
+  ],
+  Hombros: [
+    "Press Militar",
+    "Elevación Lateral",
+    "Elevación Frontal",
+    "Face Pull",
+    "Remo al cuello"
+  ],
+  Bíceps: [
+    "Curl con barra",
+    "Curl con mancuernas",
+    "Curl martillo",
+    "Curl concentrado"
+  ],
+  Tríceps: [
+    "Press francés",
+    "Extensión de tríceps detrás de la cabeza",
+    "Fondos en paralelas",
+    "Patada de tríceps"
+  ],
+  Abdominales: [
+    "Crunch",
+    "Plank",
+    "Elevación de piernas",
+    "Bicicleta"
+  ],
+};
+
+function applyMuscleVariation(day: any) {
+  if (!day.ejercicios) return;
+  // agrupar por muscle_group
+  const byMuscle: Record<string, any[]> = {};
+  day.ejercicios.forEach((ex: any) => {
+    const mu = ex.muscle_group || "General";
+    if (!byMuscle[mu]) byMuscle[mu] = [];
+    byMuscle[mu].push(ex);
+  });
+
+  Object.entries(byMuscle).forEach(([muscle, list]) => {
+    while (list.length < 3) {
+      // buscar en pool un nombre no usado
+      const pool = ejercicioPool[muscle] || [];
+      const disponibles = pool.filter(n => !list.some(e => e.name === n));
+      let nombre: string;
+      if (disponibles.length > 0) {
+        nombre = disponibles[Math.floor(Math.random() * disponibles.length)];
+      } else if (list.length > 0) {
+        nombre = list[0].name + " (variante)";
+      } else {
+        nombre = "Ejercicio adicional";
+      }
+      const nuevo = { name: nombre, sets: 3, reps: "10-12", muscle_group: muscle, rpe: 6 };
+      day.ejercicios.push(nuevo);
+      list.push(nuevo);
+    }
+  });
+
+  // mezclar orden
+  day.ejercicios = day.ejercicios.sort(() => Math.random() - 0.5);
+}
+
+function aplicarVariacionEjercicios(plan: TrainingPlan): TrainingPlan {
+  // recorrer todas las semanas y días y enriquecer con variación
+  const newWeeks = plan.weeks.map(week => {
+    const seen = new Set<string>();
+    const days = week.days?.map(day => {
+      applyMuscleVariation(day);
+      // asegurar que este día no tenga el mismo conjunto de nombres que otro día
+      let key = (day.ejercicios || []).map(e => e.name).join(",");
+      // si ya existe, intentar rotar la lista para crear una orden distinta
+      if (seen.has(key) && day.ejercicios) {
+        const exs = day.ejercicios;
+        for (let r = 1; r < exs.length && seen.has(key); r++) {
+          day.ejercicios = [...exs.slice(r), ...exs.slice(0, r)];
+          key = day.ejercicios.map(e => e.name).join(",");
+        }
+      }
+      // Si aún coincide, añadir sufijo al primer ejercicio
+      if (seen.has(key) && day.ejercicios && day.ejercicios.length > 0) {
+        day.ejercicios[0].name += " (extra)";
+        key = (day.ejercicios || []).map(e => e.name).join(",");
+      }
+      // última medida: agregar un ejercicio dummy único
+      if (seen.has(key)) {
+        const uniqueName = `Ejercicio único ${Math.random().toString(36).substring(2, 8)}`;
+        day.ejercicios = day.ejercicios || [];
+        day.ejercicios.push({ name: uniqueName, sets: 1, reps: "10", muscle_group: "General" });
+        key = (day.ejercicios || []).map(e => e.name).join(",");
+      }
+      seen.add(key);
+      return day;
+    });
+    return { ...week, days };
+  });
+  return { ...plan, weeks: newWeeks };
+}
+
+
+// Determina las asignaciones de grupos musculares por día según la frecuencia
+function getDayAssignments(diasGym: number): string[][] {
+  const groups = ["Pecho","Espalda","Piernas","Hombros","Bíceps","Tríceps","Abdominales"];
+  switch (diasGym) {
+    case 1:
+      return [groups];
+    case 2:
+      return [["Pecho","Espalda","Hombros","Bíceps","Tríceps","Abdominales"], ["Piernas"]];
+    case 3:
+      return [["Pecho","Hombros","Tríceps"], ["Espalda","Bíceps"], ["Piernas","Abdominales"]];
+    case 4:
+      return [["Pecho","Tríceps"], ["Espalda","Bíceps"], ["Piernas"], ["Hombros","Abdominales"]];
+    case 5:
+      return [["Pecho","Tríceps"], ["Espalda","Bíceps"], ["Piernas"], ["Hombros"], ["Abdominales"]];
+    case 6:
+      return [["Pecho","Tríceps"], ["Espalda","Bíceps"], ["Piernas"], ["Hombros"], ["Abdominales"], ["Pecho","Espalda"]];
+    default:
+      // diasGym >= 7: un grupo por día, repetir abdominales al final
+      const res: string[][] = [];
+      for (let i = 0; i < diasGym; i++) {
+        res.push([groups[i % groups.length]]);
+      }
+      return res;
+  }
+}
+
+// Construye un pool de ejercicios por músculo basado en la plantilla actual
+function buildExercisePool(objetivo: string, intensidad: string): Record<string, string[]> {
+  const pool: Record<string, string[]> = { ...ejercicioPool };
+  try {
+    const template = (templateEntrenamientos as any)[objetivo]?.[intensidad];
+    if (template && template.weeks && template.weeks.length > 0) {
+      template.weeks[0].days?.forEach((day: any) => {
+        day.ejercicios?.forEach((ex: any) => {
+          if (ex.muscle_group) {
+            pool[ex.muscle_group] = pool[ex.muscle_group] || [];
+            if (!pool[ex.muscle_group].includes(ex.name)) {
+              pool[ex.muscle_group].push(ex.name);
+            }
+          }
+        });
+      });
+    }
+  } catch {
+    // ignoramos si falla la lectura
+  }
+  return pool;
+}
+
+// genera un plan de entrenamiento redistribuido por grupos musculares
+function distribuirGruposMusculares(
+  plan: TrainingPlan,
+  diasGym: number,
+  objetivo: string,
+  intensidad: string,
+  equipamiento: string
+): TrainingPlan {
+  const assignments = getDayAssignments(diasGym);
+  const pool = buildExercisePool(objetivo, intensidad);
+  // aplicar filtro de equipo si corresponde
+  if (equipamiento === "sin_equipo") {
+    // quitar ejercicios que mencionen "Press" o barras etc.
+    Object.keys(pool).forEach(m => {
+      pool[m] = pool[m].filter(n => !/Press|Barra|Dumbbell|Peso|Deadlift|Pull/.test(n));
+    });
+  }
+
+  const newWeeks = plan.weeks.map(week => {
+    const days = assignments.map((grupos, idx) => {
+      const ejercicios: TrainingExercise[] = [];
+      grupos.forEach(mus => {
+        const list = pool[mus] || [];
+        // seleccionar hasta 3 ejercicios distintos
+        const used: Set<string> = new Set();
+        for (let i = 0; i < 3 && list.length > 0; i++) {
+          const choice = list.splice(Math.floor(Math.random() * list.length), 1)[0];
+          if (choice && !used.has(choice)) {
+            ejercicios.push({ name: choice, sets: 3, reps: "10-12", muscle_group: mus, rpe: 7 });
+            used.add(choice);
+          }
+        }
+        // si no encontramos ninguno, usar un filler genérico
+        if (!used.size) {
+          ejercicios.push({ name: `${mus} básico`, sets: 3, reps: "10-12", muscle_group: mus, rpe: 6 });
+        }
+      });
+      return { day: `Día ${idx + 1}`, split: "", warmup: undefined, ejercicios } as TrainingDayPlan;
+    });
+    return { ...week, days };
+  });
+  return { ...plan, weeks: newWeeks };
+}
+
 
 function getDificultadDetalle(intensidad: string): string {
   const detalles: Record<string, string> = {

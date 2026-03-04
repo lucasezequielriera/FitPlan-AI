@@ -3503,18 +3503,11 @@ export default function PlanPage() {
                       setGuardandoPDF(false);
                     }
                   }}
-                  disabled={guardandoPDF || !isPremium}
+                  disabled={guardandoPDF}
                 >
                   {guardandoPDF ? '⏳ Guardando...' : '💾 Guardar PDF'}
                 </button>
-                {!isPremium && (
-                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gradient-to-r from-yellow-500/95 to-orange-500/95 text-white text-xs font-medium rounded-lg shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 border border-yellow-400/50">
-                    💳 Requiere Premium para guardar el PDF
-                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
-                      <div className="w-2 h-2 bg-gradient-to-r from-yellow-500 to-orange-500 rotate-45 border-r border-b border-yellow-400/50"></div>
-                    </div>
-                  </div>
-                )}
+                
                 </div>
                 
                 {/* Botón Generar Siguiente Mes - Solo para planes multi-fase */}
@@ -3945,66 +3938,121 @@ export default function PlanPage() {
           {/* Calendario de entrenamiento */}
           {vistaPlan === 'entrenamiento' && (plan as unknown as Record<string, unknown>)?.training_plan && (
             <div className="mt-6">
-              <TrainingCalendar
-                key={`training-calendar-${vistaPlan}-${calendarResetKey}`}
-                trainingPlan={(plan as unknown as Record<string, unknown>)?.training_plan as unknown as import("@/types/plan").TrainingPlan}
-                // Para planes multi-fase, usar como inicio la fecha de la etapa/mes actual (30 días)
-                // Para planes simples, usar la fecha de inicio completa del plan y su duración
-                planStartDate={
-                  planMultiFase
-                    ? (fechaInicioEtapaActual || fechaInicioPlan || new Date())
-                    : (fechaInicioPlan || new Date())
-                }
-                planDurationDays={
-                  planMultiFase
-                    ? 30
-                    : (plan?.duracion_plan_dias || 30)
-                }
-                resetToCurrentMonth={true}
-                onDaySelect={(date, dayData, week, dayIndex) => {
-                  // Prevenir procesamiento duplicado
-                  if (processingSelectionRef.current) {
-                    return;
+              {isPremium ? (
+                <TrainingCalendar
+                  key={`training-calendar-${vistaPlan}-${calendarResetKey}`}
+                  trainingPlan={(plan as unknown as Record<string, unknown>)?.training_plan as unknown as import("@/types/plan").TrainingPlan}
+                  // Para planes multi-fase, usar como inicio la fecha de la etapa/mes actual (30 días)
+                  // Para planes simples, usar la fecha de inicio completa del plan y su duración
+                  planStartDate={
+                    planMultiFase
+                      ? (fechaInicioEtapaActual || fechaInicioPlan || new Date())
+                      : (fechaInicioPlan || new Date())
                   }
-                  
-                  // Marcar que estamos procesando
-                  processingSelectionRef.current = true;
-                  
-                  // CRÍTICO: Establecer selectedDayData PRIMERO antes de abrir el modal
-                  // Esto previene que el useEffect se ejecute y haga llamadas al backend
-                  if (dayData && dayData.ejercicios && dayData.ejercicios.length > 0) {
-                    // IMPORTANTE: Solo mostrar los datos del plan que ya están en memoria
-                    // NO hacer NINGUNA llamada al backend
-                    // Los ejercicios, series, repeticiones, etc. ya están en dayData (vienen de OpenAI)
-                    
-                    // Establecer selectedDayData PRIMERO (esto previene que el useEffect se ejecute)
-                    setSelectedDayData({ day: dayData, week, dayIndex });
-                    
-                    // Establecer la fecha seleccionada
-                    setSelectedTrainingDate(date);
-                    
-                    // Inicializar progreso vacío (solo para la UI, sin datos del backend)
-                    setSelectedDayProgress({});
-                    
-                    // Abrir el modal DESPUÉS de establecer selectedDayData
-                    // Usar setTimeout para asegurar que selectedDayData se establezca primero
-                    setTimeout(() => {
-                      setModalEntrenamientoAbierto(true);
-                      processingSelectionRef.current = false;
-                    }, 0);
-                  } else {
-                    // Día sin entrenamiento
-                    setSelectedDayData(null);
-                    setSelectedTrainingDate(date);
-                    setSelectedDayProgress({});
-                    setTimeout(() => {
-                      setModalEntrenamientoAbierto(true);
-                      processingSelectionRef.current = false;
-                    }, 0);
+                  planDurationDays={
+                    planMultiFase
+                      ? 30
+                      : (plan?.duracion_plan_dias || 30)
                   }
-                }}
-                selectedDate={selectedTrainingDate}
-              />
+                  resetToCurrentMonth={true}
+                  onDaySelect={(date, dayData, week, dayIndex) => {
+                    // Prevenir procesamiento duplicado
+                    if (processingSelectionRef.current) {
+                      return;
+                    }
+
+                    // Marcar que estamos procesando
+                    processingSelectionRef.current = true;
+
+                    // CRITICO: Establecer selectedDayData PRIMERO antes de abrir el modal
+                    // Esto previene que el useEffect se ejecute y haga llamadas al backend
+                    if (dayData && dayData.ejercicios && dayData.ejercicios.length > 0) {
+                      // IMPORTANTE: Solo mostrar los datos del plan que ya estan en memoria
+                      // NO hacer NINGUNA llamada al backend
+                      // Los ejercicios, series, repeticiones, etc. ya estan en dayData (vienen de OpenAI)
+
+                      // Establecer selectedDayData PRIMERO (esto previene que el useEffect se ejecute)
+                      setSelectedDayData({ day: dayData, week, dayIndex });
+
+                      // Establecer la fecha seleccionada
+                      setSelectedTrainingDate(date);
+
+                      // Inicializar progreso vacio (solo para la UI, sin datos del backend)
+                      setSelectedDayProgress({});
+
+                      // Abrir el modal DESPUES de establecer selectedDayData
+                      // Usar setTimeout para asegurar que selectedDayData se establezca primero
+                      setTimeout(() => {
+                        setModalEntrenamientoAbierto(true);
+                        processingSelectionRef.current = false;
+                      }, 0);
+                    } else {
+                      // Dia sin entrenamiento
+                      setSelectedDayData(null);
+                      setSelectedTrainingDate(date);
+                      setSelectedDayProgress({});
+                      setTimeout(() => {
+                        setModalEntrenamientoAbierto(true);
+                        processingSelectionRef.current = false;
+                      }, 0);
+                    }
+                  }}
+                  selectedDate={selectedTrainingDate}
+                />
+              ) : (
+                <div className="bg-white/5 border border-white/10 rounded-lg p-6 mb-6">
+                  <h3 className="text-lg font-semibold text-white mb-4">📋 Tu Plan de Entrenamientos</h3>
+                  {((plan as unknown as Record<string, unknown>)?.training_plan as any)?.weeks?.[0]?.days && (
+                    <p className="text-sm text-white/70 mb-3">
+                      Frecuencia estimada: <strong>{((plan as unknown as Record<string, unknown>)?.training_plan as any).weeks[0].days.length}</strong> dia(s) por semana
+                    </p>
+                  )}
+                  {(plan as unknown as Record<string, unknown>)?.training_plan &&
+                    ((plan as unknown as Record<string, unknown>)?.training_plan as any)?.weeks?.length > 0 ? (
+                    <div className="space-y-4">
+                      {((plan as unknown as Record<string, unknown>)?.training_plan as any).weeks.map((week: any, weekIdx: number) => (
+                        <div key={weekIdx} className="border border-white/10 rounded-lg overflow-hidden">
+                          <div className="bg-white/5 px-4 py-3 font-medium text-white/80">
+                            Mes {week.week || weekIdx + 1}
+                          </div>
+                          <div className="divide-y divide-white/10">
+                            {week.days?.map((day: any, dayIdx: number) => (
+                              <details key={dayIdx} className="group">
+                                <summary className="cursor-pointer px-4 py-3 hover:bg-white/5 transition-colors flex items-center gap-2">
+                                  <span className="text-emerald-400">▶</span>
+                                  <span className="font-medium text-white/80">{day.day || `Día ${dayIdx + 1}`}</span>
+                                  <span className="text-white/50 text-sm ml-auto">
+                                    {day.ejercicios?.length || 0} ejercicio{day.ejercicios?.length !== 1 ? 's' : ''}
+                                  </span>
+                                </summary>
+                                <div className="bg-white/5 px-4 py-4 space-y-3">
+                                  {day.ejercicios && day.ejercicios.length > 0 ? (
+                                    day.ejercicios.map((ex: any, exIdx: number) => (
+                                      <div key={exIdx} className="bg-white/5 border border-white/10 rounded p-3 text-sm">
+                                        <div className="font-medium text-emerald-300">{ex.name}</div>
+                                        <div className="text-white/70 mt-1 space-y-0.5">
+                                          <div>💪 {ex.sets} series x {ex.reps} reps</div>
+                                          {ex.rpe && <div>📊 RPE: {ex.rpe}/10</div>}
+                                          {ex.rest_seconds && <div>⏱️ Descanso: {ex.rest_seconds}s</div>}
+                                          {ex.muscle_group && <div>🎯 Musculatura: {ex.muscle_group}</div>}
+                                        </div>
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <div className="text-white/50 text-sm italic">Descanso / OFF</div>
+                                  )}
+                                </div>
+                              </details>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-white/50 text-center py-4">No hay entrenamiento disponible</div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -4522,6 +4570,18 @@ export default function PlanPage() {
                       const selected = opciones[0] || c.nombre;
                       const detailKey = `${key}-${selected}`;
                       const det = foodDetails[detailKey] || {};
+                      // Para usuarios gratuitos NO usamos IA: mostramos la opción principal y una cantidad sugerida basada en macros/peso
+                      const userWeight = (user as any)?.pesoFinal || (user as any)?.pesoKg || (user as any)?.peso || 70;
+                      const macrosObj = (plan as any)?._macrosObjetivo || (plan as any)?.macros || null;
+                      let proteinPerDay = null as number | null;
+                      if (macrosObj && typeof (macrosObj as any).proteinas === 'string') {
+                        const parsed = parseInt(((macrosObj as any).proteinas || '').toString().replace(/\D/g, ''), 10);
+                        if (!isNaN(parsed) && parsed > 0) proteinPerDay = parsed;
+                      }
+                      if (!proteinPerDay) proteinPerDay = Math.round(Number(userWeight) * 1.6);
+                      const mealsCount = (dia.comidas && dia.comidas.length) || 4;
+                      const proteinPerMeal = Math.max(10, Math.round((proteinPerDay || 0) / mealsCount));
+                      const cantidadSugeridaTexto = `${proteinPerMeal} g de proteína aprox. (porción principal)`;
                       return (
                         <div key={`modal-comida-${idx}-${ci}`} className="rounded-lg border border-white/10 bg-white/5 p-3">
                           <div className="flex items-center justify-between mb-2">
@@ -4544,12 +4604,19 @@ export default function PlanPage() {
                           </div>
                           {/* Carga de detalles de la opción seleccionada si no están */}
                           {!det.ingredientes && !det.pasos_preparacion && (
-                            <FetchDetails
-                              k={detailKey}
-                              dish={selected}
-                              onLoaded={(p) => setFoodDetails((s) => ({ ...s, [detailKey]: { ...p, loading: false } }))}
-                              onError={(msg) => setFoodDetails((s) => ({ ...s, [detailKey]: { ...s[detailKey], loading: false, error: msg } }))}
-                            />
+                            !isPremium ? (
+                              <div className="mt-2">
+                                <p className="text-sm font-medium">Cantidad sugerida:</p>
+                                <p className="mt-1 text-sm opacity-90">{cantidadSugeridaTexto}</p>
+                              </div>
+                            ) : (
+                              <FetchDetails
+                                k={detailKey}
+                                dish={selected}
+                                onLoaded={(p) => setFoodDetails((s) => ({ ...s, [detailKey]: { ...p, loading: false } }))}
+                                onError={(msg) => setFoodDetails((s) => ({ ...s, [detailKey]: { ...s[detailKey], loading: false, error: msg } }))}
+                              />
+                            )
                           )}
                           {det?.ingredientes && det.ingredientes.length > 0 && (
                             <div className="mt-2">
@@ -4651,6 +4718,56 @@ export default function PlanPage() {
                     <option value="femenino">Femenino</option>
                   </select>
                 </label>
+                {!isPremium && (
+                  <>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-sm opacity-80">Días gym/semana</span>
+                      <input
+                        type="number"
+                        min={1} max={7}
+                        className="rounded-xl bg-white/5 px-3 py-2 outline-none w-24"
+                        value={datosEdicion.diasGym || ''}
+                        onChange={(e) => setDatosEdicion({ ...datosEdicion, diasGym: e.target.value ? Number(e.target.value) : undefined })}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-sm opacity-80">Días cardio/semana</span>
+                      <input
+                        type="number"
+                        min={0} max={7}
+                        className="rounded-xl bg-white/5 px-3 py-2 outline-none w-24"
+                        value={datosEdicion.diasCardio || ''}
+                        onChange={(e) => setDatosEdicion({ ...datosEdicion, diasCardio: e.target.value ? Number(e.target.value) : undefined })}
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-sm opacity-80">Nivel experiencia</span>
+                      <select
+                        className="rounded-xl bg-white/5 px-3 py-2 text-white"
+                        style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', color: '#e6f6ff' }}
+                        value={datosEdicion.nivelExperiencia || 'intermedio'}
+                        onChange={(e) => setDatosEdicion({ ...datosEdicion, nivelExperiencia: e.target.value as any })}
+                      >
+                        <option value="principiante">Principiante</option>
+                        <option value="intermedio">Intermedio</option>
+                        <option value="avanzado">Avanzado</option>
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-sm opacity-80">Equipamiento</span>
+                      <select
+                        className="rounded-xl bg-white/5 px-3 py-2 text-white"
+                        style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', color: '#e6f6ff' }}
+                        value={datosEdicion.equipamiento || 'gimnasio'}
+                        onChange={(e) => setDatosEdicion({ ...datosEdicion, equipamiento: e.target.value as any })}
+                      >
+                        <option value="gimnasio">Gimnasio completo</option>
+                        <option value="casa">Casa con mancuernas</option>
+                        <option value="sin_equipo">Sin equipo</option>
+                      </select>
+                    </label>
+                  </>
+                )}
                 <label className="flex flex-col gap-1">
                   <span className="text-sm opacity-80">Cintura (cm) (opcional)</span>
                   <input
@@ -5218,7 +5335,7 @@ export default function PlanPage() {
                           : 'bg-white/10 text-white/70 hover:bg-white/20'
                       }`}
                     >
-                      Semana {semana}
+                      {isPremium ? `Semana ${semana}` : `Mes ${semana}`}
                     </button>
                   ))}
                 </div>
@@ -5232,7 +5349,11 @@ export default function PlanPage() {
                   if (!semanaActual) {
                     return (
                       <div className="text-center py-8 text-white/70">
-                        <p>No hay datos de entrenamiento para la Semana {semanaSeleccionada}</p>
+                        <p>
+                          {isPremium
+                            ? `No hay datos de entrenamiento para la Semana ${semanaSeleccionada}`
+                            : `No hay datos de entrenamiento para el Mes ${semanaSeleccionada}`}
+                        </p>
     </div>
   );
                   }
@@ -5240,7 +5361,9 @@ export default function PlanPage() {
                   return (
                     <div className="space-y-4">
                       <h3 className="text-lg font-semibold text-cyan-400 mb-4">
-                        Semana {semanaActual.week ?? semanaSeleccionada}
+                        {isPremium
+                          ? `Semana ${semanaActual.week ?? semanaSeleccionada}`
+                          : `Mes ${semanaActual.week ?? semanaSeleccionada}`}
                       </h3>
                       {(semanaActual.days || []).map((dia: TrainingDay, di: number) => {
                         // Función para determinar qué músculos se trabajan en este día

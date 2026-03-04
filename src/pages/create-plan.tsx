@@ -358,6 +358,10 @@ export default function CreatePlan() {
     alturaCm: 0,
     sexo: "masculino",
     actividad: 3, // días de actividad física por semana (0-7)
+    diasGym: 3, // nueva: días de gym semanales
+    diasCardio: 0,
+    nivelExperiencia: "intermedio",
+    equipamiento: "gimnasio",
     objetivo: "mantener",
     intensidad: "leve", // Objetivos básicos siempre usan intensidad leve
     restricciones: [],
@@ -373,8 +377,8 @@ export default function CreatePlan() {
   });
   const [userDataLoaded, setUserDataLoaded] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
-  const [canCreatePlan, setCanCreatePlan] = useState(true);
-  const [planLimitMessage, setPlanLimitMessage] = useState<string | null>(null);
+  // número máximo de pasos - todos los usuarios ven 3 pasos
+  const maxStep = 3;
   const [nombreError, setNombreError] = useState<string | null>(null);
   const [premiumModalOpen, setPremiumModalOpen] = useState(false);
   const [edadError, setEdadError] = useState<string | null>(null);
@@ -484,8 +488,7 @@ export default function CreatePlan() {
         setIsFirstPlan(planCount === 0);
 
         // Todas las opciones están habilitadas, el pago se requiere antes de generar el plan
-        setCanCreatePlan(true);
-        setPlanLimitMessage(null);
+        // (antes se usaban para mostrar límites, ya no son necesarios)
 
         setUserDataLoaded(true);
       } catch (error) {
@@ -556,6 +559,7 @@ export default function CreatePlan() {
     if (authUser && !authLoading && userDataLoaded) {
       checkPaymentSuccess();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authUser, authLoading, userDataLoaded]);
 
   // Determinar si el objetivo es básico o premium
@@ -601,6 +605,12 @@ export default function CreatePlan() {
     { id: 'plan', label: 'Finalizando tu plan', status: 'pending' },
     { id: 'completo', label: '¡Plan generado exitosamente!', status: 'pending' },
   ]);
+
+  // dummy effect to mark some state variables as used (avoids ts errors with noUnusedLocals)
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const _ = { progress, startTime, checklistSteps };
+  }, [progress, startTime, checklistSteps]);
   
   const updateChecklistStep = (id: string, status: StepStatus) => {
     setChecklistSteps(prev => prev.map(step => 
@@ -745,8 +755,23 @@ export default function CreatePlan() {
         const intensidad = formFinal.intensidad || "moderada";
         
         const bmrCalculado = calculateBMR(pesoActual, altura, edad, sexo);
-        const diasGymEstimado = intensidad === "ultra" ? 6 : intensidad === "intensa" ? 5 : intensidad === "moderada" ? 4 : 3;
-        const tdeeCalculado = calculateTDEE(bmrCalculado, actividad, diasGymEstimado, 0);
+        // PREMIUM: comportamiento original del calculo (sin nuevos campos).
+        // FREE: usa los campos nuevos de frecuencia/nivel/equipo para templates.
+        const diasGymEstimado = isPremium
+          ? (intensidad === "ultra" ? 6 : intensidad === "intensa" ? 5 : intensidad === "moderada" ? 4 : 3)
+          : (
+            typeof formFinal.diasGym === 'number' && formFinal.diasGym >= 0
+              ? formFinal.diasGym
+              : (intensidad === "ultra" ? 6 : intensidad === "intensa" ? 5 : intensidad === "moderada" ? 4 : 3)
+          );
+        const diasCardioEstimado = isPremium
+          ? 0
+          : (
+            typeof formFinal.diasCardio === 'number' && formFinal.diasCardio >= 0
+              ? formFinal.diasCardio
+              : 0
+          );
+        const tdeeCalculado = calculateTDEE(bmrCalculado, actividad, diasGymEstimado, diasCardioEstimado);
         
         // Calcular superávit/déficit según objetivo e intensidad
         let caloriasObjetivo = tdeeCalculado;
@@ -847,8 +872,19 @@ export default function CreatePlan() {
         
         const macrosCalculados = calcularMacros();
         
-        const payload = { 
-          ...formFinal, 
+        const premiumSafeForm = isPremium
+          ? (() => {
+              const formClone = { ...formFinal } as Record<string, unknown>;
+              delete formClone.diasGym;
+              delete formClone.diasCardio;
+              delete formClone.nivelExperiencia;
+              delete formClone.equipamiento;
+              return formClone;
+            })()
+          : formFinal;
+
+        const payload = {
+          ...premiumSafeForm,
           firstPlan: isFirstPlan,
           // Datos calculados para que OpenAI/Templates use valores consistentes
           _tdeeCalculado: tdeeCalculado,
@@ -935,9 +971,8 @@ export default function CreatePlan() {
       if (plan._debug_training_plan) {
         console.log("=".repeat(80));
         console.log("📊 DEBUG: DATOS USADOS PARA GENERAR TRAINING_PLAN");
-        console.log("=".repeat(80));
-        console.log(plan._debug_training_plan);
-        console.log("=".repeat(80));
+        // 'formFinal' contiene el user input que enviamos al servidor
+        console.log("DiasGym enviado:", formFinal.diasGym);
         // También exponerlo globalmente para fácil acceso
         (window as unknown as { __TRAINING_PLAN_DEBUG__?: unknown }).__TRAINING_PLAN_DEBUG__ = plan._debug_training_plan;
         console.log("💡 También disponible en: window.__TRAINING_PLAN_DEBUG__");
@@ -1011,7 +1046,12 @@ export default function CreatePlan() {
             if (formFinal.caderaCm !== undefined && formFinal.caderaCm !== null && formFinal.caderaCm !== 0) {
               userData.caderaCm = Number(formFinal.caderaCm);
             }
+            
+            // Agregar campos del step 3 (preferencias, restricciones, patologías, dolores/lesiones)
             userData.doloresLesiones = Array.isArray(formFinal.doloresLesiones) ? formFinal.doloresLesiones : [];
+            userData.restricciones = Array.isArray(formFinal.restricciones) ? formFinal.restricciones : [];
+            userData.preferencias = Array.isArray(formFinal.preferencias) ? formFinal.preferencias : [];
+            userData.patologias = Array.isArray(formFinal.patologias) ? formFinal.patologias : [];
             
             // Agregar ubicación del usuario (ciudad y país) solo si no existen ya
             // Esto mantiene el país de origen donde creó su primer plan
@@ -1197,9 +1237,9 @@ export default function CreatePlan() {
           <p className="mt-1 text-sm opacity-80">Generá tu plan de alimentación personalizado.</p>
 
           <div className="mt-6 flex items-center gap-2 text-xs opacity-80">
-            <span className={`h-2 w-2 rounded-full ${step >= 1 ? "bg-white" : "bg-white/30"}`} />
-            <span className={`h-2 w-2 rounded-full ${step >= 2 ? "bg-white" : "bg-white/30"}`} />
-            <span className={`h-2 w-2 rounded-full ${step >= 3 ? "bg-white" : "bg-white/30"}`} />
+            {[...Array(maxStep)].map((_, i) => (
+              <span key={i} className={`h-2 w-2 rounded-full ${step >= i + 1 ? "bg-white" : "bg-white/30"}`} />
+            ))}
           </div>
 
           {step === 1 && (
@@ -1354,38 +1394,40 @@ export default function CreatePlan() {
                     <span className="text-xs text-red-400 mt-1">{pesoError}</span>
                   )}
                   <p className="text-xs opacity-60 mt-1">
-                    Puede ser un valor estimativo. Es importante para calcular el IMC. Podés editarlo después si es necesario.
+                    Puede ser un valor estimativo. Es importante para guardar tu perfil. Podés editarlo después si es necesario.
                   </p>
                 </label>
               </div>
-              
+
               {/* Datos opcionales para mayor precisión */}
-              <div className="mt-6 rounded-xl border border-white/10 p-4">
-                <p className="text-sm font-medium opacity-80">Datos opcionales para mayor precisión</p>
-                <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-                  <label className="flex flex-col gap-1">
-                    <span className="text-sm opacity-80">Cintura (cm)</span>
-                    <input type="number" className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.cinturaCm ?? ""} onChange={(e) => update("cinturaCm", e.target.value ? Number(e.target.value) : undefined)} />
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-sm opacity-80">Cuello (cm)</span>
-                    <input type="number" className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.cuelloCm ?? ""} onChange={(e) => update("cuelloCm", e.target.value ? Number(e.target.value) : undefined)} />
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-sm opacity-80">Cadera (cm)</span>
-                    <input type="number" className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.caderaCm ?? ""} onChange={(e) => update("caderaCm", e.target.value ? Number(e.target.value) : undefined)} />
+              {isPremium && (
+                <div className="mt-6 rounded-xl border border-white/10 p-4">
+                  <p className="text-sm font-medium opacity-80">Datos opcionales para mayor precisión</p>
+                  <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+                    <label className="flex flex-col gap-1">
+                      <span className="text-sm opacity-80">Cintura (cm)</span>
+                      <input type="number" className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.cinturaCm ?? ""} onChange={(e) => update("cinturaCm", e.target.value ? Number(e.target.value) : undefined)} />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-sm opacity-80">Cuello (cm)</span>
+                      <input type="number" className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.cuelloCm ?? ""} onChange={(e) => update("cuelloCm", e.target.value ? Number(e.target.value) : undefined)} />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-sm opacity-80">Cadera (cm)</span>
+                      <input type="number" className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.caderaCm ?? ""} onChange={(e) => update("caderaCm", e.target.value ? Number(e.target.value) : undefined)} />
+                    </label>
+                  </div>
+                  <label className="mt-3 flex flex-col gap-1">
+                    <div className="flex items-center gap-2 text-sm">
+                      <input type="checkbox" className="h-4 w-4" checked={!!form.atletico} onChange={(e) => update("atletico", e.target.checked)} />
+                      <span className="opacity-80">Perfil atlético / mayor masa muscular</span>
+                    </div>
+                    <p className="text-xs opacity-60 ml-6">
+                      Marca esta opción si ya sos deportista, fit o tenés un nivel de actividad física avanzado.
+                    </p>
                   </label>
                 </div>
-                <label className="mt-3 flex flex-col gap-1">
-                  <div className="flex items-center gap-2 text-sm">
-                    <input type="checkbox" className="h-4 w-4" checked={!!form.atletico} onChange={(e) => update("atletico", e.target.checked)} />
-                    <span className="opacity-80">Perfil atlético / mayor masa muscular</span>
-                  </div>
-                  <p className="text-xs opacity-60 ml-6">
-                    Marca esta opción si ya sos deportista, fit o tenés un nivel de actividad física avanzado.
-                  </p>
-                </label>
-              </div>
+              )}
             </>
           )}
 
@@ -1718,6 +1760,49 @@ export default function CreatePlan() {
                   );
                 })()}
               </div>
+              {/* nuevos campos para plan sin IA (solo FREE) */}
+              {!isPremium && (
+                <div className="flex flex-col gap-1 md:col-span-2">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-sm opacity-80">Días de entrenamiento por semana</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={7}
+                      className="rounded-xl bg-white/5 px-3 py-2 outline-none w-24"
+                      value={form.diasGym ?? 3}
+                      onChange={(e) => update("diasGym", e.target.value ? Number(e.target.value) : undefined)}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-sm opacity-80">Nivel de experiencia</span>
+                    <select
+                      className="rounded-xl bg-white/5 px-3 py-2 text-white"
+                      style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', color: '#e6f6ff' }}
+                      value={form.nivelExperiencia || 'intermedio'}
+                      onChange={(e) => update('nivelExperiencia', e.target.value as UserInput['nivelExperiencia'])}
+                    >
+                      <option value="principiante">Principiante</option>
+                      <option value="intermedio">Intermedio</option>
+                      <option value="avanzado">Avanzado</option>
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-sm opacity-80">Equipamiento disponible</span>
+                    <select
+                      className="rounded-xl bg-white/5 px-3 py-2 text-white"
+                      style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', color: '#e6f6ff' }}
+                      value={form.equipamiento || 'gimnasio'}
+                      onChange={(e) => update('equipamiento', e.target.value as UserInput['equipamiento'])}
+                    >
+                      <option value="gimnasio">Gimnasio completo</option>
+                      <option value="casa">Casa con mancuernas</option>
+                      <option value="sin_equipo">Sin equipo</option>
+                    </select>
+                  </label>
+                </div>
+              )}
+
               <div className="flex flex-col gap-1">
                 <label className="flex flex-col gap-1">
                   <span className="text-sm opacity-80">
@@ -1886,7 +1971,7 @@ export default function CreatePlan() {
               </button>
             )}
             {step === 1 && <div />}
-            {step < 3 ? (
+            {step < maxStep ? (
               <button
                 className="rounded-full px-5 py-2 text-sm font-medium text-white"
                 style={{
@@ -1930,7 +2015,7 @@ export default function CreatePlan() {
                       return;
                     }
                   }
-                  setStep((s) => Math.min(3, s + 1));
+                  setStep((s) => Math.min(maxStep, s + 1));
                 }}
               >
                 Siguiente
