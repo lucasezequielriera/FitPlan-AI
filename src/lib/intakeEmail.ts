@@ -76,7 +76,8 @@ export function buildIntakeEmail(payload: IntakePayload): { subject: string; htm
       ["Nivel de estrés", toStringValue(payload.nivelEstres)],
       ["Calidad del sueño", toStringValue(payload.calidadSueno)],
       ["Horas de sueño", toStringValue(payload.horasSueno)],
-      ["Trabajo por turnos", toStringValue(payload.trabajoTurnos)],
+      ["Horas de trabajo por día", toStringValue(payload.trabajoTurnos)],
+      ["Días de trabajo", toStringValue(payload.diasTrabajo)],
     ]),
     section("Nutrición", [
       ["Desayuno habitual", toStringValue(payload.desayunoHabitual)],

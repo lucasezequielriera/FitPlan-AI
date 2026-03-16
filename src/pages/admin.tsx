@@ -45,6 +45,124 @@ interface IntakeClient {
   createdAt: string | null;
 }
 
+interface IntakeClientDetail extends IntakeClient {
+  updatedAt: string | null;
+  formData: Record<string, unknown> | null;
+}
+
+const INTAKE_DETAIL_FIELD_ORDER = [
+  "nombreCompleto",
+  "email",
+  "whatsapp",
+  "instagram",
+  "ciudadPais",
+  "edad",
+  "sexo",
+  "alturaCm",
+  "pesoKg",
+  "objetivoPrincipal",
+  "objetivoSecundario",
+  "fechaObjetivo",
+  "experienciaEntrenamiento",
+  "minutosPorSesion",
+  "horasSentado",
+  "pasosDiarios",
+  "diasDisponibles",
+  "dondeEntrena",
+  "equipamientoDisponible",
+  "lesionesDolores",
+  "cirugiasPrevias",
+  "medicacionSuplementos",
+  "patologias",
+  "nivelEstres",
+  "calidadSueno",
+  "horasSueno",
+  "trabajoTurnos",
+  "diasTrabajo",
+  "desayunoHabitual",
+  "almuerzoHabitual",
+  "cenaHabitual",
+  "snacksBebidas",
+  "restriccionesAlergias",
+  "alimentosNoLeGustan",
+  "alimentosSiLeGustan",
+  "aguaPorDia",
+  "alcoholFrecuencia",
+  "fuma",
+  "digestion",
+  "presupuestoComida",
+  "tiempoParaCocinar",
+  "motivacionPrincipal",
+  "dificultadActual",
+  "comentariosExtra",
+  "consentimiento",
+] as const;
+
+const INTAKE_DETAIL_LABELS: Record<string, string> = {
+  nombreCompleto: "Nombre completo",
+  email: "Email",
+  whatsapp: "WhatsApp",
+  instagram: "Instagram",
+  ciudadPais: "Ciudad y país",
+  edad: "Edad",
+  sexo: "Sexo",
+  alturaCm: "Altura (cm)",
+  pesoKg: "Peso actual (kg)",
+  objetivoPrincipal: "Objetivo principal",
+  objetivoSecundario: "Objetivo secundario",
+  fechaObjetivo: "Fecha objetivo",
+  experienciaEntrenamiento: "Experiencia entrenando",
+  minutosPorSesion: "Minutos por sesión",
+  horasSentado: "Horas sentado al día",
+  pasosDiarios: "Pasos diarios",
+  diasDisponibles: "Días disponibles",
+  dondeEntrena: "Dónde entrena",
+  equipamientoDisponible: "Equipamiento disponible",
+  lesionesDolores: "Lesiones o dolores",
+  cirugiasPrevias: "Cirugías previas",
+  medicacionSuplementos: "Medicación y suplementos",
+  patologias: "Patologías",
+  nivelEstres: "Nivel de estrés",
+  calidadSueno: "Calidad del sueño",
+  horasSueno: "Horas de sueño",
+  trabajoTurnos: "Horas de trabajo por día",
+  diasTrabajo: "Días de trabajo",
+  desayunoHabitual: "Desayuno habitual",
+  almuerzoHabitual: "Comida habitual",
+  cenaHabitual: "Cena habitual",
+  snacksBebidas: "Snacks y bebidas",
+  restriccionesAlergias: "Alergias/restricciones",
+  alimentosNoLeGustan: "Alimentos que no le gustan",
+  alimentosSiLeGustan: "Alimentos que sí le gustan",
+  aguaPorDia: "Agua por día",
+  alcoholFrecuencia: "Frecuencia de alcohol",
+  fuma: "Fuma",
+  digestion: "Digestión/molestias",
+  presupuestoComida: "Presupuesto comida",
+  tiempoParaCocinar: "Tiempo para cocinar",
+  motivacionPrincipal: "Motivación principal",
+  dificultadActual: "Dificultad actual",
+  comentariosExtra: "Comentarios extra",
+  consentimiento: "Consentimiento",
+};
+
+function formatIntakeFieldValue(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value.length > 0 ? value.map((item) => String(item)).join(", ") : "N/A";
+  }
+  if (typeof value === "boolean") {
+    return value ? "Sí" : "No";
+  }
+  if (value === null || value === undefined) {
+    return "N/A";
+  }
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+  const normalized = String(value).trim();
+  return normalized.length > 0 ? normalized : "N/A";
+}
+
 export default function Admin() {
   const router = useRouter();
   const { user: authUser, loading: authLoading } = useAuthStore();
@@ -143,6 +261,11 @@ export default function Admin() {
   const [intakeClients, setIntakeClients] = useState<IntakeClient[]>([]);
   const [loadingIntakeClients, setLoadingIntakeClients] = useState(false);
   const [copiedFormLink, setCopiedFormLink] = useState(false);
+  const [intakeClientModalOpen, setIntakeClientModalOpen] = useState(false);
+  const [selectedIntakeClient, setSelectedIntakeClient] = useState<IntakeClient | null>(null);
+  const [intakeClientDetail, setIntakeClientDetail] = useState<IntakeClientDetail | null>(null);
+  const [intakeClientDetailLoading, setIntakeClientDetailLoading] = useState(false);
+  const [intakeClientDetailError, setIntakeClientDetailError] = useState<string | null>(null);
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const [selectedUserForHistory, setSelectedUserForHistory] = useState<User | null>(null);
   const [userHistory, setUserHistory] = useState<{
@@ -1026,6 +1149,42 @@ export default function Admin() {
     }
   };
 
+  const closeIntakeClientModal = () => {
+    setIntakeClientModalOpen(false);
+    setSelectedIntakeClient(null);
+    setIntakeClientDetail(null);
+    setIntakeClientDetailError(null);
+    setIntakeClientDetailLoading(false);
+  };
+
+  const handleOpenIntakeClientDetail = async (client: IntakeClient) => {
+    try {
+      const auth = getAuthSafe();
+      if (!auth?.currentUser) return;
+      setSelectedIntakeClient(client);
+      setIntakeClientModalOpen(true);
+      setIntakeClientDetail(null);
+      setIntakeClientDetailError(null);
+      setIntakeClientDetailLoading(true);
+
+      const response = await fetch(
+        `/api/admin/intakeClientDetail?userId=${auth.currentUser.uid}&clientId=${client.id}`
+      );
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+      const data = await response.json();
+      setIntakeClientDetail((data?.client as IntakeClientDetail) || null);
+    } catch (error) {
+      setIntakeClientDetailError(
+        error instanceof Error ? error.message : "No se pudo cargar el detalle del cliente."
+      );
+    } finally {
+      setIntakeClientDetailLoading(false);
+    }
+  };
+
   const handleEdit = (user: User) => {
     // Console log detallado del usuario para debug
     console.log("=".repeat(80));
@@ -1651,7 +1810,7 @@ export default function Admin() {
             <div className="px-5 py-6 text-sm text-white/70">Aún no hay envíos del formulario.</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[760px]">
+              <table className="w-full min-w-[900px]">
                 <thead className="bg-white/5 border-b border-white/10">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Nombre</th>
@@ -1660,6 +1819,7 @@ export default function Admin() {
                     <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Instagram</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Objetivo</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Fecha</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/10">
@@ -1680,6 +1840,14 @@ export default function Admin() {
                               minute: "2-digit",
                             })
                           : "N/A"}
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        <button
+                          onClick={() => handleOpenIntakeClientDetail(client)}
+                          className="px-3 py-1.5 rounded-lg bg-cyan-500/20 border border-cyan-400/40 text-cyan-200 hover:bg-cyan-500/30 transition-colors"
+                        >
+                          Ver detalle
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -3473,6 +3641,17 @@ export default function Admin() {
           </div>
         )}
 
+        {intakeClientModalOpen && selectedIntakeClient && (
+          <IntakeClientDetailsModal
+            isOpen={intakeClientModalOpen}
+            onClose={closeIntakeClientModal}
+            client={selectedIntakeClient}
+            detail={intakeClientDetail}
+            loading={intakeClientDetailLoading}
+            error={intakeClientDetailError}
+          />
+        )}
+
         {/* Modal de estadísticas semanales */}
         {weeklyStatsModalOpen && selectedPlanIdForStats && (
           <WeeklyStatsModal
@@ -3499,6 +3678,119 @@ export default function Admin() {
           />
         )}
       </div>
+    </div>
+  );
+}
+
+function IntakeClientDetailsModal({
+  isOpen,
+  onClose,
+  client,
+  detail,
+  loading,
+  error,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  client: IntakeClient;
+  detail: IntakeClientDetail | null;
+  loading: boolean;
+  error: string | null;
+}) {
+  if (!isOpen) return null;
+
+  const formData = detail?.formData || null;
+  const orderedKeys = formData
+    ? INTAKE_DETAIL_FIELD_ORDER.filter((key) => Object.prototype.hasOwnProperty.call(formData, key))
+    : [];
+  const extraKeys = formData
+    ? Object.keys(formData)
+        .filter((key) => !INTAKE_DETAIL_FIELD_ORDER.includes(key as (typeof INTAKE_DETAIL_FIELD_ORDER)[number]))
+        .sort((a, b) => a.localeCompare(b))
+    : [];
+  const keysToRender = [...orderedKeys, ...extraKeys];
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <h2 className="text-xl font-bold text-white">Detalle del cliente</h2>
+            <p className="text-sm text-white/70 mt-1">
+              {client.nombreCompleto || client.email || client.id}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-white/70 hover:text-white transition-colors"
+            aria-label="Cerrar modal de detalle"
+          >
+            ✕
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="py-10 flex justify-center">
+            <div className="h-8 w-8 rounded-full border-b-2 border-cyan-400 animate-spin" />
+          </div>
+        ) : error ? (
+          <div className="p-3 rounded-lg bg-red-500/20 border border-red-500/30 text-red-300 text-sm">
+            {error}
+          </div>
+        ) : !detail ? (
+          <div className="p-3 rounded-lg bg-white/5 border border-white/10 text-white/70 text-sm">
+            No se encontró información de este cliente.
+          </div>
+        ) : (
+          <div className="space-y-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                <p className="text-xs text-white/60">Estado</p>
+                <p className="text-sm text-white">{detail.status || "N/A"}</p>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                <p className="text-xs text-white/60">Fecha de alta</p>
+                <p className="text-sm text-white">
+                  {detail.createdAt
+                    ? new Date(detail.createdAt).toLocaleString("es-ES")
+                    : "N/A"}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {keysToRender.length === 0 ? (
+                <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/70">
+                  Este cliente no tiene datos de formulario disponibles.
+                </div>
+              ) : (
+                keysToRender.map((key) => (
+                  <div key={key} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                    <p className="text-xs text-white/60">
+                      {INTAKE_DETAIL_LABELS[key] || key}
+                    </p>
+                    <p className="text-sm text-white whitespace-pre-wrap break-words mt-0.5">
+                      {formatIntakeFieldValue(formData ? formData[key] : undefined)}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+      </motion.div>
     </div>
   );
 }

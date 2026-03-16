@@ -35,6 +35,7 @@ export interface IntakeFormState {
   calidadSueno: string;
   horasSueno: string;
   trabajoTurnos: string;
+  diasTrabajo: string[];
   desayunoHabitual: string;
   almuerzoHabitual: string;
   cenaHabitual: string;
@@ -94,6 +95,7 @@ export const INTAKE_INITIAL_STATE: IntakeFormState = {
   calidadSueno: "regular",
   horasSueno: "",
   trabajoTurnos: "",
+  diasTrabajo: [],
   desayunoHabitual: "",
   almuerzoHabitual: "",
   cenaHabitual: "",
@@ -155,6 +157,7 @@ export function validateIntakeForm(payload: LoosePayload): string[] {
   const diasDisponibles = arrayOfStrings(payload.diasDisponibles);
   const dondeEntrena = arrayOfStrings(payload.dondeEntrena);
   const equipamiento = arrayOfStrings(payload.equipamientoDisponible);
+  const diasTrabajo = arrayOfStrings(payload.diasTrabajo);
   const consentimiento = payload.consentimiento === true;
 
   if (!nombreCompleto) errors.push("Por favor, introduce tu nombre completo.");
@@ -206,6 +209,10 @@ export function validateIntakeForm(payload: LoosePayload): string[] {
 
   if (equipamiento.length > 0 && !isSubset(equipamiento, INTAKE_EQUIPAMIENTO)) {
     errors.push("El equipamiento seleccionado no es válido.");
+  }
+
+  if (diasTrabajo.length > 0 && !isSubset(diasTrabajo, INTAKE_DIAS_SEMANA)) {
+    errors.push("Los días de trabajo seleccionados no son válidos.");
   }
 
   if (!consentimiento) {

@@ -10,6 +10,7 @@ describe("buildIntakeEmail", () => {
       whatsapp: "+34 600 000 000",
       instagram: "@luciag",
       diasDisponibles: ["Lunes", "Miércoles"],
+      diasTrabajo: ["Lunes", "Martes", "Miércoles"],
     };
 
     const result = buildIntakeEmail(payload);
@@ -20,6 +21,7 @@ describe("buildIntakeEmail", () => {
     expect(result.html).toContain("Lucía García");
     expect(result.html).toContain("Instagram");
     expect(result.html).toContain("@luciag");
+    expect(result.html).toContain("Días de trabajo");
     expect(result.text).toContain("email: lucia@example.com");
   });
 

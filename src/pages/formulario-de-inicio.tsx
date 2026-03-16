@@ -287,9 +287,25 @@ export default function FormularioDeInicioPage() {
                     <input className="rounded-xl bg-white/5 px-3 py-2 outline-none" placeholder="Ej.: 6,5" value={form.horasSueno} onChange={(e) => update("horasSueno", e.target.value)} />
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm opacity-80">Trabajo por turnos / horarios especiales</span>
-                    <input className="rounded-xl bg-white/5 px-3 py-2 outline-none" placeholder="Ej.: turno de noche, rotativo, etc." value={form.trabajoTurnos} onChange={(e) => update("trabajoTurnos", e.target.value)} />
+                    <span className="text-sm opacity-80">¿Cuántas horas por día trabajas? *</span>
+                    <input className="rounded-xl bg-white/5 px-3 py-2 outline-none" placeholder="Ej.: 8 horas, 10 horas, media jornada..." value={form.trabajoTurnos} onChange={(e) => update("trabajoTurnos", e.target.value)} />
                   </label>
+                </div>
+
+                <div>
+                  <p className="text-sm opacity-80 mb-2">¿Qué días de la semana trabaja?</p>
+                  <div className="flex flex-wrap gap-2">
+                    {INTAKE_DIAS_SEMANA.map((dia) => (
+                      <button
+                        key={`trabaja-${dia}`}
+                        type="button"
+                        onClick={() => update("diasTrabajo", toggleValue(form.diasTrabajo, dia))}
+                        className={`rounded-full px-3 py-1.5 text-sm border ${form.diasTrabajo.includes(dia) ? "bg-violet-500/20 border-violet-400/50 text-violet-200" : "bg-white/5 border-white/10 text-white/80"}`}
+                      >
+                        {dia}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </section>
 
@@ -403,7 +419,7 @@ export default function FormularioDeInicioPage() {
                 )}
                 {success && (
                   <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-300">
-                    ¡Formulario enviado correctamente! Te responderemos por email o WhatsApp.
+                    ¡Perfecto, ya enviaste el formulario! Te hablaré por WhatsApp para iniciar el proceso.
                   </div>
                 )}
 
@@ -463,7 +479,7 @@ export default function FormularioDeInicioPage() {
       </AnimatePresence>
 
       <style jsx global>{`
-        .intake-form input,
+        .intake-form input:not([type="checkbox"]):not([type="radio"]),
         .intake-form select,
         .intake-form textarea {
           width: 100%;

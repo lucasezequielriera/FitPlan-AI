@@ -65,12 +65,14 @@ describe("validateIntakeForm", () => {
       diasDisponibles: ["Luness"],
       dondeEntrena: ["Playa"],
       equipamientoDisponible: ["Barras mágicas"],
+      diasTrabajo: ["Finde"],
     };
 
     const errors = validateIntakeForm(payload);
     expect(errors).toContain("Los días seleccionados no son válidos.");
     expect(errors).toContain("Los lugares de entrenamiento seleccionados no son válidos.");
     expect(errors).toContain("El equipamiento seleccionado no es válido.");
+    expect(errors).toContain("Los días de trabajo seleccionados no son válidos.");
   });
 
   it("fails when long text exceeds max length", () => {
