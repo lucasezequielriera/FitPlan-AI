@@ -69,7 +69,7 @@ export default function FormularioDeInicioPage() {
           name="description"
           content="Formulario inicial para clientes de entrenamiento y nutrición personalizada con FitPlan."
         />
-        <meta name="robots" content="noindex, nofollow" />
+        <meta name="robots" content="index, follow" />
       </Head>
 
       <div className="px-4 py-8 md:px-8">
