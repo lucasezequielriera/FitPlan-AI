@@ -1,7 +1,6 @@
 import Head from "next/head";
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import Navbar from "@/components/Navbar";
 import {
   INTAKE_DIAS_SEMANA,
   INTAKE_EQUIPAMIENTO,
@@ -72,8 +71,6 @@ export default function FormularioDeInicioPage() {
         />
         <meta name="robots" content="noindex, nofollow" />
       </Head>
-
-      <Navbar />
 
       <div className="px-4 py-8 md:px-8">
         <div className="mx-auto max-w-4xl">
