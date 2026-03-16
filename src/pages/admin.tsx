@@ -34,6 +34,17 @@ interface User {
   pais?: string | null;
 }
 
+interface IntakeClient {
+  id: string;
+  nombreCompleto: string | null;
+  email: string | null;
+  whatsapp: string | null;
+  instagram: string | null;
+  objetivoPrincipal: string | null;
+  status: string | null;
+  createdAt: string | null;
+}
+
 export default function Admin() {
   const router = useRouter();
   const { user: authUser, loading: authLoading } = useAuthStore();
@@ -129,6 +140,9 @@ export default function Admin() {
   const [premiumUsers, setPremiumUsers] = useState<number>(0);
   const [regularUsers, setRegularUsers] = useState<number>(0);
   const [athleticUsers, setAthleticUsers] = useState<number>(0);
+  const [intakeClients, setIntakeClients] = useState<IntakeClient[]>([]);
+  const [loadingIntakeClients, setLoadingIntakeClients] = useState(false);
+  const [copiedFormLink, setCopiedFormLink] = useState(false);
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const [selectedUserForHistory, setSelectedUserForHistory] = useState<User | null>(null);
   const [userHistory, setUserHistory] = useState<{
@@ -966,6 +980,7 @@ export default function Admin() {
       if (!silent) {
         setLoading(false);
       }
+      await loadIntakeClients();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Error desconocido";
       setError(message);
@@ -976,6 +991,38 @@ export default function Admin() {
       if (message.includes("Firebase Admin SDK no configurado") || message.includes("500")) {
         setError("Firebase Admin SDK no está configurado en el servidor. Configura las variables de entorno en Vercel: FIREBASE_ADMIN_PRIVATE_KEY, FIREBASE_ADMIN_CLIENT_EMAIL, y NEXT_PUBLIC_FIREBASE_PROJECT_ID.");
       }
+    }
+  };
+
+  const handleCopyFormLink = async () => {
+    try {
+      const origin = typeof window !== "undefined" ? window.location.origin : "https://www.fitplan-ai.com";
+      const formUrl = `${origin}/formulario-de-inicio`;
+      await navigator.clipboard.writeText(formUrl);
+      setCopiedFormLink(true);
+      setTimeout(() => setCopiedFormLink(false), 1800);
+    } catch (error) {
+      console.error("No se pudo copiar el enlace del formulario:", error);
+      alert("No se pudo copiar el enlace automáticamente. URL: https://www.fitplan-ai.com/formulario-de-inicio");
+    }
+  };
+
+  const loadIntakeClients = async () => {
+    try {
+      const auth = getAuthSafe();
+      if (!auth?.currentUser) return;
+      setLoadingIntakeClients(true);
+      const response = await fetch(`/api/admin/intakeClients?userId=${auth.currentUser.uid}`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+      const data = await response.json();
+      setIntakeClients(Array.isArray(data.clients) ? data.clients : []);
+    } catch (error) {
+      console.error("Error cargando clientes de formulario:", error);
+    } finally {
+      setLoadingIntakeClients(false);
     }
   };
 
@@ -1352,10 +1399,28 @@ export default function Admin() {
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent mb-2">
-            Panel de Administración
-          </h1>
-          <p className="text-white/60">Gestiona usuarios y permisos del sistema</p>
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent mb-2">
+                Panel de Administración
+              </h1>
+              <p className="text-white/60">Gestiona usuarios y permisos del sistema</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => router.push("/formulario-de-inicio")}
+                className="px-4 py-2 rounded-lg bg-cyan-500/20 border border-cyan-400/40 text-cyan-200 hover:bg-cyan-500/30 transition-colors text-sm font-medium"
+              >
+                Abrir formulario de clientes
+              </button>
+              <button
+                onClick={handleCopyFormLink}
+                className="px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white/90 hover:bg-white/20 transition-colors text-sm font-medium"
+              >
+                {copiedFormLink ? "Enlace copiado" : "Copiar enlace del formulario"}
+              </button>
+            </div>
+          </div>
         </motion.div>
 
         {newUsersList.length > 0 && (
@@ -1568,6 +1633,60 @@ export default function Admin() {
               {athleticUsers}
             </p>
           </motion.div>
+        </div>
+
+        {/* Clientes provenientes del formulario de inicio */}
+        <div className="rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm overflow-hidden mb-8">
+          <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Clientes del formulario de inicio</h2>
+              <p className="text-xs text-white/60 mt-1">Leads que te contactan para entrenamiento 1:1</p>
+            </div>
+            <span className="text-sm text-cyan-300 font-medium">{intakeClients.length}</span>
+          </div>
+
+          {loadingIntakeClients ? (
+            <div className="px-5 py-6 text-sm text-white/70">Cargando clientes...</div>
+          ) : intakeClients.length === 0 ? (
+            <div className="px-5 py-6 text-sm text-white/70">Aún no hay envíos del formulario.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px]">
+                <thead className="bg-white/5 border-b border-white/10">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Nombre</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Email</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">WhatsApp</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Instagram</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Objetivo</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Fecha</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/10">
+                  {intakeClients.map((client) => (
+                    <tr key={client.id} className="hover:bg-white/5">
+                      <td className="px-4 py-3 text-sm text-white">{client.nombreCompleto || "N/A"}</td>
+                      <td className="px-4 py-3 text-sm text-white/85">{client.email || "N/A"}</td>
+                      <td className="px-4 py-3 text-sm text-white/85">{client.whatsapp || "N/A"}</td>
+                      <td className="px-4 py-3 text-sm text-white/85">{client.instagram || "N/A"}</td>
+                      <td className="px-4 py-3 text-sm text-white/85">{client.objetivoPrincipal || "N/A"}</td>
+                      <td className="px-4 py-3 text-sm text-white/70">
+                        {client.createdAt
+                          ? new Date(client.createdAt).toLocaleString("es-ES", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : "N/A"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* Lista de usuarios */}
