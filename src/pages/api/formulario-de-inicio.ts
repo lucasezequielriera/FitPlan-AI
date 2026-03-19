@@ -57,6 +57,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const instagramHandle = instagramRaw ? instagramRaw.replace(/^@/, "").toLowerCase() : "";
     const nombre = typeof body.nombreCompleto === "string" ? body.nombreCompleto.trim() : "";
     const objetivo = typeof body.objetivoPrincipal === "string" ? body.objetivoPrincipal : "";
+    const servicioInteres = typeof body.servicioInteres === "string" ? body.servicioInteres.trim() : "";
+    const trabajoTurnos = typeof body.trabajoTurnos === "string" ? body.trabajoTurnos.trim() : "";
+    const diasTrabajo = Array.isArray(body.diasTrabajo)
+      ? body.diasTrabajo.filter((d): d is string => typeof d === "string" && d.trim().length > 0)
+      : [];
+    const objetivoRendimiento =
+      typeof body.objetivoRendimiento === "string" ? body.objetivoRendimiento.trim() : "";
+    const objetivoEstetico =
+      typeof body.objetivoEstetico === "string" ? body.objetivoEstetico.trim() : "";
 
     const savedDoc = await adminDb.collection("intakeClients").add({
       source: "formulario-de-inicio",
@@ -66,7 +75,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       whatsapp: typeof body.whatsapp === "string" ? body.whatsapp.trim() : null,
       instagram: instagramRaw || null,
       instagramHandle: instagramHandle || null,
+      servicioInteres: servicioInteres || null,
       objetivoPrincipal: objetivo || null,
+      objetivoRendimiento: objetivoRendimiento || null,
+      objetivoEstetico: objetivoEstetico || null,
+      trabajoTurnos: trabajoTurnos || null,
+      diasTrabajo,
       diasDisponibles: Array.isArray(body.diasDisponibles) ? body.diasDisponibles : [],
       whereToTrain: Array.isArray(body.dondeEntrena) ? body.dondeEntrena : [],
       searchKeywords: buildSearchKeywords({

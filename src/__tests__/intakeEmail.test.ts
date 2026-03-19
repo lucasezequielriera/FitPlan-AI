@@ -11,6 +11,10 @@ describe("buildIntakeEmail", () => {
       instagram: "@luciag",
       diasDisponibles: ["Lunes", "Miércoles"],
       diasTrabajo: ["Lunes", "Martes", "Miércoles"],
+      preferenciasAlimentos: {
+        Pollo: "gusta",
+        Atún: "no_gusta",
+      },
     };
 
     const result = buildIntakeEmail(payload);
@@ -22,7 +26,13 @@ describe("buildIntakeEmail", () => {
     expect(result.html).toContain("Instagram");
     expect(result.html).toContain("@luciag");
     expect(result.html).toContain("Días de trabajo");
+    expect(result.html).toContain("Alimentos que le gustan");
+    expect(result.html).toContain("Alimentos que no le gustan");
+    expect(result.html).toContain("Alimentos neutros (sin marcar)");
+    expect(result.html).toContain("Pollo");
+    expect(result.html).toContain("Atún");
     expect(result.text).toContain("email: lucia@example.com");
+    expect(result.text).toContain("preferenciasAlimentos_gustan: Pollo");
   });
 
   it("escapes HTML content to avoid injection in email body", () => {

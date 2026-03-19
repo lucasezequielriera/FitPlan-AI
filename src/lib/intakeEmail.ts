@@ -1,4 +1,4 @@
-import type { IntakeFormState } from "@/lib/intakeFormSchema";
+import { INTAKE_FOOD_GROUPS, type FoodPreference, type IntakeFormState } from "@/lib/intakeFormSchema";
 
 type IntakePayload = Partial<IntakeFormState> & Record<string, unknown>;
 
@@ -6,6 +6,28 @@ function toStringValue(value: unknown): string {
   if (value === null || value === undefined) return "";
   if (Array.isArray(value)) return value.join(", ");
   return String(value);
+}
+
+function getFoodPreferencesBuckets(value: unknown): {
+  gusta: string[];
+  noGusta: string[];
+  neutras: string[];
+} {
+  const allFoods = INTAKE_FOOD_GROUPS.flatMap((group) => group.foods);
+  const preferences =
+    value && typeof value === "object"
+      ? (value as Record<string, FoodPreference>)
+      : {};
+
+  const gusta = allFoods.filter((food) => preferences[food] === "gusta");
+  const noGusta = allFoods.filter((food) => preferences[food] === "no_gusta");
+  const neutras = allFoods.filter((food) => !preferences[food]);
+
+  return { gusta, noGusta, neutras };
+}
+
+function formatList(values: string[]): string {
+  return values.length > 0 ? values.join(", ") : "-";
 }
 
 function escapeHtml(value: string): string {
@@ -39,18 +61,21 @@ export function buildIntakeEmail(payload: IntakePayload): { subject: string; htm
   const nombre = toStringValue(payload.nombreCompleto);
   const objetivo = toStringValue(payload.objetivoPrincipal);
   const now = new Date().toLocaleString("es-ES");
+  const foodPreferences = getFoodPreferencesBuckets(payload.preferenciasAlimentos);
 
   const sections = [
     section("Datos básicos", [
       ["Nombre", toStringValue(payload.nombreCompleto)],
       ["Email", toStringValue(payload.email)],
       ["WhatsApp", toStringValue(payload.whatsapp)],
+      ["Servicio interesado", toStringValue(payload.servicioInteres)],
       ["Instagram", toStringValue(payload.instagram)],
       ["Ciudad/País", toStringValue(payload.ciudadPais)],
       ["Edad", toStringValue(payload.edad)],
       ["Sexo", toStringValue(payload.sexo)],
       ["Altura (cm)", toStringValue(payload.alturaCm)],
       ["Peso (kg)", toStringValue(payload.pesoKg)],
+      ["Peso objetivo (kg)", toStringValue(payload.pesoObjetivoKg)],
     ]),
     section("Objetivo", [
       ["Objetivo principal", toStringValue(payload.objetivoPrincipal)],
@@ -59,20 +84,36 @@ export function buildIntakeEmail(payload: IntakePayload): { subject: string; htm
     ]),
     section("Entrenamiento y disponibilidad", [
       ["Experiencia", toStringValue(payload.experienciaEntrenamiento)],
+      ["Días que entrena actualmente", toStringValue(payload.diasEntrenaActualmente)],
+      ["Detalle días actuales", toStringValue(payload.diasEntrenaActualmenteDetalle)],
+      ["Días de compromiso", toStringValue(payload.diasCompromisoEntrenamiento)],
+      ["Detalle días compromiso", toStringValue(payload.diasCompromisoDetalle)],
       ["Horas sentado por día", toStringValue(payload.horasSentado)],
       ["Pasos diarios", toStringValue(payload.pasosDiarios)],
       ["Días disponibles", toStringValue(payload.diasDisponibles)],
       ["Minutos por sesión", toStringValue(payload.minutosPorSesion)],
+      ["Hora entrenamiento", toStringValue(payload.horaEntrenamiento)],
+      ["Duración sesión", toStringValue(payload.duracionSesion)],
+      ["Plan para", toStringValue(payload.planLugar)],
+      ["Material en casa", toStringValue(payload.materialCasa)],
       ["Dónde entrena", toStringValue(payload.dondeEntrena)],
       ["Equipamiento", toStringValue(payload.equipamientoDisponible)],
     ]),
     section("Salud", [
+      ["Enfermedades desde pequeño/a", toStringValue(payload.enfermedadInfancia)],
       ["Lesiones/dolores", toStringValue(payload.lesionesDolores)],
       ["Cirugías", toStringValue(payload.cirugiasPrevias)],
       ["Medicación/suplementos", toStringValue(payload.medicacionSuplementos)],
+      ["Diabetes", toStringValue(payload.diabetesTipo)],
+      ["Hipertensión arterial", toStringValue(payload.hipertensionArterial)],
+      ["Enfermedad del corazón", toStringValue(payload.enfermedadCorazon)],
+      ["Hipotiroidismo", toStringValue(payload.hipotiroidismo)],
+      ["Colesterol/triglicéridos", toStringValue(payload.colesterolTrigliceridos)],
+      ["Molestias digestivas tipo", toStringValue(payload.molestiasDigestivasTipo)],
       ["Patologías", toStringValue(payload.patologias)],
     ]),
     section("Hábitos", [
+      ["Descansa bien", toStringValue(payload.descansaBien)],
       ["Nivel de estrés", toStringValue(payload.nivelEstres)],
       ["Calidad del sueño", toStringValue(payload.calidadSueno)],
       ["Horas de sueño", toStringValue(payload.horasSueno)],
@@ -83,6 +124,13 @@ export function buildIntakeEmail(payload: IntakePayload): { subject: string; htm
       ["Desayuno habitual", toStringValue(payload.desayunoHabitual)],
       ["Almuerzo habitual", toStringValue(payload.almuerzoHabitual)],
       ["Cena habitual", toStringValue(payload.cenaHabitual)],
+      ["Comidas por día y horarios", toStringValue(payload.comidasPorDiaHorarios)],
+      ["Apetito", toStringValue(payload.apetito)],
+      ["Momento de más hambre", toStringValue(payload.momentoMasHambre)],
+      ["Alimentos que le gustan", formatList(foodPreferences.gusta)],
+      ["Alimentos que no le gustan", formatList(foodPreferences.noGusta)],
+      ["Alimentos neutros (sin marcar)", formatList(foodPreferences.neutras)],
+      ["Día tipo de comidas", toStringValue(payload.diaTipoComidas)],
       ["Snacks y bebidas", toStringValue(payload.snacksBebidas)],
       ["Alergias/restricciones", toStringValue(payload.restriccionesAlergias)],
       ["Alimentos no le gustan", toStringValue(payload.alimentosNoLeGustan)],
@@ -91,13 +139,23 @@ export function buildIntakeEmail(payload: IntakePayload): { subject: string; htm
       ["Alcohol", toStringValue(payload.alcoholFrecuencia)],
       ["Fuma", toStringValue(payload.fuma)],
       ["Digestión", toStringValue(payload.digestion)],
+      ["Suplementos actuales", toStringValue(payload.suplementosActualesDetalle)],
+      ["Interés en suplementos", toStringValue(payload.quiereSuplementos)],
+      ["Ha hecho dieta antes", toStringValue(payload.haHechoDietaAntes)],
+      ["Dieta: en qué consistía", toStringValue(payload.dietaEnQueConsistia)],
+      ["Dieta: hace cuánto", toStringValue(payload.dietaHaceCuanto)],
+      ["Dieta: cuánto tiempo", toStringValue(payload.dietaCuantoTiempo)],
+      ["Dieta: resultado", toStringValue(payload.dietaQueTal)],
       ["Presupuesto comida", toStringValue(payload.presupuestoComida)],
       ["Tiempo para cocinar", toStringValue(payload.tiempoParaCocinar)],
     ]),
     section("Motivación y contexto", [
+      ["Objetivo de rendimiento", toStringValue(payload.objetivoRendimiento)],
+      ["Objetivo estético", toStringValue(payload.objetivoEstetico)],
       ["Motivación principal", toStringValue(payload.motivacionPrincipal)],
       ["Dificultad actual", toStringValue(payload.dificultadActual)],
       ["Comentarios extra", toStringValue(payload.comentariosExtra)],
+      ["Texto libre final", toStringValue(payload.textoLibreFinal)],
     ]),
   ];
 
@@ -109,8 +167,12 @@ export function buildIntakeEmail(payload: IntakePayload): { subject: string; htm
     </div>
   `;
 
-  const text = Object.entries(payload)
-    .map(([key, value]) => `${key}: ${toStringValue(value)}`)
+  const text = [
+    ...Object.entries(payload).map(([key, value]) => `${key}: ${toStringValue(value)}`),
+    `preferenciasAlimentos_gustan: ${formatList(foodPreferences.gusta)}`,
+    `preferenciasAlimentos_noGustan: ${formatList(foodPreferences.noGusta)}`,
+    `preferenciasAlimentos_neutras: ${formatList(foodPreferences.neutras)}`,
+  ]
     .join("\n");
 
   return {

@@ -4,8 +4,12 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   INTAKE_DIAS_SEMANA,
   INTAKE_EQUIPAMIENTO,
+  INTAKE_FOOD_GROUPS,
   INTAKE_INITIAL_STATE,
   INTAKE_LUGARES_ENTRENO,
+  INTAKE_PLAN_LUGAR,
+  INTAKE_SERVICIOS,
+  type FoodPreference,
   type IntakeFormState,
   type ObjetivoPrincipal,
   validateIntakeForm,
@@ -13,6 +17,22 @@ import {
 
 function toggleValue(list: string[], value: string): string[] {
   return list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
+}
+
+function cycleFoodPreference(
+  current: Record<string, FoodPreference>,
+  food: string
+): Record<string, FoodPreference> {
+  const value = current[food];
+  if (value === "gusta") {
+    return { ...current, [food]: "no_gusta" };
+  }
+  if (value === "no_gusta") {
+    const next = { ...current };
+    delete next[food];
+    return next;
+  }
+  return { ...current, [food]: "gusta" };
 }
 
 export default function FormularioDeInicioPage() {
@@ -88,7 +108,7 @@ export default function FormularioDeInicioPage() {
 
             <form onSubmit={handleSubmit} className="intake-form mt-8 space-y-8">
               <section className={sectionClass}>
-                <h2 className="text-lg font-semibold">1) Datos básicos</h2>
+                <h2 className="text-lg font-semibold">1) Cuéntame sobre ti</h2>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <label className="flex flex-col gap-1">
                     <span className="text-sm opacity-80">Nombre completo *</span>
@@ -116,6 +136,17 @@ export default function FormularioDeInicioPage() {
                     <input className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.ciudadPais} onChange={(e) => update("ciudadPais", e.target.value)} />
                   </label>
                   <label className="flex flex-col gap-1">
+                    <span className="text-sm opacity-80">¿Qué servicio te interesa?</span>
+                    <select className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.servicioInteres} onChange={(e) => update("servicioInteres", e.target.value)}>
+                      <option value="">Seleccionar...</option>
+                      {INTAKE_SERVICIOS.map((service) => (
+                        <option key={service} value={service}>
+                          {service}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1">
                     <span className="text-sm opacity-80">Edad *</span>
                     <input type="number" className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.edad} onChange={(e) => update("edad", e.target.value)} />
                   </label>
@@ -134,6 +165,10 @@ export default function FormularioDeInicioPage() {
                   <label className="flex flex-col gap-1">
                     <span className="text-sm opacity-80">Peso actual (kg) *</span>
                     <input type="number" className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.pesoKg} onChange={(e) => update("pesoKg", e.target.value)} />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-sm opacity-80">Peso objetivo (kg)</span>
+                    <input type="number" className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.pesoObjetivoKg} onChange={(e) => update("pesoObjetivoKg", e.target.value)} />
                   </label>
                 </div>
               </section>
@@ -188,10 +223,40 @@ export default function FormularioDeInicioPage() {
                     <span className="text-sm opacity-80">Pasos diarios (si lo sabes)</span>
                     <input className="rounded-xl bg-white/5 px-3 py-2 outline-none" placeholder="Ej.: 6.000" value={form.pasosDiarios} onChange={(e) => update("pasosDiarios", e.target.value)} />
                   </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-sm opacity-80">¿Cuántos días entrenas ahora por semana? *</span>
+                    <input type="number" min={0} max={7} className="rounded-xl bg-white/5 px-3 py-2 outline-none" placeholder="Ej.: 3" value={form.diasEntrenaActualmente} onChange={(e) => update("diasEntrenaActualmente", e.target.value)} />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-sm opacity-80">¿Cuántos días te comprometes a entrenar? *</span>
+                    <input type="number" min={1} max={7} className="rounded-xl bg-white/5 px-3 py-2 outline-none" placeholder="Ej.: 4" value={form.diasCompromisoEntrenamiento} onChange={(e) => update("diasCompromisoEntrenamiento", e.target.value)} />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-sm opacity-80">¿Sobre qué hora entrenarías?</span>
+                    <input className="rounded-xl bg-white/5 px-3 py-2 outline-none" placeholder="Ej.: 7:00, 14:30, 20:00" value={form.horaEntrenamiento} onChange={(e) => update("horaEntrenamiento", e.target.value)} />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-sm opacity-80">¿Cuánto dura una sesión?</span>
+                    <input className="rounded-xl bg-white/5 px-3 py-2 outline-none" placeholder="Ej.: 60 minutos" value={form.duracionSesion} onChange={(e) => update("duracionSesion", e.target.value)} />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-sm opacity-80">¿El plan lo quieres para casa, gimnasio o ambos?</span>
+                    <select className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.planLugar} onChange={(e) => update("planLugar", e.target.value)}>
+                      {INTAKE_PLAN_LUGAR.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-sm opacity-80">Si entrenas en casa, ¿qué material tienes?</span>
+                    <input className="rounded-xl bg-white/5 px-3 py-2 outline-none" placeholder="Ej.: mancuernas, bandas, banco..." value={form.materialCasa} onChange={(e) => update("materialCasa", e.target.value)} />
+                  </label>
                 </div>
 
                 <div>
-                  <p className="text-sm opacity-80 mb-2">Días disponibles para entrenar *</p>
+                  <p className="text-sm opacity-80 mb-2">Días concretos en los que te comprometes a entrenar (si puedes)</p>
                   <div className="flex flex-wrap gap-2">
                     {INTAKE_DIAS_SEMANA.map((dia) => (
                       <button
@@ -205,6 +270,16 @@ export default function FormularioDeInicioPage() {
                     ))}
                   </div>
                 </div>
+
+                <label className="flex flex-col gap-1">
+                  <span className="text-sm opacity-80">Días que entrenas actualmente (detalle)</span>
+                  <input className="rounded-xl bg-white/5 px-3 py-2 outline-none" placeholder="Ej.: lunes, miércoles y viernes" value={form.diasEntrenaActualmenteDetalle} onChange={(e) => update("diasEntrenaActualmenteDetalle", e.target.value)} />
+                </label>
+
+                <label className="flex flex-col gap-1">
+                  <span className="text-sm opacity-80">Días de compromiso (detalle)</span>
+                  <input className="rounded-xl bg-white/5 px-3 py-2 outline-none" placeholder="Ej.: martes, jueves y sábado" value={form.diasCompromisoDetalle} onChange={(e) => update("diasCompromisoDetalle", e.target.value)} />
+                </label>
 
                 <div>
                   <p className="text-sm opacity-80 mb-2">¿Dónde puedes entrenar? *</p>
@@ -243,6 +318,10 @@ export default function FormularioDeInicioPage() {
                 <h2 className="text-lg font-semibold">4) Salud y antecedentes</h2>
                 <p className="text-sm opacity-70">Esta parte es clave para adaptar el plan de forma segura.</p>
                 <label className="flex flex-col gap-1">
+                  <span className="text-sm opacity-80">¿Has tenido alguna enfermedad desde pequeño/a? ¿Cuál?</span>
+                  <textarea rows={2} className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.enfermedadInfancia} onChange={(e) => update("enfermedadInfancia", e.target.value)} />
+                </label>
+                <label className="flex flex-col gap-1">
                   <span className="text-sm opacity-80">Dolores o lesiones actuales</span>
                   <textarea rows={2} className="rounded-xl bg-white/5 px-3 py-2 outline-none" placeholder="Ej.: dolor de rodilla, hombro o zona lumbar..." value={form.lesionesDolores} onChange={(e) => update("lesionesDolores", e.target.value)} />
                 </label>
@@ -258,11 +337,66 @@ export default function FormularioDeInicioPage() {
                   <span className="text-sm opacity-80">Patologías o diagnósticos médicos</span>
                   <textarea rows={2} className="rounded-xl bg-white/5 px-3 py-2 outline-none" placeholder="Ej.: hipertensión, diabetes, hipotiroidismo..." value={form.patologias} onChange={(e) => update("patologias", e.target.value)} />
                 </label>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-sm opacity-80">¿Tienes diabetes?</span>
+                    <select className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.diabetesTipo} onChange={(e) => update("diabetesTipo", e.target.value)}>
+                      <option value="no">No</option>
+                      <option value="tipo_i">Diabetes tipo I</option>
+                      <option value="tipo_ii">Diabetes tipo II</option>
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-sm opacity-80">¿Tienes hipertensión arterial?</span>
+                    <select className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.hipertensionArterial} onChange={(e) => update("hipertensionArterial", e.target.value)}>
+                      <option value="no">No</option>
+                      <option value="si">Sí</option>
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-sm opacity-80">¿Tienes alguna enfermedad del corazón? ¿Cuál?</span>
+                    <input className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.enfermedadCorazon} onChange={(e) => update("enfermedadCorazon", e.target.value)} />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-sm opacity-80">¿Tienes hipotiroidismo?</span>
+                    <select className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.hipotiroidismo} onChange={(e) => update("hipotiroidismo", e.target.value)}>
+                      <option value="no">No</option>
+                      <option value="si">Sí</option>
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-sm opacity-80">¿Colesterol alto y/o triglicéridos?</span>
+                    <select className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.colesterolTrigliceridos} onChange={(e) => update("colesterolTrigliceridos", e.target.value)}>
+                      <option value="no">No</option>
+                      <option value="colesterol_alto">Colesterol alto</option>
+                      <option value="trigliceridos_altos">Triglicéridos altos</option>
+                      <option value="ambos">Ambos</option>
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-sm opacity-80">¿Tienes estreñimiento, colon irritable o dolores digestivos?</span>
+                    <select className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.molestiasDigestivasTipo} onChange={(e) => update("molestiasDigestivasTipo", e.target.value)}>
+                      <option value="no">No</option>
+                      <option value="estrenimiento">Estreñimiento</option>
+                      <option value="colon_irritable">Colon irritable</option>
+                      <option value="dolores_digestivos">Dolores digestivos</option>
+                      <option value="varios">Varios de estos</option>
+                    </select>
+                  </label>
+                </div>
               </section>
 
               <section className={sectionClass}>
                 <h2 className="text-lg font-semibold">5) Hábitos de vida</h2>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-sm opacity-80">¿Descansas bien?</span>
+                    <select className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.descansaBien} onChange={(e) => update("descansaBien", e.target.value)}>
+                      <option value="si">Sí</option>
+                      <option value="regular">Regular</option>
+                      <option value="no">No</option>
+                    </select>
+                  </label>
                   <label className="flex flex-col gap-1">
                     <span className="text-sm opacity-80">Nivel de estrés</span>
                     <select className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.nivelEstres} onChange={(e) => update("nivelEstres", e.target.value)}>
@@ -310,6 +444,24 @@ export default function FormularioDeInicioPage() {
                 <h2 className="text-lg font-semibold">6) Alimentación actual</h2>
                 <p className="text-sm opacity-70">No busques responder “perfecto”: cuéntanos cómo comes hoy normalmente.</p>
                 <label className="flex flex-col gap-1">
+                  <span className="text-sm opacity-80">¿Cuántas comidas haces al día y en qué horarios? *</span>
+                  <textarea rows={2} className="rounded-xl bg-white/5 px-3 py-2 outline-none" placeholder="Ej.: 4 comidas - 8:00, 12:30, 17:00, 21:00" value={form.comidasPorDiaHorarios} onChange={(e) => update("comidasPorDiaHorarios", e.target.value)} />
+                </label>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-sm opacity-80">¿Cómo describirías tu apetito?</span>
+                    <select className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.apetito} onChange={(e) => update("apetito", e.target.value)}>
+                      <option value="bueno">Bueno</option>
+                      <option value="regular">Regular</option>
+                      <option value="malo">Malo</option>
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-sm opacity-80">¿En qué momento del día tienes más hambre?</span>
+                    <input className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.momentoMasHambre} onChange={(e) => update("momentoMasHambre", e.target.value)} />
+                  </label>
+                </div>
+                <label className="flex flex-col gap-1">
                   <span className="text-sm opacity-80">¿Qué sueles desayunar?</span>
                   <textarea rows={2} className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.desayunoHabitual} onChange={(e) => update("desayunoHabitual", e.target.value)} />
                 </label>
@@ -325,6 +477,47 @@ export default function FormularioDeInicioPage() {
                   <span className="text-sm opacity-80">Snacks y bebidas frecuentes</span>
                   <textarea rows={2} className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.snacksBebidas} onChange={(e) => update("snacksBebidas", e.target.value)} />
                 </label>
+
+                <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4 space-y-4">
+                  <p className="text-sm opacity-90 font-medium">Tus preferencias de alimentos</p>
+                  <p className="text-xs opacity-70">
+                    Pulsa una vez = me gusta, pulsa otra vez = no me gusta, y una tercera = sin marcar.
+                    Los no marcados se tomarán como neutros.
+                  </p>
+                  {INTAKE_FOOD_GROUPS.map((group) => (
+                    <div key={group.group} className="space-y-2">
+                      <p className="text-sm opacity-85">
+                        {group.emoji} {group.group}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {group.foods.map((food) => {
+                          const value = form.preferenciasAlimentos[food];
+                          const className =
+                            value === "gusta"
+                              ? "bg-emerald-500/20 border-emerald-400/50 text-emerald-200"
+                              : value === "no_gusta"
+                                ? "bg-rose-500/20 border-rose-400/50 text-rose-200"
+                                : "bg-white/5 border-white/10 text-white/80";
+                          return (
+                            <button
+                              key={food}
+                              type="button"
+                              onClick={() =>
+                                update(
+                                  "preferenciasAlimentos",
+                                  cycleFoodPreference(form.preferenciasAlimentos, food)
+                                )
+                              }
+                              className={`rounded-full px-3 py-1.5 text-sm border ${className}`}
+                            >
+                              {food}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
 
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <label className="flex flex-col gap-1">
@@ -380,10 +573,62 @@ export default function FormularioDeInicioPage() {
                   <span className="text-sm opacity-80">Tiempo real para cocinar al día</span>
                   <input className="rounded-xl bg-white/5 px-3 py-2 outline-none" placeholder="Ej.: 20 minutos, 1 hora, solo preparación el domingo..." value={form.tiempoParaCocinar} onChange={(e) => update("tiempoParaCocinar", e.target.value)} />
                 </label>
+
+                <label className="flex flex-col gap-1">
+                  <span className="text-sm opacity-80">Cuéntame un día tipo: ¿qué comes desde que te levantas hasta que te acuestas? *</span>
+                  <textarea rows={3} className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.diaTipoComidas} onChange={(e) => update("diaTipoComidas", e.target.value)} />
+                </label>
+
+                <label className="flex flex-col gap-1">
+                  <span className="text-sm opacity-80">¿Tomas suplementos? ¿Cuáles y de qué marca? (si quieres, luego puedes enviar foto por WhatsApp)</span>
+                  <textarea rows={2} className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.suplementosActualesDetalle} onChange={(e) => update("suplementosActualesDetalle", e.target.value)} />
+                </label>
+
+                <label className="flex flex-col gap-1">
+                  <span className="text-sm opacity-80">Si no tomas suplementos, ¿te gustaría empezar con alguno?</span>
+                  <input className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.quiereSuplementos} onChange={(e) => update("quiereSuplementos", e.target.value)} />
+                </label>
+
+                <label className="flex flex-col gap-1">
+                  <span className="text-sm opacity-80">¿Has hecho alguna dieta antes?</span>
+                  <select className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.haHechoDietaAntes} onChange={(e) => update("haHechoDietaAntes", e.target.value)}>
+                    <option value="no">No</option>
+                    <option value="si">Sí</option>
+                  </select>
+                </label>
+
+                {form.haHechoDietaAntes === "si" && (
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <label className="flex flex-col gap-1">
+                      <span className="text-sm opacity-80">¿En qué se basaba?</span>
+                      <textarea rows={2} className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.dietaEnQueConsistia} onChange={(e) => update("dietaEnQueConsistia", e.target.value)} />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-sm opacity-80">¿Hace cuánto la hiciste?</span>
+                      <input className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.dietaHaceCuanto} onChange={(e) => update("dietaHaceCuanto", e.target.value)} />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-sm opacity-80">¿Durante cuánto tiempo?</span>
+                      <input className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.dietaCuantoTiempo} onChange={(e) => update("dietaCuantoTiempo", e.target.value)} />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-sm opacity-80">¿Qué tal te fue?</span>
+                      <textarea rows={2} className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.dietaQueTal} onChange={(e) => update("dietaQueTal", e.target.value)} />
+                    </label>
+                  </div>
+                )}
               </section>
 
               <section className={sectionClass}>
                 <h2 className="text-lg font-semibold">7) Motivación y seguimiento</h2>
+                <label className="flex flex-col gap-1">
+                  <span className="text-sm opacity-80">A nivel de rendimiento físico, ¿qué te gustaría mejorar? *</span>
+                  <textarea rows={3} className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.objetivoRendimiento} onChange={(e) => update("objetivoRendimiento", e.target.value)} />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-sm opacity-80">A nivel estético, ¿qué te gustaría cambiar? *</span>
+                  <textarea rows={3} className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.objetivoEstetico} onChange={(e) => update("objetivoEstetico", e.target.value)} />
+                </label>
                 <label className="flex flex-col gap-1">
                   <span className="text-sm opacity-80">¿Por qué quieres empezar ahora?</span>
                   <textarea rows={3} className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.motivacionPrincipal} onChange={(e) => update("motivacionPrincipal", e.target.value)} />
@@ -395,6 +640,10 @@ export default function FormularioDeInicioPage() {
                 <label className="flex flex-col gap-1">
                   <span className="text-sm opacity-80">Comentarios extra</span>
                   <textarea rows={3} className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.comentariosExtra} onChange={(e) => update("comentariosExtra", e.target.value)} />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-sm opacity-80">¿Algo más que quieras contarme? (opcional)</span>
+                  <textarea rows={3} className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.textoLibreFinal} onChange={(e) => update("textoLibreFinal", e.target.value)} />
                 </label>
               </section>
 

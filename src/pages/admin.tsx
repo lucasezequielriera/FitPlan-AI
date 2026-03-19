@@ -40,7 +40,10 @@ interface IntakeClient {
   email: string | null;
   whatsapp: string | null;
   instagram: string | null;
+  servicioInteres: string | null;
   objetivoPrincipal: string | null;
+  trabajoTurnos: string | null;
+  diasTrabajo: string[];
   status: string | null;
   createdAt: string | null;
 }
@@ -54,17 +57,28 @@ const INTAKE_DETAIL_FIELD_ORDER = [
   "nombreCompleto",
   "email",
   "whatsapp",
+  "servicioInteres",
   "instagram",
   "ciudadPais",
   "edad",
   "sexo",
   "alturaCm",
   "pesoKg",
+  "pesoObjetivoKg",
   "objetivoPrincipal",
   "objetivoSecundario",
   "fechaObjetivo",
+  "enfermedadInfancia",
   "experienciaEntrenamiento",
+  "diasEntrenaActualmente",
+  "diasEntrenaActualmenteDetalle",
+  "diasCompromisoEntrenamiento",
+  "diasCompromisoDetalle",
   "minutosPorSesion",
+  "horaEntrenamiento",
+  "duracionSesion",
+  "planLugar",
+  "materialCasa",
   "horasSentado",
   "pasosDiarios",
   "diasDisponibles",
@@ -79,6 +93,11 @@ const INTAKE_DETAIL_FIELD_ORDER = [
   "horasSueno",
   "trabajoTurnos",
   "diasTrabajo",
+  "comidasPorDiaHorarios",
+  "apetito",
+  "momentoMasHambre",
+  "preferenciasAlimentos",
+  "diaTipoComidas",
   "desayunoHabitual",
   "almuerzoHabitual",
   "cenaHabitual",
@@ -90,8 +109,18 @@ const INTAKE_DETAIL_FIELD_ORDER = [
   "alcoholFrecuencia",
   "fuma",
   "digestion",
+  "suplementosActualesDetalle",
+  "quiereSuplementos",
+  "haHechoDietaAntes",
+  "dietaEnQueConsistia",
+  "dietaHaceCuanto",
+  "dietaCuantoTiempo",
+  "dietaQueTal",
   "presupuestoComida",
   "tiempoParaCocinar",
+  "objetivoRendimiento",
+  "objetivoEstetico",
+  "textoLibreFinal",
   "motivacionPrincipal",
   "dificultadActual",
   "comentariosExtra",
@@ -102,31 +131,54 @@ const INTAKE_DETAIL_LABELS: Record<string, string> = {
   nombreCompleto: "Nombre completo",
   email: "Email",
   whatsapp: "WhatsApp",
+  servicioInteres: "Servicio interesado",
   instagram: "Instagram",
   ciudadPais: "Ciudad y país",
   edad: "Edad",
   sexo: "Sexo",
   alturaCm: "Altura (cm)",
   pesoKg: "Peso actual (kg)",
+  pesoObjetivoKg: "Peso objetivo (kg)",
   objetivoPrincipal: "Objetivo principal",
   objetivoSecundario: "Objetivo secundario",
   fechaObjetivo: "Fecha objetivo",
   experienciaEntrenamiento: "Experiencia entrenando",
   minutosPorSesion: "Minutos por sesión",
+  diasEntrenaActualmente: "Días que entrena actualmente",
+  diasEntrenaActualmenteDetalle: "Detalle de días actuales",
+  diasCompromisoEntrenamiento: "Días de compromiso",
+  diasCompromisoDetalle: "Detalle de días de compromiso",
+  horaEntrenamiento: "Hora de entrenamiento",
+  duracionSesion: "Duración de sesión",
+  planLugar: "Plan para",
+  materialCasa: "Material en casa",
   horasSentado: "Horas sentado al día",
   pasosDiarios: "Pasos diarios",
   diasDisponibles: "Días disponibles",
   dondeEntrena: "Dónde entrena",
   equipamientoDisponible: "Equipamiento disponible",
   lesionesDolores: "Lesiones o dolores",
+  enfermedadInfancia: "Enfermedades desde pequeño/a",
   cirugiasPrevias: "Cirugías previas",
   medicacionSuplementos: "Medicación y suplementos",
+  diabetesTipo: "Diabetes",
+  hipertensionArterial: "Hipertensión arterial",
+  enfermedadCorazon: "Enfermedad del corazón",
+  hipotiroidismo: "Hipotiroidismo",
+  colesterolTrigliceridos: "Colesterol/triglicéridos",
+  molestiasDigestivasTipo: "Molestias digestivas",
   patologias: "Patologías",
+  descansaBien: "Descansa bien",
   nivelEstres: "Nivel de estrés",
   calidadSueno: "Calidad del sueño",
   horasSueno: "Horas de sueño",
   trabajoTurnos: "Horas de trabajo por día",
   diasTrabajo: "Días de trabajo",
+  comidasPorDiaHorarios: "Comidas por día y horarios",
+  apetito: "Apetito",
+  momentoMasHambre: "Momento de más hambre",
+  preferenciasAlimentos: "Preferencias de alimentos",
+  diaTipoComidas: "Día tipo de comidas",
   desayunoHabitual: "Desayuno habitual",
   almuerzoHabitual: "Comida habitual",
   cenaHabitual: "Cena habitual",
@@ -138,8 +190,18 @@ const INTAKE_DETAIL_LABELS: Record<string, string> = {
   alcoholFrecuencia: "Frecuencia de alcohol",
   fuma: "Fuma",
   digestion: "Digestión/molestias",
+  suplementosActualesDetalle: "Suplementos actuales",
+  quiereSuplementos: "Interés en suplementos",
+  haHechoDietaAntes: "Ha hecho dieta antes",
+  dietaEnQueConsistia: "Dieta: en qué consistía",
+  dietaHaceCuanto: "Dieta: hace cuánto",
+  dietaCuantoTiempo: "Dieta: cuánto tiempo",
+  dietaQueTal: "Dieta: resultado",
   presupuestoComida: "Presupuesto comida",
   tiempoParaCocinar: "Tiempo para cocinar",
+  objetivoRendimiento: "Objetivo de rendimiento",
+  objetivoEstetico: "Objetivo estético",
+  textoLibreFinal: "Texto libre final",
   motivacionPrincipal: "Motivación principal",
   dificultadActual: "Dificultad actual",
   comentariosExtra: "Comentarios extra",
@@ -1810,14 +1872,16 @@ export default function Admin() {
             <div className="px-5 py-6 text-sm text-white/70">Aún no hay envíos del formulario.</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px]">
+              <table className="w-full min-w-[1180px]">
                 <thead className="bg-white/5 border-b border-white/10">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Nombre</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Email</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">WhatsApp</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Instagram</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Servicio</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Objetivo</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Trabajo</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Fecha</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Acciones</th>
                   </tr>
@@ -1829,7 +1893,13 @@ export default function Admin() {
                       <td className="px-4 py-3 text-sm text-white/85">{client.email || "N/A"}</td>
                       <td className="px-4 py-3 text-sm text-white/85">{client.whatsapp || "N/A"}</td>
                       <td className="px-4 py-3 text-sm text-white/85">{client.instagram || "N/A"}</td>
+                      <td className="px-4 py-3 text-sm text-white/85">{client.servicioInteres || "N/A"}</td>
                       <td className="px-4 py-3 text-sm text-white/85">{client.objetivoPrincipal || "N/A"}</td>
+                      <td className="px-4 py-3 text-sm text-white/70">
+                        {client.trabajoTurnos || client.diasTrabajo.length > 0
+                          ? `${client.trabajoTurnos || "Sin horas"}${client.diasTrabajo.length > 0 ? ` · ${client.diasTrabajo.join(", ")}` : ""}`
+                          : "N/A"}
+                      </td>
                       <td className="px-4 py-3 text-sm text-white/70">
                         {client.createdAt
                           ? new Date(client.createdAt).toLocaleString("es-ES", {
@@ -3700,15 +3770,24 @@ function IntakeClientDetailsModal({
   if (!isOpen) return null;
 
   const formData = detail?.formData || null;
-  const orderedKeys = formData
-    ? INTAKE_DETAIL_FIELD_ORDER.filter((key) => Object.prototype.hasOwnProperty.call(formData, key))
-    : [];
+  const knownKeys = Array.from(
+    new Set<string>([...INTAKE_DETAIL_FIELD_ORDER, ...Object.keys(INTAKE_DETAIL_LABELS)])
+  );
   const extraKeys = formData
     ? Object.keys(formData)
-        .filter((key) => !INTAKE_DETAIL_FIELD_ORDER.includes(key as (typeof INTAKE_DETAIL_FIELD_ORDER)[number]))
+        .filter((key) => !knownKeys.includes(key))
         .sort((a, b) => a.localeCompare(b))
     : [];
-  const keysToRender = [...orderedKeys, ...extraKeys];
+  const keysToRender = [...knownKeys, ...extraKeys];
+  const getFieldValue = (key: string): unknown => {
+    if (formData && Object.prototype.hasOwnProperty.call(formData, key)) {
+      return formData[key];
+    }
+    if (detail && Object.prototype.hasOwnProperty.call(detail, key)) {
+      return (detail as unknown as Record<string, unknown>)[key];
+    }
+    return undefined;
+  };
 
   return (
     <div
@@ -3782,7 +3861,7 @@ function IntakeClientDetailsModal({
                       {INTAKE_DETAIL_LABELS[key] || key}
                     </p>
                     <p className="text-sm text-white whitespace-pre-wrap break-words mt-0.5">
-                      {formatIntakeFieldValue(formData ? formData[key] : undefined)}
+                      {formatIntakeFieldValue(getFieldValue(key))}
                     </p>
                   </div>
                 ))

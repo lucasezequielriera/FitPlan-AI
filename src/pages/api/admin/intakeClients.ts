@@ -7,7 +7,10 @@ type IntakeClient = {
   email: string | null;
   whatsapp: string | null;
   instagram: string | null;
+  servicioInteres: string | null;
   objetivoPrincipal: string | null;
+  trabajoTurnos: string | null;
+  diasTrabajo: string[];
   status: string | null;
   createdAt: string | null;
 };
@@ -53,13 +56,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const snapshot = await db.collection("intakeClients").orderBy("createdAt", "desc").limit(100).get();
     const clients: IntakeClient[] = snapshot.docs.map((doc) => {
       const data = doc.data();
+      const formData =
+        typeof data.formData === "object" && data.formData !== null
+          ? (data.formData as Record<string, unknown>)
+          : null;
+      const fallbackDiasTrabajo = Array.isArray(formData?.diasTrabajo)
+        ? (formData?.diasTrabajo as unknown[]).filter((item): item is string => typeof item === "string")
+        : [];
       return {
         id: doc.id,
         nombreCompleto: (data.nombreCompleto as string) || null,
         email: (data.email as string) || null,
         whatsapp: (data.whatsapp as string) || null,
         instagram: (data.instagram as string) || null,
+        servicioInteres: (data.servicioInteres as string) || ((formData?.servicioInteres as string) || null),
         objetivoPrincipal: (data.objetivoPrincipal as string) || null,
+        trabajoTurnos: (data.trabajoTurnos as string) || ((formData?.trabajoTurnos as string) || null),
+        diasTrabajo: Array.isArray(data.diasTrabajo)
+          ? (data.diasTrabajo as unknown[]).filter((item): item is string => typeof item === "string")
+          : fallbackDiasTrabajo,
         status: (data.status as string) || "new",
         createdAt: toISO(data.createdAt),
       };

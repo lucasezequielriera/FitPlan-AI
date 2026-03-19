@@ -11,31 +11,54 @@ export interface IntakeFormState {
   nombreCompleto: string;
   email: string;
   whatsapp: string;
+  servicioInteres: string;
   instagram: string;
   ciudadPais: string;
   edad: string;
   sexo: string;
   alturaCm: string;
   pesoKg: string;
+  pesoObjetivoKg: string;
   objetivoPrincipal: ObjetivoPrincipal;
   objetivoSecundario: string;
   fechaObjetivo: string;
+  enfermedadInfancia: string;
   experienciaEntrenamiento: string;
   horasSentado: string;
   pasosDiarios: string;
+  diasEntrenaActualmente: string;
+  diasEntrenaActualmenteDetalle: string;
+  diasCompromisoEntrenamiento: string;
+  diasCompromisoDetalle: string;
   diasDisponibles: string[];
   minutosPorSesion: string;
+  horaEntrenamiento: string;
+  duracionSesion: string;
+  planLugar: string;
+  materialCasa: string;
   dondeEntrena: string[];
   equipamientoDisponible: string[];
   lesionesDolores: string;
   cirugiasPrevias: string;
   medicacionSuplementos: string;
+  diabetesTipo: string;
+  hipertensionArterial: string;
+  enfermedadCorazon: string;
+  hipotiroidismo: string;
+  colesterolTrigliceridos: string;
+  molestiasDigestivasTipo: string;
   patologias: string;
   nivelEstres: string;
   calidadSueno: string;
+  descansaBien: string;
   horasSueno: string;
   trabajoTurnos: string;
   diasTrabajo: string[];
+  comidasPorDiaHorarios: string;
+  apetito: string;
+  momentoMasHambre: string;
+  preferenciasAlimentos: Record<string, FoodPreference>;
+  diaTipoComidas: string;
   desayunoHabitual: string;
   almuerzoHabitual: string;
   cenaHabitual: string;
@@ -47,13 +70,25 @@ export interface IntakeFormState {
   alcoholFrecuencia: string;
   fuma: string;
   digestion: string;
+  suplementosActualesDetalle: string;
+  quiereSuplementos: string;
+  haHechoDietaAntes: string;
+  dietaEnQueConsistia: string;
+  dietaHaceCuanto: string;
+  dietaCuantoTiempo: string;
+  dietaQueTal: string;
   presupuestoComida: string;
   tiempoParaCocinar: string;
+  objetivoRendimiento: string;
+  objetivoEstetico: string;
+  textoLibreFinal: string;
   motivacionPrincipal: string;
   dificultadActual: string;
   comentariosExtra: string;
   consentimiento: boolean;
 }
+
+export type FoodPreference = "gusta" | "no_gusta";
 
 export const INTAKE_DIAS_SEMANA = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"] as const;
 export const INTAKE_LUGARES_ENTRENO = ["Gimnasio", "Casa", "Aire libre"] as const;
@@ -67,35 +102,102 @@ export const INTAKE_EQUIPAMIENTO = [
   "Sin equipamiento",
 ] as const;
 
+export const INTAKE_SERVICIOS = [
+  "Entrenamiento personal presencial",
+  "Coaching online",
+  "Solo nutrición",
+  "Pack completo",
+] as const;
+
+export const INTAKE_APETITO = ["bueno", "regular", "malo"] as const;
+export const INTAKE_PLAN_LUGAR = ["Gimnasio", "Casa", "Ambos"] as const;
+
+export const INTAKE_FOOD_GROUPS: ReadonlyArray<{
+  group: string;
+  emoji: string;
+  foods: readonly string[];
+}> = [
+  {
+    group: "Carnes",
+    emoji: "🥩",
+    foods: ["Pollo", "Pavo", "Ternera", "Cerdo", "Cordero", "Conejo", "Jamón", "Lomo", "Solomillo", "Hígado"],
+  },
+  {
+    group: "Pescados y mariscos",
+    emoji: "🐟",
+    foods: ["Salmón", "Atún", "Merluza", "Bacalao", "Lubina", "Dorada", "Sardinas", "Gambas", "Langostinos", "Mejillones", "Pulpo", "Calamares"],
+  },
+  {
+    group: "Verduras y hortalizas",
+    emoji: "🥦",
+    foods: ["Brócoli", "Espinacas", "Calabacín", "Pimiento", "Tomate", "Lechuga", "Cebolla", "Zanahoria", "Judías verdes", "Berenjena", "Coliflor", "Espárragos", "Champiñones", "Alcachofa", "Pepino"],
+  },
+  {
+    group: "Frutas",
+    emoji: "🍎",
+    foods: ["Plátano", "Manzana", "Fresas", "Naranja", "Mandarina", "Uvas", "Sandía", "Melón", "Piña", "Kiwi", "Pera", "Melocotón", "Mango", "Arándanos"],
+  },
+  {
+    group: "Otros alimentos",
+    emoji: "🍳",
+    foods: ["Arroz", "Pasta", "Pan", "Huevos", "Avena", "Patata", "Boniato", "Legumbres", "Quinoa", "Frutos secos", "Yogur", "Queso", "Leche", "Aceite de oliva", "Aguacate", "Tofu"],
+  },
+] as const;
+
+const ALL_FOOD_NAMES = new Set(INTAKE_FOOD_GROUPS.flatMap((group) => group.foods));
+
 export const INTAKE_INITIAL_STATE: IntakeFormState = {
   nombreCompleto: "",
   email: "",
   whatsapp: "",
+  servicioInteres: "",
   instagram: "",
   ciudadPais: "",
   edad: "",
   sexo: "prefiero_no_decir",
   alturaCm: "",
   pesoKg: "",
+  pesoObjetivoKg: "",
   objetivoPrincipal: "salud_general",
   objetivoSecundario: "",
   fechaObjetivo: "",
+  enfermedadInfancia: "",
   experienciaEntrenamiento: "ninguna",
   horasSentado: "",
   pasosDiarios: "",
+  diasEntrenaActualmente: "",
+  diasEntrenaActualmenteDetalle: "",
+  diasCompromisoEntrenamiento: "",
+  diasCompromisoDetalle: "",
   diasDisponibles: [],
   minutosPorSesion: "",
+  horaEntrenamiento: "",
+  duracionSesion: "",
+  planLugar: "Gimnasio",
+  materialCasa: "",
   dondeEntrena: [],
   equipamientoDisponible: [],
   lesionesDolores: "",
   cirugiasPrevias: "",
   medicacionSuplementos: "",
+  diabetesTipo: "no",
+  hipertensionArterial: "no",
+  enfermedadCorazon: "",
+  hipotiroidismo: "no",
+  colesterolTrigliceridos: "no",
+  molestiasDigestivasTipo: "no",
   patologias: "",
   nivelEstres: "medio",
   calidadSueno: "regular",
+  descansaBien: "si",
   horasSueno: "",
   trabajoTurnos: "",
   diasTrabajo: [],
+  comidasPorDiaHorarios: "",
+  apetito: "regular",
+  momentoMasHambre: "",
+  preferenciasAlimentos: {},
+  diaTipoComidas: "",
   desayunoHabitual: "",
   almuerzoHabitual: "",
   cenaHabitual: "",
@@ -107,8 +209,18 @@ export const INTAKE_INITIAL_STATE: IntakeFormState = {
   alcoholFrecuencia: "nunca",
   fuma: "no",
   digestion: "",
+  suplementosActualesDetalle: "",
+  quiereSuplementos: "",
+  haHechoDietaAntes: "no",
+  dietaEnQueConsistia: "",
+  dietaHaceCuanto: "",
+  dietaCuantoTiempo: "",
+  dietaQueTal: "",
   presupuestoComida: "",
   tiempoParaCocinar: "",
+  objetivoRendimiento: "",
+  objetivoEstetico: "",
+  textoLibreFinal: "",
   motivacionPrincipal: "",
   dificultadActual: "",
   comentariosExtra: "",
@@ -154,10 +266,19 @@ export function validateIntakeForm(payload: LoosePayload): string[] {
   const edad = numberOf(payload.edad);
   const alturaCm = numberOf(payload.alturaCm);
   const pesoKg = numberOf(payload.pesoKg);
+  const diasEntrenaActualmente = numberOf(payload.diasEntrenaActualmente);
+  const diasCompromisoEntrenamiento = numberOf(payload.diasCompromisoEntrenamiento);
   const diasDisponibles = arrayOfStrings(payload.diasDisponibles);
   const dondeEntrena = arrayOfStrings(payload.dondeEntrena);
   const equipamiento = arrayOfStrings(payload.equipamientoDisponible);
   const diasTrabajo = arrayOfStrings(payload.diasTrabajo);
+  const comidasPorDiaHorarios = stringOf(payload.comidasPorDiaHorarios);
+  const objetivoRendimiento = stringOf(payload.objetivoRendimiento);
+  const objetivoEstetico = stringOf(payload.objetivoEstetico);
+  const preferenciasAlimentos =
+    typeof payload.preferenciasAlimentos === "object" && payload.preferenciasAlimentos !== null
+      ? (payload.preferenciasAlimentos as Record<string, unknown>)
+      : {};
   const consentimiento = payload.consentimiento === true;
 
   if (!nombreCompleto) errors.push("Por favor, introduce tu nombre completo.");
@@ -195,15 +316,35 @@ export function validateIntakeForm(payload: LoosePayload): string[] {
     errors.push("El peso debe estar entre 35 y 300 kg.");
   }
 
-  if (diasDisponibles.length === 0) {
-    errors.push("Selecciona al menos un día disponible para entrenar.");
-  } else if (!isSubset(diasDisponibles, INTAKE_DIAS_SEMANA)) {
+  if (!comidasPorDiaHorarios) {
+    errors.push("Indica cuántas comidas haces al día y en qué horarios.");
+  }
+
+  if (diasEntrenaActualmente === null) {
+    errors.push("Indica cuántos días entrenas actualmente por semana.");
+  } else if (diasEntrenaActualmente < 0 || diasEntrenaActualmente > 7) {
+    errors.push("Los días que entrenas actualmente deben estar entre 0 y 7.");
+  }
+
+  if (diasCompromisoEntrenamiento === null) {
+    errors.push("Indica cuántos días te comprometes a entrenar.");
+  } else if (diasCompromisoEntrenamiento < 1 || diasCompromisoEntrenamiento > 7) {
+    errors.push("Los días de compromiso de entrenamiento deben estar entre 1 y 7.");
+  }
+
+  if (!objetivoRendimiento) {
+    errors.push("Indica qué te gustaría mejorar a nivel de rendimiento físico.");
+  }
+
+  if (!objetivoEstetico) {
+    errors.push("Indica qué te gustaría cambiar a nivel estético.");
+  }
+
+  if (diasDisponibles.length > 0 && !isSubset(diasDisponibles, INTAKE_DIAS_SEMANA)) {
     errors.push("Los días seleccionados no son válidos.");
   }
 
-  if (dondeEntrena.length === 0) {
-    errors.push("Selecciona dónde puede entrenar la persona.");
-  } else if (!isSubset(dondeEntrena, INTAKE_LUGARES_ENTRENO)) {
+  if (dondeEntrena.length > 0 && !isSubset(dondeEntrena, INTAKE_LUGARES_ENTRENO)) {
     errors.push("Los lugares de entrenamiento seleccionados no son válidos.");
   }
 
@@ -213,6 +354,14 @@ export function validateIntakeForm(payload: LoosePayload): string[] {
 
   if (diasTrabajo.length > 0 && !isSubset(diasTrabajo, INTAKE_DIAS_SEMANA)) {
     errors.push("Los días de trabajo seleccionados no son válidos.");
+  }
+
+  const invalidFoodPreference = Object.entries(preferenciasAlimentos).find(([food, pref]) => {
+    const validPreference = pref === "gusta" || pref === "no_gusta";
+    return !ALL_FOOD_NAMES.has(food) || !validPreference;
+  });
+  if (invalidFoodPreference) {
+    errors.push("Las preferencias de alimentos contienen valores no válidos.");
   }
 
   if (!consentimiento) {
