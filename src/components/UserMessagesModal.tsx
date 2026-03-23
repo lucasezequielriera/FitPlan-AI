@@ -37,9 +37,21 @@ export default function UserMessagesModal({
 
   useEffect(() => {
     if (isOpen && userId) {
-      loadMessages();
+      loadMessages(false);
     }
   }, [isOpen, userId]);
+
+  // Polling silencioso para ver mensajes/respuestas en vivo sin refrescar la página
+  useEffect(() => {
+    if (!isOpen || !userId) return;
+
+    const interval = setInterval(() => {
+      loadMessages(true);
+      onMessagesUpdate();
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [isOpen, userId, onMessagesUpdate]);
 
   // Reordenar mensajes cuando cambian
   useEffect(() => {
@@ -121,9 +133,11 @@ export default function UserMessagesModal({
     });
   };
 
-  const loadMessages = async () => {
+  const loadMessages = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) {
+        setLoading(true);
+      }
       const response = await fetch(`/api/user/messages?userId=${userId}`);
       if (!response.ok) throw new Error("Error al cargar mensajes");
       const data = await response.json();
@@ -132,7 +146,9 @@ export default function UserMessagesModal({
     } catch (error) {
       console.error("Error al cargar mensajes:", error);
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 

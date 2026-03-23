@@ -838,7 +838,7 @@ function MessagesModal({
 
   useEffect(() => {
     if (isOpen && adminUserId) {
-      loadMessages();
+      loadMessages(false);
     }
   }, [isOpen, adminUserId]);
 
@@ -847,7 +847,7 @@ function MessagesModal({
     if (!isOpen || !adminUserId) return;
     
     const interval = setInterval(() => {
-      loadMessages();
+      loadMessages(true);
       onMessagesUpdate(); // Actualizar contador también
     }, 15000); // Cada 15 segundos (menos frecuente para reducir re-renders)
     
@@ -925,9 +925,11 @@ function MessagesModal({
     });
   };
 
-  const loadMessages = async () => {
+  const loadMessages = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) {
+        setLoading(true);
+      }
       const response = await fetch(`/api/admin/messages?adminUserId=${adminUserId}`);
       if (!response.ok) throw new Error("Error al cargar mensajes");
       const data = await response.json();
@@ -936,7 +938,9 @@ function MessagesModal({
     } catch (error) {
       console.error("Error al cargar mensajes:", error);
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 
