@@ -396,13 +396,13 @@ export default function Admin() {
       expiresAt = convertTimestampToDate(user.premiumExpiresAt);
     }
 
-    // Si no hay fecha de vencimiento o está vencida pero el status es "active",
-    // recalcular basándose en el planType actual (puede ser que se acaba de activar)
-    if (!expiresAt || (expiresAt && expiresAt.getTime() < now.getTime() && user.premiumStatus === "active")) {
-      // Si el status es "active" pero la fecha está vencida, recalcular desde ahora
-      if (user.premiumStatus === "active") {
+    // Si falta premiumExpiresAt, fallback a premiumLastPay + planType.
+    // Importante: no recalcular nunca desde "ahora", porque distorsiona los días restantes.
+    if (!expiresAt && user.premiumLastPay) {
+      const lastPayDate = convertTimestampToDate(user.premiumLastPay);
+      if (lastPayDate) {
+        expiresAt = new Date(lastPayDate);
         const planType = user.premiumPlanType || "monthly";
-        expiresAt = new Date(now);
         switch (planType) {
           case "monthly":
             expiresAt.setMonth(expiresAt.getMonth() + 1);
@@ -413,30 +413,6 @@ export default function Admin() {
           case "annual":
             expiresAt.setFullYear(expiresAt.getFullYear() + 1);
             break;
-        }
-        console.log("🔄 Recalculando fecha de vencimiento para usuario activo:", {
-          userId: user.id,
-          email: user.email,
-          planType,
-          nuevaFecha: expiresAt.toISOString()
-        });
-      } else if (user.premiumLastPay) {
-        // Fallback: calcular basado en premiumLastPay y planType
-        const lastPayDate = convertTimestampToDate(user.premiumLastPay);
-        if (lastPayDate) {
-          expiresAt = new Date(lastPayDate);
-          const planType = user.premiumPlanType || "monthly";
-          switch (planType) {
-            case "monthly":
-              expiresAt.setMonth(expiresAt.getMonth() + 1);
-              break;
-            case "quarterly":
-              expiresAt.setMonth(expiresAt.getMonth() + 3);
-              break;
-            case "annual":
-              expiresAt.setFullYear(expiresAt.getFullYear() + 1);
-              break;
-          }
         }
       }
     }
@@ -452,47 +428,27 @@ export default function Admin() {
           daysUntilExpiry: null
         };
       }
-      // Si el status es active pero no hay fecha, calcular desde ahora
-      const planType = user.premiumPlanType || "monthly";
-      expiresAt = new Date(now);
-      switch (planType) {
-        case "monthly":
-          expiresAt.setMonth(expiresAt.getMonth() + 1);
-          break;
-        case "quarterly":
-          expiresAt.setMonth(expiresAt.getMonth() + 3);
-          break;
-        case "annual":
-          expiresAt.setFullYear(expiresAt.getFullYear() + 1);
-          break;
-      }
+      // Si no hay fechas confiables, evitar inventar una para no mostrar días incorrectos.
+      return {
+        status: "unpaid",
+        label: "Sin Fecha",
+        color: "red",
+        expiresAt: null,
+        daysUntilExpiry: null
+      };
     }
 
     const diffTime = expiresAt.getTime() - now.getTime();
     const daysUntilExpiry = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-    // Si ya venció Y el status no es "active", entonces está vencido
-    // Si el status es "active", considerar como activo aunque la fecha esté vencida
-    // (puede ser que se acaba de activar y la fecha aún no se actualizó en la DB)
-    if (daysUntilExpiry < 0 && user.premiumStatus !== "active") {
+    // Si ya venció, mostrar vencido sin excepciones para mantener precisión del tooltip.
+    if (daysUntilExpiry < 0) {
       return { 
         status: "expired", 
         label: "Vencido", 
         color: "red",
         expiresAt,
         daysUntilExpiry
-      };
-    }
-    
-    // Si el status es "active", siempre mostrar como activo aunque la fecha esté vencida
-    // (la fecha se actualizará en la próxima recarga)
-    if (user.premiumStatus === "active" && daysUntilExpiry < 0) {
-      return { 
-        status: "paid", 
-        label: "Activo", 
-        color: "green",
-        expiresAt,
-        daysUntilExpiry: 0 // Mostrar como 0 días aunque esté vencida temporalmente
       };
     }
 
