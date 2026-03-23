@@ -1,9 +1,40 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getDbSafe } from "@/lib/firebase";
-import { collection, doc, updateDoc, serverTimestamp, getDoc, Timestamp } from "firebase/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
-import { FieldValue, Timestamp as AdminTimestamp } from "firebase-admin/firestore";
+import { FieldValue, Timestamp as AdminTimestamp, type Firestore } from "firebase-admin/firestore";
 import { sendTelegramMessage, formatPaymentMessage } from "@/lib/telegram";
+
+async function sendPremiumWelcomeChatMessage(params: {
+  userId: string;
+  nombre: string | null;
+  userName: string | null;
+  userEmail: string | null;
+  db: Firestore;
+}): Promise<void> {
+  const nombreCliente = params.nombre?.trim() || "Cliente";
+  await params.db.collection("mensajes").add({
+    userId: params.userId,
+    userName: params.userName || null,
+    userEmail: params.userEmail || null,
+    subject: "Bienvenido a Premium",
+    message: "Iniciado automáticamente tras pago premium",
+    read: true,
+    replied: true,
+    closed: false,
+    initiatedByAdmin: true,
+    userRead: false,
+    replies: [
+      {
+        message: `Hola ${nombreCliente}, ¡bienvenido a FitPlan Premium! Ya activamos tu acceso premium. Si necesitas ayuda para empezar, escríbenos por este chat y te acompañamos.`,
+        senderName: "admin",
+        senderType: "admin",
+        createdAt: new Date(),
+      },
+    ],
+    createdAt: FieldValue.serverTimestamp(),
+    lastReplyAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -83,33 +114,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         
         console.log(`📅 Plan ${planType} - Vencimiento calculado: ${expiresAt.toISOString()}`);
 
-        const db = getDbSafe();
-        if (!db) {
-          console.error("❌ Firestore no configurado");
+        const adminDb = getAdminDb();
+        if (!adminDb) {
+          console.error("❌ Firebase Admin SDK no configurado");
           return res.status(200).json({ received: true });
         }
 
         // Actualizar el estado premium del usuario
-        const userRef = doc(collection(db, "usuarios"), userId);
-        
+        const userRef = adminDb.collection("usuarios").doc(userId);
+
         // Verificar que el documento existe antes de actualizar
-        const userDoc = await getDoc(userRef);
-        if (!userDoc.exists()) {
+        const userDoc = await userRef.get();
+        if (!userDoc.exists) {
           console.error(`❌ Usuario ${userId} no existe en la base de datos`);
           return res.status(200).json({ received: true });
         }
 
-        const wasPremium = userDoc.data()?.premium === true;
-        
-        // Usar Admin SDK para crear el pago en la colección pagos
-        const adminDb = getAdminDb();
-        
-        if (adminDb) {
-          // Crear el pago en la colección pagos
-          // Usar date_approved de MercadoPago o la fecha actual como fallback
+        const userData = userDoc.data() || {};
+        const wasPremium = userData.premium === true;
+        const welcomeAlreadySent = typeof userData.premiumWelcomeChatSentAt !== "undefined";
+
+        // Guardar pago en colección pagos de forma idempotente
+        const existingPayment = await adminDb
+          .collection("pagos")
+          .where("mercadopagoPaymentId", "==", String(paymentId))
+          .limit(1)
+          .get();
+        if (existingPayment.empty) {
           const paymentDate = payment.date_approved ? new Date(payment.date_approved) : new Date();
-          
-          const paymentData = {
+          await adminDb.collection("pagos").add({
             userId: userId,
             amount: payment.transaction_amount,
             currency: payment.currency_id || "ARS",
@@ -123,68 +156,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             isManual: false,
             createdAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp(),
-          };
-          
-          try {
-            await adminDb.collection("pagos").add(paymentData);
-            console.log(`✅ Pago guardado en colección pagos. ID: ${paymentId}, Usuario: ${userId}, Monto: ${payment.transaction_amount} ${payment.currency_id || "ARS"}`);
-          } catch (paymentError) {
-            console.error(`❌ Error al guardar pago en colección pagos:`, paymentError);
-            // Continuar con la actualización del usuario aunque falle el guardado en pagos
-          }
+          });
+          console.log(`✅ Pago guardado en colección pagos. ID: ${paymentId}, Usuario: ${userId}, Monto: ${payment.transaction_amount} ${payment.currency_id || "ARS"}`);
         } else {
-          console.warn("⚠️ Admin SDK no disponible, el pago no se guardará en la colección pagos");
+          console.log(`ℹ️ Pago MP ${paymentId} ya existía en colección pagos, se omite duplicado.`);
         }
         
         // Crear registro de pago premium bien estructurado
-        const premiumData: {
-          premium: boolean;
-          premiumStatus: string;
-          premiumLastPay: ReturnType<typeof serverTimestamp>;
-          premiumExpiresAt: ReturnType<typeof Timestamp.fromDate>; // Fecha de vencimiento del plan como Timestamp
-          premiumPlanType: string; // Tipo de plan: monthly, quarterly, annual
-          premiumPayment: {
-            paymentId: string | number;
-            amount: number;
-            currency: string;
-            date: ReturnType<typeof serverTimestamp>;
-            method: string;
-            status: string;
-            planType: string;
-          };
-          updatedAt: ReturnType<typeof serverTimestamp>;
-          premiumSince?: ReturnType<typeof serverTimestamp>;
-        } = {
+        const premiumData: Record<string, unknown> = {
           premium: true,
-          premiumStatus: "active", // active, expired, cancelled
-          premiumLastPay: serverTimestamp(), // Fecha del último pago completado
-          premiumExpiresAt: Timestamp.fromDate(expiresAt), // Fecha de vencimiento calculada como Timestamp de Firestore
-          premiumPlanType: planType || "monthly", // Tipo de plan
+          premiumStatus: "active",
+          premiumLastPay: FieldValue.serverTimestamp(),
+          premiumExpiresAt: AdminTimestamp.fromDate(expiresAt),
+          premiumPlanType: planType || "monthly",
           premiumPayment: {
             paymentId: paymentId,
             amount: payment.transaction_amount,
             currency: payment.currency_id || "ARS",
-            date: serverTimestamp(),
+            date: FieldValue.serverTimestamp(),
             method: payment.payment_method_id || "unknown",
             status: payment.status,
             planType: planType || "monthly",
           },
-          updatedAt: serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
         };
 
         // Solo agregar premiumSince si no era premium antes
         if (!wasPremium) {
-          premiumData.premiumSince = serverTimestamp();
+          premiumData.premiumSince = FieldValue.serverTimestamp();
         }
         
         try {
-          // Intentar actualizar primero
-          await updateDoc(userRef, premiumData);
+          await userRef.set(premiumData, { merge: true });
           console.log(`✅ Usuario ${userId} actualizado a premium. Pago ID: ${paymentId}, Monto: ${payment.transaction_amount} ${payment.currency_id || "ARS"}`);
           
           // Enviar notificación a Telegram
           try {
-            const userData = userDoc.data();
             const message = formatPaymentMessage({
               nombre: userData?.nombre || null,
               email: userData?.email || null,
@@ -201,6 +208,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             });
           } catch (telegramError) {
             console.warn("⚠️ Error al enviar notificación de pago a Telegram:", telegramError);
+          }
+
+          if (!wasPremium || !welcomeAlreadySent) {
+            try {
+              await sendPremiumWelcomeChatMessage({
+                userId,
+                nombre: typeof userData?.nombre === "string" ? userData.nombre : null,
+                userName: typeof userData?.nombre === "string" ? userData.nombre : null,
+                userEmail: typeof userData?.email === "string" ? userData.email : null,
+                db: adminDb,
+              });
+              await userRef.set({ premiumWelcomeChatSentAt: FieldValue.serverTimestamp() }, { merge: true });
+              console.log(`✅ Mensaje de bienvenida premium enviado por chat a user ${userId}`);
+            } catch (chatError) {
+              console.warn("⚠️ No se pudo enviar mensaje de bienvenida premium por chat:", chatError);
+            }
           }
           
           // Registrar ganancia mensual en la colección admin
@@ -251,22 +274,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         } catch (error: unknown) {
           console.error(`❌ Error al actualizar usuario ${userId} a premium:`, error);
-          const errorCode = error && typeof error === 'object' && 'code' in error ? error.code : 'unknown';
-          console.error(`Código del error:`, errorCode);
-          
-          // Si falla updateDoc (permisos o documento no existe), intentar con setDoc
-          if (errorCode === 'permission-denied' || errorCode === 'not-found') {
-            try {
-              const { setDoc } = await import("firebase/firestore");
-              await setDoc(userRef, premiumData, { merge: true });
-              console.log(`✅ Usuario ${userId} actualizado a premium usando setDoc como fallback`);
-            } catch (setError) {
-              console.error(`❌ Error crítico al actualizar con setDoc:`, setError);
-              // No lanzar error, solo loguear - el webhook debe responder 200
-            }
-          } else {
-            console.error(`❌ Error desconocido:`, error);
-          }
         }
       } else {
         console.log(`⚠️ Pago ${paymentId} no está aprobado aún. Estado: ${payment.status}, Detail: ${payment.status_detail}`);
