@@ -32,6 +32,13 @@ interface User {
   premiumPayment: unknown;
   ciudad?: string | null;
   pais?: string | null;
+  personalTrainerAssigned?: boolean;
+  personalTrainerName?: string | null;
+  personalTrainerWhatsapp?: string | null;
+  personalTrainerAssignedAt?: unknown;
+  personalTrainerRequestNote?: string | null;
+  personalTrainerPreference?: "hombre" | "mujer" | null;
+  personalTrainerFocus?: string | null;
 }
 
 interface IntakeClient {
@@ -315,6 +322,9 @@ export default function Admin() {
       document.removeEventListener('touchstart', handleClickOutside);
     };
   }, [tooltipOpenUserId, locationTooltipOpenUserId, statusTooltipOpenUserId]);
+  useEffect(() => {
+    setAssignedTrainerVisibleCount(12);
+  }, [trainerPreferenceFilter]);
   const [deleting, setDeleting] = useState(false);
   const [totalUsers, setTotalUsers] = useState<number>(0);
   const [premiumUsers, setPremiumUsers] = useState<number>(0);
@@ -341,6 +351,8 @@ export default function Admin() {
   const [newUsersList, setNewUsersList] = useState<Array<{ id: string; nombre: string | null; email: string | null; createdAt?: string | null }>>([]);
   const [newUserIds, setNewUserIds] = useState<string[]>([]);
   const [markingNewUsersSeen, setMarkingNewUsersSeen] = useState(false);
+  const [trainerPreferenceFilter, setTrainerPreferenceFilter] = useState<"all" | "hombre" | "mujer">("all");
+  const [assignedTrainerVisibleCount, setAssignedTrainerVisibleCount] = useState(12);
   
   // Estadísticas de ganancias
   const [revenueStats, setRevenueStats] = useState({
@@ -1566,6 +1578,16 @@ export default function Admin() {
     );
   }
 
+  const assignedTrainerUsers = users.filter(
+    (user) => user.email?.toLowerCase() !== "admin@fitplan-ai.com" && user.personalTrainerAssigned === true
+  );
+  const filteredAssignedTrainerUsers = assignedTrainerUsers.filter((user) => {
+    if (trainerPreferenceFilter === "all") return true;
+    return user.personalTrainerPreference === trainerPreferenceFilter;
+  });
+  const visibleAssignedTrainerUsers = filteredAssignedTrainerUsers.slice(0, assignedTrainerVisibleCount);
+  const hasMoreAssignedTrainerUsers = filteredAssignedTrainerUsers.length > assignedTrainerVisibleCount;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900">
       <Navbar />
@@ -1651,6 +1673,123 @@ export default function Admin() {
             </ul>
           </motion.div>
         )}
+
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8 p-6 rounded-xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/20 to-cyan-500/10 backdrop-blur-sm"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-white">Usuarios con entrenador asignado</h2>
+            <div className="flex items-center gap-2">
+              <div className="inline-flex rounded-lg border border-white/20 bg-black/20 p-1 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setTrainerPreferenceFilter("all")}
+                  className={`px-2 py-1 rounded-md transition-colors ${
+                    trainerPreferenceFilter === "all" ? "bg-white/20 text-white" : "text-white/70 hover:text-white"
+                  }`}
+                >
+                  Todos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTrainerPreferenceFilter("hombre")}
+                  className={`px-2 py-1 rounded-md transition-colors ${
+                    trainerPreferenceFilter === "hombre" ? "bg-cyan-500/30 text-cyan-100" : "text-white/70 hover:text-white"
+                  }`}
+                >
+                  Hombre
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTrainerPreferenceFilter("mujer")}
+                  className={`px-2 py-1 rounded-md transition-colors ${
+                    trainerPreferenceFilter === "mujer" ? "bg-fuchsia-500/30 text-fuchsia-100" : "text-white/70 hover:text-white"
+                  }`}
+                >
+                  Mujer
+                </button>
+              </div>
+              <span className="px-3 py-1 rounded-full text-xs font-medium bg-white/10 border border-white/20 text-white/85">
+                {filteredAssignedTrainerUsers.length} usuarios
+              </span>
+            </div>
+          </div>
+
+          {filteredAssignedTrainerUsers.length === 0 ? (
+            <p className="mt-3 text-sm text-white/70">
+              Aun no hay solicitudes de entrenador personal humano.
+            </p>
+          ) : (
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              {visibleAssignedTrainerUsers.map((user) => (
+                <div
+                  key={user.id}
+                  className="rounded-lg border border-white/15 bg-black/20 p-3 text-sm text-white/85"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-medium text-white">{user.nombre || user.email || user.id}</p>
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[11px] border ${
+                        user.personalTrainerPreference === "mujer"
+                          ? "bg-fuchsia-500/20 border-fuchsia-400/40 text-fuchsia-100"
+                          : user.personalTrainerPreference === "hombre"
+                            ? "bg-cyan-500/20 border-cyan-400/40 text-cyan-100"
+                            : "bg-white/10 border-white/25 text-white/80"
+                      }`}
+                    >
+                      {user.personalTrainerPreference === "mujer"
+                        ? "Entrenadora"
+                        : user.personalTrainerPreference === "hombre"
+                          ? "Entrenador"
+                          : "Sin preferencia"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-white/60">{user.email || "Sin email"}</p>
+                  {user.personalTrainerRequestNote && (
+                    <p className="mt-2 text-xs text-white/75 line-clamp-3">
+                      Motivo: {user.personalTrainerRequestNote}
+                    </p>
+                  )}
+                  {(user.personalTrainerPreference || user.personalTrainerFocus) && (
+                    <p className="mt-1 text-xs text-white/70 line-clamp-2">
+                      Preferencia: {user.personalTrainerPreference || "N/A"} | Enfoque: {user.personalTrainerFocus || "N/A"}
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => window.open("https://wa.me/34627043397", "_blank", "noopener,noreferrer")}
+                    className="mt-3 w-full px-3 py-1.5 rounded-lg bg-emerald-500/25 border border-emerald-400/40 text-emerald-100 hover:bg-emerald-500/35 transition-colors"
+                  >
+                    Contactar por WhatsApp
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {filteredAssignedTrainerUsers.length > 12 && (
+            <div className="mt-4 flex items-center justify-center gap-2">
+              {hasMoreAssignedTrainerUsers ? (
+                <button
+                  type="button"
+                  onClick={() => setAssignedTrainerVisibleCount((prev) => prev + 12)}
+                  className="px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white/90 hover:bg-white/20 transition-colors text-sm"
+                >
+                  Ver más
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setAssignedTrainerVisibleCount(12)}
+                  className="px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white/90 hover:bg-white/20 transition-colors text-sm"
+                >
+                  Ver menos
+                </button>
+              )}
+            </div>
+          )}
+        </motion.div>
 
         {/* Panel de Estadísticas de Ganancias */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">

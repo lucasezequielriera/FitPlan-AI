@@ -82,6 +82,14 @@ export default function Dashboard() {
   const [premiumModalOpen, setPremiumModalOpen] = useState(false);
   const [continuityModalOpen, setContinuityModalOpen] = useState(false);
   const [planForContinuity, setPlanForContinuity] = useState<SavedPlan | null>(null);
+  const [personalTrainerModalOpen, setPersonalTrainerModalOpen] = useState(false);
+  const [personalTrainerLoading, setPersonalTrainerLoading] = useState(false);
+  const [personalTrainerAssigned, setPersonalTrainerAssigned] = useState(false);
+  const [personalTrainerNotice, setPersonalTrainerNotice] = useState<string | null>(null);
+  const [personalTrainerReason, setPersonalTrainerReason] = useState("");
+  const [trainerPreference, setTrainerPreference] = useState<"hombre" | "mujer" | null>(null);
+
+  const trainerWhatsappUrl = "https://wa.me/34627043397";
 
   useEffect(() => {
     setMounted(true);
@@ -126,9 +134,55 @@ export default function Dashboard() {
       if (userDoc.exists()) {
         const userData = userDoc.data();
         setIsPremium(userData.premium === true);
+        setPersonalTrainerAssigned(userData.personalTrainerAssigned === true);
       }
     } catch (error) {
       console.error("Error al verificar estado premium:", error);
+    }
+  };
+
+  const handleRequestPersonalTrainer = async () => {
+    try {
+      const auth = getAuthSafe();
+      if (!auth?.currentUser) return;
+      setPersonalTrainerLoading(true);
+      setPersonalTrainerNotice(null);
+
+      const token = await auth.currentUser.getIdToken();
+      const response = await fetch("/api/request-personal-trainer", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          requestNote: personalTrainerReason.trim() || null,
+          trainerPreference,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data?.error || "No se pudo procesar la solicitud.");
+      }
+
+      setPersonalTrainerAssigned(true);
+      setPersonalTrainerModalOpen(false);
+      setPersonalTrainerReason("");
+      setTrainerPreference(null);
+      if (data?.alreadyAssigned) {
+        setPersonalTrainerNotice("Ya tenías entrenador asignado. Puedes contactar con tu entrenador por WhatsApp.");
+      } else {
+        setPersonalTrainerNotice(
+          `Listo. Te asignamos ${data?.trainer?.name || "tu entrenador"} para acompañarte en tu objetivo.`
+        );
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "No se pudo procesar la solicitud.";
+      setPersonalTrainerNotice(message);
+    } finally {
+      setPersonalTrainerLoading(false);
     }
   };
 
@@ -419,9 +473,31 @@ export default function Dashboard() {
           >
             <div className="mb-4 sm:mb-6">
               <div className="mb-4 sm:mb-6">
-                <h1 className="text-2xl sm:text-3xl font-bold mb-1 sm:mb-2">Mi Dashboard</h1>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <h1 className="text-2xl sm:text-3xl font-bold mb-1 sm:mb-2">Mi Dashboard</h1>
+                  {personalTrainerAssigned ? (
+                    <button
+                      onClick={() => window.open(trainerWhatsappUrl, "_blank", "noopener,noreferrer")}
+                      className="px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white text-sm font-medium transition-all shadow-lg shadow-emerald-500/20"
+                    >
+                      Contactar con mi entrenador
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setPersonalTrainerModalOpen(true)}
+                      className="px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-500 to-blue-500 hover:from-indigo-600 hover:to-blue-600 text-white text-sm font-medium transition-all shadow-lg shadow-indigo-500/20"
+                    >
+                      Pedir Entrenador Personal humano
+                    </button>
+                  )}
+                </div>
                 <p className="text-sm sm:text-base opacity-70">Gestiona tus planes nutricionales guardados</p>
               </div>
+              {personalTrainerNotice && (
+                <div className="mb-4 rounded-lg border border-cyan-500/30 bg-cyan-500/10 p-3 text-sm text-cyan-200">
+                  {personalTrainerNotice}
+                </div>
+              )}
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
                 {!isPremium && (
                   <button
@@ -1108,6 +1184,115 @@ export default function Dashboard() {
         </AnimatePresence>,
         document.body
       )}
+
+      <AnimatePresence>
+        {personalTrainerModalOpen && (
+          <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+              onClick={() => setPersonalTrainerModalOpen(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 12 }}
+              className="relative z-10 w-full max-w-3xl rounded-xl border border-white/10 bg-black/95 p-4 sm:p-6 shadow-2xl"
+            >
+              <h2 className="text-xl font-semibold text-white">Entrenador personal humano</h2>
+              <p className="mt-3 text-sm text-white/80">
+                Puedes asesorarte y tener seguimiento de un entrenador personal certificado
+                tanto en entrenamiento como en nutrición.
+              </p>
+              <p className="mt-2 text-xs text-white/60">
+                Si ahora no quieres, puedes pedirlo más adelante por este botón o por el chat del usuario.
+              </p>
+              <div className="mt-5">
+                <p className="text-sm font-medium text-white">Elige tu tipo de entrenador</p>
+                <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setTrainerPreference("hombre")}
+                    className={`rounded-xl border p-4 text-left transition-all ${
+                      trainerPreference === "hombre"
+                        ? "border-cyan-400 bg-cyan-500/15 shadow-lg shadow-cyan-500/20"
+                        : "border-white/15 bg-white/5 hover:bg-white/10"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-white">Entrenador hombre</p>
+                      <span className="text-[11px] text-cyan-200 bg-cyan-500/20 border border-cyan-400/30 px-2 py-0.5 rounded-full">
+                        Muy solicitado
+                      </span>
+                    </div>
+                    <p className="mt-2 text-xs text-white/75">
+                      Especialista en <span className="font-semibold text-white">hipertrofia</span> y
+                      <span className="font-semibold text-white"> rendimiento deportivo</span>.
+                    </p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTrainerPreference("mujer")}
+                    className={`rounded-xl border p-4 text-left transition-all ${
+                      trainerPreference === "mujer"
+                        ? "border-fuchsia-400 bg-fuchsia-500/15 shadow-lg shadow-fuchsia-500/20"
+                        : "border-white/15 bg-white/5 hover:bg-white/10"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-white">Entrenadora mujer</p>
+                      <span className="text-[11px] text-fuchsia-200 bg-fuchsia-500/20 border border-fuchsia-400/30 px-2 py-0.5 rounded-full">
+                        Top tendencia
+                      </span>
+                    </div>
+                    <p className="mt-2 text-xs text-white/75">
+                      Especialista en <span className="font-semibold text-white">entrenamiento funcional</span>,
+                      <span className="font-semibold text-white"> alto rendimiento</span> y
+                      <span className="font-semibold text-white"> recomposición corporal</span>.
+                    </p>
+                  </button>
+                </div>
+              </div>
+              <label className="mt-4 block text-xs text-white/70">
+                Cuéntanos tu objetivo principal (opcional)
+              </label>
+              <textarea
+                value={personalTrainerReason}
+                onChange={(e) => setPersonalTrainerReason(e.target.value)}
+                maxLength={500}
+                rows={3}
+                className="mt-2 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                placeholder="Ej: bajar grasa, ganar masa muscular, mejorar rendimiento, etc."
+              />
+              <p className="mt-1 text-[11px] text-white/40">{personalTrainerReason.length}/500</p>
+
+              <div className="mt-6 flex flex-col sm:flex-row gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPersonalTrainerModalOpen(false);
+                    setPersonalTrainerReason("");
+                    setTrainerPreference(null);
+                  }}
+                  className="flex-1 px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-white text-sm transition-colors"
+                >
+                  No, gracias
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRequestPersonalTrainer}
+                  disabled={personalTrainerLoading || !trainerPreference}
+                  className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-500 to-blue-500 hover:from-indigo-600 hover:to-blue-600 text-white text-sm font-medium transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {personalTrainerLoading ? "Procesando..." : "Sí, quiero"}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
