@@ -3,6 +3,12 @@
     "src/pages/api/generatePlan.ts": {
       "maxDuration": 150
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/expirePremium",
+      "schedule": "0 3 * * *"
+    }
+  ]
 }
 

@@ -51,6 +51,18 @@ export default function Navbar() {
           return;
         }
 
+        try {
+          const token = await auth.currentUser.getIdToken();
+          await fetch("/api/premium/checkExpiration", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+        } catch (expireCheckError) {
+          console.warn("No se pudo verificar expiración premium desde navbar:", expireCheckError);
+        }
+
         // Verificar planes
         const q = query(
           collection(db, "planes"),

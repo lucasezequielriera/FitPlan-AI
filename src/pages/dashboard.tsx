@@ -108,6 +108,18 @@ export default function Dashboard() {
       const auth = getAuthSafe();
       if (!db || !auth?.currentUser) return;
 
+      try {
+        const token = await auth.currentUser.getIdToken();
+        await fetch("/api/premium/checkExpiration", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+      } catch (expireCheckError) {
+        console.warn("No se pudo verificar expiración premium desde dashboard:", expireCheckError);
+      }
+
       const userRef = doc(db, "usuarios", auth.currentUser.uid);
       const userDoc = await getDoc(userRef);
       
