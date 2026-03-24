@@ -5,7 +5,7 @@ import { getAdminAuth, getAdminDb } from "@/lib/firebase-admin";
 
 const DESTINATION_EMAIL = "lucasezequielriera@gmail.com";
 const MALE_TRAINER_NAME = "Lucas";
-const FEMALE_TRAINER_NAME = "Entrenadora del equipo FitPlan";
+const FEMALE_TRAINER_NAME = "Sandra";
 const TRAINER_WHATSAPP = "+34 627043397";
 
 async function sendPersonalTrainerChatMessage(params: {
@@ -19,23 +19,25 @@ async function sendPersonalTrainerChatMessage(params: {
   db: Firestore;
 }) {
   const nombreCliente = params.nombre?.trim() || "Cliente";
-  const noteLine = params.note ? `\nMotivo del usuario: ${params.note}` : "";
+  const noteLine = params.note ? `\nMe contaste este objetivo: ${params.note}` : "";
+  const trainerRoleLabel = params.trainerPreference === "mujer" ? "Entrenadora" : "Entrenador";
+  const trainerChatTitle = `${params.trainerName} (${trainerRoleLabel})`;
 
   await params.db.collection("mensajes").add({
     userId: params.userId,
     userName: params.nombre || null,
     userEmail: params.userEmail || null,
-    subject: "Entrenador personal solicitado",
-    message: "Iniciado automáticamente desde dashboard",
-    read: true,
+    subject: trainerChatTitle,
+    message: "Solicitud de entrenador personal",
+    read: false,
     replied: true,
     closed: false,
     initiatedByAdmin: true,
     userRead: false,
     replies: [
       {
-        message: `Hola ${nombreCliente}, soy ${params.trainerName}. Vi que pediste entrenador personal humano. Tu preferencia fue entrenador ${params.trainerPreference}. Area principal: ${params.trainerFocus}. Puedes escribirme por WhatsApp al ${TRAINER_WHATSAPP}.${noteLine}`,
-        senderName: "admin",
+        message: `Hola ${nombreCliente}, soy ${params.trainerName}, tu entrenador${params.trainerPreference === "mujer" ? "a" : ""} de FitPlan. A partir de ahora te voy a acompañar de forma personalizada con foco en ${params.trainerFocus}. Si te parece, podemos empezar hoy mismo.${noteLine}\n\nPuedes hablarme por este mismo chat cuando quieras, o escribirme por WhatsApp: ${TRAINER_WHATSAPP}`,
+        senderName: params.trainerName,
         senderType: "admin",
         createdAt: new Date(),
       },

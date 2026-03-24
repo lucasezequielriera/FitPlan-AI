@@ -174,7 +174,7 @@ export default function Dashboard() {
         setPersonalTrainerNotice("Ya tenías entrenador asignado. Puedes contactar con tu entrenador por WhatsApp.");
       } else {
         setPersonalTrainerNotice(
-          `Listo. Te asignamos ${data?.trainer?.name || "tu entrenador"} para acompañarte en tu objetivo.`
+          `Listo. Te asignamos a ${data?.trainer?.name || "tu entrenador"} para acompañarte en tu objetivo.`
         );
       }
     } catch (error) {

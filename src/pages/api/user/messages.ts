@@ -74,11 +74,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return dateB - dateA; // Orden descendente
     });
 
-    // Limitar a 50 mensajes más recientes
-    const limitedMessages = messages.slice(0, 50);
+    // Contar mensajes con respuestas no leídas sobre todos los mensajes
+    // (no solo los 50 visibles) para que el icono del navbar sea confiable.
+    const unreadRepliesCount = messages.filter(m => m.replied && !m.userRead).length;
 
-    // Contar mensajes con respuestas no leídas
-    const unreadRepliesCount = limitedMessages.filter(m => m.replied && !m.userRead).length;
+    // Limitar a 50 mensajes más recientes para la lista visible
+    const limitedMessages = messages.slice(0, 50);
 
     return res.status(200).json({
       messages: limitedMessages,
