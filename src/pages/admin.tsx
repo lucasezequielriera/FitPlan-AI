@@ -322,9 +322,6 @@ export default function Admin() {
       document.removeEventListener('touchstart', handleClickOutside);
     };
   }, [tooltipOpenUserId, locationTooltipOpenUserId, statusTooltipOpenUserId]);
-  useEffect(() => {
-    setAssignedTrainerVisibleCount(12);
-  }, [trainerPreferenceFilter]);
   const [deleting, setDeleting] = useState(false);
   const [totalUsers, setTotalUsers] = useState<number>(0);
   const [premiumUsers, setPremiumUsers] = useState<number>(0);
@@ -353,6 +350,9 @@ export default function Admin() {
   const [markingNewUsersSeen, setMarkingNewUsersSeen] = useState(false);
   const [trainerPreferenceFilter, setTrainerPreferenceFilter] = useState<"all" | "hombre" | "mujer">("all");
   const [assignedTrainerVisibleCount, setAssignedTrainerVisibleCount] = useState(12);
+  useEffect(() => {
+    setAssignedTrainerVisibleCount(12);
+  }, [trainerPreferenceFilter]);
   
   // Estadísticas de ganancias
   const [revenueStats, setRevenueStats] = useState({
@@ -634,14 +634,14 @@ export default function Admin() {
   const calculateRevenueStats = async () => {
     const PLAN_PRICES = {
       ARS: {
-        monthly: 2000,
-        quarterly: 5400,
-        annual: 21600,
+        monthly: 10000,
+        quarterly: 27000,
+        annual: 108000,
       },
       EUR: {
-        monthly: 1,
-        quarterly: 2.70,
-        annual: 10.80,
+        monthly: 5,
+        quarterly: 13.50,
+        annual: 54,
       },
     };
     
@@ -670,7 +670,7 @@ export default function Admin() {
       
       // Si no hay monto de pago, estimar basado en el tipo de plan
       if (paymentAmount === 0 && user.premiumPlanType) {
-        paymentAmount = PLAN_PRICES.ARS[user.premiumPlanType as keyof typeof PLAN_PRICES.ARS] || 2000;
+        paymentAmount = PLAN_PRICES.ARS[user.premiumPlanType as keyof typeof PLAN_PRICES.ARS] || 10000;
       }
       
       // Verificar si el pago fue este mes
@@ -1879,8 +1879,8 @@ export default function Admin() {
                     const status = getPaymentStatus(u);
                     return status.status === "unpaid" && u.premium;
                   });
-                  const totalARS = pendingUsers.length * 2000;
-                  const totalEUR = pendingUsers.length * 1;
+                  const totalARS = pendingUsers.length * 10000;
+                  const totalEUR = pendingUsers.length * 5;
                   alert(`${pendingUsers.length} usuarios premium están sin pagar este mes. Total a recuperar: $${totalARS.toLocaleString('es-AR')} ARS / ${totalEUR.toFixed(2)} EUR`);
                 }}
                 className="w-full px-4 py-2 rounded-lg bg-orange-500/20 border border-orange-500/30 text-orange-400 hover:bg-orange-500/30 transition-colors text-sm"
@@ -1889,8 +1889,8 @@ export default function Admin() {
               </button>
               <button
                 onClick={() => {
-                  const totalRenewARS = revenueStats.renewingSoon * 2000;
-                  const totalRenewEUR = revenueStats.renewingSoon * 1;
+                  const totalRenewARS = revenueStats.renewingSoon * 10000;
+                  const totalRenewEUR = revenueStats.renewingSoon * 5;
                   alert(`${revenueStats.renewingSoon} usuarios renovarán en los próximos 7 días. Total esperado: $${totalRenewARS.toLocaleString('es-AR')} ARS / ${totalRenewEUR.toFixed(2)} EUR`);
                 }}
                 className="w-full px-4 py-2 rounded-lg bg-blue-500/20 border border-blue-500/30 text-blue-400 hover:bg-blue-500/30 transition-colors text-sm"
@@ -1899,8 +1899,8 @@ export default function Admin() {
               </button>
               <div className="pt-3 border-t border-white/10">
                 <p className="text-white/60 text-xs mb-2">Precios mensuales actuales</p>
-                <p className="text-lg font-bold text-white">$2,000 ARS</p>
-                <p className="text-lg font-bold text-white">1.00 EUR</p>
+                <p className="text-lg font-bold text-white">$10.000 ARS</p>
+                <p className="text-lg font-bold text-white">5.00 EUR</p>
               </div>
             </div>
           </motion.div>
@@ -2272,9 +2272,9 @@ export default function Admin() {
                                     // Fallback: calcular monto basado en el tipo de plan si premiumPayment es null
                                     if (amount === null && user.premiumPlanType) {
                                       const planPrices: Record<string, number> = {
-                                        monthly: 2000,
-                                        quarterly: 5400,
-                                        annual: 21600,
+                                        monthly: 10000,
+                                        quarterly: 27000,
+                                        annual: 108000,
                                       };
                                       amount = planPrices[user.premiumPlanType] || null;
                                     }
@@ -2679,9 +2679,9 @@ export default function Admin() {
                                     
                                     if (amount === null && user.premiumPlanType) {
                                       const planPrices: Record<string, number> = {
-                                        monthly: 2000,
-                                        quarterly: 5400,
-                                        annual: 21600,
+                                        monthly: 10000,
+                                        quarterly: 27000,
+                                        annual: 108000,
                                       };
                                       amount = planPrices[user.premiumPlanType] || null;
                                     }
@@ -2870,9 +2870,9 @@ export default function Admin() {
                       className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="">Seleccionar tipo de plan...</option>
-                      <option value="monthly">Mensual ($2.000 ARS / 1 EUR)</option>
-                      <option value="quarterly">Trimestral ($5.400 ARS / 2.70 EUR)</option>
-                      <option value="annual">Anual ($21.600 ARS / 10.80 EUR)</option>
+                      <option value="monthly">Mensual ($10.000 ARS / 5 EUR)</option>
+                      <option value="quarterly">Trimestral ($27.000 ARS / 13.50 EUR)</option>
+                      <option value="annual">Anual ($108.000 ARS / 54 EUR)</option>
                     </select>
                   </div>
                 )}
@@ -3482,7 +3482,7 @@ export default function Admin() {
                         value={newPayment.amount}
                         onChange={(e) => setNewPayment({ ...newPayment, amount: e.target.value })}
                         className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="2000"
+                        placeholder="10000"
                       />
                     </div>
                     <div>

@@ -18,25 +18,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   // Definir precios según el tipo de plan (en EUR para usuarios internacionales)
-  // Precio: 1 EUR/mes
+  // Precio: 5 EUR/mes
   const planPrices: Record<string, { price: number; title: string; description: string; currency: string }> = {
     monthly: {
-      price: 1, // 1 EUR/mes
+      price: 5, // 5 EUR/mes
       currency: "eur",
       title: "Plan Premium Mensual - FitPlan AI",
       description: "Acceso premium mensual a objetivos avanzados, dietas personalizadas y análisis avanzado",
     },
     quarterly: {
-      price: 2.70, // 0.90 EUR/mes x 3 = 2.70 EUR total (10% ahorro)
+      price: 13.50, // 4.50 EUR/mes x 3 = 13.50 EUR total (10% ahorro)
       currency: "eur",
       title: "Plan Premium Trimestral - FitPlan AI",
-      description: "Acceso premium trimestral (3 meses) - 0.90 EUR/mes - Ahorrás 10%",
+      description: "Acceso premium trimestral (3 meses) - 4.50 EUR/mes - Ahorrás 10%",
     },
     annual: {
-      price: 10.80, // 0.90 EUR/mes x 12 = 10.80 EUR total (10% ahorro)
+      price: 54, // 4.50 EUR/mes x 12 = 54 EUR total (10% ahorro)
       currency: "eur",
       title: "Plan Premium Anual - FitPlan AI",
-      description: "Acceso premium anual (12 meses) - 0.90 EUR/mes - Ahorrás 10%",
+      description: "Acceso premium anual (12 meses) - 4.50 EUR/mes - Ahorrás 10%",
     },
   };
 

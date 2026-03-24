@@ -77,14 +77,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         }
       
-        // Si no hay premiumPayment, intentar usar el monto estándar ($25,000)
+        // Si no hay premiumPayment, intentar usar el monto estándar mensual actual
         let amount = 0;
         if (premiumPayment && premiumPayment.amount) {
           amount = Number(premiumPayment.amount) || 0;
         } else {
           // Si no tiene amount en premiumPayment, usar el monto estándar
-          console.log(`⚠️ Usuario ${docSnapshot.id} no tiene premiumPayment.amount, usando monto estándar ($25,000)`);
-          amount = 25000; // Monto estándar del plan premium
+          console.log(`⚠️ Usuario ${docSnapshot.id} no tiene premiumPayment.amount, usando monto estándar ($10,000)`);
+          amount = 10000; // Monto estándar mensual del plan premium
         }
 
         // Obtener fecha del pago

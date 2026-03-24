@@ -100,10 +100,10 @@ export function formatPaymentMessage(paymentData: {
   const moneda = paymentData.currency || "ARS";
   const isEUR = moneda === "EUR";
   const planType = paymentData.planType === "monthly" 
-    ? isEUR ? "Mensual (€30 EUR)" : "Mensual ($30.000 ARS)"
+    ? isEUR ? "Mensual (€5 EUR)" : "Mensual ($10.000 ARS)"
     : paymentData.planType === "quarterly"
-    ? isEUR ? "Trimestral (€75 EUR)" : "Trimestral ($75.000 ARS)"
-    : isEUR ? "Anual (€250 EUR)" : "Anual ($250.000 ARS)";
+    ? isEUR ? "Trimestral (€13.50 EUR)" : "Trimestral ($27.000 ARS)"
+    : isEUR ? "Anual (€54 EUR)" : "Anual ($108.000 ARS)";
   const metodo = paymentData.paymentMethod === "mercadopago"
     ? "💳 MercadoPago"
     : paymentData.paymentMethod === "stripe"

@@ -23,19 +23,19 @@ interface Plan {
   popular?: boolean;
 }
 
-// Planes en ARS (MercadoPago) - $1 USD/mes (dolar blue)
-// Tasa aproximada: 1 USD = 2000 ARS (ajustar según cotización actual)
+// Planes en ARS (MercadoPago)
+// Referencia actual: 1 EUR = 2000 ARS (ajustar según cotización real)
 const plansARS: Plan[] = [
   {
     type: "monthly",
     name: "Plan Mensual",
-    price: 2000, // $1 USD/mes (dolar blue)
+    price: 10000, // 5 EUR/mes
     period: "mes",
   },
   {
     type: "quarterly",
     name: "Plan Trimestral",
-    price: 5400, // 0.90 USD/mes x 3 = 2.70 USD (~5400 ARS)
+    price: 27000, // 4.50 EUR/mes x 3 = 13.50 EUR
     period: "3 meses",
     savings: "Ahorrás 10%",
     popular: true,
@@ -43,39 +43,39 @@ const plansARS: Plan[] = [
   {
     type: "annual",
     name: "Plan Anual",
-    price: 21600, // 0.90 USD/mes x 12 = 10.80 USD (~21600 ARS)
+    price: 108000, // 4.50 EUR/mes x 12 = 54 EUR
     period: "12 meses",
     savings: "Ahorrás 10%",
   },
 ];
 
-// Planes en EUR (Stripe) - 1 EUR/mes
+// Planes en EUR (Stripe) - 5 EUR/mes
 const plansEUR: Plan[] = [
   {
     type: "monthly",
     name: "Plan Mensual",
-    price: 1, // 1 EUR/mes
-    priceEUR: 1,
+    price: 5,
+    priceEUR: 5,
     period: "mes",
   },
   {
     type: "quarterly",
     name: "Plan Trimestral",
-    price: 2.70, // 0.90 EUR/mes x 3 = 2.70 EUR
-    priceEUR: 2.70,
+    price: 13.50, // 4.50 EUR/mes x 3 = 13.50 EUR
+    priceEUR: 13.50,
     period: "3 meses",
     savings: "Ahorrás 10%",
-    savingsEUR: "0.90 EUR/mes",
+    savingsEUR: "4.50 EUR/mes",
     popular: true,
   },
   {
     type: "annual",
     name: "Plan Anual",
-    price: 10.80, // 0.90 EUR/mes x 12 = 10.80 EUR
-    priceEUR: 10.80,
+    price: 54, // 4.50 EUR/mes x 12 = 54 EUR
+    priceEUR: 54,
     period: "12 meses",
     savings: "Ahorrás 10%",
-    savingsEUR: "0.90 EUR/mes",
+    savingsEUR: "4.50 EUR/mes",
   },
 ];
 

@@ -17,21 +17,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   // Definir precios según el tipo de plan (en ARS para Argentina)
-  // Precio: $1 USD/mes (conversión a dolar blue)
-  // Tasa aproximada dolar blue: 1 USD = 2000 ARS (ajustar según cotización actual)
+  // Referencia actual: 1 EUR = 2000 ARS (ajustar según cotización real)
   const planPrices: Record<string, { price: number; title: string; description: string }> = {
     monthly: {
-      price: 2000, // $1 USD/mes (dolar blue)
+      price: 10000, // 5 EUR/mes
       title: "Plan Premium Mensual - FitPlan AI",
       description: "Acceso premium mensual a objetivos avanzados, dietas personalizadas y análisis avanzado",
     },
     quarterly: {
-      price: 5400, // $0.90 USD/mes x 3 = $2.70 USD (~5400 ARS) - 10% ahorro
+      price: 27000, // 4.50 EUR/mes x 3 = 13.50 EUR (~27000 ARS) - 10% ahorro
       title: "Plan Premium Trimestral - FitPlan AI",
       description: "Acceso premium trimestral (3 meses) - Ahorrás 10%",
     },
     annual: {
-      price: 21600, // $0.90 USD/mes x 12 = $10.80 USD (~21600 ARS) - 10% ahorro
+      price: 108000, // 4.50 EUR/mes x 12 = 54 EUR (~108000 ARS) - 10% ahorro
       title: "Plan Premium Anual - FitPlan AI",
       description: "Acceso premium anual (12 meses) - Ahorrás 10%",
     },
