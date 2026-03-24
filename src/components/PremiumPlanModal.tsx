@@ -35,17 +35,17 @@ const plansARS: Plan[] = [
   {
     type: "quarterly",
     name: "Plan Trimestral",
-    price: 27000, // 4.50 EUR/mes x 3 = 13.50 EUR
+    price: 24000, // 12 EUR total
     period: "3 meses",
-    savings: "Ahorrás 10%",
+    savings: "Ahorrás 20%",
     popular: true,
   },
   {
     type: "annual",
     name: "Plan Anual",
-    price: 108000, // 4.50 EUR/mes x 12 = 54 EUR
+    price: 50000, // 25 EUR total
     period: "12 meses",
-    savings: "Ahorrás 10%",
+    savings: "Ahorrás 58%",
   },
 ];
 
@@ -61,21 +61,21 @@ const plansEUR: Plan[] = [
   {
     type: "quarterly",
     name: "Plan Trimestral",
-    price: 13.50, // 4.50 EUR/mes x 3 = 13.50 EUR
-    priceEUR: 13.50,
+    price: 12,
+    priceEUR: 12,
     period: "3 meses",
-    savings: "Ahorrás 10%",
-    savingsEUR: "4.50 EUR/mes",
+    savings: "Ahorrás 20%",
+    savingsEUR: "4.00 EUR/mes",
     popular: true,
   },
   {
     type: "annual",
     name: "Plan Anual",
-    price: 54, // 4.50 EUR/mes x 12 = 54 EUR
-    priceEUR: 54,
+    price: 25,
+    priceEUR: 25,
     period: "12 meses",
-    savings: "Ahorrás 10%",
-    savingsEUR: "4.50 EUR/mes",
+    savings: "Ahorrás 58%",
+    savingsEUR: "2.08 EUR/mes",
   },
 ];
 
@@ -129,7 +129,7 @@ export default function PremiumPlanModal({ isOpen, onClose, userId, userEmail, r
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId,
-          returnUrl: returnUrl || `${typeof window !== "undefined" ? window.location.origin : ""}/payment/success?redirect=create-plan`,
+          returnUrl: returnUrl || `${typeof window !== "undefined" ? window.location.origin : ""}/dashboard`,
           userEmail,
           planType,
         }),

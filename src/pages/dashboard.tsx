@@ -80,6 +80,7 @@ export default function Dashboard() {
   const [processingPayment, setProcessingPayment] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
   const [premiumModalOpen, setPremiumModalOpen] = useState(false);
+  const [freeExpiredModalOpen, setFreeExpiredModalOpen] = useState(false);
   const [continuityModalOpen, setContinuityModalOpen] = useState(false);
   const [planForContinuity, setPlanForContinuity] = useState<SavedPlan | null>(null);
   const [personalTrainerModalOpen, setPersonalTrainerModalOpen] = useState(false);
@@ -311,10 +312,7 @@ export default function Dashboard() {
         const diffDays = diffHours / 24;
 
         if (diffDays >= 30) {
-          alert(
-            "Tu plan gratuito de 30 días ya venció.\n\nPara seguir accediendo y generar nuevas etapas, necesitás ser usuario Premium."
-          );
-          setPremiumModalOpen(true);
+          setFreeExpiredModalOpen(true);
           return;
         }
       }
@@ -1160,6 +1158,58 @@ export default function Dashboard() {
           userEmail={authUser.email || ""}
         />
       )}
+
+      <AnimatePresence>
+        {freeExpiredModalOpen && (
+          <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+              onClick={() => setFreeExpiredModalOpen(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 12 }}
+              className="relative z-10 w-full max-w-lg rounded-2xl border border-cyan-400/30 bg-gradient-to-b from-slate-900 to-black p-6 shadow-2xl"
+            >
+              <div className="flex items-start gap-3">
+                <div className="h-11 w-11 rounded-xl bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-200 text-xl">
+                  ⏳
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold text-white">Tu plan gratuito ya venció</h3>
+                  <p className="mt-2 text-sm text-white/75">
+                    Se cumplieron los 30 días del acceso gratuito. Para seguir entrando a tu plan y generar nuevas etapas,
+                    activa Premium.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-6 flex flex-col sm:flex-row gap-3">
+                <button
+                  type="button"
+                  onClick={() => setFreeExpiredModalOpen(false)}
+                  className="flex-1 px-4 py-2 rounded-lg border border-white/15 bg-white/5 hover:bg-white/10 text-white text-sm transition-colors"
+                >
+                  Entendido
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFreeExpiredModalOpen(false);
+                    setPremiumModalOpen(true);
+                  }}
+                  className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white text-sm font-medium transition-all"
+                >
+                  Ver planes Premium
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Modal de continuidad de plan */}
       {mounted && createPortal(

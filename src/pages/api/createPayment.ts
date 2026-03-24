@@ -1,9 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { MercadoPagoConfig, Preference } from "mercadopago";
-
-const client = new MercadoPagoConfig({
-  accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN || "",
-});
+type MercadoPagoPreapprovalResponse = {
+  id?: string;
+  init_point?: string;
+  sandbox_init_point?: string;
+};
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -25,14 +25,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       description: "Acceso premium mensual a objetivos avanzados, dietas personalizadas y análisis avanzado",
     },
     quarterly: {
-      price: 27000, // 4.50 EUR/mes x 3 = 13.50 EUR (~27000 ARS) - 10% ahorro
+      price: 24000, // 12 EUR total (~24000 ARS)
       title: "Plan Premium Trimestral - FitPlan AI",
-      description: "Acceso premium trimestral (3 meses) - Ahorrás 10%",
+      description: "Acceso premium trimestral (3 meses) - Ahorrás 20%",
     },
     annual: {
-      price: 108000, // 4.50 EUR/mes x 12 = 54 EUR (~108000 ARS) - 10% ahorro
+      price: 50000, // 25 EUR total (~50000 ARS)
       title: "Plan Premium Anual - FitPlan AI",
-      description: "Acceso premium anual (12 meses) - Ahorrás 10%",
+      description: "Acceso premium anual (12 meses) - Ahorrás 58%",
     },
   };
 
@@ -44,8 +44,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const preference = new Preference(client);
-
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
     
     // Verificar que la URL base sea válida
@@ -53,54 +51,62 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       throw new Error("NEXT_PUBLIC_BASE_URL no está configurada");
     }
 
-    const paymentPreference: any = {
-      items: [
-        {
-          title: selectedPlan.title,
-          description: selectedPlan.description,
-          quantity: 1,
-          unit_price: selectedPlan.price,
-          currency_id: "ARS",
+    const frequency = planType === "annual" ? 12 : planType === "quarterly" ? 3 : 1;
+    const preapprovalPayload: Record<string, unknown> = {
+      reason: selectedPlan.title,
+      external_reference: `${userId}|${planType || "monthly"}`,
+      payer_email: userEmail,
+      back_url: `${baseUrl}/payment/success?redirect=dashboard&provider=mercadopago`,
+      status: "pending",
+      auto_recurring: {
+        frequency,
+        frequency_type: "months",
+        transaction_amount: selectedPlan.price,
+        currency_id: "ARS",
+        // Primer mes gratis: MP cobra a partir del siguiente ciclo
+        free_trial: {
+          frequency: 1,
+          frequency_type: "months",
         },
-      ],
-      payer: {
-        email: userEmail,
       },
-      external_reference: `${userId}|${planType || 'monthly'}`, // userId|planType para identificar usuario y tipo de plan
-      back_urls: {
-        success: `${baseUrl}/payment/success?redirect=create-plan`,
-        failure: `${baseUrl}/payment/failure`,
-        pending: `${baseUrl}/payment/pending`,
-      },
-      statement_descriptor: "FitPlan AI Premium",
-      payment_methods: {
-        excluded_payment_types: [],
-        excluded_payment_methods: [],
-        installments: 1,
-        default_installments: 1,
-      },
-      binary_mode: false, // Permitir estados pendientes
     };
 
-    // Agregar notification_url solo si no es localhost (para desarrollo local no funcionará)
     if (baseUrl && !baseUrl.includes("localhost")) {
-      paymentPreference.notification_url = `${baseUrl}/api/payment/webhook`;
+      preapprovalPayload.notification_url = `${baseUrl}/api/payment/webhook`;
     }
 
-    const response = await preference.create({ body: paymentPreference });
+    const preapprovalResponse = await fetch("https://api.mercadopago.com/preapproval", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(preapprovalPayload),
+    });
 
-    if (response.init_point) {
+    if (!preapprovalResponse.ok) {
+      const detail = await preapprovalResponse.text();
+      return res.status(preapprovalResponse.status).json({
+        error: "No se pudo crear la suscripción en MercadoPago",
+        detail,
+      });
+    }
+
+    const response = (await preapprovalResponse.json()) as MercadoPagoPreapprovalResponse;
+    const initPoint = response.init_point || response.sandbox_init_point;
+
+    if (initPoint) {
       return res.status(200).json({
-        init_point: response.init_point,
-        preference_id: response.id,
+        init_point: initPoint,
+        preapproval_id: response.id || null,
       });
     } else {
-      return res.status(500).json({ error: "No se pudo crear la preferencia de pago" });
+      return res.status(500).json({ error: "No se pudo crear el link de suscripción" });
     }
   } catch (error: unknown) {
-    console.error("Error al crear preferencia de pago:", error);
+    console.error("Error al crear suscripción en MercadoPago:", error);
     const message = error instanceof Error ? error.message : "Error desconocido";
-    return res.status(500).json({ error: "Error al crear la preferencia de pago", detail: message });
+    return res.status(500).json({ error: "Error al crear la suscripción", detail: message });
   }
 }
 

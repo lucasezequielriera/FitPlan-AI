@@ -89,195 +89,220 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   console.log("🔔 Webhook recibido de Stripe:", event.type);
 
   try {
-    // Manejar eventos de checkout finalizado en pago exitoso
-    if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") {
-      const session = event.data.object as Stripe.Checkout.Session;
+    const adminDb = getAdminDb();
+    if (!adminDb) {
+      console.error("❌ Firebase Admin SDK no configurado");
+      return res.status(200).json({ received: true });
+    }
 
-      console.log(`💰 Procesando pago completado. Session ID: ${session.id}`);
-
-      if (session.payment_status !== "paid") {
-        console.log(`ℹ️ Session ${session.id} recibida sin estado paid (${session.payment_status}), no se procesa premium.`);
-        return res.status(200).json({ received: true });
+    const resolveExpiryByPlan = (baseDate: Date, planType: string): Date => {
+      const expiresAt = new Date(baseDate);
+      if (planType === "annual") {
+        expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+      } else if (planType === "quarterly") {
+        expiresAt.setMonth(expiresAt.getMonth() + 3);
+      } else {
+        expiresAt.setMonth(expiresAt.getMonth() + 1);
       }
+      return expiresAt;
+    };
 
-      // Obtener metadata del usuario y plan
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object as Stripe.Checkout.Session;
       const userId = session.metadata?.userId;
       const planType = session.metadata?.planType || "monthly";
-
-      if (!userId) {
-        console.error("❌ No se encontró userId en la metadata de la sesión");
+      const subscriptionId = typeof session.subscription === "string" ? session.subscription : null;
+      if (!userId || !subscriptionId) {
         return res.status(200).json({ received: true });
       }
 
-      // ID del payment intent asociado a la sesión
-      const paymentIntentId = session.payment_intent as string;
-
-      const amount = session.amount_total ? session.amount_total / 100 : 0; // Convertir de centavos a euros
-      const currency = session.currency?.toUpperCase() || "EUR";
-
-      // Calcular fecha de vencimiento según el tipo de plan
-      const paymentDate = new Date();
-      const expiresAt = new Date(paymentDate);
-
-      switch (planType) {
-        case "monthly":
-          expiresAt.setMonth(expiresAt.getMonth() + 1);
-          break;
-        case "quarterly":
-          expiresAt.setMonth(expiresAt.getMonth() + 3);
-          break;
-        case "annual":
-          expiresAt.setFullYear(expiresAt.getFullYear() + 1);
-          break;
-        default:
-          expiresAt.setMonth(expiresAt.getMonth() + 1);
-      }
-
-      console.log(`📅 Plan ${planType} - Vencimiento calculado: ${expiresAt.toISOString()}`);
-
-      const adminDb = getAdminDb();
-      if (!adminDb) {
-        console.error("❌ Firebase Admin SDK no configurado");
-        return res.status(200).json({ received: true });
-      }
-
+      const subscription = await stripe.subscriptions.retrieve(subscriptionId);
       const userRef = adminDb.collection("usuarios").doc(userId);
       const userDoc = await userRef.get();
-      if (!userDoc.exists) {
-        console.error(`❌ Usuario ${userId} no existe en la base de datos`);
-        return res.status(200).json({ received: true });
-      }
+      if (!userDoc.exists) return res.status(200).json({ received: true });
       const userData = userDoc.data() || {};
       const wasPremium = userData.premium === true;
       const welcomeAlreadySent = typeof userData.premiumWelcomeChatSentAt !== "undefined";
+      const currentPeriodEnd =
+        typeof (subscription as unknown as { current_period_end?: number }).current_period_end === "number"
+          ? (subscription as unknown as { current_period_end: number }).current_period_end
+          : null;
+      const expiresAt =
+        typeof currentPeriodEnd === "number"
+          ? new Date(currentPeriodEnd * 1000)
+          : resolveExpiryByPlan(new Date(), planType);
 
-      // Guardar pago en colección pagos de forma idempotente (evita duplicados por reintentos webhook)
+      await userRef.set(
+        {
+          premium: true,
+          premiumStatus: subscription.status === "trialing" ? "trialing" : "active",
+          premiumPlanType: planType,
+          premiumExpiresAt: AdminTimestamp.fromDate(expiresAt),
+          premiumStripeSubscriptionId: subscription.id,
+          updatedAt: FieldValue.serverTimestamp(),
+          ...(wasPremium ? {} : { premiumSince: FieldValue.serverTimestamp() }),
+        },
+        { merge: true }
+      );
+
+      if (!wasPremium || !welcomeAlreadySent) {
+        try {
+          const userEmail = typeof userData?.email === "string" ? userData.email.trim() : null;
+          await sendPremiumWelcomeChatMessage({
+            userId,
+            nombre: typeof userData?.nombre === "string" ? userData.nombre : null,
+            userName: typeof userData?.nombre === "string" ? userData.nombre : null,
+            userEmail,
+            db: adminDb,
+          });
+          await userRef.set({ premiumWelcomeChatSentAt: FieldValue.serverTimestamp() }, { merge: true });
+        } catch (chatError) {
+          console.warn("⚠️ No se pudo enviar mensaje de bienvenida premium por chat:", chatError);
+        }
+      }
+    }
+
+    if (event.type === "invoice.paid") {
+      const invoice = event.data.object as Stripe.Invoice;
+      const subscriptionId =
+        typeof (invoice as unknown as { subscription?: string }).subscription === "string"
+          ? (invoice as unknown as { subscription: string }).subscription
+          : null;
+      if (!subscriptionId) return res.status(200).json({ received: true });
+      const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+      const userId = subscription.metadata?.userId;
+      const planType = subscription.metadata?.planType || "monthly";
+      if (!userId) return res.status(200).json({ received: true });
+
+      const userRef = adminDb.collection("usuarios").doc(userId);
+      const userDoc = await userRef.get();
+      if (!userDoc.exists) return res.status(200).json({ received: true });
+      const userData = userDoc.data() || {};
+
+      const amount = typeof invoice.amount_paid === "number" ? invoice.amount_paid / 100 : 0;
+      const currency = invoice.currency?.toUpperCase() || "EUR";
+      const paymentDate =
+        typeof invoice.status_transitions?.paid_at === "number"
+          ? new Date(invoice.status_transitions.paid_at * 1000)
+          : new Date();
+      const currentPeriodEnd =
+        typeof (subscription as unknown as { current_period_end?: number }).current_period_end === "number"
+          ? (subscription as unknown as { current_period_end: number }).current_period_end
+          : null;
+      const expiresAt =
+        typeof currentPeriodEnd === "number"
+          ? new Date(currentPeriodEnd * 1000)
+          : resolveExpiryByPlan(paymentDate, planType);
+
       const existingPayment = await adminDb
         .collection("pagos")
-        .where("stripePaymentId", "==", session.id)
+        .where("stripePaymentId", "==", invoice.id)
         .limit(1)
         .get();
+
       if (existingPayment.empty) {
         await adminDb.collection("pagos").add({
           userId,
           amount,
           currency,
           date: AdminTimestamp.fromDate(paymentDate),
-          planType: planType || "monthly",
+          planType,
           expiresAt: AdminTimestamp.fromDate(expiresAt),
           status: "approved",
-          paymentId: session.id,
-          stripePaymentId: session.id,
-          stripePaymentIntentId: paymentIntentId || null,
+          paymentId: invoice.id,
+          stripePaymentId: invoice.id,
+          stripeInvoiceId: invoice.id,
+          stripeSubscriptionId: subscription.id,
           paymentMethod: "stripe",
           isManual: false,
           createdAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
         });
-        console.log(`✅ Pago guardado en colección pagos. ID: ${session.id}, Usuario: ${userId}, Monto: ${amount} ${currency}`);
-      } else {
-        console.log(`ℹ️ Pago ${session.id} ya existía en colección pagos, se omite duplicado.`);
       }
 
-      // Actualizar usuario premium usando Admin SDK (sin depender de reglas cliente)
-      const premiumData: Record<string, unknown> = {
-        premium: true,
-        premiumStatus: "active",
-        premiumLastPay: FieldValue.serverTimestamp(),
-        premiumExpiresAt: AdminTimestamp.fromDate(expiresAt),
-        premiumPlanType: planType || "monthly",
-        premiumPayment: {
-          paymentId: session.id,
+      await userRef.set(
+        {
+          premium: true,
+          premiumStatus: "active",
+          premiumLastPay: FieldValue.serverTimestamp(),
+          premiumExpiresAt: AdminTimestamp.fromDate(expiresAt),
+          premiumPlanType: planType,
+          premiumStripeSubscriptionId: subscription.id,
+          premiumPayment: {
+            paymentId: invoice.id,
+            amount,
+            currency,
+            date: FieldValue.serverTimestamp(),
+            method: "stripe",
+            status: "succeeded",
+            planType,
+          },
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      try {
+        const message = formatPaymentMessage({
+          nombre: userData?.nombre || null,
+          email: userData?.email || null,
           amount,
           currency,
-          date: FieldValue.serverTimestamp(),
-          method: "stripe",
-          status: "succeeded",
-          planType: planType || "monthly",
-        },
-        updatedAt: FieldValue.serverTimestamp(),
-      };
-
-      // Solo agregar premiumSince si no era premium antes
-      if (!wasPremium) {
-        premiumData.premiumSince = FieldValue.serverTimestamp();
+          planType,
+          paymentMethod: "stripe",
+          paymentId: invoice.id,
+          date: paymentDate,
+        });
+        await sendTelegramMessage(message).catch((err) => {
+          console.warn("⚠️ Error al enviar notificación de pago a Telegram:", err);
+        });
+      } catch (telegramError) {
+        console.warn("⚠️ Error al enviar notificación de pago a Telegram:", telegramError);
       }
 
       try {
-        await userRef.set(premiumData, { merge: true });
-        console.log(`✅ Usuario ${userId} actualizado a premium. Pago ID: ${session.id}, Monto: ${amount} ${currency}`);
-
-        // Enviar notificación a Telegram
-        try {
-          const message = formatPaymentMessage({
-            nombre: userData?.nombre || null,
-            email: userData?.email || null,
-            amount,
-            currency,
-            planType: planType || "monthly",
-            paymentMethod: "stripe",
-            paymentId: session.id,
-            date: paymentDate,
+        const year = paymentDate.getFullYear();
+        const month = String(paymentDate.getMonth() + 1).padStart(2, "0");
+        const monthId = `${year}-${month}`;
+        const adminMonthRef = adminDb.collection("admin").doc(monthId);
+        const adminMonthDoc = await adminMonthRef.get();
+        if (!adminMonthDoc.exists) {
+          await adminMonthRef.set({
+            month: monthId,
+            year: year,
+            monthNumber: parseInt(month, 10),
+            totalEarnings: amount,
+            paymentCount: 1,
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
           });
-
-          await sendTelegramMessage(message).catch((err) => {
-            console.warn("⚠️ Error al enviar notificación de pago a Telegram:", err);
+        } else {
+          await adminMonthRef.update({
+            totalEarnings: FieldValue.increment(amount),
+            paymentCount: FieldValue.increment(1),
+            updatedAt: FieldValue.serverTimestamp(),
           });
-        } catch (telegramError) {
-          console.warn("⚠️ Error al enviar notificación de pago a Telegram:", telegramError);
         }
+      } catch (adminError: unknown) {
+        console.error("❌ Error al registrar ganancias mensuales:", adminError);
+      }
+    }
 
-        // Enviar mensaje de bienvenida en el chat la primera vez
-        if (!wasPremium || !welcomeAlreadySent) {
-          try {
-            const userEmail = typeof userData?.email === "string" ? userData.email.trim() : null;
-            await sendPremiumWelcomeChatMessage({
-              userId,
-              nombre: typeof userData?.nombre === "string" ? userData.nombre : null,
-              userName: typeof userData?.nombre === "string" ? userData.nombre : null,
-              userEmail,
-              db: adminDb,
-            });
-            await userRef.set({ premiumWelcomeChatSentAt: FieldValue.serverTimestamp() }, { merge: true });
-            console.log(`✅ Mensaje de bienvenida premium enviado por chat a user ${userId}`);
-          } catch (chatError) {
-            console.warn("⚠️ No se pudo enviar mensaje de bienvenida premium por chat:", chatError);
-          }
+    if (event.type === "invoice.payment_failed") {
+      const invoice = event.data.object as Stripe.Invoice;
+      const subscriptionId =
+        typeof (invoice as unknown as { subscription?: string }).subscription === "string"
+          ? (invoice as unknown as { subscription: string }).subscription
+          : null;
+      if (subscriptionId) {
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        const userId = subscription.metadata?.userId;
+        if (userId) {
+          await adminDb.collection("usuarios").doc(userId).set(
+            { premiumStatus: "past_due", updatedAt: FieldValue.serverTimestamp() },
+            { merge: true }
+          );
         }
-
-        // Registrar ganancia mensual en la colección admin
-        try {
-          const year = paymentDate.getFullYear();
-          const month = String(paymentDate.getMonth() + 1).padStart(2, "0");
-          const monthId = `${year}-${month}`;
-
-          const adminMonthRef = adminDb.collection("admin").doc(monthId);
-          const adminMonthDoc = await adminMonthRef.get();
-
-          if (!adminMonthDoc.exists) {
-            await adminMonthRef.set({
-              month: monthId,
-              year: year,
-              monthNumber: parseInt(month, 10),
-              totalEarnings: amount,
-              paymentCount: 1,
-              createdAt: FieldValue.serverTimestamp(),
-              updatedAt: FieldValue.serverTimestamp(),
-            });
-            console.log(`✅ Ganancias mensuales creadas para ${monthId}: €${amount}`);
-          } else {
-            await adminMonthRef.update({
-              totalEarnings: FieldValue.increment(amount),
-              paymentCount: FieldValue.increment(1),
-              updatedAt: FieldValue.serverTimestamp(),
-            });
-            console.log(`✅ Ganancias mensuales actualizadas para ${monthId}: +€${amount}`);
-          }
-        } catch (adminError: unknown) {
-          console.error("❌ Error al registrar ganancias mensuales:", adminError);
-        }
-      } catch (error: unknown) {
-        console.error(`❌ Error al actualizar usuario ${userId} a premium:`, error);
       }
     }
 

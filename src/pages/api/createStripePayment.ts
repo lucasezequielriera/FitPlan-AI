@@ -27,16 +27,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       description: "Acceso premium mensual a objetivos avanzados, dietas personalizadas y análisis avanzado",
     },
     quarterly: {
-      price: 13.50, // 4.50 EUR/mes x 3 = 13.50 EUR total (10% ahorro)
+      price: 12,
       currency: "eur",
       title: "Plan Premium Trimestral - FitPlan AI",
-      description: "Acceso premium trimestral (3 meses) - 4.50 EUR/mes - Ahorrás 10%",
+      description: "Acceso premium trimestral (3 meses) - 4 EUR/mes - Ahorrás 20%",
     },
     annual: {
-      price: 54, // 4.50 EUR/mes x 12 = 54 EUR total (10% ahorro)
+      price: 25,
       currency: "eur",
       title: "Plan Premium Anual - FitPlan AI",
-      description: "Acceso premium anual (12 meses) - 4.50 EUR/mes - Ahorrás 10%",
+      description: "Acceso premium anual (12 meses) - 2.08 EUR/mes - Ahorrás 58%",
     },
   };
 
@@ -57,8 +57,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Crear una sesión de checkout de Stripe
     const currency = selectedPlan.currency || "eur";
+    const intervalCount = planType === "annual" ? 12 : planType === "quarterly" ? 3 : 1;
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
+      payment_method_collection: "always",
       line_items: [
         {
           price_data: {
@@ -68,14 +70,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               description: selectedPlan.description,
             },
             unit_amount: Math.round(selectedPlan.price * 100), // Stripe usa centavos/céntimos
+            recurring: {
+              interval: "month",
+              interval_count: intervalCount,
+            },
           },
           quantity: 1,
         },
       ],
-      mode: "payment",
+      mode: "subscription",
       customer_email: userEmail,
-      success_url: `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}&provider=stripe&redirect=create-plan`,
-      cancel_url: `${baseUrl}/payment/failure?provider=stripe`,
+      subscription_data: {
+        trial_period_days: 30,
+        metadata: {
+          userId: userId,
+          planType: planType || "monthly",
+        },
+      },
+      success_url: `${baseUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}&provider=stripe&redirect=dashboard`,
+      cancel_url: `${baseUrl}/dashboard?payment=cancelled`,
       metadata: {
         userId: userId,
         planType: planType || "monthly",

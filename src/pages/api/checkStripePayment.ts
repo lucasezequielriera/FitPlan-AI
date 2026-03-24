@@ -23,7 +23,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     // Obtener la sesión de checkout
     const session = await stripe.checkout.sessions.retrieve(session_id, {
-      expand: ["payment_intent"],
+      expand: ["payment_intent", "subscription"],
     });
 
     if (!session) {
@@ -31,15 +31,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const paymentIntent = session.payment_intent as Stripe.PaymentIntent | null;
+    const subscription = session.subscription as Stripe.Subscription | null;
+    const subscriptionCurrentPeriodEnd =
+      subscription &&
+      typeof (subscription as unknown as { current_period_end?: number }).current_period_end === "number"
+        ? (subscription as unknown as { current_period_end: number }).current_period_end
+        : null;
+    const isSubscriptionCompleted = session.mode === "subscription" && session.status === "complete";
+    const normalizedStatus =
+      session.payment_status === "paid" || isSubscriptionCompleted ? "succeeded" : session.payment_status;
 
     return res.status(200).json({
       sessionId: session.id,
-      status: session.payment_status === "paid" ? "succeeded" : session.payment_status,
+      status: normalizedStatus,
       amount: session.amount_total ? session.amount_total / 100 : 0,
       currency: session.currency?.toUpperCase() || "EUR",
-      userId: session.metadata?.userId || null,
-      planType: session.metadata?.planType || null,
+      userId: session.metadata?.userId || subscription?.metadata?.userId || null,
+      planType: session.metadata?.planType || subscription?.metadata?.planType || null,
       paymentIntentId: paymentIntent?.id || null,
+      subscriptionId: subscription?.id || null,
+      subscriptionStatus: subscription?.status || null,
+      currentPeriodEnd: subscriptionCurrentPeriodEnd,
     });
   } catch (error: unknown) {
     console.error("Error al verificar pago de Stripe:", error);

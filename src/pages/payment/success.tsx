@@ -150,6 +150,14 @@ export default function PaymentSuccess() {
     };
   }, [authUser, router, premium]);
 
+  useEffect(() => {
+    if (!premium) return;
+    const timeout = setTimeout(() => {
+      router.push("/dashboard");
+    }, 2000);
+    return () => clearTimeout(timeout);
+  }, [premium, router]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -202,21 +210,13 @@ export default function PaymentSuccess() {
                   <li>✓ Análisis avanzado de progreso</li>
                 </ul>
               </div>
-              {router.query.redirect === "create-plan" ? (
-                <button
-                  onClick={() => router.push("/create-plan?continue=true")}
-                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-medium transition-all shadow-lg shadow-green-500/20"
-                >
-                  Continuar con la creación del plan
-                </button>
-              ) : (
-                <button
-                  onClick={() => router.push("/dashboard")}
-                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-medium transition-all shadow-lg shadow-green-500/20"
-                >
-                  Ir a mi Dashboard
-                </button>
-              )}
+              <button
+                onClick={() => router.push("/dashboard")}
+                className="px-6 py-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-medium transition-all shadow-lg shadow-green-500/20"
+              >
+                Ir a mi Dashboard
+              </button>
+              <p className="text-white/60 text-xs mt-3">Te redirigimos automáticamente en unos segundos...</p>
             </>
           ) : (
             <>

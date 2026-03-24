@@ -635,13 +635,13 @@ export default function Admin() {
     const PLAN_PRICES = {
       ARS: {
         monthly: 10000,
-        quarterly: 27000,
-        annual: 108000,
+        quarterly: 24000,
+        annual: 50000,
       },
       EUR: {
         monthly: 5,
-        quarterly: 13.50,
-        annual: 54,
+        quarterly: 12,
+        annual: 25,
       },
     };
     
@@ -2273,8 +2273,8 @@ export default function Admin() {
                                     if (amount === null && user.premiumPlanType) {
                                       const planPrices: Record<string, number> = {
                                         monthly: 10000,
-                                        quarterly: 27000,
-                                        annual: 108000,
+                                        quarterly: 24000,
+                                        annual: 50000,
                                       };
                                       amount = planPrices[user.premiumPlanType] || null;
                                     }
@@ -2680,8 +2680,8 @@ export default function Admin() {
                                     if (amount === null && user.premiumPlanType) {
                                       const planPrices: Record<string, number> = {
                                         monthly: 10000,
-                                        quarterly: 27000,
-                                        annual: 108000,
+                                        quarterly: 24000,
+                                        annual: 50000,
                                       };
                                       amount = planPrices[user.premiumPlanType] || null;
                                     }
@@ -2871,8 +2871,8 @@ export default function Admin() {
                     >
                       <option value="">Seleccionar tipo de plan...</option>
                       <option value="monthly">Mensual ($10.000 ARS / 5 EUR)</option>
-                      <option value="quarterly">Trimestral ($27.000 ARS / 13.50 EUR)</option>
-                      <option value="annual">Anual ($108.000 ARS / 54 EUR)</option>
+                      <option value="quarterly">Trimestral ($24.000 ARS / 12 EUR)</option>
+                      <option value="annual">Anual ($50.000 ARS / 25 EUR)</option>
                     </select>
                   </div>
                 )}

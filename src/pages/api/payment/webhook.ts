@@ -43,10 +43,91 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   console.log("🔔 Webhook recibido de MercadoPago:", JSON.stringify(req.body, null, 2));
 
-  // MercadoPago envía notificaciones cuando cambia el estado de un pago
+  // MercadoPago envía notificaciones cuando cambia un pago o suscripción (preapproval)
   const { type, data } = req.body;
 
   try {
+    // Suscripción de MercadoPago (preapproval) con trial de 30 días.
+    if (type === "subscription_preapproval" || type === "preapproval") {
+      const preapprovalId = data?.id;
+      if (!preapprovalId) {
+        return res.status(200).json({ received: true });
+      }
+
+      const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
+      if (!accessToken) {
+        console.error("MERCADOPAGO_ACCESS_TOKEN no configurado");
+        return res.status(200).json({ received: true });
+      }
+
+      const preapprovalResponse = await fetch(
+        `https://api.mercadopago.com/preapproval/${preapprovalId}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!preapprovalResponse.ok) {
+        console.error("Error al obtener información de suscripción MP:", await preapprovalResponse.text());
+        return res.status(200).json({ received: true });
+      }
+
+      const preapproval = await preapprovalResponse.json();
+      const externalRef = preapproval.external_reference || "";
+      const [userId, planTypeRaw] = externalRef.includes("|") ? externalRef.split("|") : [externalRef, "monthly"];
+      const planType = planTypeRaw || "monthly";
+
+      if (!userId) {
+        return res.status(200).json({ received: true });
+      }
+
+      const adminDb = getAdminDb();
+      if (!adminDb) {
+        console.error("❌ Firebase Admin SDK no configurado");
+        return res.status(200).json({ received: true });
+      }
+
+      const userRef = adminDb.collection("usuarios").doc(userId);
+      const userDoc = await userRef.get();
+      if (!userDoc.exists) {
+        return res.status(200).json({ received: true });
+      }
+
+      const nextPaymentDate =
+        typeof preapproval.next_payment_date === "string" ? new Date(preapproval.next_payment_date) : null;
+      const fallbackNextDate = new Date();
+      fallbackNextDate.setMonth(fallbackNextDate.getMonth() + 1);
+      const expiresAt = nextPaymentDate && !Number.isNaN(nextPaymentDate.getTime()) ? nextPaymentDate : fallbackNextDate;
+
+      const subscriptionStatus = preapproval.status || "authorized";
+      const premiumStatus =
+        subscriptionStatus === "authorized"
+          ? "trialing"
+          : subscriptionStatus === "paused"
+            ? "past_due"
+            : subscriptionStatus === "cancelled"
+              ? "inactive"
+              : "active";
+
+      await userRef.set(
+        {
+          premium: subscriptionStatus !== "cancelled",
+          premiumStatus,
+          premiumPlanType: planType,
+          premiumExpiresAt: AdminTimestamp.fromDate(expiresAt),
+          premiumMercadoPagoPreapprovalId: String(preapprovalId),
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      return res.status(200).json({ received: true });
+    }
+
     // Verificar que es una notificación de pago
     if (type === "payment") {
       const paymentId = data.id;
