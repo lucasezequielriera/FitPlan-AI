@@ -48,6 +48,18 @@ export interface Comida {
   opciones: string[];
   // Enriquecido por IA (opcionales)
   calorias_kcal?: number;
+  macros_aprox?: {
+    proteinas_g: number;
+    grasas_g: number;
+    carbohidratos_g: number;
+  };
+  opciones_detalle?: Array<{
+    opcion: string;
+    calorias_kcal: number;
+    proteinas_g: number;
+    grasas_g: number;
+    carbohidratos_g: number;
+  }>;
   cantidad_gramos?: number;
   ingredientes?: string[];
   pasos_preparacion?: string[];

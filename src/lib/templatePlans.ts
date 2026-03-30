@@ -118,6 +118,90 @@ const templateComidas = {
   },
 };
 
+type MacrosDiarias = { proteinas: number; grasas: number; carbohidratos: number };
+
+function parseMacroGrams(raw: string | undefined, fallback: number): number {
+  if (!raw) return fallback;
+  const parsed = Number(String(raw).replace(/[^\d.,-]/g, "").replace(",", "."));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function getMealShare(nombre: string): number {
+  const key = nombre.toLowerCase();
+  if (key.includes("desayuno")) return 0.25;
+  if (key.includes("almuerzo")) return 0.35;
+  if (key.includes("cena")) return 0.25;
+  return 0.075; // cada merienda/snack
+}
+
+function estimateOptionCalories(option: string, targetMealCalories: number): number {
+  const text = option.toLowerCase();
+  const heavyKeywords = ["costillas", "mantequilla", "queso", "salmón", "salmon", "res", "pasta", "arroz 150g", "papas 150g"];
+  const lightKeywords = ["ensalada", "vegetales", "verduras", "fruta", "hummus", "tofu", "merluza"];
+  const heavyHits = heavyKeywords.filter((word) => text.includes(word)).length;
+  const lightHits = lightKeywords.filter((word) => text.includes(word)).length;
+  const adjustment = heavyHits * 60 - lightHits * 30;
+  return Math.max(120, Math.round(targetMealCalories + adjustment));
+}
+
+function estimateOptionMacros(
+  optionCalories: number,
+  mealShare: number,
+  dailyMacros: MacrosDiarias
+): { proteinas_g: number; grasas_g: number; carbohidratos_g: number } {
+  const p = Math.max(5, Math.round(dailyMacros.proteinas * mealShare));
+  const g = Math.max(4, Math.round(dailyMacros.grasas * mealShare));
+  const c = Math.max(8, Math.round(dailyMacros.carbohidratos * mealShare));
+  const kcalFromMacros = p * 4 + g * 9 + c * 4;
+  if (kcalFromMacros <= 0) return { proteinas_g: p, grasas_g: g, carbohidratos_g: c };
+  const scale = optionCalories / kcalFromMacros;
+  return {
+    proteinas_g: Math.max(1, Math.round(p * scale)),
+    grasas_g: Math.max(1, Math.round(g * scale)),
+    carbohidratos_g: Math.max(1, Math.round(c * scale)),
+  };
+}
+
+function enrichMealWithApproxMacros(
+  meal: Pick<Comida, "hora" | "nombre" | "opciones">,
+  dailyCalories: number,
+  dailyMacros: MacrosDiarias
+): Comida {
+  const mealShare = getMealShare(meal.nombre);
+  const targetMealCalories = Math.round(dailyCalories * mealShare);
+  const detalles = meal.opciones.map((opcion) => {
+    const calorias = estimateOptionCalories(opcion, targetMealCalories);
+    const macros = estimateOptionMacros(calorias, mealShare, dailyMacros);
+    return {
+      opcion,
+      calorias_kcal: calorias,
+      ...macros,
+    };
+  });
+
+  const promedio = detalles.reduce(
+    (acc, item) => {
+      acc.calorias += item.calorias_kcal;
+      acc.p += item.proteinas_g;
+      acc.g += item.grasas_g;
+      acc.c += item.carbohidratos_g;
+      return acc;
+    },
+    { calorias: 0, p: 0, g: 0, c: 0 }
+  );
+  const count = Math.max(1, detalles.length);
+  return {
+    ...meal,
+    calorias_kcal: Math.round(promedio.calorias / count),
+    macros_aprox: {
+      proteinas_g: Math.round(promedio.p / count),
+      grasas_g: Math.round(promedio.g / count),
+      carbohidratos_g: Math.round(promedio.c / count),
+    },
+    opciones_detalle: detalles,
+  };
+}
+
 // ============================================================================
 // TEMPLATES DE ENTRENAMIENTOS POR OBJETIVO E INTENSIDAD
 // ============================================================================
@@ -291,6 +375,11 @@ export async function generateTemplateBasedPlan(
   const objetivo = user.objetivo;
   const intensidad = user.intensidad || "moderada";
   const dias = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+  const macrosDiarias: MacrosDiarias = {
+    proteinas: parseMacroGrams(macrosObjetivo.proteinas, 140),
+    grasas: parseMacroGrams(macrosObjetivo.grasas, 70),
+    carbohidratos: parseMacroGrams(macrosObjetivo.carbohidratos, 220),
+  };
 
   // 1. Seleccionar templates de comidas
   const comidasTemplate = (templateComidas as any)[tipoDieta] || templateComidas.estandar;
@@ -305,11 +394,11 @@ export async function generateTemplateBasedPlan(
     return {
       dia,
       comidas: [
-        { hora: "07:00", nombre: "Desayuno", opciones: desayunoOpc.opciones },
-        { hora: "10:00", nombre: "Merienda 1", opciones: meriendasOpc.opciones },
-        { hora: "13:00", nombre: "Almuerzo", opciones: almuerzoOpc.opciones },
-        { hora: "16:00", nombre: "Merienda 2", opciones: [meriendasOpc.opciones[0]] },
-        { hora: "19:30", nombre: "Cena", opciones: cenaOpc.opciones },
+        enrichMealWithApproxMacros({ hora: "07:00", nombre: "Desayuno", opciones: desayunoOpc.opciones }, caloriasObjetivo, macrosDiarias),
+        enrichMealWithApproxMacros({ hora: "10:00", nombre: "Merienda 1", opciones: meriendasOpc.opciones }, caloriasObjetivo, macrosDiarias),
+        enrichMealWithApproxMacros({ hora: "13:00", nombre: "Almuerzo", opciones: almuerzoOpc.opciones }, caloriasObjetivo, macrosDiarias),
+        enrichMealWithApproxMacros({ hora: "16:00", nombre: "Merienda 2", opciones: [meriendasOpc.opciones[0]] }, caloriasObjetivo, macrosDiarias),
+        enrichMealWithApproxMacros({ hora: "19:30", nombre: "Cena", opciones: cenaOpc.opciones }, caloriasObjetivo, macrosDiarias),
       ],
     };
   });

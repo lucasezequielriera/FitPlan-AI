@@ -12,6 +12,8 @@ type IntakeClient = {
   trabajoTurnos: string | null;
   diasTrabajo: string[];
   status: string | null;
+  latestPlanId?: string | null;
+  latestPlanActionType?: "generate" | "update" | null;
   createdAt: string | null;
 };
 
@@ -76,6 +78,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           ? (data.diasTrabajo as unknown[]).filter((item): item is string => typeof item === "string")
           : fallbackDiasTrabajo,
         status: (data.status as string) || "new",
+        latestPlanId: (data.latestPlanId as string) || null,
+        latestPlanActionType: ((data.latestPlanActionType as "generate" | "update" | undefined) || null),
         createdAt: toISO(data.createdAt),
       };
     });

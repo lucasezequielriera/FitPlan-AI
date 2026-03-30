@@ -52,10 +52,25 @@ interface IntakeClient {
   trabajoTurnos: string | null;
   diasTrabajo: string[];
   status: string | null;
+  latestPlanId?: string | null;
+  latestPlanActionType?: "generate" | "update" | null;
   createdAt: string | null;
 }
 
 type IntakePlanActionType = "generate" | "update";
+
+interface IntakeGeneratedPlanDetail {
+  id: string;
+  intakeClientId: string | null;
+  actionType: string | null;
+  includeNutrition: boolean;
+  includeTraining: boolean;
+  nutritionTargets: Record<string, unknown> | null;
+  input: Record<string, unknown> | null;
+  plan: Record<string, unknown> | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
 
 interface IntakeClientDetail extends IntakeClient {
   updatedAt: string | null;
@@ -342,7 +357,17 @@ export default function Admin() {
   const [intakePlanActionType, setIntakePlanActionType] = useState<IntakePlanActionType>("generate");
   const [intakePlanIncludeNutrition, setIntakePlanIncludeNutrition] = useState(true);
   const [intakePlanIncludeTraining, setIntakePlanIncludeTraining] = useState(true);
+  const [intakeUpdateMainNeed, setIntakeUpdateMainNeed] = useState("");
+  const [intakeUpdateNutritionFeedback, setIntakeUpdateNutritionFeedback] = useState("");
+  const [intakeUpdateTrainingFeedback, setIntakeUpdateTrainingFeedback] = useState("");
+  const [intakeUpdateCurrentWeight, setIntakeUpdateCurrentWeight] = useState("");
+  const [intakeUpdateEnergyLevel, setIntakeUpdateEnergyLevel] = useState<"baja" | "media" | "alta">("media");
   const [processingIntakeAction, setProcessingIntakeAction] = useState(false);
+  const [intakeGeneratedPlanModalOpen, setIntakeGeneratedPlanModalOpen] = useState(false);
+  const [intakeGeneratedPlanLoading, setIntakeGeneratedPlanLoading] = useState(false);
+  const [intakeGeneratedPlanError, setIntakeGeneratedPlanError] = useState<string | null>(null);
+  const [intakeGeneratedPlanClient, setIntakeGeneratedPlanClient] = useState<IntakeClient | null>(null);
+  const [intakeGeneratedPlan, setIntakeGeneratedPlan] = useState<IntakeGeneratedPlanDetail | null>(null);
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const [selectedUserForHistory, setSelectedUserForHistory] = useState<User | null>(null);
   const [userHistory, setUserHistory] = useState<{
@@ -1254,6 +1279,11 @@ export default function Admin() {
     setIntakePlanActionType(actionType);
     setIntakePlanIncludeNutrition(true);
     setIntakePlanIncludeTraining(actionType === "generate");
+    setIntakeUpdateMainNeed("");
+    setIntakeUpdateNutritionFeedback("");
+    setIntakeUpdateTrainingFeedback("");
+    setIntakeUpdateCurrentWeight("");
+    setIntakeUpdateEnergyLevel("media");
     setIntakePlanModalOpen(true);
   };
 
@@ -1261,6 +1291,10 @@ export default function Admin() {
     if (!intakePlanClient) return;
     if (!intakePlanIncludeNutrition && !intakePlanIncludeTraining) {
       alert("Selecciona al menos un tipo de plan.");
+      return;
+    }
+    if (intakePlanActionType === "update" && !intakeUpdateMainNeed.trim()) {
+      alert("Para actualizar, indica brevemente qué quieres mejorar en este mes.");
       return;
     }
     try {
@@ -1276,6 +1310,16 @@ export default function Admin() {
           actionType: intakePlanActionType,
           includeNutrition: intakePlanIncludeNutrition,
           includeTraining: intakePlanIncludeTraining,
+          updateContext:
+            intakePlanActionType === "update"
+              ? {
+                  mainNeed: intakeUpdateMainNeed.trim(),
+                  nutritionFeedback: intakeUpdateNutritionFeedback.trim(),
+                  trainingFeedback: intakeUpdateTrainingFeedback.trim(),
+                  currentWeightKg: intakeUpdateCurrentWeight.trim(),
+                  energyLevel: intakeUpdateEnergyLevel,
+                }
+              : null,
         }),
       });
       if (!response.ok) {
@@ -1285,10 +1329,44 @@ export default function Admin() {
       await loadIntakeClients();
       setIntakePlanModalOpen(false);
       setIntakePlanClient(null);
+      setIntakeUpdateMainNeed("");
+      setIntakeUpdateNutritionFeedback("");
+      setIntakeUpdateTrainingFeedback("");
+      setIntakeUpdateCurrentWeight("");
+      setIntakeUpdateEnergyLevel("media");
     } catch (error) {
       alert(error instanceof Error ? error.message : "No se pudo guardar la acción.");
     } finally {
       setProcessingIntakeAction(false);
+    }
+  };
+
+  const handleOpenGeneratedPlan = async (client: IntakeClient) => {
+    if (!client.latestPlanId) {
+      alert("Este cliente todavía no tiene un plan generado.");
+      return;
+    }
+    try {
+      const auth = getAuthSafe();
+      if (!auth?.currentUser) return;
+      setIntakeGeneratedPlanClient(client);
+      setIntakeGeneratedPlanModalOpen(true);
+      setIntakeGeneratedPlanLoading(true);
+      setIntakeGeneratedPlanError(null);
+      setIntakeGeneratedPlan(null);
+      const response = await fetch(
+        `/api/admin/intakeClientPlanDetail?userId=${auth.currentUser.uid}&planId=${client.latestPlanId}`
+      );
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+      const data = await response.json();
+      setIntakeGeneratedPlan((data?.plan as IntakeGeneratedPlanDetail) || null);
+    } catch (error) {
+      setIntakeGeneratedPlanError(error instanceof Error ? error.message : "No se pudo cargar el plan.");
+    } finally {
+      setIntakeGeneratedPlanLoading(false);
     }
   };
 
@@ -2102,6 +2180,13 @@ export default function Admin() {
                             className="px-3 py-1.5 rounded-lg bg-blue-500/20 border border-blue-400/40 text-blue-200 hover:bg-blue-500/30 transition-colors"
                           >
                             Actualizar plan
+                          </button>
+                          <button
+                            onClick={() => handleOpenGeneratedPlan(client)}
+                            disabled={!client.latestPlanId}
+                            className="px-3 py-1.5 rounded-lg bg-violet-500/20 border border-violet-400/40 text-violet-200 hover:bg-violet-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Ver plan generado
                           </button>
                           <button
                             onClick={() => handleDeleteIntakeClient(client)}
@@ -3921,6 +4006,11 @@ export default function Admin() {
             actionType={intakePlanActionType}
             includeNutrition={intakePlanIncludeNutrition}
             includeTraining={intakePlanIncludeTraining}
+            updateMainNeed={intakeUpdateMainNeed}
+            updateNutritionFeedback={intakeUpdateNutritionFeedback}
+            updateTrainingFeedback={intakeUpdateTrainingFeedback}
+            updateCurrentWeight={intakeUpdateCurrentWeight}
+            updateEnergyLevel={intakeUpdateEnergyLevel}
             loading={processingIntakeAction}
             onClose={() => {
               setIntakePlanModalOpen(false);
@@ -3928,7 +4018,28 @@ export default function Admin() {
             }}
             onToggleNutrition={() => setIntakePlanIncludeNutrition((prev) => !prev)}
             onToggleTraining={() => setIntakePlanIncludeTraining((prev) => !prev)}
+            onChangeUpdateMainNeed={setIntakeUpdateMainNeed}
+            onChangeUpdateNutritionFeedback={setIntakeUpdateNutritionFeedback}
+            onChangeUpdateTrainingFeedback={setIntakeUpdateTrainingFeedback}
+            onChangeUpdateCurrentWeight={setIntakeUpdateCurrentWeight}
+            onChangeUpdateEnergyLevel={setIntakeUpdateEnergyLevel}
             onSubmit={handleSubmitIntakePlanAction}
+          />
+        )}
+        {intakeGeneratedPlanModalOpen && intakeGeneratedPlanClient && (
+          <IntakeGeneratedPlanModal
+            isOpen={intakeGeneratedPlanModalOpen}
+            client={intakeGeneratedPlanClient}
+            loading={intakeGeneratedPlanLoading}
+            error={intakeGeneratedPlanError}
+            plan={intakeGeneratedPlan}
+            onClose={() => {
+              setIntakeGeneratedPlanModalOpen(false);
+              setIntakeGeneratedPlanClient(null);
+              setIntakeGeneratedPlan(null);
+              setIntakeGeneratedPlanError(null);
+              setIntakeGeneratedPlanLoading(false);
+            }}
           />
         )}
 
@@ -3968,10 +4079,20 @@ function IntakePlanActionModal({
   actionType,
   includeNutrition,
   includeTraining,
+  updateMainNeed,
+  updateNutritionFeedback,
+  updateTrainingFeedback,
+  updateCurrentWeight,
+  updateEnergyLevel,
   loading,
   onClose,
   onToggleNutrition,
   onToggleTraining,
+  onChangeUpdateMainNeed,
+  onChangeUpdateNutritionFeedback,
+  onChangeUpdateTrainingFeedback,
+  onChangeUpdateCurrentWeight,
+  onChangeUpdateEnergyLevel,
   onSubmit,
 }: {
   isOpen: boolean;
@@ -3979,10 +4100,20 @@ function IntakePlanActionModal({
   actionType: IntakePlanActionType;
   includeNutrition: boolean;
   includeTraining: boolean;
+  updateMainNeed: string;
+  updateNutritionFeedback: string;
+  updateTrainingFeedback: string;
+  updateCurrentWeight: string;
+  updateEnergyLevel: "baja" | "media" | "alta";
   loading: boolean;
   onClose: () => void;
   onToggleNutrition: () => void;
   onToggleTraining: () => void;
+  onChangeUpdateMainNeed: (value: string) => void;
+  onChangeUpdateNutritionFeedback: (value: string) => void;
+  onChangeUpdateTrainingFeedback: (value: string) => void;
+  onChangeUpdateCurrentWeight: (value: string) => void;
+  onChangeUpdateEnergyLevel: (value: "baja" | "media" | "alta") => void;
   onSubmit: () => void;
 }) {
   if (!isOpen) return null;
@@ -4026,6 +4157,70 @@ function IntakePlanActionModal({
           <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-200">
             Frecuencia: mensual
           </div>
+          {actionType === "update" && (
+            <div className="space-y-3 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-3">
+              <p className="text-xs text-white/70">
+                Para actualizar de forma eficiente, indica el objetivo del ajuste y los cambios necesarios.
+              </p>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-white/70">¿Qué quieres mejorar este mes? *</span>
+                <textarea
+                  rows={2}
+                  value={updateMainNeed}
+                  onChange={(e) => onChangeUpdateMainNeed(e.target.value)}
+                  className="rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white outline-none"
+                  placeholder="Ej.: bajar grasa abdominal sin perder fuerza, mejorar adherencia..."
+                />
+              </label>
+              {includeNutrition && (
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-white/70">Feedback nutrición (opcional)</span>
+                  <textarea
+                    rows={2}
+                    value={updateNutritionFeedback}
+                    onChange={(e) => onChangeUpdateNutritionFeedback(e.target.value)}
+                    className="rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white outline-none"
+                    placeholder="Ej.: hambre por la noche, poca saciedad en desayuno, horarios difíciles..."
+                  />
+                </label>
+              )}
+              {includeTraining && (
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-white/70">Feedback entrenamiento (opcional)</span>
+                  <textarea
+                    rows={2}
+                    value={updateTrainingFeedback}
+                    onChange={(e) => onChangeUpdateTrainingFeedback(e.target.value)}
+                    className="rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white outline-none"
+                    placeholder="Ej.: dolor en hombro, poco tiempo, ejercicios muy avanzados..."
+                  />
+                </label>
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-white/70">Peso actual (kg, opcional)</span>
+                  <input
+                    value={updateCurrentWeight}
+                    onChange={(e) => onChangeUpdateCurrentWeight(e.target.value)}
+                    className="rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white outline-none"
+                    placeholder="Ej.: 74.2"
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-white/70">Nivel de energía actual</span>
+                  <select
+                    value={updateEnergyLevel}
+                    onChange={(e) => onChangeUpdateEnergyLevel(e.target.value as "baja" | "media" | "alta")}
+                    className="rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white outline-none"
+                  >
+                    <option value="baja">Baja</option>
+                    <option value="media">Media</option>
+                    <option value="alta">Alta</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="mt-5 flex gap-3">
@@ -4162,6 +4357,265 @@ function IntakeClientDetailsModal({
                   </div>
                 ))
               )}
+            </div>
+          </div>
+        )}
+      </motion.div>
+    </div>
+  );
+}
+
+function IntakeGeneratedPlanModal({
+  isOpen,
+  onClose,
+  client,
+  loading,
+  error,
+  plan,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  client: IntakeClient;
+  loading: boolean;
+  error: string | null;
+  plan: IntakeGeneratedPlanDetail | null;
+}) {
+  const [copiedWhatsapp, setCopiedWhatsapp] = useState(false);
+  if (!isOpen) return null;
+  const nutritionDays = Array.isArray(plan?.plan?.plan_semanal) ? plan?.plan?.plan_semanal.length : 0;
+  const trainingWeeks = Array.isArray(plan?.plan?.training_plan && (plan.plan.training_plan as { weeks?: unknown[] }).weeks)
+    ? ((plan?.plan?.training_plan as { weeks?: unknown[] }).weeks || []).length
+    : 0;
+  const macros =
+    plan?.plan?.macros && typeof plan.plan.macros === "object"
+      ? (plan.plan.macros as Record<string, unknown>)
+      : null;
+  const weeklyPlan = Array.isArray(plan?.plan?.plan_semanal) ? (plan?.plan?.plan_semanal as Array<Record<string, unknown>>) : [];
+  const trainingPlan =
+    plan?.plan?.training_plan && typeof plan.plan.training_plan === "object"
+      ? (plan.plan.training_plan as Record<string, unknown>)
+      : null;
+  const firstWeekDays =
+    trainingPlan &&
+    Array.isArray((trainingPlan.weeks as Array<Record<string, unknown>> | undefined)) &&
+    (trainingPlan.weeks as Array<Record<string, unknown>>)[0] &&
+    Array.isArray((trainingPlan.weeks as Array<Record<string, unknown>>)[0].days)
+      ? (((trainingPlan.weeks as Array<Record<string, unknown>>)[0].days as Array<Record<string, unknown>>) || [])
+      : [];
+
+  const buildWhatsappSummary = () => {
+    if (!plan?.plan) return "";
+    const lines: string[] = [];
+    lines.push("Hola! Te comparto tu plan actualizado de FitPlan.");
+    lines.push("");
+    const kcal = typeof plan.plan.calorias_diarias === "number" ? `${plan.plan.calorias_diarias} kcal` : "N/A";
+    lines.push(`Objetivo calórico diario: ${kcal}`);
+    if (macros) {
+      lines.push(
+        `Macros: Proteínas ${String(macros.proteinas || "-")} | Grasas ${String(macros.grasas || "-")} | Carbos ${String(
+          macros.carbohidratos || "-"
+        )}`
+      );
+    }
+    if (weeklyPlan.length > 0) {
+      lines.push("");
+      lines.push("Ejemplo Día 1:");
+      const firstDay = weeklyPlan[0];
+      const dayName = String(firstDay?.dia || "Día");
+      lines.push(dayName);
+      const meals = Array.isArray(firstDay?.comidas) ? (firstDay.comidas as Array<Record<string, unknown>>) : [];
+      meals.slice(0, 5).forEach((meal) => {
+        const mealName = String(meal.nombre || "Comida");
+        const mealMacros =
+          meal.macros_aprox && typeof meal.macros_aprox === "object"
+            ? (meal.macros_aprox as Record<string, unknown>)
+            : null;
+        const mealOption = Array.isArray(meal.opciones) ? String((meal.opciones as unknown[])[0] || "") : "";
+        lines.push(
+          `- ${mealName}: ${mealOption || "opción personalizada"}${
+            mealMacros
+              ? ` (P ${String(mealMacros.proteinas_g || "-")}g / G ${String(mealMacros.grasas_g || "-")}g / C ${String(
+                  mealMacros.carbohidratos_g || "-"
+                )}g)`
+              : ""
+          }`
+        );
+      });
+    }
+    lines.push("");
+    lines.push("Cualquier ajuste, lo vamos corrigiendo semana a semana.");
+    return lines.join("\n");
+  };
+
+  const handleCopyWhatsapp = async () => {
+    try {
+      const text = buildWhatsappSummary();
+      if (!text) return;
+      await navigator.clipboard.writeText(text);
+      setCopiedWhatsapp(true);
+      setTimeout(() => setCopiedWhatsapp(false), 2000);
+    } catch {
+      alert("No se pudo copiar el texto para WhatsApp.");
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 14 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <h3 className="text-xl font-bold text-white">Plan generado</h3>
+            <p className="text-sm text-white/70 mt-1">{client.nombreCompleto || client.email || client.id}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleCopyWhatsapp}
+              disabled={!plan}
+              className="px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 hover:bg-emerald-500/30 transition-colors disabled:opacity-50"
+            >
+              {copiedWhatsapp ? "Copiado" : "Copiar WhatsApp"}
+            </button>
+            <button onClick={onClose} className="text-white/60 hover:text-white">✕</button>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="py-10 flex justify-center">
+            <div className="h-8 w-8 rounded-full border-b-2 border-cyan-400 animate-spin" />
+          </div>
+        ) : error ? (
+          <div className="p-3 rounded-lg bg-red-500/20 border border-red-500/30 text-red-300 text-sm">{error}</div>
+        ) : !plan ? (
+          <div className="p-3 rounded-lg bg-white/5 border border-white/10 text-white/70 text-sm">
+            No hay datos de plan disponibles.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                <p className="text-xs text-white/60">Tipo de acción</p>
+                <p className="text-sm text-white">{plan.actionType || "N/A"}</p>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                <p className="text-xs text-white/60">Nutrición</p>
+                <p className="text-sm text-white">{plan.includeNutrition ? `Sí (${nutritionDays} días)` : "No"}</p>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                <p className="text-xs text-white/60">Entrenamiento</p>
+                <p className="text-sm text-white">{plan.includeTraining ? `Sí (${trainingWeeks} semanas)` : "No"}</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="rounded-lg border border-emerald-400/20 bg-emerald-500/10 px-3 py-2">
+                <p className="text-xs text-emerald-100/80">Calorías objetivo</p>
+                <p className="text-base font-semibold text-emerald-100">
+                  {typeof plan?.plan?.calorias_diarias === "number" ? `${plan.plan.calorias_diarias} kcal` : "N/A"}
+                </p>
+              </div>
+              <div className="rounded-lg border border-cyan-400/20 bg-cyan-500/10 px-3 py-2">
+                <p className="text-xs text-cyan-100/80">Macros</p>
+                <p className="text-sm text-cyan-100">
+                  {macros
+                    ? `P ${String(macros.proteinas || "-")} · G ${String(macros.grasas || "-")} · C ${String(macros.carbohidratos || "-")}`
+                    : "N/A"}
+                </p>
+              </div>
+              <div className="rounded-lg border border-violet-400/20 bg-violet-500/10 px-3 py-2">
+                <p className="text-xs text-violet-100/80">Split entrenamiento</p>
+                <p className="text-sm text-violet-100">{String(trainingPlan?.split || "N/A")}</p>
+              </div>
+            </div>
+
+            {plan.includeNutrition && weeklyPlan.length > 0 && (
+              <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                <p className="text-xs text-white/60 mb-2">Vista rápida nutrición semanal</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {weeklyPlan.slice(0, 4).map((day) => {
+                    const dayName = String(day.dia || "Día");
+                    const meals = Array.isArray(day.comidas) ? (day.comidas as Array<Record<string, unknown>>) : [];
+                    return (
+                      <div key={dayName} className="rounded-md border border-white/10 bg-black/20 px-3 py-2">
+                        <p className="text-sm font-medium text-white">{dayName}</p>
+                        <p className="text-xs text-white/70 mt-1">{meals.length} comidas planificadas</p>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="mt-3 rounded-md border border-white/10 bg-black/20 px-3 py-2">
+                  <p className="text-xs text-white/60 mb-1">Macros aproximados por comida (primer día)</p>
+                  {(() => {
+                    const meals = Array.isArray(weeklyPlan[0]?.comidas) ? (weeklyPlan[0].comidas as Array<Record<string, unknown>>) : [];
+                    if (meals.length === 0) {
+                      return <p className="text-xs text-white/70">Sin detalle disponible.</p>;
+                    }
+                    return (
+                      <div className="space-y-1">
+                        {meals.map((meal, idx) => {
+                          const mealName = String(meal.nombre || `Comida ${idx + 1}`);
+                          const mealMacros =
+                            meal.macros_aprox && typeof meal.macros_aprox === "object"
+                              ? (meal.macros_aprox as Record<string, unknown>)
+                              : null;
+                          const detail = Array.isArray(meal.opciones_detalle)
+                            ? (meal.opciones_detalle as Array<Record<string, unknown>>)[0]
+                            : null;
+                          return (
+                            <p key={`${mealName}-${idx}`} className="text-xs text-white/80">
+                              {mealName}: P {String(mealMacros?.proteinas_g ?? "-")}g · G {String(mealMacros?.grasas_g ?? "-")}g · C{" "}
+                              {String(mealMacros?.carbohidratos_g ?? "-")}g
+                              {detail ? ` · ${String(detail.opcion || "")}` : ""}
+                            </p>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+
+            {plan.includeTraining && firstWeekDays.length > 0 && (
+              <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                <p className="text-xs text-white/60 mb-2">Vista rápida semana 1 de entrenamiento</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {firstWeekDays.slice(0, 6).map((day) => {
+                    const dayName = String(day.day || "Día");
+                    const split = String(day.split || "Entrenamiento");
+                    const exercises = Array.isArray(day.ejercicios) ? day.ejercicios.length : 0;
+                    return (
+                      <div key={`${dayName}-${split}`} className="rounded-md border border-white/10 bg-black/20 px-3 py-2">
+                        <p className="text-sm font-medium text-white">{dayName}</p>
+                        <p className="text-xs text-white/70 mt-1">{split} · {exercises} ejercicios</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+              <p className="text-xs text-white/60 mb-1">Contexto usado para generar</p>
+              <p className="text-sm text-white/85">
+                {plan.input
+                  ? `Objetivo: ${String(plan.input.objetivo || "N/A")} · Peso: ${String(plan.input.pesoKg || "N/A")} kg · Días gym: ${String(plan.input.diasGym || "N/A")} · Días cardio: ${String(plan.input.diasCardio || "N/A")}`
+                  : "N/A"}
+              </p>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+              <p className="text-xs text-white/60 mb-1">Plan completo (JSON)</p>
+              <p className="text-sm text-white whitespace-pre-wrap break-words">
+                {plan.plan ? JSON.stringify(plan.plan, null, 2) : "N/A"}
+              </p>
             </div>
           </div>
         )}
