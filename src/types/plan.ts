@@ -104,6 +104,10 @@ export interface PlanAIResponse {
     motivo: string;
     nota?: string;
   }>;
+  evaluacion_inicial?: {
+    imc?: number;
+    estado?: string;
+  };
   // Campos de debugging/metadatos usados por el flujo FREE/templates
   _debug_training_plan?: TrainingPlan;
   _planType?: "template" | "openai";

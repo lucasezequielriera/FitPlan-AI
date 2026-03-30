@@ -358,6 +358,10 @@ export default function Admin() {
   const [intakePlanActionType, setIntakePlanActionType] = useState<IntakePlanActionType>("generate");
   const [intakePlanIncludeNutrition, setIntakePlanIncludeNutrition] = useState(true);
   const [intakePlanIncludeTraining, setIntakePlanIncludeTraining] = useState(true);
+  const [intakePlanObjectiveOverride, setIntakePlanObjectiveOverride] = useState<
+    "auto" | "perder_grasa" | "ganar_musculo" | "recomposicion" | "rendimiento" | "mantener"
+  >("auto");
+  const [intakePlanAdditionalNotes, setIntakePlanAdditionalNotes] = useState("");
   const [intakeUpdateMainNeed, setIntakeUpdateMainNeed] = useState("");
   const [intakeUpdateNutritionFeedback, setIntakeUpdateNutritionFeedback] = useState("");
   const [intakeUpdateTrainingFeedback, setIntakeUpdateTrainingFeedback] = useState("");
@@ -1280,6 +1284,8 @@ export default function Admin() {
     setIntakePlanActionType(actionType);
     setIntakePlanIncludeNutrition(true);
     setIntakePlanIncludeTraining(actionType === "generate");
+    setIntakePlanObjectiveOverride("auto");
+    setIntakePlanAdditionalNotes("");
     setIntakeUpdateMainNeed("");
     setIntakeUpdateNutritionFeedback("");
     setIntakeUpdateTrainingFeedback("");
@@ -1311,6 +1317,10 @@ export default function Admin() {
           actionType: intakePlanActionType,
           includeNutrition: intakePlanIncludeNutrition,
           includeTraining: intakePlanIncludeTraining,
+          actionContext: {
+            objectiveOverride: intakePlanObjectiveOverride,
+            additionalNotes: intakePlanAdditionalNotes.trim(),
+          },
           updateContext:
             intakePlanActionType === "update"
               ? {
@@ -1339,6 +1349,8 @@ export default function Admin() {
       await loadIntakeClients();
       setIntakePlanModalOpen(false);
       setIntakePlanClient(null);
+      setIntakePlanObjectiveOverride("auto");
+      setIntakePlanAdditionalNotes("");
       setIntakeUpdateMainNeed("");
       setIntakeUpdateNutritionFeedback("");
       setIntakeUpdateTrainingFeedback("");
@@ -4016,6 +4028,8 @@ export default function Admin() {
             actionType={intakePlanActionType}
             includeNutrition={intakePlanIncludeNutrition}
             includeTraining={intakePlanIncludeTraining}
+            objectiveOverride={intakePlanObjectiveOverride}
+            additionalNotes={intakePlanAdditionalNotes}
             updateMainNeed={intakeUpdateMainNeed}
             updateNutritionFeedback={intakeUpdateNutritionFeedback}
             updateTrainingFeedback={intakeUpdateTrainingFeedback}
@@ -4028,6 +4042,8 @@ export default function Admin() {
             }}
             onToggleNutrition={() => setIntakePlanIncludeNutrition((prev) => !prev)}
             onToggleTraining={() => setIntakePlanIncludeTraining((prev) => !prev)}
+            onChangeObjectiveOverride={setIntakePlanObjectiveOverride}
+            onChangeAdditionalNotes={setIntakePlanAdditionalNotes}
             onChangeUpdateMainNeed={setIntakeUpdateMainNeed}
             onChangeUpdateNutritionFeedback={setIntakeUpdateNutritionFeedback}
             onChangeUpdateTrainingFeedback={setIntakeUpdateTrainingFeedback}
@@ -4089,6 +4105,8 @@ function IntakePlanActionModal({
   actionType,
   includeNutrition,
   includeTraining,
+  objectiveOverride,
+  additionalNotes,
   updateMainNeed,
   updateNutritionFeedback,
   updateTrainingFeedback,
@@ -4098,6 +4116,8 @@ function IntakePlanActionModal({
   onClose,
   onToggleNutrition,
   onToggleTraining,
+  onChangeObjectiveOverride,
+  onChangeAdditionalNotes,
   onChangeUpdateMainNeed,
   onChangeUpdateNutritionFeedback,
   onChangeUpdateTrainingFeedback,
@@ -4110,6 +4130,8 @@ function IntakePlanActionModal({
   actionType: IntakePlanActionType;
   includeNutrition: boolean;
   includeTraining: boolean;
+  objectiveOverride: "auto" | "perder_grasa" | "ganar_musculo" | "recomposicion" | "rendimiento" | "mantener";
+  additionalNotes: string;
   updateMainNeed: string;
   updateNutritionFeedback: string;
   updateTrainingFeedback: string;
@@ -4119,6 +4141,10 @@ function IntakePlanActionModal({
   onClose: () => void;
   onToggleNutrition: () => void;
   onToggleTraining: () => void;
+  onChangeObjectiveOverride: (
+    value: "auto" | "perder_grasa" | "ganar_musculo" | "recomposicion" | "rendimiento" | "mantener"
+  ) => void;
+  onChangeAdditionalNotes: (value: string) => void;
   onChangeUpdateMainNeed: (value: string) => void;
   onChangeUpdateNutritionFeedback: (value: string) => void;
   onChangeUpdateTrainingFeedback: (value: string) => void;
@@ -4166,6 +4192,38 @@ function IntakePlanActionModal({
           </label>
           <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-200">
             Frecuencia: mensual
+          </div>
+          <div className="space-y-3 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-3">
+            <p className="text-xs text-white/70">Antes de generar, puedes ajustar el enfoque real del cliente.</p>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-white/70">Objetivo real a priorizar</span>
+              <select
+                value={objectiveOverride}
+                onChange={(e) =>
+                  onChangeObjectiveOverride(
+                    e.target.value as "auto" | "perder_grasa" | "ganar_musculo" | "recomposicion" | "rendimiento" | "mantener"
+                  )
+                }
+                className="rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white outline-none"
+              >
+                <option value="auto">Usar objetivo del formulario</option>
+                <option value="perder_grasa">Bajar grasa corporal</option>
+                <option value="ganar_musculo">Ganar masa muscular</option>
+                <option value="recomposicion">Recomposición corporal</option>
+                <option value="rendimiento">Mejorar rendimiento</option>
+                <option value="mantener">Mantener peso/composición</option>
+              </select>
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-white/70">¿Algo más a tener en cuenta? (opcional)</span>
+              <textarea
+                rows={2}
+                value={additionalNotes}
+                onChange={(e) => onChangeAdditionalNotes(e.target.value)}
+                className="rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white outline-none"
+                placeholder="Ej.: priorizar adherencia, poco tiempo, dolor lumbar al correr..."
+              />
+            </label>
           </div>
           {actionType === "update" && (
             <div className="space-y-3 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-3">
@@ -4677,12 +4735,12 @@ function IntakeGeneratedPlanModal({
         className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
           <div>
             <h3 className="text-xl font-bold text-white">Plan generado</h3>
             <p className="text-sm text-white/70 mt-1">{client.nombreCompleto || client.email || client.id}</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
             <div className="relative">
               <button
                 onClick={() => setShowDownloadMenu((prev) => !prev)}
@@ -4778,6 +4836,15 @@ function IntakeGeneratedPlanModal({
                 <p className="text-sm text-violet-100">{String(trainingPlan?.split || "N/A")}</p>
               </div>
             </div>
+            {plan?.plan?.evaluacion_inicial && typeof plan.plan.evaluacion_inicial === "object" && (
+              <div className="rounded-lg border border-fuchsia-400/20 bg-fuchsia-500/10 px-3 py-2">
+                <p className="text-xs text-fuchsia-100/80">Evaluación inicial</p>
+                <p className="text-sm text-fuchsia-100">
+                  IMC: {String((plan.plan.evaluacion_inicial as Record<string, unknown>).imc || "N/A")} · Estado:{" "}
+                  {String((plan.plan.evaluacion_inicial as Record<string, unknown>).estado || "N/A")}
+                </p>
+              </div>
+            )}
             {cardioPlan && (
               <div className="rounded-lg border border-sky-400/20 bg-sky-500/10 px-3 py-2">
                 <p className="text-xs text-sky-100/80">Cardio recomendado (caminar/correr)</p>

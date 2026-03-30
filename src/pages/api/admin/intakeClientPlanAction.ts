@@ -5,6 +5,10 @@ import { generateTemplateBasedPlan } from "@/lib/templatePlans";
 import type { Goal, UserInput } from "@/types/plan";
 
 type ActionType = "generate" | "update";
+type ActionContext = {
+  objectiveOverride?: "auto" | "perder_grasa" | "ganar_musculo" | "recomposicion" | "rendimiento" | "mantener";
+  additionalNotes?: string;
+} | null;
 type UpdateContext = {
   mainNeed?: string;
   nutritionFeedback?: string;
@@ -58,6 +62,17 @@ function normalizeObjetivo(value: unknown): Goal {
   if (objetivo === "rendimiento") return "rendimiento_deportivo";
   if (objetivo === "post_parto") return "mantenimiento_avanzado";
   return "mantener";
+}
+
+function normalizeObjetivoOverride(value: unknown): Goal | null {
+  const raw = toString(value);
+  if (!raw || raw === "auto") return null;
+  if (raw === "perder_grasa") return "perder_grasa";
+  if (raw === "ganar_musculo") return "ganar_masa";
+  if (raw === "recomposicion") return "recomposicion";
+  if (raw === "rendimiento") return "rendimiento_deportivo";
+  if (raw === "mantener") return "mantener";
+  return null;
 }
 
 function resolveNivelExperiencia(value: unknown): UserInput["nivelExperiencia"] {
@@ -234,6 +249,20 @@ function applyUpdateContext(
   return next;
 }
 
+function applyActionContext(input: UserInput, actionContext: ActionContext): UserInput {
+  if (!actionContext) return input;
+  const next: UserInput = { ...input };
+  const objectiveOverride = normalizeObjetivoOverride(actionContext.objectiveOverride);
+  const additionalNotes = toString(actionContext.additionalNotes);
+  if (objectiveOverride) {
+    next.objetivo = objectiveOverride;
+  }
+  if (additionalNotes) {
+    next.preferencias = Array.from(new Set([...(next.preferencias || []), `Nota extra del coach: ${additionalNotes}`]));
+  }
+  return next;
+}
+
 function calculateCaloriesAndMacros(input: UserInput) {
   const peso = Math.max(35, input.pesoKg);
   const altura = Math.max(120, input.alturaCm);
@@ -273,6 +302,19 @@ function calculateCaloriesAndMacros(input: UserInput) {
       carbohidratos: `${carbsG}g`,
     },
   };
+}
+
+function calculateImcAssessment(input: UserInput): { imc: number; estado: string } {
+  const alturaM = Math.max(1.2, input.alturaCm / 100);
+  const imc = input.pesoKg / (alturaM * alturaM);
+  let estado = "Normopeso";
+  if (imc < 18.5) estado = "Bajo peso";
+  else if (imc < 25) estado = "Normopeso";
+  else if (imc < 30) estado = "Sobrepeso";
+  else if (imc < 35) estado = "Obesidad grado I";
+  else if (imc < 40) estado = "Obesidad grado II";
+  else estado = "Obesidad grado III";
+  return { imc: Math.round(imc * 10) / 10, estado };
 }
 
 function prunePlanBySelection(
@@ -390,6 +432,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     actionType,
     includeNutrition,
     includeTraining,
+    actionContext,
     updateContext,
   } = req.body as {
     userId?: string;
@@ -397,6 +440,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     actionType?: ActionType;
     includeNutrition?: boolean;
     includeTraining?: boolean;
+    actionContext?: ActionContext;
     updateContext?: UpdateContext;
   };
 
@@ -438,13 +482,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const baseInput = buildInputFromIntake(formData);
+    const generationInputWithAction = applyActionContext(baseInput, actionContext || null);
     const generationInput = applyUpdateContext(
-      baseInput,
+      generationInputWithAction,
       actionType === "update" ? updateContext || null : null,
       includeNutrition === true,
       includeTraining === true
     );
     const { tdee, targetCalories, macros } = calculateCaloriesAndMacros(generationInput);
+    const imcAssessment = calculateImcAssessment(generationInput);
     let generatedPlan: Record<string, unknown>;
     let generationErrorDetail: string | null = null;
     try {
@@ -464,6 +510,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       includeNutrition === true,
       includeTraining === true
     );
+    selectedPlan.evaluacion_inicial = imcAssessment;
 
     const planDocData = removeUndefinedDeep({
       intakeClientId: clientId,
@@ -472,12 +519,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       period: "monthly",
       includeNutrition: includeNutrition === true,
       includeTraining: includeTraining === true,
+      actionContext: actionContext || null,
       updateContext: actionType === "update" ? updateContext || null : null,
       input: generationInput,
       nutritionTargets: {
         tdee,
         targetCalories,
         macros,
+        imc: imcAssessment,
       },
       plan: selectedPlan,
       generationErrorDetail,
