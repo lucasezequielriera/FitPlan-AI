@@ -4409,6 +4409,9 @@ function IntakeGeneratedPlanModal({
     plan?.plan?.cardio_recomendado && typeof plan.plan.cardio_recomendado === "object"
       ? (plan.plan.cardio_recomendado as Record<string, unknown>)
       : null;
+  const suplementacionPlan = Array.isArray(plan?.plan?.suplementacion_recomendada)
+    ? (plan?.plan?.suplementacion_recomendada as Array<Record<string, unknown>>)
+    : [];
   const firstWeekDays =
     trainingPlan &&
     Array.isArray((trainingPlan.weeks as Array<Record<string, unknown>> | undefined)) &&
@@ -4557,6 +4560,23 @@ function IntakeGeneratedPlanModal({
                   {String(cardioPlan.sesiones_por_semana || "N/A")}
                 </p>
                 <p className="text-xs text-sky-100/80 mt-1">{String(cardioPlan.detalle || "")}</p>
+              </div>
+            )}
+            {suplementacionPlan.length > 0 && (
+              <div className="rounded-lg border border-amber-400/20 bg-amber-500/10 px-3 py-2">
+                <p className="text-xs text-amber-100/80 mb-2">Suplementación sugerida</p>
+                <div className="space-y-2">
+                  {suplementacionPlan.map((supp, idx) => (
+                    <div key={`supp-${idx}`} className="rounded-md border border-white/10 bg-black/20 px-3 py-2">
+                      <p className="text-sm font-medium text-amber-100">{String(supp.nombre || "Suplemento")}</p>
+                      <p className="text-xs text-white/80 mt-1">
+                        Dosis: {String(supp.dosis || "N/A")} · Momento: {String(supp.momento || "N/A")}
+                      </p>
+                      <p className="text-xs text-white/70 mt-1">Motivo: {String(supp.motivo || "N/A")}</p>
+                      {supp.nota && <p className="text-xs text-amber-200/90 mt-1">Nota: {String(supp.nota)}</p>}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 

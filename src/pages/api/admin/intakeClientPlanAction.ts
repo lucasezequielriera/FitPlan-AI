@@ -129,6 +129,13 @@ function buildInputFromIntake(formData: Record<string, unknown>): UserInput {
     ...splitToArray(formData.comentariosExtra).map((v) => `Comentario: ${v}`),
     ...splitToArray(formData.dificultadActual).map((v) => `Dificultad actual: ${v}`),
     ...splitToArray(formData.ciudadPais).map((v) => `Ubicación: ${v}`),
+    ...splitToArray(formData.planLugar).map((v) => `Lugar entrenamiento: ${v}`),
+    ...splitToArray(formData.materialCasa).map((v) => `Material en casa: ${v}`),
+    ...(Array.isArray(formData.equipamientoDisponible)
+      ? (formData.equipamientoDisponible as unknown[])
+          .filter((v): v is string => typeof v === "string")
+          .map((v) => `Equipamiento disponible: ${v}`)
+      : []),
   ];
   const patologias = [
     ...splitToArray(formData.enfermedadInfancia).map((v) => `Antecedente infancia: ${v}`),

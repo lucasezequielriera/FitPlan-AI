@@ -120,6 +120,7 @@ const templateComidas = {
 
 type MacrosDiarias = { proteinas: number; grasas: number; carbohidratos: number };
 type RegionalProfile = "argentina" | "espana" | "neutral";
+type SupplementItem = { nombre: string; dosis: string; momento: string; motivo: string; nota?: string };
 
 function detectRegionalProfile(paisRaw?: string): RegionalProfile {
   const text = (paisRaw || "").toLowerCase();
@@ -311,6 +312,71 @@ function enrichTrainingPlanDescriptions(plan: TrainingPlan, cardio: { detalle: s
       "Mantén hidratación constante durante el día.",
     ],
   };
+}
+
+function buildSupplementationRecommendations(user: UserInput): SupplementItem[] {
+  const patologias = (user.patologias || []).map((p) => p.toLowerCase());
+  const restricciones = (user.restricciones || []).map((r) => r.toLowerCase());
+  const preferencias = (user.preferencias || []).map((p) => p.toLowerCase());
+  const wantsSupps = preferencias.some((p) => p.includes("interés en suplementos"));
+
+  const items: SupplementItem[] = [
+    {
+      nombre: "Creatina monohidrato",
+      dosis: "3-5 g diarios",
+      momento: "A cualquier hora, todos los días",
+      motivo: "Mejora fuerza, rendimiento y recuperación muscular.",
+      nota: "Mantén hidratación adecuada.",
+    },
+    {
+      nombre: "Proteína en polvo (suero o vegetal)",
+      dosis: "20-30 g por toma",
+      momento: "Después de entrenar o cuando no llegues con comida",
+      motivo: "Ayuda a cumplir proteína diaria de forma práctica.",
+    },
+    {
+      nombre: "Omega-3 (EPA/DHA)",
+      dosis: "1-2 g de EPA+DHA/día",
+      momento: "Con comidas principales",
+      motivo: "Apoyo antiinflamatorio y salud cardiovascular.",
+    },
+    {
+      nombre: "Vitamina D3",
+      dosis: "1000-2000 UI/día (según analítica médica)",
+      momento: "Con comida con grasa saludable",
+      motivo: "Soporte inmune, óseo y muscular.",
+      nota: "Ideal confirmar dosis con analítica.",
+    },
+  ];
+
+  if (patologias.some((p) => p.includes("hipertensión") || p.includes("corazon"))) {
+    items.push({
+      nombre: "Magnesio (glicinato/citrato)",
+      dosis: "200-350 mg/día",
+      momento: "Noche",
+      motivo: "Apoyo en descanso y función neuromuscular.",
+      nota: "Coordinar con profesional si tomas medicación para presión/corazón.",
+    });
+  }
+
+  const excludesProteinPowder = restricciones.some((r) => r.includes("lácte") || r.includes("veg"));
+  const filtered = items.filter((item) =>
+    excludesProteinPowder ? !item.nombre.toLowerCase().includes("suero") : true
+  );
+
+  if (!wantsSupps) {
+    return [
+      {
+        nombre: "Sin suplementación obligatoria",
+        dosis: "No aplica",
+        momento: "No aplica",
+        motivo: "Puedes progresar solo con alimentación y entrenamiento bien estructurados.",
+      },
+      ...filtered.slice(2, 3),
+    ];
+  }
+
+  return filtered;
 }
 
 // ============================================================================
@@ -520,6 +586,7 @@ export async function generateTemplateBasedPlan(
   const nivel = user.nivelExperiencia || "intermedio";
   const equip = user.equipamiento || "gimnasio";
   const cardio = cardioRecommendationByGoal(objetivo, intensidad);
+  const suplementacion = buildSupplementationRecommendations(user);
   let trainingPlan = generarPlanEntrenamiento(objetivo, intensidad, nivel, equip);
   console.log(`📐 [TEMPLATES] Plan seleccionado tiene ${trainingPlan.weeks?.[0]?.days?.length || 0} días; usuario pide ${diasGym} días/semana (nivel=${nivel}, equipo=${equip})`);
   trainingPlan = ajustarDiasEntrenamiento(trainingPlan, diasGym);
@@ -559,6 +626,7 @@ export async function generateTemplateBasedPlan(
     dificultad_detalle: getDificultadDetalle(intensidad),
     training_plan: trainingPlan,
     cardio_recomendado: cardio,
+    suplementacion_recomendada: suplementacion,
     // include debug copy so frontend can log full structure
     _debug_training_plan: trainingPlan,
     lista_compras: generarListaCompras(tipoDieta),
