@@ -55,6 +55,8 @@ interface IntakeClient {
   createdAt: string | null;
 }
 
+type IntakePlanActionType = "generate" | "update";
+
 interface IntakeClientDetail extends IntakeClient {
   updatedAt: string | null;
   formData: Record<string, unknown> | null;
@@ -335,6 +337,12 @@ export default function Admin() {
   const [intakeClientDetail, setIntakeClientDetail] = useState<IntakeClientDetail | null>(null);
   const [intakeClientDetailLoading, setIntakeClientDetailLoading] = useState(false);
   const [intakeClientDetailError, setIntakeClientDetailError] = useState<string | null>(null);
+  const [intakePlanModalOpen, setIntakePlanModalOpen] = useState(false);
+  const [intakePlanClient, setIntakePlanClient] = useState<IntakeClient | null>(null);
+  const [intakePlanActionType, setIntakePlanActionType] = useState<IntakePlanActionType>("generate");
+  const [intakePlanIncludeNutrition, setIntakePlanIncludeNutrition] = useState(true);
+  const [intakePlanIncludeTraining, setIntakePlanIncludeTraining] = useState(true);
+  const [processingIntakeAction, setProcessingIntakeAction] = useState(false);
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const [selectedUserForHistory, setSelectedUserForHistory] = useState<User | null>(null);
   const [userHistory, setUserHistory] = useState<{
@@ -1215,6 +1223,75 @@ export default function Admin() {
     }
   };
 
+  const handleDeleteIntakeClient = async (client: IntakeClient) => {
+    if (!confirm(`¿Eliminar el formulario de ${client.nombreCompleto || client.email || "este cliente"}?`)) return;
+    try {
+      const auth = getAuthSafe();
+      if (!auth?.currentUser) return;
+      setProcessingIntakeAction(true);
+      const response = await fetch("/api/admin/deleteIntakeClient", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: auth.currentUser.uid,
+          clientId: client.id,
+        }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+      setIntakeClients((prev) => prev.filter((c) => c.id !== client.id));
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "No se pudo eliminar el formulario.");
+    } finally {
+      setProcessingIntakeAction(false);
+    }
+  };
+
+  const openIntakePlanModal = (client: IntakeClient, actionType: IntakePlanActionType) => {
+    setIntakePlanClient(client);
+    setIntakePlanActionType(actionType);
+    setIntakePlanIncludeNutrition(true);
+    setIntakePlanIncludeTraining(actionType === "generate");
+    setIntakePlanModalOpen(true);
+  };
+
+  const handleSubmitIntakePlanAction = async () => {
+    if (!intakePlanClient) return;
+    if (!intakePlanIncludeNutrition && !intakePlanIncludeTraining) {
+      alert("Selecciona al menos un tipo de plan.");
+      return;
+    }
+    try {
+      const auth = getAuthSafe();
+      if (!auth?.currentUser) return;
+      setProcessingIntakeAction(true);
+      const response = await fetch("/api/admin/intakeClientPlanAction", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: auth.currentUser.uid,
+          clientId: intakePlanClient.id,
+          actionType: intakePlanActionType,
+          includeNutrition: intakePlanIncludeNutrition,
+          includeTraining: intakePlanIncludeTraining,
+        }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+      await loadIntakeClients();
+      setIntakePlanModalOpen(false);
+      setIntakePlanClient(null);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "No se pudo guardar la acción.");
+    } finally {
+      setProcessingIntakeAction(false);
+    }
+  };
+
   const handleEdit = (user: User) => {
     // Console log detallado del usuario para debug
     console.log("=".repeat(80));
@@ -2007,12 +2084,33 @@ export default function Admin() {
                           : "N/A"}
                       </td>
                       <td className="px-4 py-3 text-sm">
-                        <button
-                          onClick={() => handleOpenIntakeClientDetail(client)}
-                          className="px-3 py-1.5 rounded-lg bg-cyan-500/20 border border-cyan-400/40 text-cyan-200 hover:bg-cyan-500/30 transition-colors"
-                        >
-                          Ver detalle
-                        </button>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() => handleOpenIntakeClientDetail(client)}
+                            className="px-3 py-1.5 rounded-lg bg-cyan-500/20 border border-cyan-400/40 text-cyan-200 hover:bg-cyan-500/30 transition-colors"
+                          >
+                            Ver detalle
+                          </button>
+                          <button
+                            onClick={() => openIntakePlanModal(client, "generate")}
+                            className="px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 hover:bg-emerald-500/30 transition-colors"
+                          >
+                            Generar
+                          </button>
+                          <button
+                            onClick={() => openIntakePlanModal(client, "update")}
+                            className="px-3 py-1.5 rounded-lg bg-blue-500/20 border border-blue-400/40 text-blue-200 hover:bg-blue-500/30 transition-colors"
+                          >
+                            Actualizar plan
+                          </button>
+                          <button
+                            onClick={() => handleDeleteIntakeClient(client)}
+                            disabled={processingIntakeAction}
+                            className="px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-400/40 text-red-200 hover:bg-red-500/30 transition-colors disabled:opacity-60"
+                          >
+                            Eliminar
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -3816,6 +3914,23 @@ export default function Admin() {
             error={intakeClientDetailError}
           />
         )}
+        {intakePlanModalOpen && intakePlanClient && (
+          <IntakePlanActionModal
+            isOpen={intakePlanModalOpen}
+            client={intakePlanClient}
+            actionType={intakePlanActionType}
+            includeNutrition={intakePlanIncludeNutrition}
+            includeTraining={intakePlanIncludeTraining}
+            loading={processingIntakeAction}
+            onClose={() => {
+              setIntakePlanModalOpen(false);
+              setIntakePlanClient(null);
+            }}
+            onToggleNutrition={() => setIntakePlanIncludeNutrition((prev) => !prev)}
+            onToggleTraining={() => setIntakePlanIncludeTraining((prev) => !prev)}
+            onSubmit={handleSubmitIntakePlanAction}
+          />
+        )}
 
         {/* Modal de estadísticas semanales */}
         {weeklyStatsModalOpen && selectedPlanIdForStats && (
@@ -3843,6 +3958,92 @@ export default function Admin() {
           />
         )}
       </div>
+    </div>
+  );
+}
+
+function IntakePlanActionModal({
+  isOpen,
+  client,
+  actionType,
+  includeNutrition,
+  includeTraining,
+  loading,
+  onClose,
+  onToggleNutrition,
+  onToggleTraining,
+  onSubmit,
+}: {
+  isOpen: boolean;
+  client: IntakeClient;
+  actionType: IntakePlanActionType;
+  includeNutrition: boolean;
+  includeTraining: boolean;
+  loading: boolean;
+  onClose: () => void;
+  onToggleNutrition: () => void;
+  onToggleTraining: () => void;
+  onSubmit: () => void;
+}) {
+  if (!isOpen) return null;
+  const title = actionType === "generate" ? "Generar plan mensual" : "Actualizar plan";
+  const subtitle =
+    actionType === "generate"
+      ? "Selecciona qué plan quieres generar para este cliente."
+      : "Selecciona qué área quieres actualizar para este cliente.";
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 14 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-lg w-full"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <h3 className="text-xl font-bold text-white">{title}</h3>
+            <p className="text-sm text-white/70 mt-1">{client.nombreCompleto || client.email || client.id}</p>
+            <p className="text-xs text-white/50 mt-1">{subtitle}</p>
+          </div>
+          <button onClick={onClose} className="text-white/60 hover:text-white">✕</button>
+        </div>
+
+        <div className="space-y-3">
+          <label className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2 cursor-pointer">
+            <span className="text-sm text-white">Plan de alimentación / nutrición</span>
+            <input type="checkbox" checked={includeNutrition} onChange={onToggleNutrition} className="h-4 w-4" />
+          </label>
+          <label className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2 cursor-pointer">
+            <span className="text-sm text-white">Plan de entrenamiento</span>
+            <input type="checkbox" checked={includeTraining} onChange={onToggleTraining} className="h-4 w-4" />
+          </label>
+          <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-200">
+            Frecuencia: mensual
+          </div>
+        </div>
+
+        <div className="mt-5 flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-white"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onSubmit}
+            disabled={loading}
+            className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-medium disabled:opacity-60"
+          >
+            {loading ? "Guardando..." : actionType === "generate" ? "Generar" : "Actualizar"}
+          </button>
+        </div>
+      </motion.div>
     </div>
   );
 }

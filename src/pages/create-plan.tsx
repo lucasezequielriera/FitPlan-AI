@@ -2149,6 +2149,7 @@ export default function CreatePlan() {
           onClose={() => setPremiumModalOpen(false)}
           userId={authUser.uid}
           userEmail={authUser.email}
+          returnUrl={`${typeof window !== "undefined" ? window.location.origin : ""}/create-plan?continue=true&generate=true`}
         />
       )}
     </div>
