@@ -13,6 +13,21 @@ type UpdateContext = {
   energyLevel?: "baja" | "media" | "alta";
 } | null;
 
+function removeUndefinedDeep<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => removeUndefinedDeep(item))
+      .filter((item) => item !== undefined) as unknown as T;
+  }
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, entryValue]) => entryValue !== undefined)
+      .map(([key, entryValue]) => [key, removeUndefinedDeep(entryValue)] as const);
+    return Object.fromEntries(entries) as T;
+  }
+  return value;
+}
+
 function toNumber(value: unknown, fallback = 0): number {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string") {
@@ -416,7 +431,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       includeTraining === true
     );
 
-    const planDoc = await db.collection("intakeClientPlans").add({
+    const planDocData = removeUndefinedDeep({
       intakeClientId: clientId,
       generatedBy: userId,
       actionType,
@@ -435,6 +450,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
+    const planDoc = await db.collection("intakeClientPlans").add(planDocData);
 
     const status = actionType === "generate" ? "plan_generated" : "plan_updated";
     const entry = {
@@ -449,8 +465,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       updateContext: actionType === "update" ? updateContext || null : null,
     };
 
-    await targetRef.set(
-      {
+    const intakeClientUpdate = removeUndefinedDeep({
         status,
         planAction: {
           ...entry,
@@ -464,7 +479,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         latestPlanIncludeNutrition: includeNutrition === true,
         latestPlanIncludeTraining: includeTraining === true,
         updatedAt: FieldValue.serverTimestamp(),
-      },
+      });
+
+    await targetRef.set(
+      intakeClientUpdate,
       { merge: true }
     );
 
