@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { motion } from "framer-motion";
+import { jsPDF } from "jspdf";
 import { useAuthStore } from "@/store/authStore";
 import { getDbSafe, getAuthSafe } from "@/lib/firebase";
 import Navbar from "@/components/Navbar";
 import WeeklyStatsModal from "@/components/WeeklyStatsModal";
-import { FaArrowUp, FaArrowDown, FaCheck, FaChartLine, FaEnvelope, FaComment } from "react-icons/fa";
+import { FaArrowUp, FaArrowDown, FaCheck, FaChartLine, FaEnvelope, FaComment, FaDownload, FaFilePdf, FaFileWord, FaFileExcel } from "react-icons/fa";
 
 interface User {
   id: string;
@@ -4391,6 +4392,8 @@ function IntakeGeneratedPlanModal({
 }) {
   const [copiedWhatsapp, setCopiedWhatsapp] = useState(false);
   const [showTechnicalJson, setShowTechnicalJson] = useState(false);
+  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+  const [exportingFormat, setExportingFormat] = useState<"pdf" | "word" | "excel" | null>(null);
   if (!isOpen) return null;
   const nutritionDays = Array.isArray(plan?.plan?.plan_semanal) ? plan?.plan?.plan_semanal.length : 0;
   const trainingWeeks = Array.isArray(plan?.plan?.training_plan && (plan.plan.training_plan as { weeks?: unknown[] }).weeks)
@@ -4464,6 +4467,191 @@ function IntakeGeneratedPlanModal({
     return lines.join("\n");
   };
 
+  const downloadBlob = (content: BlobPart, mimeType: string, fileName: string) => {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const sanitizeFileName = (value: string) =>
+    value
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9-_]+/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_|_$/g, "")
+      .toLowerCase();
+
+  const buildPlanTextLines = () => {
+    const lines: string[] = [];
+    lines.push(`Plan de ${client.nombreCompleto || client.email || client.id}`);
+    lines.push("");
+    lines.push(`Calorías diarias: ${typeof plan?.plan?.calorias_diarias === "number" ? `${plan.plan.calorias_diarias} kcal` : "N/A"}`);
+    lines.push(
+      `Macros: Proteínas ${String(macros?.proteinas || "-")} | Grasas ${String(macros?.grasas || "-")} | Carbohidratos ${String(
+        macros?.carbohidratos || "-"
+      )}`
+    );
+    if (cardioPlan) {
+      lines.push("");
+      lines.push("Cardio recomendado:");
+      lines.push(`- Pasos diarios: ${String(cardioPlan.objetivo_pasos_diarios || "N/A")}`);
+      lines.push(`- Sesiones: ${String(cardioPlan.sesiones_por_semana || "N/A")}`);
+      lines.push(`- Detalle: ${String(cardioPlan.detalle || "N/A")}`);
+    }
+    if (weeklyPlan.length > 0) {
+      lines.push("");
+      lines.push("Plan de alimentación:");
+      weeklyPlan.forEach((day) => {
+        const dayName = String(day.dia || "Día");
+        lines.push(`- ${dayName}`);
+        const meals = Array.isArray(day.comidas) ? (day.comidas as Array<Record<string, unknown>>) : [];
+        meals.forEach((meal) => {
+          const mealName = String(meal.nombre || "Comida");
+          const mealTime = String(meal.hora || "--:--");
+          const mealMacros =
+            meal.macros_aprox && typeof meal.macros_aprox === "object"
+              ? (meal.macros_aprox as Record<string, unknown>)
+              : null;
+          const mealOption = Array.isArray(meal.opciones) ? String((meal.opciones as unknown[])[0] || "") : "Opción personalizada";
+          lines.push(
+            `  • ${mealTime} ${mealName}: ${mealOption} (Proteínas ${String(mealMacros?.proteinas_g ?? "-")}g / Grasas ${String(
+              mealMacros?.grasas_g ?? "-"
+            )}g / Carbohidratos ${String(mealMacros?.carbohidratos_g ?? "-")}g)`
+          );
+        });
+      });
+    }
+    if (firstWeekDays.length > 0) {
+      lines.push("");
+      lines.push("Entrenamiento (semana 1):");
+      firstWeekDays.forEach((day) => {
+        const dayName = String(day.day || "Día");
+        const split = String(day.split || "Entrenamiento");
+        lines.push(`- ${dayName} (${split})`);
+        const exercises = Array.isArray(day.ejercicios) ? (day.ejercicios as Array<Record<string, unknown>>) : [];
+        exercises.forEach((exercise) => {
+          lines.push(
+            `  • ${String(exercise.name || "Ejercicio")} | ${String(exercise.sets || "-")} series | ${String(
+              exercise.reps || "-"
+            )} reps | Músculo: ${String(exercise.muscle_group || "N/A")}`
+          );
+        });
+      });
+    }
+    if (suplementacionPlan.length > 0) {
+      lines.push("");
+      lines.push("Suplementación sugerida:");
+      suplementacionPlan.forEach((supp) => {
+        lines.push(
+          `- ${String(supp.nombre || "Suplemento")}: ${String(supp.dosis || "N/A")} | ${String(supp.momento || "N/A")} | ${String(
+            supp.motivo || "N/A"
+          )}`
+        );
+      });
+    }
+    return lines;
+  };
+
+  const exportPlanAsPdf = () => {
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    const lines = buildPlanTextLines();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 40;
+    const lineHeight = 16;
+    let y = margin;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    lines.forEach((line) => {
+      const wrapped = doc.splitTextToSize(line, pageWidth - margin * 2);
+      wrapped.forEach((segment: string) => {
+        if (y > pageHeight - margin) {
+          doc.addPage();
+          y = margin;
+        }
+        doc.text(segment, margin, y);
+        y += lineHeight;
+      });
+    });
+    const baseName = sanitizeFileName(client.nombreCompleto || client.email || "cliente");
+    doc.save(`plan-fitplan-${baseName}.pdf`);
+  };
+
+  const exportPlanAsWord = () => {
+    const title = client.nombreCompleto || client.email || "Cliente";
+    const lines = buildPlanTextLines().map((line) => line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"));
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8" /><title>Plan FitPlan</title></head><body style="font-family:Arial,sans-serif;padding:24px;"><h1 style="color:#0f172a;">Plan FitPlan - ${title}</h1>${lines
+      .map((line) => `<p style="margin:0 0 8px 0;">${line || "&nbsp;"}</p>`)
+      .join("")}</body></html>`;
+    const baseName = sanitizeFileName(client.nombreCompleto || client.email || "cliente");
+    downloadBlob(html, "application/msword;charset=utf-8", `plan-fitplan-${baseName}.doc`);
+  };
+
+  const exportPlanAsExcel = () => {
+    const rows: string[] = [];
+    rows.push("Seccion;Dia;Hora;Elemento;Detalle;Proteinas_g;Grasas_g;Carbohidratos_g");
+    weeklyPlan.forEach((day) => {
+      const dayName = String(day.dia || "Día");
+      const meals = Array.isArray(day.comidas) ? (day.comidas as Array<Record<string, unknown>>) : [];
+      meals.forEach((meal) => {
+        const mealName = String(meal.nombre || "Comida");
+        const mealTime = String(meal.hora || "--:--");
+        const mealOption = Array.isArray(meal.opciones) ? String((meal.opciones as unknown[])[0] || "") : "Opción personalizada";
+        const mealMacros =
+          meal.macros_aprox && typeof meal.macros_aprox === "object"
+            ? (meal.macros_aprox as Record<string, unknown>)
+            : null;
+        rows.push(
+          `Nutricion;${dayName};${mealTime};${mealName};"${mealOption.replace(/"/g, '""')}";${String(
+            mealMacros?.proteinas_g ?? ""
+          )};${String(mealMacros?.grasas_g ?? "")};${String(mealMacros?.carbohidratos_g ?? "")}`
+        );
+      });
+    });
+    firstWeekDays.forEach((day) => {
+      const dayName = String(day.day || "Día");
+      const exercises = Array.isArray(day.ejercicios) ? (day.ejercicios as Array<Record<string, unknown>>) : [];
+      exercises.forEach((exercise) => {
+        rows.push(
+          `Entrenamiento;${dayName};;${String(exercise.name || "Ejercicio")};"${`Series: ${String(exercise.sets || "-")} | Reps: ${String(
+            exercise.reps || "-"
+          )} | Músculo: ${String(exercise.muscle_group || "N/A")}`.replace(/"/g, '""')}";;;`
+        );
+      });
+    });
+    suplementacionPlan.forEach((supp) => {
+      rows.push(
+        `Suplementacion;;;${String(supp.nombre || "Suplemento")};"${`Dosis: ${String(supp.dosis || "")} | Momento: ${String(
+          supp.momento || ""
+        )} | Motivo: ${String(supp.motivo || "")}`.replace(/"/g, '""')}";;;`
+      );
+    });
+    const csvContent = `\uFEFF${rows.join("\n")}`;
+    const baseName = sanitizeFileName(client.nombreCompleto || client.email || "cliente");
+    downloadBlob(csvContent, "text/csv;charset=utf-8", `plan-fitplan-${baseName}.csv`);
+  };
+
+  const handleExportPlan = async (format: "pdf" | "word" | "excel") => {
+    try {
+      setExportingFormat(format);
+      if (format === "pdf") exportPlanAsPdf();
+      if (format === "word") exportPlanAsWord();
+      if (format === "excel") exportPlanAsExcel();
+      setShowDownloadMenu(false);
+    } catch {
+      alert("No se pudo descargar el plan en el formato seleccionado.");
+    } finally {
+      setExportingFormat(null);
+    }
+  };
+
   const handleCopyWhatsapp = async () => {
     try {
       const text = buildWhatsappSummary();
@@ -4495,6 +4683,44 @@ function IntakeGeneratedPlanModal({
             <p className="text-sm text-white/70 mt-1">{client.nombreCompleto || client.email || client.id}</p>
           </div>
           <div className="flex items-center gap-2">
+            <div className="relative">
+              <button
+                onClick={() => setShowDownloadMenu((prev) => !prev)}
+                disabled={!plan}
+                className="px-3 py-1.5 rounded-lg bg-blue-500/20 border border-blue-400/40 text-blue-200 hover:bg-blue-500/30 transition-colors disabled:opacity-50 inline-flex items-center gap-2"
+              >
+                <FaDownload />
+                Descargar plan
+              </button>
+              {showDownloadMenu && (
+                <div className="absolute right-0 mt-2 w-56 rounded-xl border border-white/15 bg-gray-950/95 p-2 shadow-2xl z-20">
+                  <button
+                    onClick={() => handleExportPlan("pdf")}
+                    disabled={exportingFormat !== null}
+                    className="w-full text-left px-3 py-2 rounded-lg text-white/90 hover:bg-white/10 transition-colors inline-flex items-center gap-2"
+                  >
+                    <FaFilePdf className="text-rose-300" />
+                    Descargar en PDF
+                  </button>
+                  <button
+                    onClick={() => handleExportPlan("word")}
+                    disabled={exportingFormat !== null}
+                    className="w-full text-left px-3 py-2 rounded-lg text-white/90 hover:bg-white/10 transition-colors inline-flex items-center gap-2"
+                  >
+                    <FaFileWord className="text-blue-300" />
+                    Descargar en Word
+                  </button>
+                  <button
+                    onClick={() => handleExportPlan("excel")}
+                    disabled={exportingFormat !== null}
+                    className="w-full text-left px-3 py-2 rounded-lg text-white/90 hover:bg-white/10 transition-colors inline-flex items-center gap-2"
+                  >
+                    <FaFileExcel className="text-emerald-300" />
+                    Descargar en Excel
+                  </button>
+                </div>
+              )}
+            </div>
             <button
               onClick={handleCopyWhatsapp}
               disabled={!plan}
