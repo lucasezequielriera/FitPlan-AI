@@ -452,18 +452,6 @@ export default function FormularioDeInicioPage() {
                   </label>
                 </div>
                 <label className="flex flex-col gap-1">
-                  <span className="text-sm opacity-80">¿Qué sueles desayunar?</span>
-                  <textarea rows={2} className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.desayunoHabitual} onChange={(e) => update("desayunoHabitual", e.target.value)} />
-                </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-sm opacity-80">¿Qué sueles comer al mediodía?</span>
-                  <textarea rows={2} className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.almuerzoHabitual} onChange={(e) => update("almuerzoHabitual", e.target.value)} />
-                </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-sm opacity-80">¿Qué sueles cenar?</span>
-                  <textarea rows={2} className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.cenaHabitual} onChange={(e) => update("cenaHabitual", e.target.value)} />
-                </label>
-                <label className="flex flex-col gap-1">
                   <span className="text-sm opacity-80">Snacks y bebidas frecuentes</span>
                   <textarea rows={2} className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.snacksBebidas} onChange={(e) => update("snacksBebidas", e.target.value)} />
                 </label>
