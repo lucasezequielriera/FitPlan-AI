@@ -263,6 +263,7 @@ export function validateIntakeForm(payload: LoosePayload): string[] {
   const email = stringOf(payload.email).toLowerCase();
   const whatsapp = stringOf(payload.whatsapp);
   const instagram = stringOf(payload.instagram);
+  const ciudadPais = stringOf(payload.ciudadPais);
   const edad = numberOf(payload.edad);
   const alturaCm = numberOf(payload.alturaCm);
   const pesoKg = numberOf(payload.pesoKg);
@@ -296,6 +297,10 @@ export function validateIntakeForm(payload: LoosePayload): string[] {
 
   if (instagram && !INSTAGRAM_REGEX.test(instagram)) {
     errors.push("El usuario de Instagram no es válido.");
+  }
+
+  if (!ciudadPais) {
+    errors.push("Indica tu ciudad y país (por ejemplo: Madrid, España o Córdoba, Argentina).");
   }
 
   if (edad === null) {

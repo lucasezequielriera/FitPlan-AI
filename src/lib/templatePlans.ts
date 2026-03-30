@@ -119,6 +119,41 @@ const templateComidas = {
 };
 
 type MacrosDiarias = { proteinas: number; grasas: number; carbohidratos: number };
+type RegionalProfile = "argentina" | "espana" | "neutral";
+
+function detectRegionalProfile(paisRaw?: string): RegionalProfile {
+  const text = (paisRaw || "").toLowerCase();
+  if (text.includes("argentina") || text.includes("buenos aires") || text.includes("córdoba") || text.includes("cordoba")) {
+    return "argentina";
+  }
+  if (text.includes("españa") || text.includes("espana") || text.includes("madrid") || text.includes("barcelona")) {
+    return "espana";
+  }
+  return "neutral";
+}
+
+function localizeFoodText(option: string, region: RegionalProfile): string {
+  if (region === "argentina") {
+    return option
+      .replace(/\bpatata(s)?\b/gi, "papa$1")
+      .replace(/\bzumo\b/gi, "jugo")
+      .replace(/\bmelocotón\b/gi, "durazno")
+      .replace(/\bjudías verdes\b/gi, "chauchas")
+      .replace(/\btostada(s)?\b/gi, "tostada$1");
+  }
+  if (region === "espana") {
+    return option
+      .replace(/\bpapa(s)?\b/gi, "patata$1")
+      .replace(/\bjugo\b/gi, "zumo")
+      .replace(/\bdurazno\b/gi, "melocotón")
+      .replace(/\bfrutilla(s)?\b/gi, "fresa$1");
+  }
+  return option;
+}
+
+function makeOptionMoreDescriptive(option: string): string {
+  return `${option}. Preparación: prioriza cocción a la plancha, horno o vapor y ajusta porción según hambre/saciedad.`;
+}
 
 function parseMacroGrams(raw: string | undefined, fallback: number): number {
   if (!raw) return fallback;
@@ -165,11 +200,13 @@ function estimateOptionMacros(
 function enrichMealWithApproxMacros(
   meal: Pick<Comida, "hora" | "nombre" | "opciones">,
   dailyCalories: number,
-  dailyMacros: MacrosDiarias
+  dailyMacros: MacrosDiarias,
+  region: RegionalProfile
 ): Comida {
   const mealShare = getMealShare(meal.nombre);
   const targetMealCalories = Math.round(dailyCalories * mealShare);
-  const detalles = meal.opciones.map((opcion) => {
+  const localizedOptions = meal.opciones.map((op) => makeOptionMoreDescriptive(localizeFoodText(op, region)));
+  const detalles = localizedOptions.map((opcion) => {
     const calorias = estimateOptionCalories(opcion, targetMealCalories);
     const macros = estimateOptionMacros(calorias, mealShare, dailyMacros);
     return {
@@ -192,6 +229,7 @@ function enrichMealWithApproxMacros(
   const count = Math.max(1, detalles.length);
   return {
     ...meal,
+    opciones: localizedOptions,
     calorias_kcal: Math.round(promedio.calorias / count),
     macros_aprox: {
       proteinas_g: Math.round(promedio.p / count),
@@ -199,6 +237,79 @@ function enrichMealWithApproxMacros(
       carbohidratos_g: Math.round(promedio.c / count),
     },
     opciones_detalle: detalles,
+  };
+}
+
+function cardioRecommendationByGoal(objetivo: string, intensidad: string): { objetivo_pasos_diarios: string; sesiones_por_semana: string; detalle: string } {
+  const lowerGoal = objetivo.toLowerCase();
+  const isFatLoss = lowerGoal.includes("perder") || lowerGoal.includes("definicion") || lowerGoal.includes("corte");
+  const isPerformance = lowerGoal.includes("rendimiento") || lowerGoal.includes("resistencia");
+
+  if (isPerformance) {
+    return {
+      objetivo_pasos_diarios: "8.000 - 10.000 pasos diarios",
+      sesiones_por_semana: "3-4 sesiones de carrera suave de 20-30 minutos",
+      detalle: "Mantén ritmo conversacional. Si hay fatiga alta, cambia 1 sesión de carrera por caminata rápida de 35 minutos.",
+    };
+  }
+  if (isFatLoss) {
+    return {
+      objetivo_pasos_diarios: "10.000 - 12.000 pasos diarios",
+      sesiones_por_semana: "4-5 sesiones semanales: caminar 35-45 minutos o trote suave 20-25 minutos",
+      detalle: "Prioriza caminar después de comer y deja la carrera para días sin molestias articulares.",
+    };
+  }
+  return {
+    objetivo_pasos_diarios: "7.000 - 9.000 pasos diarios",
+    sesiones_por_semana: "2-3 sesiones: caminar 30-40 minutos o trote opcional de 15-20 minutos",
+    detalle: "El cardio es complementario: no debe afectar la recuperación de fuerza.",
+  };
+}
+
+function enrichTrainingPlanDescriptions(plan: TrainingPlan, cardio: { detalle: string }): TrainingPlan {
+  const weeks = Array.isArray(plan.weeks) ? plan.weeks : [];
+  const enrichedWeeks = weeks.map((week) => {
+    const days = Array.isArray(week.days) ? week.days : [];
+    return {
+      ...week,
+      days: days.map((day) => {
+        const ejercicios = Array.isArray(day.ejercicios) ? day.ejercicios : [];
+        return {
+          ...day,
+          cardio_sugerido: cardio.detalle,
+          warmup: day.warmup || {
+            duration_minutes: 10,
+            description:
+              "Empieza con movilidad de cadera, hombros y columna (5 min) y luego 5 min de activación específica antes de la primera serie.",
+          },
+          ejercicios: ejercicios.map((exercise) => ({
+            ...exercise,
+            technique:
+              exercise.technique ||
+              "Controla la bajada (2-3 segundos), mantén abdomen activo y evita compensaciones con la espalda.",
+            progression:
+              exercise.progression ||
+              "Si completas todas las repeticiones con buena técnica, sube 2-5% la carga la próxima sesión.",
+            rest_seconds: exercise.rest_seconds || 90,
+          })),
+        };
+      }),
+    };
+  });
+
+  return {
+    ...plan,
+    weeks: enrichedWeeks,
+    safety_notes: [
+      ...(Array.isArray(plan.safety_notes) ? plan.safety_notes : []),
+      "Cada ejercicio indica el músculo principal trabajado para facilitar la ejecución si eres principiante.",
+      "Detén la serie si aparece dolor agudo articular o mareo.",
+    ],
+    sync_with_nutrition: [
+      ...(Array.isArray(plan.sync_with_nutrition) ? plan.sync_with_nutrition : []),
+      "En días de entrenamiento prioriza hidratos en comida previa y posterior.",
+      "Mantén hidratación constante durante el día.",
+    ],
   };
 }
 
@@ -374,6 +485,7 @@ export async function generateTemplateBasedPlan(
   const tipoDieta = user.tipoDieta || "estandar";
   const objetivo = user.objetivo;
   const intensidad = user.intensidad || "moderada";
+  const regionalProfile = detectRegionalProfile(user.pais);
   const dias = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
   const macrosDiarias: MacrosDiarias = {
     proteinas: parseMacroGrams(macrosObjetivo.proteinas, 140),
@@ -394,11 +506,11 @@ export async function generateTemplateBasedPlan(
     return {
       dia,
       comidas: [
-        enrichMealWithApproxMacros({ hora: "07:00", nombre: "Desayuno", opciones: desayunoOpc.opciones }, caloriasObjetivo, macrosDiarias),
-        enrichMealWithApproxMacros({ hora: "10:00", nombre: "Merienda 1", opciones: meriendasOpc.opciones }, caloriasObjetivo, macrosDiarias),
-        enrichMealWithApproxMacros({ hora: "13:00", nombre: "Almuerzo", opciones: almuerzoOpc.opciones }, caloriasObjetivo, macrosDiarias),
-        enrichMealWithApproxMacros({ hora: "16:00", nombre: "Merienda 2", opciones: [meriendasOpc.opciones[0]] }, caloriasObjetivo, macrosDiarias),
-        enrichMealWithApproxMacros({ hora: "19:30", nombre: "Cena", opciones: cenaOpc.opciones }, caloriasObjetivo, macrosDiarias),
+        enrichMealWithApproxMacros({ hora: "07:00", nombre: "Desayuno", opciones: desayunoOpc.opciones }, caloriasObjetivo, macrosDiarias, regionalProfile),
+        enrichMealWithApproxMacros({ hora: "10:00", nombre: "Merienda 1", opciones: meriendasOpc.opciones }, caloriasObjetivo, macrosDiarias, regionalProfile),
+        enrichMealWithApproxMacros({ hora: "13:00", nombre: "Almuerzo", opciones: almuerzoOpc.opciones }, caloriasObjetivo, macrosDiarias, regionalProfile),
+        enrichMealWithApproxMacros({ hora: "16:00", nombre: "Merienda 2", opciones: [meriendasOpc.opciones[0]] }, caloriasObjetivo, macrosDiarias, regionalProfile),
+        enrichMealWithApproxMacros({ hora: "19:30", nombre: "Cena", opciones: cenaOpc.opciones }, caloriasObjetivo, macrosDiarias, regionalProfile),
       ],
     };
   });
@@ -407,6 +519,7 @@ export async function generateTemplateBasedPlan(
   const diasGym = typeof user.diasGym === 'number' && user.diasGym > 0 ? user.diasGym : 3;
   const nivel = user.nivelExperiencia || "intermedio";
   const equip = user.equipamiento || "gimnasio";
+  const cardio = cardioRecommendationByGoal(objetivo, intensidad);
   let trainingPlan = generarPlanEntrenamiento(objetivo, intensidad, nivel, equip);
   console.log(`📐 [TEMPLATES] Plan seleccionado tiene ${trainingPlan.weeks?.[0]?.days?.length || 0} días; usuario pide ${diasGym} días/semana (nivel=${nivel}, equipo=${equip})`);
   trainingPlan = ajustarDiasEntrenamiento(trainingPlan, diasGym);
@@ -421,6 +534,7 @@ export async function generateTemplateBasedPlan(
   if (equip === "sin_equipo") {
     trainingPlan = aplicarFiltroSinEquipo(trainingPlan);
   }
+  trainingPlan = enrichTrainingPlanDescriptions(trainingPlan, cardio);
   console.log(`📐 [TEMPLATES] Después de ajuste, el plan tendrá ${trainingPlan.weeks?.[0]?.days?.length || 0} días`);
   // mark for debugging
   (trainingPlan as any)._debug = true;
@@ -444,6 +558,7 @@ export async function generateTemplateBasedPlan(
     dificultad: getDificultad(intensidad),
     dificultad_detalle: getDificultadDetalle(intensidad),
     training_plan: trainingPlan,
+    cardio_recomendado: cardio,
     // include debug copy so frontend can log full structure
     _debug_training_plan: trainingPlan,
     lista_compras: generarListaCompras(tipoDieta),

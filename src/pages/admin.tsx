@@ -4405,6 +4405,10 @@ function IntakeGeneratedPlanModal({
     plan?.plan?.training_plan && typeof plan.plan.training_plan === "object"
       ? (plan.plan.training_plan as Record<string, unknown>)
       : null;
+  const cardioPlan =
+    plan?.plan?.cardio_recomendado && typeof plan.plan.cardio_recomendado === "object"
+      ? (plan.plan.cardio_recomendado as Record<string, unknown>)
+      : null;
   const firstWeekDays =
     trainingPlan &&
     Array.isArray((trainingPlan.weeks as Array<Record<string, unknown>> | undefined)) &&
@@ -4422,7 +4426,7 @@ function IntakeGeneratedPlanModal({
     lines.push(`Objetivo calórico diario: ${kcal}`);
     if (macros) {
       lines.push(
-        `Macros: Proteínas ${String(macros.proteinas || "-")} | Grasas ${String(macros.grasas || "-")} | Carbos ${String(
+          `Macros: Proteínas ${String(macros.proteinas || "-")} | Grasas ${String(macros.grasas || "-")} | Carbohidratos ${String(
           macros.carbohidratos || "-"
         )}`
       );
@@ -4444,7 +4448,7 @@ function IntakeGeneratedPlanModal({
         lines.push(
           `- ${mealName}: ${mealOption || "opción personalizada"}${
             mealMacros
-              ? ` (P ${String(mealMacros.proteinas_g || "-")}g / G ${String(mealMacros.grasas_g || "-")}g / C ${String(
+              ? ` (Proteínas ${String(mealMacros.proteinas_g || "-")}g / Grasas ${String(mealMacros.grasas_g || "-")}g / Carbohidratos ${String(
                   mealMacros.carbohidratos_g || "-"
                 )}g)`
               : ""
@@ -4536,7 +4540,7 @@ function IntakeGeneratedPlanModal({
                 <p className="text-xs text-cyan-100/80">Macros</p>
                 <p className="text-sm text-cyan-100">
                   {macros
-                    ? `P ${String(macros.proteinas || "-")} · G ${String(macros.grasas || "-")} · C ${String(macros.carbohidratos || "-")}`
+                    ? `Proteínas ${String(macros.proteinas || "-")} · Grasas ${String(macros.grasas || "-")} · Carbohidratos ${String(macros.carbohidratos || "-")}`
                     : "N/A"}
                 </p>
               </div>
@@ -4545,6 +4549,16 @@ function IntakeGeneratedPlanModal({
                 <p className="text-sm text-violet-100">{String(trainingPlan?.split || "N/A")}</p>
               </div>
             </div>
+            {cardioPlan && (
+              <div className="rounded-lg border border-sky-400/20 bg-sky-500/10 px-3 py-2">
+                <p className="text-xs text-sky-100/80">Cardio recomendado (caminar/correr)</p>
+                <p className="text-sm text-sky-100">
+                  Pasos diarios: {String(cardioPlan.objetivo_pasos_diarios || "N/A")} · Sesiones:{" "}
+                  {String(cardioPlan.sesiones_por_semana || "N/A")}
+                </p>
+                <p className="text-xs text-sky-100/80 mt-1">{String(cardioPlan.detalle || "")}</p>
+              </div>
+            )}
 
             {plan.includeNutrition && weeklyPlan.length > 0 && (
               <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
@@ -4575,7 +4589,7 @@ function IntakeGeneratedPlanModal({
                                 </div>
                                 <p className="text-xs text-white/80 mt-1">{mealOption || "Opción personalizada"}</p>
                                 <p className="text-xs text-emerald-200 mt-1">
-                                  P {String(mealMacros?.proteinas_g ?? "-")}g · G {String(mealMacros?.grasas_g ?? "-")}g · C{" "}
+                                  Proteínas {String(mealMacros?.proteinas_g ?? "-")}g · Grasas {String(mealMacros?.grasas_g ?? "-")}g · Carbohidratos{" "}
                                   {String(mealMacros?.carbohidratos_g ?? "-")}g
                                 </p>
                               </div>

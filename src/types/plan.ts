@@ -34,6 +34,7 @@ export interface UserInput {
   cuelloCm?: number;
   caderaCm?: number; // principalmente para femenino
   atletico?: boolean;
+  pais?: string; // país de residencia para adaptar lenguaje de alimentos
 }
 
 export interface Macros {
@@ -90,6 +91,12 @@ export interface PlanAIResponse {
   };
   // Plan de entrenamiento generado por IA
   training_plan?: TrainingPlan;
+  // Recomendaciones de cardio/caminata
+  cardio_recomendado?: {
+    objetivo_pasos_diarios?: string;
+    sesiones_por_semana?: string;
+    detalle?: string;
+  };
   // Campos de debugging/metadatos usados por el flujo FREE/templates
   _debug_training_plan?: TrainingPlan;
   _planType?: "template" | "openai";
@@ -123,6 +130,7 @@ export interface TrainingExercise {
 export interface TrainingDayPlan {
   day: string; // "Lunes" ...
   split?: string; // Tipo de entrenamiento de este día: "Full Body", "Upper", "Lower", "Push", "Pull", "Legs", "Chest & Triceps", etc.
+  cardio_sugerido?: string; // indicación específica de caminar/correr para ese día
   warmup?: {
     duration_minutes: number; // Tiempo de calentamiento en minutos
     description: string; // Descripción detallada del calentamiento

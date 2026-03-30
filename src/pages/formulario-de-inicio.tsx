@@ -133,8 +133,13 @@ export default function FormularioDeInicioPage() {
                     />
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm opacity-80">Ciudad y país</span>
-                    <input className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.ciudadPais} onChange={(e) => update("ciudadPais", e.target.value)} />
+                    <span className="text-sm opacity-80">¿De qué ciudad y país eres? *</span>
+                    <input
+                      className="rounded-xl bg-white/5 px-3 py-2 outline-none"
+                      placeholder="Ej.: Madrid, España / Córdoba, Argentina"
+                      value={form.ciudadPais}
+                      onChange={(e) => update("ciudadPais", e.target.value)}
+                    />
                   </label>
                   <label className="flex flex-col gap-1">
                     <span className="text-sm opacity-80">¿Qué servicio te interesa?</span>

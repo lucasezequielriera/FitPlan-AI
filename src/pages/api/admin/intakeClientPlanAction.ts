@@ -97,25 +97,50 @@ function buildInputFromIntake(formData: Record<string, unknown>): UserInput {
   const restricciones = [
     ...splitToArray(formData.restriccionesAlergias),
     ...foodDislikes,
+    ...splitToArray(formData.alimentosNoLeGustan),
+    ...splitToArray(formData.digestion).map((v) => `Digestión: ${v}`),
   ];
   const preferenciasContexto = [
     ...foodLikes,
+    ...splitToArray(formData.alimentosSiLeGustan),
     ...splitToArray(formData.desayunoHabitual).map((v) => `Desayuno habitual: ${v}`),
     ...splitToArray(formData.almuerzoHabitual).map((v) => `Almuerzo habitual: ${v}`),
     ...splitToArray(formData.cenaHabitual).map((v) => `Cena habitual: ${v}`),
     ...splitToArray(formData.snacksBebidas).map((v) => `Snack/bebida: ${v}`),
+    ...splitToArray(formData.diaTipoComidas).map((v) => `Día tipo comidas: ${v}`),
+    ...splitToArray(formData.comidasPorDiaHorarios).map((v) => `Horarios de comida: ${v}`),
+    ...splitToArray(formData.apetito).map((v) => `Apetito: ${v}`),
+    ...splitToArray(formData.momentoMasHambre).map((v) => `Momento de más hambre: ${v}`),
     ...splitToArray(formData.objetivoRendimiento).map((v) => `Objetivo rendimiento: ${v}`),
     ...splitToArray(formData.objetivoEstetico).map((v) => `Objetivo estético: ${v}`),
-    ...splitToArray(formData.dificultadActual).map((v) => `Dificultad actual: ${v}`),
+    ...splitToArray(formData.objetivoSecundario).map((v) => `Objetivo secundario: ${v}`),
     ...splitToArray(formData.motivacionPrincipal).map((v) => `Motivación: ${v}`),
+    ...splitToArray(formData.dificultadActual).map((v) => `Dificultad actual: ${v}`),
+    ...splitToArray(formData.tiempoParaCocinar).map((v) => `Tiempo para cocinar: ${v}`),
+    ...splitToArray(formData.presupuestoComida).map((v) => `Presupuesto comida: ${v}`),
+    ...splitToArray(formData.suplementosActualesDetalle).map((v) => `Suplementos actuales: ${v}`),
+    ...splitToArray(formData.quiereSuplementos).map((v) => `Interés en suplementos: ${v}`),
+    ...splitToArray(formData.trabajoTurnos).map((v) => `Horas de trabajo/día: ${v}`),
+    ...splitToArray(formData.horasSueno).map((v) => `Horas de sueño: ${v}`),
+    ...splitToArray(formData.calidadSueno).map((v) => `Calidad de sueño: ${v}`),
+    ...splitToArray(formData.nivelEstres).map((v) => `Estrés: ${v}`),
+    ...splitToArray(formData.horasSentado).map((v) => `Horas sentado: ${v}`),
+    ...splitToArray(formData.pasosDiarios).map((v) => `Pasos diarios actuales: ${v}`),
     ...splitToArray(formData.comentariosExtra).map((v) => `Comentario: ${v}`),
+    ...splitToArray(formData.dificultadActual).map((v) => `Dificultad actual: ${v}`),
+    ...splitToArray(formData.ciudadPais).map((v) => `Ubicación: ${v}`),
   ];
   const patologias = [
+    ...splitToArray(formData.enfermedadInfancia).map((v) => `Antecedente infancia: ${v}`),
     ...splitToArray(formData.patologias),
     toString(formData.diabetesTipo) !== "no" ? `Diabetes ${toString(formData.diabetesTipo)}` : "",
     toString(formData.hipertensionArterial) === "si" ? "Hipertensión arterial" : "",
     toString(formData.hipotiroidismo) === "si" ? "Hipotiroidismo" : "",
     toString(formData.enfermedadCorazon),
+    ...splitToArray(formData.colesterolTrigliceridos).map((v) => `Colesterol/triglicéridos: ${v}`),
+    ...splitToArray(formData.medicacionSuplementos).map((v) => `Medicación/suplementos clínicos: ${v}`),
+    ...splitToArray(formData.fuma).map((v) => `Tabaquismo: ${v}`),
+    ...splitToArray(formData.alcoholFrecuencia).map((v) => `Alcohol: ${v}`),
   ].filter(Boolean);
 
   const doloresLesiones = [
@@ -124,6 +149,7 @@ function buildInputFromIntake(formData: Record<string, unknown>): UserInput {
     ...(toString(formData.molestiasDigestivasTipo) && toString(formData.molestiasDigestivasTipo) !== "no"
       ? [`Molestias digestivas: ${toString(formData.molestiasDigestivasTipo)}`]
       : []),
+    ...splitToArray(formData.textoLibreFinal).map((v) => `Nota adicional cliente: ${v}`),
   ].filter(Boolean);
 
   const diasGym = Math.max(1, Math.min(7, toNumber(formData.diasCompromisoEntrenamiento, 3)));
@@ -153,6 +179,7 @@ function buildInputFromIntake(formData: Record<string, unknown>): UserInput {
     preferirRutina: true,
     duracionDias: 30,
     atletico: false,
+    pais: toString(formData.ciudadPais) || undefined,
   };
 }
 
