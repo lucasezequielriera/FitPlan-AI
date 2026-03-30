@@ -80,6 +80,7 @@ export default function FormularioDeInicioPage() {
   };
 
   const sectionClass = "rounded-2xl border border-white/10 bg-white/[0.03] p-5 md:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.15)] space-y-4";
+  const detailsClass = "rounded-xl border border-white/10 bg-white/[0.02] p-3";
 
   return (
     <div className="min-h-screen">
@@ -203,27 +204,6 @@ export default function FormularioDeInicioPage() {
                 <h2 className="text-lg font-semibold">3) Entrenamiento actual y disponibilidad</h2>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm opacity-80">Experiencia entrenando</span>
-                    <select className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.experienciaEntrenamiento} onChange={(e) => update("experienciaEntrenamiento", e.target.value)}>
-                      <option value="ninguna">Nunca he entrenado</option>
-                      <option value="principiante">Principiante (menos de 6 meses)</option>
-                      <option value="intermedio">Intermedio (6 meses a 2 años)</option>
-                      <option value="avanzado">Avanzado (más de 2 años)</option>
-                    </select>
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-sm opacity-80">Minutos por sesión que puedes dedicar</span>
-                    <input className="rounded-xl bg-white/5 px-3 py-2 outline-none" placeholder="Ej.: 45, 60 o 75" value={form.minutosPorSesion} onChange={(e) => update("minutosPorSesion", e.target.value)} />
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-sm opacity-80">Horas sentado al día (aprox.)</span>
-                    <input className="rounded-xl bg-white/5 px-3 py-2 outline-none" placeholder="Ej.: 8" value={form.horasSentado} onChange={(e) => update("horasSentado", e.target.value)} />
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-sm opacity-80">Pasos diarios (si lo sabes)</span>
-                    <input className="rounded-xl bg-white/5 px-3 py-2 outline-none" placeholder="Ej.: 6.000" value={form.pasosDiarios} onChange={(e) => update("pasosDiarios", e.target.value)} />
-                  </label>
-                  <label className="flex flex-col gap-1">
                     <span className="text-sm opacity-80">¿Cuántos días entrenas ahora por semana? *</span>
                     <input type="number" min={0} max={7} className="rounded-xl bg-white/5 px-3 py-2 outline-none" placeholder="Ej.: 3" value={form.diasEntrenaActualmente} onChange={(e) => update("diasEntrenaActualmente", e.target.value)} />
                   </label>
@@ -271,32 +251,6 @@ export default function FormularioDeInicioPage() {
                   </div>
                 </div>
 
-                <label className="flex flex-col gap-1">
-                  <span className="text-sm opacity-80">Días que entrenas actualmente (detalle)</span>
-                  <input className="rounded-xl bg-white/5 px-3 py-2 outline-none" placeholder="Ej.: lunes, miércoles y viernes" value={form.diasEntrenaActualmenteDetalle} onChange={(e) => update("diasEntrenaActualmenteDetalle", e.target.value)} />
-                </label>
-
-                <label className="flex flex-col gap-1">
-                  <span className="text-sm opacity-80">Días de compromiso (detalle)</span>
-                  <input className="rounded-xl bg-white/5 px-3 py-2 outline-none" placeholder="Ej.: martes, jueves y sábado" value={form.diasCompromisoDetalle} onChange={(e) => update("diasCompromisoDetalle", e.target.value)} />
-                </label>
-
-                <div>
-                  <p className="text-sm opacity-80 mb-2">¿Dónde puedes entrenar? *</p>
-                  <div className="flex flex-wrap gap-2">
-                    {INTAKE_LUGARES_ENTRENO.map((lugar) => (
-                      <button
-                        key={lugar}
-                        type="button"
-                        onClick={() => update("dondeEntrena", toggleValue(form.dondeEntrena, lugar))}
-                        className={`rounded-full px-3 py-1.5 text-sm border ${form.dondeEntrena.includes(lugar) ? "bg-blue-500/20 border-blue-400/50 text-blue-300" : "bg-white/5 border-white/10 text-white/80"}`}
-                      >
-                        {lugar}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
                 <div>
                   <p className="text-sm opacity-80 mb-2">Equipamiento disponible (si aplica)</p>
                   <div className="flex flex-wrap gap-2">
@@ -312,78 +266,114 @@ export default function FormularioDeInicioPage() {
                     ))}
                   </div>
                 </div>
+
+                <details className={detailsClass}>
+                  <summary className="cursor-pointer text-sm font-medium text-cyan-200">
+                    Ver más preguntas opcionales de entrenamiento
+                  </summary>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 mt-4">
+                    <label className="flex flex-col gap-1">
+                      <span className="text-sm opacity-80">Experiencia entrenando</span>
+                      <select className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.experienciaEntrenamiento} onChange={(e) => update("experienciaEntrenamiento", e.target.value)}>
+                        <option value="ninguna">Nunca he entrenado</option>
+                        <option value="principiante">Principiante (menos de 6 meses)</option>
+                        <option value="intermedio">Intermedio (6 meses a 2 años)</option>
+                        <option value="avanzado">Avanzado (más de 2 años)</option>
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-sm opacity-80">Minutos por sesión que puedes dedicar</span>
+                      <input className="rounded-xl bg-white/5 px-3 py-2 outline-none" placeholder="Ej.: 45, 60 o 75" value={form.minutosPorSesion} onChange={(e) => update("minutosPorSesion", e.target.value)} />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-sm opacity-80">Horas sentado al día (aprox.)</span>
+                      <input className="rounded-xl bg-white/5 px-3 py-2 outline-none" placeholder="Ej.: 8" value={form.horasSentado} onChange={(e) => update("horasSentado", e.target.value)} />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-sm opacity-80">Pasos diarios (si lo sabes)</span>
+                      <input className="rounded-xl bg-white/5 px-3 py-2 outline-none" placeholder="Ej.: 6.000" value={form.pasosDiarios} onChange={(e) => update("pasosDiarios", e.target.value)} />
+                    </label>
+                  </div>
+                </details>
               </section>
 
               <section className={sectionClass}>
                 <h2 className="text-lg font-semibold">4) Salud y antecedentes</h2>
                 <p className="text-sm opacity-70">Esta parte es clave para adaptar el plan de forma segura.</p>
-                <label className="flex flex-col gap-1">
-                  <span className="text-sm opacity-80">¿Has tenido alguna enfermedad desde pequeño/a? ¿Cuál?</span>
-                  <textarea rows={2} className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.enfermedadInfancia} onChange={(e) => update("enfermedadInfancia", e.target.value)} />
-                </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-sm opacity-80">Dolores o lesiones actuales</span>
-                  <textarea rows={2} className="rounded-xl bg-white/5 px-3 py-2 outline-none" placeholder="Ej.: dolor de rodilla, hombro o zona lumbar..." value={form.lesionesDolores} onChange={(e) => update("lesionesDolores", e.target.value)} />
-                </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-sm opacity-80">Cirugías previas relevantes</span>
-                  <textarea rows={2} className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.cirugiasPrevias} onChange={(e) => update("cirugiasPrevias", e.target.value)} />
-                </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-sm opacity-80">Medicación y suplementos actuales</span>
-                  <textarea rows={2} className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.medicacionSuplementos} onChange={(e) => update("medicacionSuplementos", e.target.value)} />
-                </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-sm opacity-80">Patologías o diagnósticos médicos</span>
-                  <textarea rows={2} className="rounded-xl bg-white/5 px-3 py-2 outline-none" placeholder="Ej.: hipertensión, diabetes, hipotiroidismo..." value={form.patologias} onChange={(e) => update("patologias", e.target.value)} />
-                </label>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <label className="flex flex-col gap-1">
-                    <span className="text-sm opacity-80">¿Tienes diabetes?</span>
-                    <select className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.diabetesTipo} onChange={(e) => update("diabetesTipo", e.target.value)}>
-                      <option value="no">No</option>
-                      <option value="tipo_i">Diabetes tipo I</option>
-                      <option value="tipo_ii">Diabetes tipo II</option>
-                    </select>
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-sm opacity-80">¿Tienes hipertensión arterial?</span>
-                    <select className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.hipertensionArterial} onChange={(e) => update("hipertensionArterial", e.target.value)}>
-                      <option value="no">No</option>
-                      <option value="si">Sí</option>
-                    </select>
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-sm opacity-80">¿Tienes alguna enfermedad del corazón? ¿Cuál?</span>
-                    <input className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.enfermedadCorazon} onChange={(e) => update("enfermedadCorazon", e.target.value)} />
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-sm opacity-80">¿Tienes hipotiroidismo?</span>
-                    <select className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.hipotiroidismo} onChange={(e) => update("hipotiroidismo", e.target.value)}>
-                      <option value="no">No</option>
-                      <option value="si">Sí</option>
-                    </select>
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-sm opacity-80">¿Colesterol alto y/o triglicéridos?</span>
-                    <select className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.colesterolTrigliceridos} onChange={(e) => update("colesterolTrigliceridos", e.target.value)}>
-                      <option value="no">No</option>
-                      <option value="colesterol_alto">Colesterol alto</option>
-                      <option value="trigliceridos_altos">Triglicéridos altos</option>
-                      <option value="ambos">Ambos</option>
-                    </select>
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-sm opacity-80">¿Tienes estreñimiento, colon irritable o dolores digestivos?</span>
-                    <select className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.molestiasDigestivasTipo} onChange={(e) => update("molestiasDigestivasTipo", e.target.value)}>
-                      <option value="no">No</option>
-                      <option value="estrenimiento">Estreñimiento</option>
-                      <option value="colon_irritable">Colon irritable</option>
-                      <option value="dolores_digestivos">Dolores digestivos</option>
-                      <option value="varios">Varios de estos</option>
-                    </select>
-                  </label>
-                </div>
+                <details className={detailsClass} open>
+                  <summary className="cursor-pointer text-sm font-medium text-cyan-200">
+                    Completar preguntas de salud
+                  </summary>
+                  <div className="space-y-4 mt-4">
+                    <label className="flex flex-col gap-1">
+                      <span className="text-sm opacity-80">¿Has tenido alguna enfermedad desde pequeño/a? ¿Cuál?</span>
+                      <textarea rows={2} className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.enfermedadInfancia} onChange={(e) => update("enfermedadInfancia", e.target.value)} />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-sm opacity-80">Dolores o lesiones actuales</span>
+                      <textarea rows={2} className="rounded-xl bg-white/5 px-3 py-2 outline-none" placeholder="Ej.: dolor de rodilla, hombro o zona lumbar..." value={form.lesionesDolores} onChange={(e) => update("lesionesDolores", e.target.value)} />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-sm opacity-80">Cirugías previas relevantes</span>
+                      <textarea rows={2} className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.cirugiasPrevias} onChange={(e) => update("cirugiasPrevias", e.target.value)} />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-sm opacity-80">Medicación y suplementos actuales</span>
+                      <textarea rows={2} className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.medicacionSuplementos} onChange={(e) => update("medicacionSuplementos", e.target.value)} />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-sm opacity-80">Patologías o diagnósticos médicos</span>
+                      <textarea rows={2} className="rounded-xl bg-white/5 px-3 py-2 outline-none" placeholder="Ej.: hipertensión, diabetes, hipotiroidismo..." value={form.patologias} onChange={(e) => update("patologias", e.target.value)} />
+                    </label>
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <label className="flex flex-col gap-1">
+                        <span className="text-sm opacity-80">¿Tienes diabetes?</span>
+                        <select className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.diabetesTipo} onChange={(e) => update("diabetesTipo", e.target.value)}>
+                          <option value="no">No</option>
+                          <option value="tipo_i">Diabetes tipo I</option>
+                          <option value="tipo_ii">Diabetes tipo II</option>
+                        </select>
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span className="text-sm opacity-80">¿Tienes hipertensión arterial?</span>
+                        <select className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.hipertensionArterial} onChange={(e) => update("hipertensionArterial", e.target.value)}>
+                          <option value="no">No</option>
+                          <option value="si">Sí</option>
+                        </select>
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span className="text-sm opacity-80">¿Tienes alguna enfermedad del corazón? ¿Cuál?</span>
+                        <input className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.enfermedadCorazon} onChange={(e) => update("enfermedadCorazon", e.target.value)} />
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span className="text-sm opacity-80">¿Tienes hipotiroidismo?</span>
+                        <select className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.hipotiroidismo} onChange={(e) => update("hipotiroidismo", e.target.value)}>
+                          <option value="no">No</option>
+                          <option value="si">Sí</option>
+                        </select>
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span className="text-sm opacity-80">¿Colesterol alto y/o triglicéridos?</span>
+                        <select className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.colesterolTrigliceridos} onChange={(e) => update("colesterolTrigliceridos", e.target.value)}>
+                          <option value="no">No</option>
+                          <option value="colesterol_alto">Colesterol alto</option>
+                          <option value="trigliceridos_altos">Triglicéridos altos</option>
+                          <option value="ambos">Ambos</option>
+                        </select>
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span className="text-sm opacity-80">¿Tienes estreñimiento, colon irritable o dolores digestivos?</span>
+                        <select className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.molestiasDigestivasTipo} onChange={(e) => update("molestiasDigestivasTipo", e.target.value)}>
+                          <option value="no">No</option>
+                          <option value="estrenimiento">Estreñimiento</option>
+                          <option value="colon_irritable">Colon irritable</option>
+                          <option value="dolores_digestivos">Dolores digestivos</option>
+                          <option value="varios">Varios de estos</option>
+                        </select>
+                      </label>
+                    </div>
+                  </div>
+                </details>
               </section>
 
               <section className={sectionClass}>
@@ -523,14 +513,6 @@ export default function FormularioDeInicioPage() {
                   <label className="flex flex-col gap-1">
                     <span className="text-sm opacity-80">Alergias/restricciones alimentarias</span>
                     <textarea rows={2} className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.restriccionesAlergias} onChange={(e) => update("restriccionesAlergias", e.target.value)} />
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-sm opacity-80">Alimentos que no te gustan</span>
-                    <textarea rows={2} className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.alimentosNoLeGustan} onChange={(e) => update("alimentosNoLeGustan", e.target.value)} />
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-sm opacity-80">Alimentos que sí te gustan</span>
-                    <textarea rows={2} className="rounded-xl bg-white/5 px-3 py-2 outline-none" value={form.alimentosSiLeGustan} onChange={(e) => update("alimentosSiLeGustan", e.target.value)} />
                   </label>
                   <label className="flex flex-col gap-1">
                     <span className="text-sm opacity-80">Agua al día (aprox.)</span>
