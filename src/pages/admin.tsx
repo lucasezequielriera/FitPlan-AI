@@ -4390,6 +4390,7 @@ function IntakeGeneratedPlanModal({
   plan: IntakeGeneratedPlanDetail | null;
 }) {
   const [copiedWhatsapp, setCopiedWhatsapp] = useState(false);
+  const [showTechnicalJson, setShowTechnicalJson] = useState(false);
   if (!isOpen) return null;
   const nutritionDays = Array.isArray(plan?.plan?.plan_semanal) ? plan?.plan?.plan_semanal.length : 0;
   const trainingWeeks = Array.isArray(plan?.plan?.training_plan && (plan.plan.training_plan as { weeks?: unknown[] }).weeks)
@@ -4547,64 +4548,67 @@ function IntakeGeneratedPlanModal({
 
             {plan.includeNutrition && weeklyPlan.length > 0 && (
               <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
-                <p className="text-xs text-white/60 mb-2">Vista rápida nutrición semanal</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {weeklyPlan.slice(0, 4).map((day) => {
-                    const dayName = String(day.dia || "Día");
+                <p className="text-xs text-white/60 mb-2">Plan de alimentación semanal (formato cliente)</p>
+                <div className="space-y-3">
+                  {weeklyPlan.map((day, dayIndex) => {
+                    const dayName = String(day.dia || `Día ${dayIndex + 1}`);
                     const meals = Array.isArray(day.comidas) ? (day.comidas as Array<Record<string, unknown>>) : [];
                     return (
-                      <div key={dayName} className="rounded-md border border-white/10 bg-black/20 px-3 py-2">
-                        <p className="text-sm font-medium text-white">{dayName}</p>
-                        <p className="text-xs text-white/70 mt-1">{meals.length} comidas planificadas</p>
+                      <div key={`${dayName}-${dayIndex}`} className="rounded-md border border-white/10 bg-black/20 px-3 py-3">
+                        <p className="text-sm font-semibold text-cyan-200">{dayName}</p>
+                        <div className="mt-2 space-y-2">
+                          {meals.map((meal, mealIndex) => {
+                            const mealName = String(meal.nombre || `Comida ${mealIndex + 1}`);
+                            const mealTime = String(meal.hora || "--:--");
+                            const mealMacros =
+                              meal.macros_aprox && typeof meal.macros_aprox === "object"
+                                ? (meal.macros_aprox as Record<string, unknown>)
+                                : null;
+                            const mealOption = Array.isArray(meal.opciones)
+                              ? String((meal.opciones as unknown[])[0] || "")
+                              : "";
+                            return (
+                              <div key={`${dayName}-${mealName}-${mealIndex}`} className="rounded-md border border-white/10 bg-white/[0.03] px-3 py-2">
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="text-sm text-white font-medium">{mealName}</p>
+                                  <p className="text-xs text-white/60">{mealTime}</p>
+                                </div>
+                                <p className="text-xs text-white/80 mt-1">{mealOption || "Opción personalizada"}</p>
+                                <p className="text-xs text-emerald-200 mt-1">
+                                  P {String(mealMacros?.proteinas_g ?? "-")}g · G {String(mealMacros?.grasas_g ?? "-")}g · C{" "}
+                                  {String(mealMacros?.carbohidratos_g ?? "-")}g
+                                </p>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     );
                   })}
-                </div>
-                <div className="mt-3 rounded-md border border-white/10 bg-black/20 px-3 py-2">
-                  <p className="text-xs text-white/60 mb-1">Macros aproximados por comida (primer día)</p>
-                  {(() => {
-                    const meals = Array.isArray(weeklyPlan[0]?.comidas) ? (weeklyPlan[0].comidas as Array<Record<string, unknown>>) : [];
-                    if (meals.length === 0) {
-                      return <p className="text-xs text-white/70">Sin detalle disponible.</p>;
-                    }
-                    return (
-                      <div className="space-y-1">
-                        {meals.map((meal, idx) => {
-                          const mealName = String(meal.nombre || `Comida ${idx + 1}`);
-                          const mealMacros =
-                            meal.macros_aprox && typeof meal.macros_aprox === "object"
-                              ? (meal.macros_aprox as Record<string, unknown>)
-                              : null;
-                          const detail = Array.isArray(meal.opciones_detalle)
-                            ? (meal.opciones_detalle as Array<Record<string, unknown>>)[0]
-                            : null;
-                          return (
-                            <p key={`${mealName}-${idx}`} className="text-xs text-white/80">
-                              {mealName}: P {String(mealMacros?.proteinas_g ?? "-")}g · G {String(mealMacros?.grasas_g ?? "-")}g · C{" "}
-                              {String(mealMacros?.carbohidratos_g ?? "-")}g
-                              {detail ? ` · ${String(detail.opcion || "")}` : ""}
-                            </p>
-                          );
-                        })}
-                      </div>
-                    );
-                  })()}
                 </div>
               </div>
             )}
 
             {plan.includeTraining && firstWeekDays.length > 0 && (
               <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
-                <p className="text-xs text-white/60 mb-2">Vista rápida semana 1 de entrenamiento</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {firstWeekDays.slice(0, 6).map((day) => {
+                <p className="text-xs text-white/60 mb-2">Plan de entrenamiento (semana 1)</p>
+                <div className="space-y-3">
+                  {firstWeekDays.map((day, dayIndex) => {
                     const dayName = String(day.day || "Día");
                     const split = String(day.split || "Entrenamiento");
-                    const exercises = Array.isArray(day.ejercicios) ? day.ejercicios.length : 0;
+                    const exercises = Array.isArray(day.ejercicios) ? (day.ejercicios as Array<Record<string, unknown>>) : [];
                     return (
-                      <div key={`${dayName}-${split}`} className="rounded-md border border-white/10 bg-black/20 px-3 py-2">
-                        <p className="text-sm font-medium text-white">{dayName}</p>
-                        <p className="text-xs text-white/70 mt-1">{split} · {exercises} ejercicios</p>
+                      <div key={`${dayName}-${split}-${dayIndex}`} className="rounded-md border border-white/10 bg-black/20 px-3 py-3">
+                        <p className="text-sm font-semibold text-violet-200">{dayName}</p>
+                        <p className="text-xs text-white/70 mt-1">{split} · {exercises.length} ejercicios</p>
+                        <div className="mt-2 space-y-1">
+                          {exercises.slice(0, 6).map((exercise, exIndex) => (
+                            <p key={`${dayName}-ex-${exIndex}`} className="text-xs text-white/85">
+                              {exIndex + 1}. {String(exercise.name || "Ejercicio")} · {String(exercise.sets || "-")} series ·{" "}
+                              {String(exercise.reps || "-")} reps
+                            </p>
+                          ))}
+                        </div>
                       </div>
                     );
                   })}
@@ -4620,12 +4624,19 @@ function IntakeGeneratedPlanModal({
                   : "N/A"}
               </p>
             </div>
-            <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
-              <p className="text-xs text-white/60 mb-1">Plan completo (JSON)</p>
-              <p className="text-sm text-white whitespace-pre-wrap break-words">
-                {plan.plan ? JSON.stringify(plan.plan, null, 2) : "N/A"}
-              </p>
-            </div>
+            <details className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+              <summary
+                className="text-xs text-white/60 cursor-pointer"
+                onClick={() => setShowTechnicalJson((prev) => !prev)}
+              >
+                {showTechnicalJson ? "Ocultar detalle técnico (JSON)" : "Ver detalle técnico (JSON)"}
+              </summary>
+              {showTechnicalJson && (
+                <p className="text-sm text-white whitespace-pre-wrap break-words mt-2">
+                  {plan.plan ? JSON.stringify(plan.plan, null, 2) : "N/A"}
+                </p>
+              )}
+            </details>
           </div>
         )}
       </motion.div>
