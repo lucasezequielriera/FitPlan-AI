@@ -317,6 +317,41 @@ function calculateImcAssessment(input: UserInput): { imc: number; estado: string
   return { imc: Math.round(imc * 10) / 10, estado };
 }
 
+function applyImcGoalSafetyRule(
+  input: UserInput,
+  imcAssessment: { imc: number; estado: string }
+): {
+  adjustedInput: UserInput;
+  decisionClinica: string | null;
+  mensajeCliente: string | null;
+} {
+  if (input.objetivo === "mantener" && imcAssessment.imc < 18.5) {
+    return {
+      adjustedInput: {
+        ...input,
+        objetivo: "ganar_masa",
+        intensidad: input.intensidad === "ultra" ? "intensa" : input.intensidad,
+        preferencias: Array.from(
+          new Set([
+            ...(input.preferencias || []),
+            "Ajuste automático: IMC bajo con objetivo mantener, se prioriza recuperación de masa magra.",
+          ])
+        ),
+      },
+      decisionClinica:
+        "IMC bajo detectado con objetivo 'mantener': se ajusta temporalmente a enfoque de recuperación de masa magra.",
+      mensajeCliente:
+        "Detectamos un IMC bajo para un enfoque de mantenimiento. Para cuidarte mejor, este plan prioriza primero recuperar masa magra y energía. Cuando estabilices composición y rendimiento, volvemos a mantenimiento.",
+    };
+  }
+
+  return {
+    adjustedInput: input,
+    decisionClinica: null,
+    mensajeCliente: null,
+  };
+}
+
 function prunePlanBySelection(
   generatedPlan: Record<string, unknown>,
   includeNutrition: boolean,
@@ -489,13 +524,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       includeNutrition === true,
       includeTraining === true
     );
-    const { tdee, targetCalories, macros } = calculateCaloriesAndMacros(generationInput);
     const imcAssessment = calculateImcAssessment(generationInput);
+    const { adjustedInput, decisionClinica, mensajeCliente } = applyImcGoalSafetyRule(generationInput, imcAssessment);
+    const { tdee, targetCalories, macros } = calculateCaloriesAndMacros(adjustedInput);
     let generatedPlan: Record<string, unknown>;
     let generationErrorDetail: string | null = null;
     try {
       generatedPlan = (await generateTemplateBasedPlan(
-        generationInput,
+        adjustedInput,
         tdee,
         targetCalories,
         macros
@@ -503,14 +539,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     } catch (generationError) {
       generationErrorDetail = generationError instanceof Error ? generationError.message : String(generationError);
       console.error("Error generando plan con templates (fallback activado):", generationError);
-      generatedPlan = buildFallbackPlan(generationInput, targetCalories, macros) as unknown as Record<string, unknown>;
+      generatedPlan = buildFallbackPlan(adjustedInput, targetCalories, macros) as unknown as Record<string, unknown>;
     }
     const selectedPlan = prunePlanBySelection(
       generatedPlan,
       includeNutrition === true,
       includeTraining === true
     );
-    selectedPlan.evaluacion_inicial = imcAssessment;
+    selectedPlan.evaluacion_inicial = {
+      ...imcAssessment,
+      ...(decisionClinica ? { decisionClinica } : {}),
+      ...(mensajeCliente ? { mensajeCliente } : {}),
+    };
+    if (mensajeCliente) {
+      selectedPlan.mensaje_ajuste_objetivo = mensajeCliente;
+    }
 
     const planDocData = removeUndefinedDeep({
       intakeClientId: clientId,
@@ -521,7 +564,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       includeTraining: includeTraining === true,
       actionContext: actionContext || null,
       updateContext: actionType === "update" ? updateContext || null : null,
-      input: generationInput,
+      input: adjustedInput,
       nutritionTargets: {
         tdee,
         targetCalories,

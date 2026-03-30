@@ -1392,6 +1392,46 @@ export default function Admin() {
     }
   };
 
+  const handleDeleteGeneratedPlan = async (client: IntakeClient) => {
+    if (!client.latestPlanId) {
+      alert("Este cliente no tiene plan generado para eliminar.");
+      return;
+    }
+    const confirmed = confirm(
+      `¿Eliminar el plan generado de ${client.nombreCompleto || client.email || "este cliente"}?\n\nEsta acción permite generar uno nuevo desde cero.`
+    );
+    if (!confirmed) return;
+
+    try {
+      const auth = getAuthSafe();
+      if (!auth?.currentUser) return;
+      setProcessingIntakeAction(true);
+      const response = await fetch("/api/admin/deleteIntakeClientPlan", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: auth.currentUser.uid,
+          clientId: client.id,
+          planId: client.latestPlanId,
+        }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+      await loadIntakeClients();
+      if (intakeGeneratedPlanClient?.id === client.id) {
+        setIntakeGeneratedPlanModalOpen(false);
+        setIntakeGeneratedPlanClient(null);
+        setIntakeGeneratedPlan(null);
+      }
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "No se pudo eliminar el plan.");
+    } finally {
+      setProcessingIntakeAction(false);
+    }
+  };
+
   const handleEdit = (user: User) => {
     // Console log detallado del usuario para debug
     console.log("=".repeat(80));
@@ -2209,6 +2249,13 @@ export default function Admin() {
                             className="px-3 py-1.5 rounded-lg bg-violet-500/20 border border-violet-400/40 text-violet-200 hover:bg-violet-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             Ver plan generado
+                          </button>
+                          <button
+                            onClick={() => handleDeleteGeneratedPlan(client)}
+                            disabled={!client.latestPlanId || processingIntakeAction}
+                            className="px-3 py-1.5 rounded-lg bg-orange-500/20 border border-orange-400/40 text-orange-200 hover:bg-orange-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Eliminar plan
                           </button>
                           <button
                             onClick={() => handleDeleteIntakeClient(client)}
@@ -4563,6 +4610,12 @@ function IntakeGeneratedPlanModal({
       lines.push(`- Sesiones: ${String(cardioPlan.sesiones_por_semana || "N/A")}`);
       lines.push(`- Detalle: ${String(cardioPlan.detalle || "N/A")}`);
     }
+    const ajusteObjetivoMsg = String(plan?.plan?.mensaje_ajuste_objetivo || "");
+    if (ajusteObjetivoMsg) {
+      lines.push("");
+      lines.push("Mensaje importante para el cliente:");
+      lines.push(ajusteObjetivoMsg);
+    }
     if (weeklyPlan.length > 0) {
       lines.push("");
       lines.push("Plan de alimentación:");
@@ -4843,6 +4896,17 @@ function IntakeGeneratedPlanModal({
                   IMC: {String((plan.plan.evaluacion_inicial as Record<string, unknown>).imc || "N/A")} · Estado:{" "}
                   {String((plan.plan.evaluacion_inicial as Record<string, unknown>).estado || "N/A")}
                 </p>
+                {(plan.plan.evaluacion_inicial as Record<string, unknown>).decisionClinica && (
+                  <p className="text-xs text-fuchsia-100/85 mt-1">
+                    {String((plan.plan.evaluacion_inicial as Record<string, unknown>).decisionClinica)}
+                  </p>
+                )}
+              </div>
+            )}
+            {plan?.plan?.mensaje_ajuste_objetivo && (
+              <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2">
+                <p className="text-xs text-amber-100/80">Mensaje para el cliente</p>
+                <p className="text-sm text-amber-100 mt-1">{String(plan.plan.mensaje_ajuste_objetivo)}</p>
               </div>
             )}
             {cardioPlan && (
