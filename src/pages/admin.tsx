@@ -6,7 +6,27 @@ import { useAuthStore } from "@/store/authStore";
 import { getDbSafe, getAuthSafe } from "@/lib/firebase";
 import Navbar from "@/components/Navbar";
 import WeeklyStatsModal from "@/components/WeeklyStatsModal";
-import { FaArrowUp, FaArrowDown, FaCheck, FaChartLine, FaEnvelope, FaComment, FaDownload, FaFilePdf, FaFileWord, FaFileExcel } from "react-icons/fa";
+import {
+  FaArrowUp,
+  FaArrowDown,
+  FaCheck,
+  FaChartLine,
+  FaEnvelope,
+  FaComment,
+  FaDownload,
+  FaFilePdf,
+  FaFileWord,
+  FaFileExcel,
+  FaUser,
+  FaPlusCircle,
+  FaSyncAlt,
+  FaEye,
+  FaTrashAlt,
+  FaLink,
+  FaBell,
+  FaWhatsapp,
+  FaCircle,
+} from "react-icons/fa";
 
 interface User {
   id: string;
@@ -31,6 +51,7 @@ interface User {
   caderaCm: number | null;
   atletico: boolean;
   premiumPayment: unknown;
+  whatsapp?: string | null;
   ciudad?: string | null;
   pais?: string | null;
   personalTrainerAssigned?: boolean;
@@ -55,6 +76,12 @@ interface IntakeClient {
   status: string | null;
   latestPlanId?: string | null;
   latestPlanActionType?: "generate" | "update" | null;
+  latestPlanIncludeNutrition?: boolean;
+  latestPlanIncludeTraining?: boolean;
+  pais?: string | null;
+  paymentStatus?: "pending" | "paid" | "failed" | null;
+  paymentProvider?: "stripe" | "mercadopago" | null;
+  paymentLastPaidAt?: string | null;
   createdAt: string | null;
 }
 
@@ -77,6 +104,9 @@ interface IntakeClientDetail extends IntakeClient {
   updatedAt: string | null;
   formData: Record<string, unknown> | null;
 }
+
+type PaymentLinkProvider = "stripe" | "mercadopago";
+type PaymentLinkPlan = "monthly" | "quarterly" | "annual";
 
 const INTAKE_DETAIL_FIELD_ORDER = [
   "nombreCompleto",
@@ -361,6 +391,9 @@ export default function Admin() {
   const [intakePlanObjectiveOverride, setIntakePlanObjectiveOverride] = useState<
     "auto" | "perder_grasa" | "ganar_musculo" | "recomposicion" | "rendimiento" | "mantener"
   >("auto");
+  const [intakeTrainingStructure, setIntakeTrainingStructure] = useState<"auto" | "ppl" | "upper_lower" | "full_body">(
+    "auto"
+  );
   const [intakePlanAdditionalNotes, setIntakePlanAdditionalNotes] = useState("");
   const [intakeUpdateMainNeed, setIntakeUpdateMainNeed] = useState("");
   const [intakeUpdateNutritionFeedback, setIntakeUpdateNutritionFeedback] = useState("");
@@ -373,6 +406,26 @@ export default function Admin() {
   const [intakeGeneratedPlanError, setIntakeGeneratedPlanError] = useState<string | null>(null);
   const [intakeGeneratedPlanClient, setIntakeGeneratedPlanClient] = useState<IntakeClient | null>(null);
   const [intakeGeneratedPlan, setIntakeGeneratedPlan] = useState<IntakeGeneratedPlanDetail | null>(null);
+  const [deletePlanModalOpen, setDeletePlanModalOpen] = useState(false);
+  const [deletePlanClient, setDeletePlanClient] = useState<IntakeClient | null>(null);
+  const [deletePlanNutrition, setDeletePlanNutrition] = useState(true);
+  const [deletePlanTraining, setDeletePlanTraining] = useState(true);
+  const [deleteUserModalOpen, setDeleteUserModalOpen] = useState(false);
+  const [deleteUserTarget, setDeleteUserTarget] = useState<IntakeClient | null>(null);
+  const [intakePaymentModalOpen, setIntakePaymentModalOpen] = useState(false);
+  const [intakePaymentClient, setIntakePaymentClient] = useState<IntakeClient | null>(null);
+  const [intakePaymentPlan, setIntakePaymentPlan] = useState<PaymentLinkPlan>("monthly");
+  const [intakePaymentLoading, setIntakePaymentLoading] = useState(false);
+  const [paymentLinkModalOpen, setPaymentLinkModalOpen] = useState(false);
+  const [paymentLinkUser, setPaymentLinkUser] = useState<User | null>(null);
+  const [paymentLinkProvider, setPaymentLinkProvider] = useState<PaymentLinkProvider>("stripe");
+  const [paymentLinkPlan, setPaymentLinkPlan] = useState<PaymentLinkPlan>("monthly");
+  const [paymentLinkLoading, setPaymentLinkLoading] = useState(false);
+  const [paymentNotificationOpen, setPaymentNotificationOpen] = useState(false);
+  const [paymentNotificationUnread, setPaymentNotificationUnread] = useState(0);
+  const [paymentNotificationItems, setPaymentNotificationItems] = useState<
+    Array<{ id: string; userName?: string; userEmail?: string; amount?: number; currency?: string; provider?: string; createdAt?: unknown }>
+  >([]);
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const [selectedUserForHistory, setSelectedUserForHistory] = useState<User | null>(null);
   const [userHistory, setUserHistory] = useState<{
@@ -847,6 +900,42 @@ export default function Admin() {
     });
   };
 
+  const isCurrentMonthPaid = (user: User): boolean => {
+    if (!user.premium) return false;
+    const lastPayISO = convertTimestampToISO(user.premiumLastPay);
+    if (!lastPayISO) return false;
+    const date = new Date(lastPayISO);
+    const now = new Date();
+    return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+  };
+
+  const inferProviderByCountry = (pais?: string | null): PaymentLinkProvider => {
+    const c = (pais || "").toLowerCase();
+    return c.includes("argentina") ? "mercadopago" : "stripe";
+  };
+
+  const isIntakeCurrentMonthPaid = (client: IntakeClient): boolean => {
+    if (client.paymentStatus !== "paid" || !client.paymentLastPaidAt) return false;
+    const date = new Date(client.paymentLastPaidAt);
+    if (isNaN(date.getTime())) return false;
+    const now = new Date();
+    return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+  };
+
+  const fetchPaymentNotifications = async () => {
+    try {
+      const auth = getAuthSafe();
+      if (!auth?.currentUser) return;
+      const response = await fetch(`/api/admin/paymentNotifications?adminUserId=${auth.currentUser.uid}`);
+      if (!response.ok) return;
+      const data = await response.json();
+      setPaymentNotificationUnread(typeof data.unreadCount === "number" ? data.unreadCount : 0);
+      setPaymentNotificationItems(Array.isArray(data.items) ? data.items : []);
+    } catch {
+      // noop
+    }
+  };
+
   useEffect(() => {
     if (users.length > 0 && authUser?.uid) {
       calculateRevenueStats();
@@ -1021,6 +1110,16 @@ export default function Admin() {
     // loadUserStats se maneja manualmente para evitar bucles
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin, authUser, adminMeta.lastUsersCheck]);
+
+  useEffect(() => {
+    if (!isAdmin || !authUser) return;
+    fetchPaymentNotifications();
+    const interval = setInterval(() => {
+      fetchPaymentNotifications();
+    }, 30000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, authUser]);
 
 
   const loadUserStats = async (lastUsersCheck?: string | null, silent = false) => {
@@ -1253,8 +1352,114 @@ export default function Admin() {
     }
   };
 
-  const handleDeleteIntakeClient = async (client: IntakeClient) => {
-    if (!confirm(`¿Eliminar el formulario de ${client.nombreCompleto || client.email || "este cliente"}?`)) return;
+  const openDeleteUserModal = (client: IntakeClient) => {
+    setDeleteUserTarget(client);
+    setDeleteUserModalOpen(true);
+  };
+
+  const openIntakePaymentModal = (client: IntakeClient) => {
+    setIntakePaymentClient(client);
+    setIntakePaymentPlan("monthly");
+    setIntakePaymentModalOpen(true);
+  };
+
+  const handleCreateIntakePaymentLink = async () => {
+    if (!intakePaymentClient) return;
+    try {
+      const auth = getAuthSafe();
+      if (!auth?.currentUser) return;
+      setIntakePaymentLoading(true);
+      const provider = inferProviderByCountry(intakePaymentClient.pais || null);
+      const response = await fetch("/api/admin/createIntakeClientPaymentLink", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          adminUserId: auth.currentUser.uid,
+          intakeClientId: intakePaymentClient.id,
+          provider,
+          planType: intakePaymentPlan,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.link) {
+        throw new Error(data.error || "No se pudo generar el link de pago");
+      }
+      const link = String(data.link);
+      await navigator.clipboard.writeText(link).catch(() => {});
+      const phone = (intakePaymentClient.whatsapp || "").replace(/[^\d+]/g, "").replace(/^\+/, "");
+      const planLabel = intakePaymentPlan === "annual" ? "anual" : intakePaymentPlan === "quarterly" ? "trimestral" : "mensual";
+      if (phone && phone.length >= 8) {
+        const msg = `Hola ${intakePaymentClient.nombreCompleto || ""}, te comparto el link para abonar tu plan ${planLabel}: ${link}`;
+        window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, "_blank");
+      } else {
+        window.open(link, "_blank");
+      }
+      await loadIntakeClients();
+      alert("Link de pago generado y copiado. Se abrió el envío.");
+      setIntakePaymentModalOpen(false);
+      setIntakePaymentClient(null);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "No se pudo generar el link de pago.");
+    } finally {
+      setIntakePaymentLoading(false);
+    }
+  };
+
+  const openPaymentLinkModal = (user: User) => {
+    setPaymentLinkUser(user);
+    setPaymentLinkProvider(inferProviderByCountry(user.pais));
+    setPaymentLinkPlan((user.premiumPlanType as PaymentLinkPlan) || "monthly");
+    setPaymentLinkModalOpen(true);
+  };
+
+  const normalizeWhatsapp = (value?: string | null): string | null => {
+    if (!value) return null;
+    const cleaned = value.replace(/[^\d+]/g, "").replace(/^\+/, "");
+    return cleaned.length >= 8 ? cleaned : null;
+  };
+
+  const handleGeneratePaymentLink = async () => {
+    if (!paymentLinkUser) return;
+    try {
+      const auth = getAuthSafe();
+      if (!auth?.currentUser) return;
+      setPaymentLinkLoading(true);
+      const response = await fetch("/api/admin/createUserPaymentLink", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          adminUserId: auth.currentUser.uid,
+          targetUserId: paymentLinkUser.id,
+          provider: paymentLinkProvider,
+          planType: paymentLinkPlan,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.link) {
+        throw new Error(data.error || "No se pudo generar el link de pago");
+      }
+
+      const link = String(data.link);
+      await navigator.clipboard.writeText(link).catch(() => {});
+      const whatsapp = normalizeWhatsapp(paymentLinkUser.whatsapp);
+      if (whatsapp) {
+        const msg = `Hola ${paymentLinkUser.nombre || ""}, te comparto tu link para activar Premium en FitPlan: ${link}`;
+        window.open(`https://wa.me/${whatsapp}?text=${encodeURIComponent(msg)}`, "_blank");
+      } else {
+        window.open(link, "_blank");
+      }
+      alert("Link de pago generado. Lo copié al portapapeles y abrí el envío.");
+      setPaymentLinkModalOpen(false);
+      setPaymentLinkUser(null);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "No se pudo generar el link");
+    } finally {
+      setPaymentLinkLoading(false);
+    }
+  };
+
+  const handleDeleteIntakeClient = async () => {
+    if (!deleteUserTarget) return;
     try {
       const auth = getAuthSafe();
       if (!auth?.currentUser) return;
@@ -1264,14 +1469,21 @@ export default function Admin() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: auth.currentUser.uid,
-          clientId: client.id,
+          clientId: deleteUserTarget.id,
         }),
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || `HTTP ${response.status}`);
       }
-      setIntakeClients((prev) => prev.filter((c) => c.id !== client.id));
+      setIntakeClients((prev) => prev.filter((c) => c.id !== deleteUserTarget.id));
+      if (intakeGeneratedPlanClient?.id === deleteUserTarget.id) {
+        setIntakeGeneratedPlanModalOpen(false);
+        setIntakeGeneratedPlanClient(null);
+        setIntakeGeneratedPlan(null);
+      }
+      setDeleteUserModalOpen(false);
+      setDeleteUserTarget(null);
     } catch (error) {
       alert(error instanceof Error ? error.message : "No se pudo eliminar el formulario.");
     } finally {
@@ -1285,6 +1497,7 @@ export default function Admin() {
     setIntakePlanIncludeNutrition(true);
     setIntakePlanIncludeTraining(actionType === "generate");
     setIntakePlanObjectiveOverride("auto");
+    setIntakeTrainingStructure("auto");
     setIntakePlanAdditionalNotes("");
     setIntakeUpdateMainNeed("");
     setIntakeUpdateNutritionFeedback("");
@@ -1320,6 +1533,7 @@ export default function Admin() {
           actionContext: {
             objectiveOverride: intakePlanObjectiveOverride,
             additionalNotes: intakePlanAdditionalNotes.trim(),
+            trainingStructure: intakeTrainingStructure,
           },
           updateContext:
             intakePlanActionType === "update"
@@ -1392,16 +1606,20 @@ export default function Admin() {
     }
   };
 
-  const handleDeleteGeneratedPlan = async (client: IntakeClient) => {
-    if (!client.latestPlanId) {
-      alert("Este cliente no tiene plan generado para eliminar.");
+  const openDeletePlanModal = (client: IntakeClient) => {
+    if (!client.latestPlanId) return;
+    setDeletePlanClient(client);
+    setDeletePlanNutrition(client.latestPlanIncludeNutrition !== false);
+    setDeletePlanTraining(client.latestPlanIncludeTraining !== false);
+    setDeletePlanModalOpen(true);
+  };
+
+  const handleDeleteGeneratedPlan = async () => {
+    if (!deletePlanClient?.latestPlanId) return;
+    if (!deletePlanNutrition && !deletePlanTraining) {
+      alert("Selecciona al menos una parte del plan para eliminar.");
       return;
     }
-    const confirmed = confirm(
-      `¿Eliminar el plan generado de ${client.nombreCompleto || client.email || "este cliente"}?\n\nEsta acción permite generar uno nuevo desde cero.`
-    );
-    if (!confirmed) return;
-
     try {
       const auth = getAuthSafe();
       if (!auth?.currentUser) return;
@@ -1411,8 +1629,10 @@ export default function Admin() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: auth.currentUser.uid,
-          clientId: client.id,
-          planId: client.latestPlanId,
+          clientId: deletePlanClient.id,
+          planId: deletePlanClient.latestPlanId,
+          deleteNutrition: deletePlanNutrition,
+          deleteTraining: deletePlanTraining,
         }),
       });
       if (!response.ok) {
@@ -1420,11 +1640,13 @@ export default function Admin() {
         throw new Error(errorData.error || `HTTP ${response.status}`);
       }
       await loadIntakeClients();
-      if (intakeGeneratedPlanClient?.id === client.id) {
+      if (intakeGeneratedPlanClient?.id === deletePlanClient.id) {
         setIntakeGeneratedPlanModalOpen(false);
         setIntakeGeneratedPlanClient(null);
         setIntakeGeneratedPlan(null);
       }
+      setDeletePlanModalOpen(false);
+      setDeletePlanClient(null);
     } catch (error) {
       alert(error instanceof Error ? error.message : "No se pudo eliminar el plan.");
     } finally {
@@ -1824,6 +2046,36 @@ export default function Admin() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <button
+                onClick={async () => {
+                  const nextOpen = !paymentNotificationOpen;
+                  setPaymentNotificationOpen(nextOpen);
+                  if (nextOpen && paymentNotificationUnread > 0) {
+                    try {
+                      const auth = getAuthSafe();
+                      if (auth?.currentUser) {
+                        await fetch("/api/admin/paymentNotifications", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ adminUserId: auth.currentUser.uid }),
+                        });
+                        setPaymentNotificationUnread(0);
+                      }
+                    } catch {
+                      // noop
+                    }
+                  }
+                }}
+                className="relative px-4 py-2 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-emerald-100 hover:bg-emerald-500/30 transition-colors text-sm font-medium inline-flex items-center gap-2"
+              >
+                <FaBell className="h-3.5 w-3.5" />
+                Cobros
+                {paymentNotificationUnread > 0 && (
+                  <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-emerald-400 text-black font-bold">
+                    {paymentNotificationUnread}
+                  </span>
+                )}
+              </button>
+              <button
                 onClick={() => router.push("/formulario-de-inicio")}
                 className="px-4 py-2 rounded-lg bg-cyan-500/20 border border-cyan-400/40 text-cyan-200 hover:bg-cyan-500/30 transition-colors text-sm font-medium"
               >
@@ -1837,6 +2089,23 @@ export default function Admin() {
               </button>
             </div>
           </div>
+          {paymentNotificationOpen && (
+            <div className="mt-3 rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-3">
+              <p className="text-xs text-emerald-100 mb-2">Pagos confirmados recientes</p>
+              <div className="space-y-1 max-h-40 overflow-y-auto">
+                {paymentNotificationItems.length === 0 ? (
+                  <p className="text-xs text-white/60">Sin cobros recientes.</p>
+                ) : (
+                  paymentNotificationItems.map((item) => (
+                    <div key={item.id} className="text-xs text-white/85 bg-white/5 border border-white/10 rounded px-2 py-1 flex items-center justify-between gap-2">
+                      <span>{item.userName || item.userEmail || "Usuario"} · {item.amount || 0} {item.currency || ""}</span>
+                      <span className="text-white/50">{String(item.provider || "").toUpperCase()}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
         </motion.div>
 
         {newUsersList.length > 0 && (
@@ -2195,6 +2464,7 @@ export default function Admin() {
                     <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Objetivo</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Trabajo</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Fecha</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Pago mes actual</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Acciones</th>
                   </tr>
                 </thead>
@@ -2224,46 +2494,78 @@ export default function Admin() {
                           : "N/A"}
                       </td>
                       <td className="px-4 py-3 text-sm">
-                        <div className="flex flex-wrap gap-2">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-full border text-xs ${
+                            isIntakeCurrentMonthPaid(client)
+                              ? "bg-green-500/20 text-green-300 border-green-500/40"
+                              : client.paymentStatus === "pending"
+                              ? "bg-yellow-500/20 text-yellow-300 border-yellow-500/40"
+                              : "bg-red-500/20 text-red-300 border-red-500/40"
+                          }`}
+                        >
+                          <FaCircle className="h-2.5 w-2.5" />
+                          {isIntakeCurrentMonthPaid(client) ? "Pagado" : client.paymentStatus === "pending" ? "Pendiente" : "No pagó"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        <div className="max-w-[420px] overflow-x-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+                          <div className="flex flex-nowrap gap-2 min-w-max pr-2">
                           <button
                             onClick={() => handleOpenIntakeClientDetail(client)}
-                            className="px-3 py-1.5 rounded-lg bg-cyan-500/20 border border-cyan-400/40 text-cyan-200 hover:bg-cyan-500/30 transition-colors"
+                            className="px-3 py-1.5 rounded-lg bg-slate-500/20 border border-slate-400/40 text-slate-200 hover:bg-slate-500/30 transition-colors inline-flex items-center gap-1.5"
                           >
-                            Ver detalle
+                            <FaUser className="h-3.5 w-3.5" />
+                            <span>Datos del Cliente</span>
                           </button>
                           <button
                             onClick={() => openIntakePlanModal(client, "generate")}
-                            className="px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 hover:bg-emerald-500/30 transition-colors"
+                            className="px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 hover:bg-emerald-500/30 transition-colors inline-flex items-center gap-1.5"
                           >
-                            Generar
+                            <FaPlusCircle className="h-3.5 w-3.5" />
+                            <span>Generar Plan/es</span>
+                          </button>
+                          {client.latestPlanId && (
+                            <>
+                              <button
+                                onClick={() => openIntakePlanModal(client, "update")}
+                                className="px-3 py-1.5 rounded-lg bg-blue-500/20 border border-blue-400/40 text-blue-200 hover:bg-blue-500/30 transition-colors inline-flex items-center gap-1.5"
+                              >
+                                <FaSyncAlt className="h-3.5 w-3.5" />
+                                <span>Actualizar Plan/es</span>
+                              </button>
+                              <button
+                                onClick={() => handleOpenGeneratedPlan(client)}
+                                className="px-3 py-1.5 rounded-lg bg-violet-500/20 border border-violet-400/40 text-violet-200 hover:bg-violet-500/30 transition-colors inline-flex items-center gap-1.5"
+                              >
+                                <FaEye className="h-3.5 w-3.5" />
+                                <span>Ver Plan/es</span>
+                              </button>
+                              <button
+                                onClick={() => openDeletePlanModal(client)}
+                                disabled={processingIntakeAction}
+                                className="px-3 py-1.5 rounded-lg bg-orange-500/20 border border-orange-400/40 text-orange-200 hover:bg-orange-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
+                              >
+                                <FaTrashAlt className="h-3.5 w-3.5" />
+                                <span>Eliminar Plan/es</span>
+                              </button>
+                            </>
+                          )}
+                          <button
+                            onClick={() => openIntakePaymentModal(client)}
+                            className="px-3 py-1.5 rounded-lg bg-emerald-600/20 border border-emerald-400/40 text-emerald-200 hover:bg-emerald-600/30 transition-colors inline-flex items-center gap-1.5"
+                          >
+                            <FaLink className="h-3.5 w-3.5" />
+                            <span>Enviar Link Pago</span>
                           </button>
                           <button
-                            onClick={() => openIntakePlanModal(client, "update")}
-                            className="px-3 py-1.5 rounded-lg bg-blue-500/20 border border-blue-400/40 text-blue-200 hover:bg-blue-500/30 transition-colors"
-                          >
-                            Actualizar plan
-                          </button>
-                          <button
-                            onClick={() => handleOpenGeneratedPlan(client)}
-                            disabled={!client.latestPlanId}
-                            className="px-3 py-1.5 rounded-lg bg-violet-500/20 border border-violet-400/40 text-violet-200 hover:bg-violet-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            Ver plan generado
-                          </button>
-                          <button
-                            onClick={() => handleDeleteGeneratedPlan(client)}
-                            disabled={!client.latestPlanId || processingIntakeAction}
-                            className="px-3 py-1.5 rounded-lg bg-orange-500/20 border border-orange-400/40 text-orange-200 hover:bg-orange-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            Eliminar plan
-                          </button>
-                          <button
-                            onClick={() => handleDeleteIntakeClient(client)}
+                            onClick={() => openDeleteUserModal(client)}
                             disabled={processingIntakeAction}
-                            className="px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-400/40 text-red-200 hover:bg-red-500/30 transition-colors disabled:opacity-60"
+                            className="px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-400/40 text-red-200 hover:bg-red-500/30 transition-colors disabled:opacity-60 inline-flex items-center gap-1.5"
                           >
-                            Eliminar
+                            <FaTrashAlt className="h-3.5 w-3.5" />
+                            <span>Eliminar Usuario</span>
                           </button>
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -2398,6 +2700,15 @@ export default function Admin() {
                               <FaComment className="text-sm" />
                             </button>
                           )}
+                          {user.email && user.email.toLowerCase() !== "admin@fitplan-ai.com" && (
+                            <button
+                              onClick={() => openPaymentLinkModal(user)}
+                              className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-300 transition-colors"
+                              title={`Generar link de pago para ${user.nombre || user.email}`}
+                            >
+                              <FaLink className="text-sm" />
+                            </button>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -2434,7 +2745,13 @@ export default function Admin() {
                             N/A
                           </span>
                         ) : user.premium ? (
-                          <div className="relative">
+                          <div className="relative flex items-center gap-2">
+                            <FaCircle
+                              className={`h-2.5 w-2.5 ${
+                                isCurrentMonthPaid(user) ? "text-green-400 drop-shadow-[0_0_6px_rgba(74,222,128,0.9)]" : "text-red-400/80"
+                              }`}
+                              title={isCurrentMonthPaid(user) ? "Mes corriente pago" : "Mes corriente pendiente"}
+                            />
                             <span 
                               onClick={async () => {
                                 setSelectedUserForPaymentHistory(user);
@@ -2781,6 +3098,15 @@ export default function Admin() {
                               <FaComment className="text-sm" />
                             </button>
                           )}
+                          {user.email.toLowerCase() !== "admin@fitplan-ai.com" && (
+                            <button
+                              onClick={() => openPaymentLinkModal(user)}
+                              className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-300 transition-colors"
+                              title={`Generar link de pago para ${user.nombre || user.email}`}
+                            >
+                              <FaLink className="text-sm" />
+                            </button>
+                          )}
                         </>
                       ) : (
                         <span className="text-white/40 text-sm">N/A</span>
@@ -2847,6 +3173,12 @@ export default function Admin() {
                           </span>
                         ) : user.premium ? (
                           <div className="relative inline-block">
+                            <FaCircle
+                              className={`h-2.5 w-2.5 inline-block mr-1 ${
+                                isCurrentMonthPaid(user) ? "text-green-400 drop-shadow-[0_0_6px_rgba(74,222,128,0.9)]" : "text-red-400/80"
+                              }`}
+                              title={isCurrentMonthPaid(user) ? "Mes corriente pago" : "Mes corriente pendiente"}
+                            />
                             <span 
                               onClick={async () => {
                                 setSelectedUserForPaymentHistory(user);
@@ -4076,6 +4408,7 @@ export default function Admin() {
             includeNutrition={intakePlanIncludeNutrition}
             includeTraining={intakePlanIncludeTraining}
             objectiveOverride={intakePlanObjectiveOverride}
+            trainingStructure={intakeTrainingStructure}
             additionalNotes={intakePlanAdditionalNotes}
             updateMainNeed={intakeUpdateMainNeed}
             updateNutritionFeedback={intakeUpdateNutritionFeedback}
@@ -4090,6 +4423,7 @@ export default function Admin() {
             onToggleNutrition={() => setIntakePlanIncludeNutrition((prev) => !prev)}
             onToggleTraining={() => setIntakePlanIncludeTraining((prev) => !prev)}
             onChangeObjectiveOverride={setIntakePlanObjectiveOverride}
+            onChangeTrainingStructure={setIntakeTrainingStructure}
             onChangeAdditionalNotes={setIntakePlanAdditionalNotes}
             onChangeUpdateMainNeed={setIntakeUpdateMainNeed}
             onChangeUpdateNutritionFeedback={setIntakeUpdateNutritionFeedback}
@@ -4113,6 +4447,65 @@ export default function Admin() {
               setIntakeGeneratedPlanError(null);
               setIntakeGeneratedPlanLoading(false);
             }}
+          />
+        )}
+        {deletePlanModalOpen && deletePlanClient && (
+          <DeleteIntakePlanModal
+            isOpen={deletePlanModalOpen}
+            client={deletePlanClient}
+            deleteNutrition={deletePlanNutrition}
+            deleteTraining={deletePlanTraining}
+            loading={processingIntakeAction}
+            onClose={() => {
+              setDeletePlanModalOpen(false);
+              setDeletePlanClient(null);
+            }}
+            onToggleNutrition={() => setDeletePlanNutrition((prev) => !prev)}
+            onToggleTraining={() => setDeletePlanTraining((prev) => !prev)}
+            onSubmit={handleDeleteGeneratedPlan}
+          />
+        )}
+        {deleteUserModalOpen && deleteUserTarget && (
+          <DeleteIntakeUserModal
+            isOpen={deleteUserModalOpen}
+            client={deleteUserTarget}
+            loading={processingIntakeAction}
+            onClose={() => {
+              setDeleteUserModalOpen(false);
+              setDeleteUserTarget(null);
+            }}
+            onSubmit={handleDeleteIntakeClient}
+          />
+        )}
+        {intakePaymentModalOpen && intakePaymentClient && (
+          <IntakePaymentLinkModal
+            isOpen={intakePaymentModalOpen}
+            client={intakePaymentClient}
+            provider={inferProviderByCountry(intakePaymentClient.pais || null)}
+            planType={intakePaymentPlan}
+            loading={intakePaymentLoading}
+            onClose={() => {
+              setIntakePaymentModalOpen(false);
+              setIntakePaymentClient(null);
+            }}
+            onChangePlanType={(value) => setIntakePaymentPlan(value)}
+            onSubmit={handleCreateIntakePaymentLink}
+          />
+        )}
+        {paymentLinkModalOpen && paymentLinkUser && (
+          <PaymentLinkModal
+            isOpen={paymentLinkModalOpen}
+            user={paymentLinkUser}
+            provider={paymentLinkProvider}
+            planType={paymentLinkPlan}
+            loading={paymentLinkLoading}
+            onClose={() => {
+              setPaymentLinkModalOpen(false);
+              setPaymentLinkUser(null);
+            }}
+            onChangeProvider={(value) => setPaymentLinkProvider(value)}
+            onChangePlanType={(value) => setPaymentLinkPlan(value)}
+            onSubmit={handleGeneratePaymentLink}
           />
         )}
 
@@ -4153,6 +4546,7 @@ function IntakePlanActionModal({
   includeNutrition,
   includeTraining,
   objectiveOverride,
+  trainingStructure,
   additionalNotes,
   updateMainNeed,
   updateNutritionFeedback,
@@ -4164,6 +4558,7 @@ function IntakePlanActionModal({
   onToggleNutrition,
   onToggleTraining,
   onChangeObjectiveOverride,
+  onChangeTrainingStructure,
   onChangeAdditionalNotes,
   onChangeUpdateMainNeed,
   onChangeUpdateNutritionFeedback,
@@ -4178,6 +4573,7 @@ function IntakePlanActionModal({
   includeNutrition: boolean;
   includeTraining: boolean;
   objectiveOverride: "auto" | "perder_grasa" | "ganar_musculo" | "recomposicion" | "rendimiento" | "mantener";
+  trainingStructure: "auto" | "ppl" | "upper_lower" | "full_body";
   additionalNotes: string;
   updateMainNeed: string;
   updateNutritionFeedback: string;
@@ -4191,6 +4587,7 @@ function IntakePlanActionModal({
   onChangeObjectiveOverride: (
     value: "auto" | "perder_grasa" | "ganar_musculo" | "recomposicion" | "rendimiento" | "mantener"
   ) => void;
+  onChangeTrainingStructure: (value: "auto" | "ppl" | "upper_lower" | "full_body") => void;
   onChangeAdditionalNotes: (value: string) => void;
   onChangeUpdateMainNeed: (value: string) => void;
   onChangeUpdateNutritionFeedback: (value: string) => void;
@@ -4271,6 +4668,21 @@ function IntakePlanActionModal({
                 placeholder="Ej.: priorizar adherencia, poco tiempo, dolor lumbar al correr..."
               />
             </label>
+            {includeTraining && (
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-white/70">Estructura de entrenamiento</span>
+                <select
+                  value={trainingStructure}
+                  onChange={(e) => onChangeTrainingStructure(e.target.value as "auto" | "ppl" | "upper_lower" | "full_body")}
+                  className="rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white outline-none"
+                >
+                  <option value="auto">Auto (según objetivo y días)</option>
+                  <option value="ppl">PPL (empuje/tirón/piernas)</option>
+                  <option value="upper_lower">Upper/Lower</option>
+                  <option value="full_body">Full Body</option>
+                </select>
+              </label>
+            )}
           </div>
           {actionType === "update" && (
             <div className="space-y-3 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-3">
@@ -4351,6 +4763,295 @@ function IntakePlanActionModal({
             className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-medium disabled:opacity-60"
           >
             {loading ? "Guardando..." : actionType === "generate" ? "Generar" : "Actualizar"}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+function DeleteIntakePlanModal({
+  isOpen,
+  client,
+  deleteNutrition,
+  deleteTraining,
+  loading,
+  onClose,
+  onToggleNutrition,
+  onToggleTraining,
+  onSubmit,
+}: {
+  isOpen: boolean;
+  client: IntakeClient;
+  deleteNutrition: boolean;
+  deleteTraining: boolean;
+  loading: boolean;
+  onClose: () => void;
+  onToggleNutrition: () => void;
+  onToggleTraining: () => void;
+  onSubmit: () => void;
+}) {
+  if (!isOpen) return null;
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 14 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-lg w-full"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <h3 className="text-xl font-bold text-white">Eliminar Plan/es</h3>
+            <p className="text-sm text-white/70 mt-1">{client.nombreCompleto || client.email || client.id}</p>
+            <p className="text-xs text-white/50 mt-1">Elige qué parte del plan quieres eliminar para regenerar.</p>
+          </div>
+          <button onClick={onClose} className="text-white/60 hover:text-white">✕</button>
+        </div>
+
+        <div className="space-y-3">
+          <label className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2 cursor-pointer">
+            <span className="text-sm text-white">Eliminar plan de alimentación / nutrición</span>
+            <input type="checkbox" checked={deleteNutrition} onChange={onToggleNutrition} className="h-4 w-4" />
+          </label>
+          <label className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2 cursor-pointer">
+            <span className="text-sm text-white">Eliminar plan de entrenamiento</span>
+            <input type="checkbox" checked={deleteTraining} onChange={onToggleTraining} className="h-4 w-4" />
+          </label>
+        </div>
+
+        <div className="mt-5 flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-white"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onSubmit}
+            disabled={loading || (!deleteNutrition && !deleteTraining)}
+            className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-medium disabled:opacity-60"
+          >
+            {loading ? "Eliminando..." : "Eliminar selección"}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+function DeleteIntakeUserModal({
+  isOpen,
+  client,
+  loading,
+  onClose,
+  onSubmit,
+}: {
+  isOpen: boolean;
+  client: IntakeClient;
+  loading: boolean;
+  onClose: () => void;
+  onSubmit: () => void;
+}) {
+  if (!isOpen) return null;
+  const hasPlan = !!client.latestPlanId;
+  const hasNutrition = hasPlan && client.latestPlanIncludeNutrition !== false;
+  const hasTraining = hasPlan && client.latestPlanIncludeTraining !== false;
+  const deletionSummary = hasPlan
+    ? hasNutrition && hasTraining
+      ? "Se eliminará 1 plan completo: nutrición + entrenamiento."
+      : hasNutrition
+      ? "Se eliminará 1 plan de nutrición."
+      : hasTraining
+      ? "Se eliminará 1 plan de entrenamiento."
+      : "Se eliminará el usuario del formulario de inicio."
+    : "No hay plan generado: se eliminará solo el usuario del formulario de inicio.";
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 14 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-lg w-full"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <h3 className="text-xl font-bold text-white">Eliminar Usuario</h3>
+            <p className="text-sm text-white/70 mt-1">{client.nombreCompleto || client.email || client.id}</p>
+          </div>
+          <button onClick={onClose} className="text-white/60 hover:text-white">✕</button>
+        </div>
+
+        <div className="rounded-lg border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-100">
+          Esta acción eliminará al cliente del formulario de inicio y todos sus planes relacionados. No se puede deshacer.
+        </div>
+        <div className="mt-3 rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-white/85">
+          {deletionSummary}
+        </div>
+
+        <div className="mt-5 flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-white"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onSubmit}
+            disabled={loading}
+            className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white font-medium disabled:opacity-60"
+          >
+            {loading ? "Eliminando..." : "Sí, eliminar todo"}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+function PaymentLinkModal({
+  isOpen,
+  user,
+  provider,
+  planType,
+  loading,
+  onClose,
+  onChangeProvider,
+  onChangePlanType,
+  onSubmit,
+}: {
+  isOpen: boolean;
+  user: User;
+  provider: PaymentLinkProvider;
+  planType: PaymentLinkPlan;
+  loading: boolean;
+  onClose: () => void;
+  onChangeProvider: (value: PaymentLinkProvider) => void;
+  onChangePlanType: (value: PaymentLinkPlan) => void;
+  onSubmit: () => void;
+}) {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 14 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-lg w-full"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-xl font-bold text-white">Enviar link de pago</h3>
+        <p className="text-sm text-white/70 mt-1">{user.nombre || user.email || user.id}</p>
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label className="text-sm text-white/85">
+            Proveedor
+            <select
+              value={provider}
+              onChange={(e) => onChangeProvider(e.target.value as PaymentLinkProvider)}
+              className="mt-1 w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-white"
+            >
+              <option value="stripe">Stripe</option>
+              <option value="mercadopago">MercadoPago</option>
+            </select>
+          </label>
+          <label className="text-sm text-white/85">
+            Plan
+            <select
+              value={planType}
+              onChange={(e) => onChangePlanType(e.target.value as PaymentLinkPlan)}
+              className="mt-1 w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-white"
+            >
+              <option value="monthly">Mensual</option>
+              <option value="quarterly">Trimestral</option>
+              <option value="annual">Anual</option>
+            </select>
+          </label>
+        </div>
+        <p className="mt-3 text-xs text-white/60">Se genera el link, se copia al portapapeles y, si hay WhatsApp, se abre el envío directo.</p>
+        <div className="mt-5 flex gap-3">
+          <button onClick={onClose} className="flex-1 px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-white">
+            Cancelar
+          </button>
+          <button
+            onClick={onSubmit}
+            disabled={loading}
+            className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-medium disabled:opacity-60 inline-flex items-center justify-center gap-2"
+          >
+            <FaWhatsapp className="h-4 w-4" />
+            {loading ? "Generando..." : "Generar y enviar"}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+function IntakePaymentLinkModal({
+  isOpen,
+  client,
+  provider,
+  planType,
+  loading,
+  onClose,
+  onChangePlanType,
+  onSubmit,
+}: {
+  isOpen: boolean;
+  client: IntakeClient;
+  provider: PaymentLinkProvider;
+  planType: PaymentLinkPlan;
+  loading: boolean;
+  onClose: () => void;
+  onChangePlanType: (value: PaymentLinkPlan) => void;
+  onSubmit: () => void;
+}) {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 14 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-lg w-full"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-xl font-bold text-white">Enviar Link de Pago</h3>
+        <p className="text-sm text-white/70 mt-1">{client.nombreCompleto || client.email || client.id}</p>
+        <p className="text-xs text-white/50 mt-1">Proveedor detectado: {provider === "mercadopago" ? "MercadoPago" : "Stripe"}</p>
+
+        <label className="text-sm text-white/85 block mt-4">
+          Elegir plan
+          <select
+            value={planType}
+            onChange={(e) => onChangePlanType(e.target.value as PaymentLinkPlan)}
+            className="mt-1 w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-white"
+          >
+            <option value="monthly">Mensual</option>
+            <option value="quarterly">Trimestral</option>
+            <option value="annual">Anual</option>
+          </select>
+        </label>
+
+        <div className="mt-5 flex gap-3">
+          <button onClick={onClose} className="flex-1 px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-white">
+            Cancelar
+          </button>
+          <button
+            onClick={onSubmit}
+            disabled={loading}
+            className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-medium disabled:opacity-60"
+          >
+            {loading ? "Generando..." : "Generar link"}
           </button>
         </div>
       </motion.div>
@@ -4531,9 +5232,14 @@ function IntakeGeneratedPlanModal({
   const buildWhatsappSummary = () => {
     if (!plan?.plan) return "";
     const lines: string[] = [];
-    lines.push("Hola! Te comparto tu plan actualizado de FitPlan.");
+    lines.push("Hola! Te comparto tu plan actualizado de Lucas Riera.");
     lines.push("");
-    const kcal = typeof plan.plan.calorias_diarias === "number" ? `${plan.plan.calorias_diarias} kcal` : "N/A";
+    const kcalTarget = typeof plan.plan.calorias_diarias === "number" ? `${plan.plan.calorias_diarias} kcal` : "N/A";
+    const kcalMaint =
+      typeof (plan.plan as Record<string, unknown>).calorias_mantenimiento === "number"
+        ? `${String((plan.plan as Record<string, unknown>).calorias_mantenimiento)} kcal`
+        : null;
+    const kcal = kcalMaint ? `${kcalTarget} / ${kcalMaint} (mant.)` : kcalTarget;
     lines.push(`Objetivo calórico diario: ${kcal}`);
     if (macros) {
       lines.push(
@@ -4597,7 +5303,17 @@ function IntakeGeneratedPlanModal({
     const lines: string[] = [];
     lines.push(`Plan de ${client.nombreCompleto || client.email || client.id}`);
     lines.push("");
-    lines.push(`Calorías diarias: ${typeof plan?.plan?.calorias_diarias === "number" ? `${plan.plan.calorias_diarias} kcal` : "N/A"}`);
+    lines.push(
+      `Calorías diarias: ${
+        typeof plan?.plan?.calorias_diarias === "number"
+          ? `${plan.plan.calorias_diarias} kcal${
+              typeof (plan?.plan as Record<string, unknown>)?.calorias_mantenimiento === "number"
+                ? ` / ${(plan?.plan as Record<string, unknown>).calorias_mantenimiento} kcal (mant.)`
+                : ""
+            }`
+          : "N/A"
+      }`
+    );
     lines.push(
       `Macros: Proteínas ${String(macros?.proteinas || "-")} | Grasas ${String(macros?.grasas || "-")} | Carbohidratos ${String(
         macros?.carbohidratos || "-"
@@ -4692,17 +5408,17 @@ function IntakeGeneratedPlanModal({
       });
     });
     const baseName = sanitizeFileName(client.nombreCompleto || client.email || "cliente");
-    doc.save(`plan-fitplan-${baseName}.pdf`);
+    doc.save(`plan-lucas-riera-${baseName}.pdf`);
   };
 
   const exportPlanAsWord = () => {
     const title = client.nombreCompleto || client.email || "Cliente";
     const lines = buildPlanTextLines().map((line) => line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"));
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8" /><title>Plan FitPlan</title></head><body style="font-family:Arial,sans-serif;padding:24px;"><h1 style="color:#0f172a;">Plan FitPlan - ${title}</h1>${lines
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8" /><title>Plan Lucas Riera</title></head><body style="font-family:Arial,sans-serif;padding:24px;"><h1 style="color:#0f172a;">Plan Lucas Riera - ${title}</h1>${lines
       .map((line) => `<p style="margin:0 0 8px 0;">${line || "&nbsp;"}</p>`)
       .join("")}</body></html>`;
     const baseName = sanitizeFileName(client.nombreCompleto || client.email || "cliente");
-    downloadBlob(html, "application/msword;charset=utf-8", `plan-fitplan-${baseName}.doc`);
+    downloadBlob(html, "application/msword;charset=utf-8", `plan-lucas-riera-${baseName}.doc`);
   };
 
   const exportPlanAsExcel = () => {
@@ -4746,7 +5462,7 @@ function IntakeGeneratedPlanModal({
     });
     const csvContent = `\uFEFF${rows.join("\n")}`;
     const baseName = sanitizeFileName(client.nombreCompleto || client.email || "cliente");
-    downloadBlob(csvContent, "text/csv;charset=utf-8", `plan-fitplan-${baseName}.csv`);
+    downloadBlob(csvContent, "text/csv;charset=utf-8", `plan-lucas-riera-${baseName}.csv`);
   };
 
   const handleExportPlan = async (format: "pdf" | "word" | "excel") => {
@@ -4855,25 +5571,31 @@ function IntakeGeneratedPlanModal({
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="rounded-lg border border-sky-400/20 bg-sky-500/10 px-3 py-2">
+                <p className="text-xs text-sky-100/80">Datos de la persona</p>
+                <p className="text-sm text-sky-100">
+                  Edad: {String((plan?.input as Record<string, unknown> | null)?.edad || "N/A")} · Altura:{" "}
+                  {String((plan?.input as Record<string, unknown> | null)?.alturaCm || "N/A")} cm · Peso actual:{" "}
+                  {String((plan?.input as Record<string, unknown> | null)?.pesoKg || "N/A")} kg
+                </p>
+              </div>
               <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
                 <p className="text-xs text-white/60">Tipo de acción</p>
                 <p className="text-sm text-white">{plan.actionType || "N/A"}</p>
-              </div>
-              <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
-                <p className="text-xs text-white/60">Nutrición</p>
-                <p className="text-sm text-white">{plan.includeNutrition ? `Sí (${nutritionDays} días)` : "No"}</p>
-              </div>
-              <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
-                <p className="text-xs text-white/60">Entrenamiento</p>
-                <p className="text-sm text-white">{plan.includeTraining ? `Sí (${trainingWeeks} semanas)` : "No"}</p>
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="rounded-lg border border-emerald-400/20 bg-emerald-500/10 px-3 py-2">
                 <p className="text-xs text-emerald-100/80">Calorías objetivo</p>
                 <p className="text-base font-semibold text-emerald-100">
-                  {typeof plan?.plan?.calorias_diarias === "number" ? `${plan.plan.calorias_diarias} kcal` : "N/A"}
+                  {typeof plan?.plan?.calorias_diarias === "number"
+                    ? `${plan.plan.calorias_diarias} kcal${
+                        typeof (plan?.plan as Record<string, unknown>)?.calorias_mantenimiento === "number"
+                          ? ` / ${(plan?.plan as Record<string, unknown>).calorias_mantenimiento} kcal mant.`
+                          : ""
+                      }`
+                    : "N/A"}
                 </p>
               </div>
               <div className="rounded-lg border border-cyan-400/20 bg-cyan-500/10 px-3 py-2">
@@ -4889,24 +5611,24 @@ function IntakeGeneratedPlanModal({
                 <p className="text-sm text-violet-100">{String(trainingPlan?.split || "N/A")}</p>
               </div>
             </div>
-            {plan?.plan?.evaluacion_inicial && typeof plan.plan.evaluacion_inicial === "object" && (
+            {Boolean(plan?.plan?.evaluacion_inicial) && typeof plan?.plan?.evaluacion_inicial === "object" && (
               <div className="rounded-lg border border-fuchsia-400/20 bg-fuchsia-500/10 px-3 py-2">
                 <p className="text-xs text-fuchsia-100/80">Evaluación inicial</p>
                 <p className="text-sm text-fuchsia-100">
                   IMC: {String((plan.plan.evaluacion_inicial as Record<string, unknown>).imc || "N/A")} · Estado:{" "}
                   {String((plan.plan.evaluacion_inicial as Record<string, unknown>).estado || "N/A")}
                 </p>
-                {(plan.plan.evaluacion_inicial as Record<string, unknown>).decisionClinica && (
+                {Boolean((plan.plan.evaluacion_inicial as Record<string, unknown>).decisionClinica) && (
                   <p className="text-xs text-fuchsia-100/85 mt-1">
                     {String((plan.plan.evaluacion_inicial as Record<string, unknown>).decisionClinica)}
                   </p>
                 )}
               </div>
             )}
-            {plan?.plan?.mensaje_ajuste_objetivo && (
+            {Boolean(plan?.plan?.mensaje_ajuste_objetivo) && (
               <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2">
                 <p className="text-xs text-amber-100/80">Mensaje para el cliente</p>
-                <p className="text-sm text-amber-100 mt-1">{String(plan.plan.mensaje_ajuste_objetivo)}</p>
+                <p className="text-sm text-amber-100 mt-1">{String(plan?.plan?.mensaje_ajuste_objetivo)}</p>
               </div>
             )}
             {cardioPlan && (
@@ -4930,7 +5652,7 @@ function IntakeGeneratedPlanModal({
                         Dosis: {String(supp.dosis || "N/A")} · Momento: {String(supp.momento || "N/A")}
                       </p>
                       <p className="text-xs text-white/70 mt-1">Motivo: {String(supp.motivo || "N/A")}</p>
-                      {supp.nota && <p className="text-xs text-amber-200/90 mt-1">Nota: {String(supp.nota)}</p>}
+                      {Boolean(supp.nota) && <p className="text-xs text-amber-200/90 mt-1">Nota: {String(supp.nota)}</p>}
                     </div>
                   ))}
                 </div>

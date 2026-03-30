@@ -48,6 +48,32 @@ async function sendPremiumWelcomeChatMessage(params: {
   });
 }
 
+async function createAdminPaymentNotification(params: {
+  db: Firestore;
+  userId: string;
+  userName?: string | null;
+  userEmail?: string | null;
+  provider: "stripe";
+  amount: number;
+  currency: string;
+  planType: string;
+  paymentId: string;
+}) {
+  await params.db.collection("adminNotifications").add({
+    type: "payment_success",
+    read: false,
+    userId: params.userId,
+    userName: params.userName || null,
+    userEmail: params.userEmail || null,
+    provider: params.provider,
+    amount: params.amount,
+    currency: params.currency,
+    planType: params.planType,
+    paymentId: params.paymentId,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -109,6 +135,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
+      if (session.metadata?.paymentFlow === "intake_client" && session.metadata?.intakeClientId) {
+        const intakeClientId = session.metadata.intakeClientId;
+        const amountTotal = typeof session.amount_total === "number" ? session.amount_total / 100 : 0;
+        const currency = session.currency?.toUpperCase() || "EUR";
+        await adminDb.collection("intakeClients").doc(intakeClientId).set(
+          {
+            paymentStatus: "paid",
+            paymentProvider: "stripe",
+            paymentLastPaidAt: FieldValue.serverTimestamp(),
+            paymentCurrentMonthPaid: true,
+            paymentLastAmount: amountTotal,
+            paymentLastCurrency: currency,
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+        await adminDb.collection("adminNotifications").add({
+          type: "payment_success",
+          read: false,
+          flow: "intake_client",
+          intakeClientId,
+          provider: "stripe",
+          amount: amountTotal,
+          currency,
+          paymentId: session.id,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+        return res.status(200).json({ received: true });
+      }
+
       const userId = session.metadata?.userId;
       const planType = session.metadata?.planType || "monthly";
       const subscriptionId = typeof session.subscription === "string" ? session.subscription : null;
@@ -144,6 +200,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         },
         { merge: true }
       );
+
+      const checkoutAmount = typeof session.amount_total === "number" ? session.amount_total / 100 : 0;
+      const checkoutCurrency = session.currency?.toUpperCase() || "EUR";
+      await createAdminPaymentNotification({
+        db: adminDb,
+        userId,
+        userName: typeof userData?.nombre === "string" ? userData.nombre : null,
+        userEmail: typeof userData?.email === "string" ? userData.email : null,
+        provider: "stripe",
+        amount: checkoutAmount,
+        currency: checkoutCurrency,
+        planType,
+        paymentId: session.id,
+      }).catch((err) => {
+        console.warn("⚠️ Error al crear notificación admin de pago Stripe:", err);
+      });
 
       if (!wasPremium || !welcomeAlreadySent) {
         try {

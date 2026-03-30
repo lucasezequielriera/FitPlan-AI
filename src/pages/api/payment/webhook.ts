@@ -36,6 +36,32 @@ async function sendPremiumWelcomeChatMessage(params: {
   });
 }
 
+async function createAdminPaymentNotification(params: {
+  db: Firestore;
+  userId: string;
+  userName?: string | null;
+  userEmail?: string | null;
+  provider: "mercadopago";
+  amount: number;
+  currency: string;
+  planType: string;
+  paymentId: string;
+}) {
+  await params.db.collection("adminNotifications").add({
+    type: "payment_success",
+    read: false,
+    userId: params.userId,
+    userName: params.userName || null,
+    userEmail: params.userEmail || null,
+    provider: params.provider,
+    amount: params.amount,
+    currency: params.currency,
+    planType: params.planType,
+    paymentId: params.paymentId,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -166,6 +192,40 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (payment.status === "approved" && payment.status_detail === "accredited") {
         // Extraer userId y planType del external_reference (formato: "userId|planType")
         const externalRef = payment.external_reference || "";
+        if (externalRef.startsWith("intake:")) {
+          const [rawIntakeId, intakePlanType] = externalRef.replace("intake:", "").split("|");
+          const intakeClientId = rawIntakeId || "";
+          if (intakeClientId) {
+            const adminDb = getAdminDb();
+            if (adminDb) {
+              await adminDb.collection("intakeClients").doc(intakeClientId).set(
+                {
+                  paymentStatus: "paid",
+                  paymentProvider: "mercadopago",
+                  paymentLastPaidAt: FieldValue.serverTimestamp(),
+                  paymentCurrentMonthPaid: true,
+                  paymentPlanType: intakePlanType || "monthly",
+                  paymentLastAmount: typeof payment.transaction_amount === "number" ? payment.transaction_amount : 0,
+                  paymentLastCurrency: payment.currency_id || "ARS",
+                  updatedAt: FieldValue.serverTimestamp(),
+                },
+                { merge: true }
+              );
+              await adminDb.collection("adminNotifications").add({
+                type: "payment_success",
+                flow: "intake_client",
+                read: false,
+                intakeClientId,
+                provider: "mercadopago",
+                amount: typeof payment.transaction_amount === "number" ? payment.transaction_amount : 0,
+                currency: payment.currency_id || "ARS",
+                paymentId: String(paymentId),
+                createdAt: FieldValue.serverTimestamp(),
+              });
+            }
+          }
+          return res.status(200).json({ received: true });
+        }
         const [userId, planType] = externalRef.includes("|") 
           ? externalRef.split("|") 
           : [externalRef, "monthly"]; // Fallback a monthly si no hay planType
@@ -270,6 +330,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         try {
           await userRef.set(premiumData, { merge: true });
           console.log(`✅ Usuario ${userId} actualizado a premium. Pago ID: ${paymentId}, Monto: ${payment.transaction_amount} ${payment.currency_id || "ARS"}`);
+
+          await createAdminPaymentNotification({
+            db: adminDb,
+            userId,
+            userName: typeof userData?.nombre === "string" ? userData.nombre : null,
+            userEmail: typeof userData?.email === "string" ? userData.email : null,
+            provider: "mercadopago",
+            amount: typeof payment.transaction_amount === "number" ? payment.transaction_amount : 0,
+            currency: payment.currency_id || "ARS",
+            planType: planType || "monthly",
+            paymentId: String(paymentId),
+          }).catch((err) => {
+            console.warn("⚠️ Error al crear notificación admin de pago MP:", err);
+          });
           
           // Enviar notificación a Telegram
           try {

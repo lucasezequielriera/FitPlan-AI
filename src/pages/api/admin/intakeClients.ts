@@ -14,6 +14,12 @@ type IntakeClient = {
   status: string | null;
   latestPlanId?: string | null;
   latestPlanActionType?: "generate" | "update" | null;
+  latestPlanIncludeNutrition?: boolean;
+  latestPlanIncludeTraining?: boolean;
+  pais?: string | null;
+  paymentStatus?: "pending" | "paid" | "failed" | null;
+  paymentProvider?: "stripe" | "mercadopago" | null;
+  paymentLastPaidAt?: string | null;
   createdAt: string | null;
 };
 
@@ -80,6 +86,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         status: (data.status as string) || "new",
         latestPlanId: (data.latestPlanId as string) || null,
         latestPlanActionType: ((data.latestPlanActionType as "generate" | "update" | undefined) || null),
+        latestPlanIncludeNutrition: data.latestPlanIncludeNutrition === true,
+        latestPlanIncludeTraining: data.latestPlanIncludeTraining === true,
+        pais: (data.pais as string) || ((formData?.ciudadPais as string) || null),
+        paymentStatus: ((data.paymentStatus as "pending" | "paid" | "failed" | undefined) || null),
+        paymentProvider: ((data.paymentProvider as "stripe" | "mercadopago" | undefined) || null),
+        paymentLastPaidAt: toISO(data.paymentLastPaidAt),
         createdAt: toISO(data.createdAt),
       };
     });

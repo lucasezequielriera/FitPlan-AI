@@ -8,6 +8,7 @@ type ActionType = "generate" | "update";
 type ActionContext = {
   objectiveOverride?: "auto" | "perder_grasa" | "ganar_musculo" | "recomposicion" | "rendimiento" | "mantener";
   additionalNotes?: string;
+  trainingStructure?: "auto" | "ppl" | "upper_lower" | "full_body";
 } | null;
 type UpdateContext = {
   mainNeed?: string;
@@ -254,11 +255,17 @@ function applyActionContext(input: UserInput, actionContext: ActionContext): Use
   const next: UserInput = { ...input };
   const objectiveOverride = normalizeObjetivoOverride(actionContext.objectiveOverride);
   const additionalNotes = toString(actionContext.additionalNotes);
+  const trainingStructure = toString(actionContext.trainingStructure);
   if (objectiveOverride) {
     next.objetivo = objectiveOverride;
   }
   if (additionalNotes) {
     next.preferencias = Array.from(new Set([...(next.preferencias || []), `Nota extra del coach: ${additionalNotes}`]));
+  }
+  if (trainingStructure && trainingStructure !== "auto") {
+    next.preferencias = Array.from(
+      new Set([...(next.preferencias || []), `Estructura entrenamiento preferida: ${trainingStructure}`])
+    );
   }
   return next;
 }
@@ -361,6 +368,7 @@ function prunePlanBySelection(
   if (!includeNutrition) {
     delete next.plan_semanal;
     delete next.calorias_diarias;
+    delete next.calorias_mantenimiento;
     delete next.macros;
     delete next.distribucion_diaria_pct;
     delete next.lista_compras;
@@ -372,8 +380,74 @@ function prunePlanBySelection(
   return next;
 }
 
+function applyTrainingPeriodizationForUpdate(
+  selectedPlan: Record<string, unknown>,
+  updateContext: UpdateContext,
+  cycleNumber: number
+) {
+  const trainingPlan =
+    selectedPlan.training_plan && typeof selectedPlan.training_plan === "object"
+      ? ({ ...(selectedPlan.training_plan as Record<string, unknown>) } as Record<string, unknown>)
+      : null;
+  if (!trainingPlan) return selectedPlan;
+
+  const rawEnergy = toString(updateContext?.energyLevel || "").toLowerCase();
+  const lowEnergy = rawEnergy === "baja";
+  const highEnergy = rawEnergy === "alta";
+  const trainingFeedback = toString(updateContext?.trainingFeedback || "").toLowerCase();
+  const needsDeload =
+    lowEnergy ||
+    trainingFeedback.includes("fatiga") ||
+    trainingFeedback.includes("dolor") ||
+    trainingFeedback.includes("sobrecarga");
+
+  const progressionRules = Array.isArray(trainingPlan.progression_rules)
+    ? (trainingPlan.progression_rules as unknown[]).map((v) => String(v))
+    : [];
+  const periodizationBlock = needsDeload
+    ? [
+        `Mes ${cycleNumber}: Fase de descarga inteligente (deload) durante 7 días.`,
+        "Reduce volumen 25-30% y mantén técnica estricta.",
+        "Vuelve a progresión normal cuando energía y recuperación mejoren.",
+      ]
+    : highEnergy
+    ? [
+        `Mes ${cycleNumber}: Fase de sobrecarga progresiva.`,
+        "Aumenta 2,5-5% la carga en básicos si completas repeticiones objetivo.",
+        "Mantén 1-2 repeticiones en reserva para sostener progreso sin estancarte.",
+      ]
+    : [
+        `Mes ${cycleNumber}: Fase de consolidación técnica y progreso estable.`,
+        "Prioriza ejecutar perfecto antes de subir peso.",
+        "Aumenta 1 repetición por serie o 2,5% carga según tolerancia.",
+      ];
+
+  const nextRules = Array.from(new Set([...progressionRules, ...periodizationBlock]));
+  trainingPlan.progression_rules = nextRules;
+  trainingPlan.periodizacion_actual = {
+    ciclo: cycleNumber,
+    fase: needsDeload ? "deload" : highEnergy ? "sobrecarga" : "consolidacion",
+    energia_reportada: rawEnergy || "media",
+    feedback_entreno: trainingFeedback || null,
+  };
+  trainingPlan.sync_with_nutrition = Array.from(
+    new Set([
+      ...((Array.isArray(trainingPlan.sync_with_nutrition)
+        ? trainingPlan.sync_with_nutrition
+        : []) as unknown[]).map((v) => String(v)),
+      needsDeload
+        ? "Durante descarga: prioriza sueño, hidratación y mantener calorías/proteína."
+        : "Durante sobrecarga: prioriza comida pre y post entreno rica en carbohidratos y proteína.",
+    ])
+  );
+
+  selectedPlan.training_plan = trainingPlan;
+  return selectedPlan;
+}
+
 function buildFallbackPlan(
   input: UserInput,
+  maintenanceCalories: number,
   targetCalories: number,
   macros: { proteinas: string; grasas: string; carbohidratos: string }
 ) {
@@ -444,6 +518,7 @@ function buildFallbackPlan(
 
   return {
     calorias_diarias: targetCalories,
+    calorias_mantenimiento: maintenanceCalories,
     macros,
     plan_semanal: planSemanal,
     duracion_plan_dias: 30,
@@ -539,13 +614,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     } catch (generationError) {
       generationErrorDetail = generationError instanceof Error ? generationError.message : String(generationError);
       console.error("Error generando plan con templates (fallback activado):", generationError);
-      generatedPlan = buildFallbackPlan(adjustedInput, targetCalories, macros) as unknown as Record<string, unknown>;
+      generatedPlan = buildFallbackPlan(adjustedInput, tdee, targetCalories, macros) as unknown as Record<string, unknown>;
     }
     const selectedPlan = prunePlanBySelection(
       generatedPlan,
       includeNutrition === true,
       includeTraining === true
     );
+    if (actionType === "update" && includeTraining === true) {
+      const history = Array.isArray(targetData?.planActionHistory) ? targetData.planActionHistory : [];
+      const cycleNumber = Math.max(2, history.length + 1);
+      applyTrainingPeriodizationForUpdate(selectedPlan, updateContext || null, cycleNumber);
+    }
     selectedPlan.evaluacion_inicial = {
       ...imcAssessment,
       ...(decisionClinica ? { decisionClinica } : {}),

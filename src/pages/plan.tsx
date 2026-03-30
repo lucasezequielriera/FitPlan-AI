@@ -3323,7 +3323,13 @@ export default function PlanPage() {
                       pdf.setFont('helvetica', 'normal');
                       
                       const infoItems = [
-                        { label: 'Calorías diarias', value: `${plan.calorias_diarias} kcal` },
+                        {
+                          label: 'Calorías diarias',
+                          value:
+                            typeof plan.calorias_mantenimiento === "number"
+                              ? `${plan.calorias_diarias} / ${plan.calorias_mantenimiento} kcal (mant.)`
+                              : `${plan.calorias_diarias} kcal`,
+                        },
                         { label: 'Proteínas', value: plan.macros.proteinas },
                         { label: 'Grasas', value: plan.macros.grasas },
                         { label: 'Carbohidratos', value: plan.macros.carbohidratos },
@@ -3601,7 +3607,14 @@ export default function PlanPage() {
             </div>
             <div className="rounded-xl border border-white/10 bg-black/30 p-4">
               <p className="text-sm opacity-70">Calorías diarias</p>
-              <p className="text-2xl font-bold">{plan.calorias_diarias} kcal</p>
+              <p className="text-2xl font-bold">
+                {plan.calorias_diarias} kcal
+                {typeof plan.calorias_mantenimiento === "number" ? (
+                  <span className="block text-xs font-medium text-white/70 mt-1">
+                    / {plan.calorias_mantenimiento} kcal para mantener
+                  </span>
+                ) : null}
+              </p>
               {tdee > 0 ? (
                 <div className="mt-2 space-y-1">
                   <p className="text-xs opacity-75">Mantenimiento: {tdee} kcal</p>

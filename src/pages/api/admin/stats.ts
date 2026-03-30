@@ -163,6 +163,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         premiumPlanType,
         ciudad: data.ciudad || null,
         pais: data.pais || null,
+        whatsapp: data.whatsapp || data.telefono || null,
       };
     });
 

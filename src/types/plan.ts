@@ -73,6 +73,7 @@ export interface DiaPlan {
 
 export interface PlanAIResponse {
   calorias_diarias: number;
+  calorias_mantenimiento?: number;
   macros: Macros;
   plan_semanal: DiaPlan[];
   duracion_plan_dias: number;
