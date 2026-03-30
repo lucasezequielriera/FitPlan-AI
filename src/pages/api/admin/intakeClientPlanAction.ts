@@ -246,6 +246,90 @@ function prunePlanBySelection(
   return next;
 }
 
+function buildFallbackPlan(
+  input: UserInput,
+  targetCalories: number,
+  macros: { proteinas: string; grasas: string; carbohidratos: string }
+) {
+  const dias = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+  const planSemanal = dias.map((dia) => ({
+    dia,
+    comidas: [
+      {
+        hora: "08:00",
+        nombre: "Desayuno",
+        opciones: ["Yogur griego + avena + fruta", "Huevos + tostada integral + fruta"],
+      },
+      {
+        hora: "13:00",
+        nombre: "Almuerzo",
+        opciones: ["Pollo/pavo + arroz integral + ensalada", "Legumbres + quinoa + verduras"],
+      },
+      {
+        hora: "17:00",
+        nombre: "Merienda",
+        opciones: ["Fruta + frutos secos", "Batido de proteína + fruta"],
+      },
+      {
+        hora: "21:00",
+        nombre: "Cena",
+        opciones: ["Pescado/huevos + verduras + patata", "Tofu + verduras + arroz"],
+      },
+    ],
+  }));
+
+  const trainingPlan = {
+    split: "Full Body 3x/week",
+    weeks: [
+      {
+        week: 1,
+        days: [
+          {
+            day: "Lunes",
+            split: "Full Body",
+            ejercicios: [
+              { name: "Sentadilla", sets: 3, reps: "8-12", muscle_group: "Piernas" },
+              { name: "Press de pecho", sets: 3, reps: "8-12", muscle_group: "Pecho" },
+              { name: "Remo", sets: 3, reps: "8-12", muscle_group: "Espalda" },
+            ],
+          },
+          {
+            day: "Miércoles",
+            split: "Full Body",
+            ejercicios: [
+              { name: "Zancadas", sets: 3, reps: "10-12", muscle_group: "Piernas" },
+              { name: "Press militar", sets: 3, reps: "8-12", muscle_group: "Hombros" },
+              { name: "Jalón al pecho", sets: 3, reps: "8-12", muscle_group: "Espalda" },
+            ],
+          },
+          {
+            day: "Viernes",
+            split: "Full Body",
+            ejercicios: [
+              { name: "Peso muerto rumano", sets: 3, reps: "8-12", muscle_group: "Isquiotibiales" },
+              { name: "Fondos asistidos", sets: 3, reps: "8-12", muscle_group: "Tríceps" },
+              { name: "Curl de bíceps", sets: 3, reps: "10-12", muscle_group: "Bíceps" },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+
+  return {
+    calorias_diarias: targetCalories,
+    macros,
+    plan_semanal: planSemanal,
+    duracion_plan_dias: 30,
+    mensaje_motivacional: `Vamos con todo ${input.nombre}. Enfócate en constancia y progresión semanal.`,
+    minutos_sesion_gym: 50,
+    dificultad: "media",
+    dificultad_detalle: "Plan base de intensidad moderada",
+    training_plan: trainingPlan,
+    _planType: "intake_fallback",
+  };
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -312,9 +396,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       includeTraining === true
     );
     const { tdee, targetCalories, macros } = calculateCaloriesAndMacros(generationInput);
-    const generatedPlan = await generateTemplateBasedPlan(generationInput, tdee, targetCalories, macros);
+    let generatedPlan: Record<string, unknown>;
+    let generationErrorDetail: string | null = null;
+    try {
+      generatedPlan = (await generateTemplateBasedPlan(
+        generationInput,
+        tdee,
+        targetCalories,
+        macros
+      )) as unknown as Record<string, unknown>;
+    } catch (generationError) {
+      generationErrorDetail = generationError instanceof Error ? generationError.message : String(generationError);
+      console.error("Error generando plan con templates (fallback activado):", generationError);
+      generatedPlan = buildFallbackPlan(generationInput, targetCalories, macros) as unknown as Record<string, unknown>;
+    }
     const selectedPlan = prunePlanBySelection(
-      generatedPlan as unknown as Record<string, unknown>,
+      generatedPlan,
       includeNutrition === true,
       includeTraining === true
     );
@@ -334,6 +431,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         macros,
       },
       plan: selectedPlan,
+      generationErrorDetail,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -370,10 +468,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       { merge: true }
     );
 
-    return res.status(200).json({ ok: true, planId: planDoc.id, status });
+    return res.status(200).json({
+      ok: true,
+      planId: planDoc.id,
+      status,
+      usedFallback: Boolean(generationErrorDetail),
+      generationErrorDetail,
+    });
   } catch (error) {
     console.error("Error guardando acción de plan de intake:", error);
-    return res.status(500).json({ error: "No se pudo guardar la acción" });
+    return res.status(500).json({
+      error: "No se pudo guardar la acción",
+      detail: error instanceof Error ? error.message : String(error),
+    });
   }
 }
 
