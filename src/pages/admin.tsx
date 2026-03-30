@@ -1324,7 +1324,16 @@ export default function Admin() {
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP ${response.status}`);
+        const detailed = [errorData.error, errorData.detail].filter(Boolean).join(": ");
+        throw new Error(detailed || `HTTP ${response.status}`);
+      }
+      const responseData = await response.json().catch(() => ({}));
+      if (responseData?.usedFallback) {
+        alert(
+          `Plan generado con fallback por una incidencia puntual del motor principal.\nDetalle: ${
+            responseData?.generationErrorDetail || "sin detalle"
+          }`
+        );
       }
       await loadIntakeClients();
       setIntakePlanModalOpen(false);

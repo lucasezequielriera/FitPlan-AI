@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useState } from "react";
 import { useRouter } from "next/router";
 import { motion } from "framer-motion";
-import { FaAppleAlt } from "react-icons/fa";
+import { FaAppleAlt, FaRocket } from "react-icons/fa";
 import { useAuthStore } from "@/store/authStore";
 import { getDbSafe, getAuthSafe } from "@/lib/firebase";
 import { collection, query, where, getDocs, limit } from "firebase/firestore";
@@ -275,17 +275,37 @@ export default function Home() {
                 >
                   Comenzar ahora
                 </button>
+                <button
+                  onClick={() => setLoginModalOpen(true)}
+                  className="group px-8 py-4 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 hover:from-amber-400 hover:via-orange-400 hover:to-red-400 text-white font-bold text-lg transition-all shadow-lg shadow-orange-500/40 hover:shadow-xl hover:shadow-orange-500/60 transform hover:scale-105 border border-white/20"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <FaRocket className="group-hover:translate-x-0.5 transition-transform" />
+                    Activar Premium y transformar mi cuerpo
+                  </span>
+                </button>
                 <p className="text-sm opacity-60">
-                  Inicia sesión para crear y guardar tus planes
+                  Inicia sesión para crear, guardar tu plan y activar Premium
                 </p>
               </>
             ) : (
-              <button
-                onClick={() => router.push("/dashboard")}
-                className="px-8 py-4 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-semibold text-lg transition-all shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 transform hover:scale-105"
-              >
-                Ir a mi Dashboard
-              </button>
+              <>
+                <button
+                  onClick={() => router.push("/dashboard")}
+                  className="px-8 py-4 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-semibold text-lg transition-all shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 transform hover:scale-105"
+                >
+                  Ir a mi Dashboard
+                </button>
+                <button
+                  onClick={() => router.push("/dashboard?openPremium=1")}
+                  className="group px-8 py-4 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 hover:from-amber-400 hover:via-orange-400 hover:to-red-400 text-white font-bold text-lg transition-all shadow-lg shadow-orange-500/40 hover:shadow-xl hover:shadow-orange-500/60 transform hover:scale-105 border border-white/20"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <FaRocket className="group-hover:translate-x-0.5 transition-transform" />
+                    Empezar mi transformación Premium
+                  </span>
+                </button>
+              </>
             )}
           </motion.div>
 
