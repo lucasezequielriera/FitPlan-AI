@@ -1992,25 +1992,36 @@ export default function Admin() {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900">
-        <Navbar />
-        <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400 mx-auto mb-4"></div>
-            <p className="text-white/60">Cargando...</p>
+      <div className="win2k-desktop" style={{display:"flex", alignItems:"center", justifyContent:"center", minHeight:"100vh"}}>
+        <div className="win2k-window" style={{padding:"0", minWidth:"240px"}}>
+          <div className="win2k-titlebar">
+            <span>⏳</span>
+            <span>FitPlan Admin</span>
+          </div>
+          <div style={{padding:"16px", textAlign:"center", background:"#d4d0c8"}}>
+            <div style={{width:"32px", height:"32px", border:"3px solid #0000a8", borderBottomColor:"transparent", borderRadius:"50%", margin:"0 auto 8px", animation:"spin 1s linear infinite"}} />
+            <p style={{fontSize:"11px"}}>Cargando...</p>
           </div>
         </div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
 
   if (!isAdmin || error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900">
-        <Navbar />
-        <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
-          <div className="text-center p-8 rounded-xl bg-red-500/10 border border-red-500/30">
-            <p className="text-red-400 text-lg">{error || "Acceso denegado"}</p>
+      <div className="win2k-desktop" style={{display:"flex", alignItems:"center", justifyContent:"center", minHeight:"100vh"}}>
+        <div className="win2k-window" style={{padding:"0", minWidth:"300px"}}>
+          <div className="win2k-titlebar" style={{background:"#cc0000"}}>
+            <span>⛔</span>
+            <span>Acceso Denegado</span>
+          </div>
+          <div style={{padding:"16px", background:"#d4d0c8"}}>
+            <p style={{color:"#cc0000", fontWeight:"bold", fontSize:"11px"}}>{error || "Acceso denegado"}</p>
+            <div className="win2k-divider" />
+            <div style={{textAlign:"right"}}>
+              <button className="win2k-btn win2k-btn-primary">Aceptar</button>
+            </div>
           </div>
         </div>
       </div>
@@ -2028,339 +2039,248 @@ export default function Admin() {
   const hasMoreAssignedTrainerUsers = filteredAssignedTrainerUsers.length > assignedTrainerVisibleCount;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900">
-      <Navbar />
-      
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
-        >
-          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent mb-2">
-                Panel de Administración
-              </h1>
-              <p className="text-white/60">Gestiona usuarios y permisos del sistema</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={async () => {
-                  const nextOpen = !paymentNotificationOpen;
-                  setPaymentNotificationOpen(nextOpen);
-                  if (nextOpen && paymentNotificationUnread > 0) {
-                    try {
-                      const auth = getAuthSafe();
-                      if (auth?.currentUser) {
-                        await fetch("/api/admin/paymentNotifications", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ adminUserId: auth.currentUser.uid }),
-                        });
-                        setPaymentNotificationUnread(0);
-                      }
-                    } catch {
-                      // noop
-                    }
+    <div className="win2k-desktop">
+      {/* Win2K Taskbar-style top bar */}
+      <div className="win2k-header-bar flex items-center justify-between px-2 py-1" style={{borderBottom: "2px solid #808080", boxShadow: "0 2px 0 #fff"}}>
+        <div className="flex items-center gap-2">
+          {/* Start button style logo */}
+          <div className="win2k-btn win2k-btn-sm flex items-center gap-1" style={{fontWeight:"bold", fontSize:"12px", padding:"2px 8px", minWidth:"auto", border:"2px solid", borderColor:"#fff #808080 #808080 #fff"}}>
+            <span style={{fontSize:"14px"}}>🖥️</span> FitPlan Admin
+          </div>
+          <div style={{width:"1px", height:"20px", background:"#808080", margin:"0 4px"}} />
+          <span style={{fontSize:"11px", color:"#000", fontWeight:"bold"}}>Panel de Administración</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={async () => {
+              const nextOpen = !paymentNotificationOpen;
+              setPaymentNotificationOpen(nextOpen);
+              if (nextOpen && paymentNotificationUnread > 0) {
+                try {
+                  const auth = getAuthSafe();
+                  if (auth?.currentUser) {
+                    await fetch("/api/admin/paymentNotifications", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ adminUserId: auth.currentUser.uid }),
+                    });
+                    setPaymentNotificationUnread(0);
                   }
-                }}
-                className="relative px-4 py-2 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-emerald-100 hover:bg-emerald-500/30 transition-colors text-sm font-medium inline-flex items-center gap-2"
-              >
-                <FaBell className="h-3.5 w-3.5" />
-                Cobros
-                {paymentNotificationUnread > 0 && (
-                  <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-emerald-400 text-black font-bold">
-                    {paymentNotificationUnread}
-                  </span>
-                )}
-              </button>
-              <button
-                onClick={() => router.push("/formulario-de-inicio")}
-                className="px-4 py-2 rounded-lg bg-cyan-500/20 border border-cyan-400/40 text-cyan-200 hover:bg-cyan-500/30 transition-colors text-sm font-medium"
-              >
-                Abrir formulario de clientes
-              </button>
-              <button
-                onClick={handleCopyFormLink}
-                className="px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white/90 hover:bg-white/20 transition-colors text-sm font-medium"
-              >
-                {copiedFormLink ? "Enlace copiado" : "Copiar enlace del formulario"}
-              </button>
+                } catch {
+                  // noop
+                }
+              }
+            }}
+            className="win2k-btn win2k-btn-sm flex items-center gap-1"
+          >
+            <FaBell style={{fontSize:"10px"}} />
+            Cobros
+            {paymentNotificationUnread > 0 && (
+              <span style={{background:"#cc0000", color:"#fff", borderRadius:"50%", padding:"0 4px", fontSize:"10px", fontWeight:"bold", marginLeft:"2px"}}>
+                {paymentNotificationUnread}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => router.push("/formulario-de-inicio")}
+            className="win2k-btn win2k-btn-sm"
+          >
+            Abrir formulario
+          </button>
+          <button
+            onClick={handleCopyFormLink}
+            className="win2k-btn win2k-btn-sm"
+          >
+            {copiedFormLink ? "✔ Copiado" : "Copiar enlace"}
+          </button>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto" style={{padding:"8px"}}>
+        {/* Payment notification panel */}
+        {paymentNotificationOpen && (
+          <div className="win2k-notification mb-2 flex flex-col gap-1">
+            <p style={{fontWeight:"bold", fontSize:"11px"}}>📋 Pagos confirmados recientes</p>
+            <div style={{maxHeight:"100px", overflowY:"auto"}}>
+              {paymentNotificationItems.length === 0 ? (
+                <p style={{color:"#555"}}>Sin cobros recientes.</p>
+              ) : (
+                paymentNotificationItems.map((item) => (
+                  <div key={item.id} style={{display:"flex", justifyContent:"space-between", padding:"1px 4px", borderBottom:"1px solid #ccc"}}>
+                    <span>{item.userName || item.userEmail || "Usuario"} · {item.amount || 0} {item.currency || ""}</span>
+                    <span style={{color:"#555"}}>{String(item.provider || "").toUpperCase()}</span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
-          {paymentNotificationOpen && (
-            <div className="mt-3 rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-3">
-              <p className="text-xs text-emerald-100 mb-2">Pagos confirmados recientes</p>
-              <div className="space-y-1 max-h-40 overflow-y-auto">
-                {paymentNotificationItems.length === 0 ? (
-                  <p className="text-xs text-white/60">Sin cobros recientes.</p>
-                ) : (
-                  paymentNotificationItems.map((item) => (
-                    <div key={item.id} className="text-xs text-white/85 bg-white/5 border border-white/10 rounded px-2 py-1 flex items-center justify-between gap-2">
-                      <span>{item.userName || item.userEmail || "Usuario"} · {item.amount || 0} {item.currency || ""}</span>
-                      <span className="text-white/50">{String(item.provider || "").toUpperCase()}</span>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
-        </motion.div>
+        )}
 
         {newUsersList.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-8 p-6 rounded-xl border border-green-500/30 bg-gradient-to-r from-green-500/20 to-emerald-500/10 backdrop-blur-sm"
-          >
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-                  <span role="img" aria-label="confeti">🎉</span>
-                  {newUsersList.length === 1
-                    ? "Nuevo usuario desde tu última revisión"
-                    : `${newUsersList.length} usuarios nuevos desde tu última revisión`}
-                </h2>
-                <p className="text-white/70 text-sm mt-1">
-                  Última revisión registrada: {formatDateTimeWithHour(adminMeta.lastUsersCheck)}
-                </p>
-              </div>
+          <div className="win2k-window mb-2">
+            <div className="win2k-titlebar">
+              <span>🎉</span>
+              <span>{newUsersList.length === 1 ? "Nuevo usuario desde tu última revisión" : `${newUsersList.length} usuarios nuevos desde tu última revisión`}</span>
+            </div>
+            <div style={{padding:"6px 8px", background:"#d4d0c8"}}>
+              <p style={{fontSize:"11px", marginBottom:"4px", color:"#444"}}>
+                Última revisión: {formatDateTimeWithHour(adminMeta.lastUsersCheck)}
+              </p>
               <button
                 onClick={handleMarkNewUsersSeen}
                 disabled={markingNewUsersSeen}
-                className="px-4 py-2 rounded-lg bg-green-500/30 hover:bg-green-500/40 border border-green-500/40 text-green-200 text-sm font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                className="win2k-btn win2k-btn-sm"
+                style={{marginBottom:"6px"}}
               >
-                {markingNewUsersSeen ? "Guardando..." : "Marcar como revisado"}
+                {markingNewUsersSeen ? "Guardando..." : "✔ Marcar como revisado"}
               </button>
-            </div>
-            <ul className="mt-4 space-y-2 text-sm">
-              {newUsersList.slice(0, 5).map((user) => (
-                <li
-                  key={user.id}
-                  className="flex items-center justify-between px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white/90"
-                >
-                  <div>
-                    <p className="font-medium text-white">{user.nombre || user.email || user.id}</p>
-                    <p className="text-white/60 text-xs">
-                      {user.email || "Sin email registrado"}
-                    </p>
+              <div className="win2k-inset" style={{padding:"4px"}}>
+                {newUsersList.slice(0, 5).map((user) => (
+                  <div key={user.id} style={{display:"flex", justifyContent:"space-between", padding:"2px 4px", borderBottom:"1px solid #d4d0c8"}}>
+                    <div>
+                      <span style={{fontWeight:"bold"}}>{user.nombre || user.email || user.id}</span>
+                      <span style={{color:"#555", marginLeft:"6px"}}>{user.email || "Sin email"}</span>
+                    </div>
+                    <span style={{color:"#555"}}>{user.createdAt ? formatDateTimeWithHour(user.createdAt) : "Sin fecha"}</span>
                   </div>
-                  <span className="text-white/60 text-xs">
-                    {user.createdAt ? formatDateTimeWithHour(user.createdAt) : "Sin fecha"}
-                  </span>
-                </li>
-              ))}
-              {newUsersList.length > 5 && (
-                <li className="text-white/60 text-xs text-center">
-                  ... y {newUsersList.length - 5} usuarios más
-                </li>
-              )}
-            </ul>
-          </motion.div>
+                ))}
+                {newUsersList.length > 5 && (
+                  <div style={{textAlign:"center", color:"#555", fontSize:"10px", padding:"2px"}}>
+                    ... y {newUsersList.length - 5} usuarios más
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         )}
 
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8 p-6 rounded-xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/20 to-cyan-500/10 backdrop-blur-sm"
-        >
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold text-white">Usuarios con entrenador asignado</h2>
-            <div className="flex items-center gap-2">
-              <div className="inline-flex rounded-lg border border-white/20 bg-black/20 p-1 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setTrainerPreferenceFilter("all")}
-                  className={`px-2 py-1 rounded-md transition-colors ${
-                    trainerPreferenceFilter === "all" ? "bg-white/20 text-white" : "text-white/70 hover:text-white"
-                  }`}
-                >
-                  Todos
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTrainerPreferenceFilter("hombre")}
-                  className={`px-2 py-1 rounded-md transition-colors ${
-                    trainerPreferenceFilter === "hombre" ? "bg-cyan-500/30 text-cyan-100" : "text-white/70 hover:text-white"
-                  }`}
-                >
-                  Hombre
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTrainerPreferenceFilter("mujer")}
-                  className={`px-2 py-1 rounded-md transition-colors ${
-                    trainerPreferenceFilter === "mujer" ? "bg-fuchsia-500/30 text-fuchsia-100" : "text-white/70 hover:text-white"
-                  }`}
-                >
-                  Mujer
-                </button>
+        <div className="win2k-window mb-2">
+          <div className="win2k-titlebar">
+            <span>👥</span>
+            <span>Usuarios con entrenador asignado</span>
+            <div style={{marginLeft:"auto", display:"flex", alignItems:"center", gap:"4px"}}>
+              <button
+                type="button"
+                onClick={() => setTrainerPreferenceFilter("all")}
+                className="win2k-btn win2k-btn-sm"
+                style={trainerPreferenceFilter === "all" ? {boxShadow:"inset 1px 1px 2px rgba(0,0,0,0.4)", borderColor:"#808080 #fff #fff #808080"} : {}}
+              >Todos</button>
+              <button
+                type="button"
+                onClick={() => setTrainerPreferenceFilter("hombre")}
+                className="win2k-btn win2k-btn-sm"
+                style={trainerPreferenceFilter === "hombre" ? {boxShadow:"inset 1px 1px 2px rgba(0,0,0,0.4)", borderColor:"#808080 #fff #fff #808080"} : {}}
+              >Hombre</button>
+              <button
+                type="button"
+                onClick={() => setTrainerPreferenceFilter("mujer")}
+                className="win2k-btn win2k-btn-sm"
+                style={trainerPreferenceFilter === "mujer" ? {boxShadow:"inset 1px 1px 2px rgba(0,0,0,0.4)", borderColor:"#808080 #fff #fff #808080"} : {}}
+              >Mujer</button>
+              <span className="win2k-badge" style={{marginLeft:"4px"}}>{filteredAssignedTrainerUsers.length} usuarios</span>
+            </div>
+          </div>
+          <div style={{padding:"6px", background:"#d4d0c8"}}>
+            {filteredAssignedTrainerUsers.length === 0 ? (
+              <p style={{fontSize:"11px", color:"#555", padding:"4px"}}>Aun no hay solicitudes de entrenador personal humano.</p>
+            ) : (
+              <div style={{display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(240px, 1fr))", gap:"4px"}}>
+                {visibleAssignedTrainerUsers.map((user) => (
+                  <div key={user.id} className="win2k-panel" style={{padding:"4px 6px"}}>
+                    <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"2px"}}>
+                      <span style={{fontWeight:"bold", fontSize:"11px"}}>{user.nombre || user.email || user.id}</span>
+                      <span className={`win2k-badge ${user.personalTrainerPreference === "mujer" ? "win2k-badge-purple" : user.personalTrainerPreference === "hombre" ? "win2k-badge-blue" : ""}`}>
+                        {user.personalTrainerPreference === "mujer" ? "Entrenadora" : user.personalTrainerPreference === "hombre" ? "Entrenador" : "Sin pref."}
+                      </span>
+                    </div>
+                    <p style={{fontSize:"10px", color:"#555"}}>{user.email || "Sin email"}</p>
+                    {user.personalTrainerRequestNote && (
+                      <p style={{fontSize:"10px", marginTop:"2px"}}>Motivo: {user.personalTrainerRequestNote}</p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => window.open("https://wa.me/34627043397", "_blank", "noopener,noreferrer")}
+                      className="win2k-btn"
+                      style={{width:"100%", marginTop:"4px", fontSize:"11px"}}
+                    >
+                      📱 WhatsApp
+                    </button>
+                  </div>
+                ))}
               </div>
-              <span className="px-3 py-1 rounded-full text-xs font-medium bg-white/10 border border-white/20 text-white/85">
-                {filteredAssignedTrainerUsers.length} usuarios
-              </span>
+            )}
+            {filteredAssignedTrainerUsers.length > 12 && (
+              <div style={{textAlign:"center", marginTop:"4px"}}>
+                {hasMoreAssignedTrainerUsers ? (
+                  <button type="button" onClick={() => setAssignedTrainerVisibleCount((prev) => prev + 12)} className="win2k-btn win2k-btn-sm">Ver más ▼</button>
+                ) : (
+                  <button type="button" onClick={() => setAssignedTrainerVisibleCount(12)} className="win2k-btn win2k-btn-sm">Ver menos ▲</button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Panel de Estadísticas de Ganancias */}
+        <div style={{display:"grid", gridTemplateColumns:"1fr auto", gap:"4px", marginBottom:"4px"}}>
+          <div className="win2k-window">
+            <div className="win2k-titlebar">
+              <span>💰</span>
+              <span>Estadísticas de Ganancias</span>
+            </div>
+            <div style={{padding:"6px", background:"#d4d0c8"}}>
+              <div style={{display:"grid", gridTemplateColumns:"repeat(5, 1fr)", gap:"4px", marginBottom:"6px"}}>
+                <div className="win2k-stat-box">
+                  <div className="stat-label">Ganancia Mensual Real</div>
+                  <div className="stat-value" style={{fontSize:"14px"}}>${revenueStats.actualMonthly.toLocaleString('es-AR')}</div>
+                  <div style={{fontSize:"10px", color:"#555"}}>{(revenueStats.actualMonthly / 2000).toFixed(2)} EUR</div>
+                </div>
+                <div className="win2k-stat-box">
+                  <div className="stat-label">Ganancia Est. Mensual</div>
+                  <div className="stat-value" style={{fontSize:"14px", color:"#808000"}}>${revenueStats.estimatedMonthly.toLocaleString('es-AR')}</div>
+                  <div style={{fontSize:"10px", color:"#555"}}>{(revenueStats.estimatedMonthly / 2000).toFixed(2)} EUR</div>
+                </div>
+                <div className="win2k-stat-box">
+                  <div className="stat-label">Premium Activos</div>
+                  <div className="stat-value" style={{color:"#005500"}}>{revenueStats.premiumActiveThisMonth}</div>
+                  <div style={{fontSize:"10px", color:"#555"}}>usuarios</div>
+                </div>
+                <div className="win2k-stat-box">
+                  <div className="stat-label">Pendientes de Pago</div>
+                  <div className="stat-value" style={{color:"#aa5500"}}>{revenueStats.pendingPayments}</div>
+                  <div style={{fontSize:"10px", color:"#555"}}>usuarios</div>
+                </div>
+                <div className="win2k-stat-box">
+                  <div className="stat-label">Renovando Pronto</div>
+                  <div className="stat-value" style={{color:"#0000a8"}}>{revenueStats.renewingSoon}</div>
+                  <div style={{fontSize:"10px", color:"#555"}}>7 días</div>
+                </div>
+              </div>
+              <div className="win2k-divider" />
+              <div style={{display:"flex", justifyContent:"space-between", padding:"2px 4px"}}>
+                <div>
+                  <span style={{fontSize:"11px", color:"#444"}}>Proyección Anual: </span>
+                  <span style={{fontWeight:"bold", color:"#0000a8"}}>${revenueStats.estimatedAnnual.toLocaleString('es-AR')} ARS</span>
+                  <span style={{fontSize:"10px", color:"#555", marginLeft:"4px"}}>({(revenueStats.estimatedAnnual / 2000).toFixed(2)} EUR)</span>
+                </div>
+                <div>
+                  <span style={{fontSize:"11px", color:"#444"}}>Total Premium: </span>
+                  <span style={{fontWeight:"bold", color:"#800080"}}>{revenueStats.totalPremiumUsers}</span>
+                  <span style={{fontSize:"10px", color:"#555", marginLeft:"4px"}}>registrados</span>
+                </div>
+              </div>
             </div>
           </div>
 
-          {filteredAssignedTrainerUsers.length === 0 ? (
-            <p className="mt-3 text-sm text-white/70">
-              Aun no hay solicitudes de entrenador personal humano.
-            </p>
-          ) : (
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-              {visibleAssignedTrainerUsers.map((user) => (
-                <div
-                  key={user.id}
-                  className="rounded-lg border border-white/15 bg-black/20 p-3 text-sm text-white/85"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-medium text-white">{user.nombre || user.email || user.id}</p>
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[11px] border ${
-                        user.personalTrainerPreference === "mujer"
-                          ? "bg-fuchsia-500/20 border-fuchsia-400/40 text-fuchsia-100"
-                          : user.personalTrainerPreference === "hombre"
-                            ? "bg-cyan-500/20 border-cyan-400/40 text-cyan-100"
-                            : "bg-white/10 border-white/25 text-white/80"
-                      }`}
-                    >
-                      {user.personalTrainerPreference === "mujer"
-                        ? "Entrenadora"
-                        : user.personalTrainerPreference === "hombre"
-                          ? "Entrenador"
-                          : "Sin preferencia"}
-                    </span>
-                  </div>
-                  <p className="text-xs text-white/60">{user.email || "Sin email"}</p>
-                  {user.personalTrainerRequestNote && (
-                    <p className="mt-2 text-xs text-white/75 line-clamp-3">
-                      Motivo: {user.personalTrainerRequestNote}
-                    </p>
-                  )}
-                  {(user.personalTrainerPreference || user.personalTrainerFocus) && (
-                    <p className="mt-1 text-xs text-white/70 line-clamp-2">
-                      Preferencia: {user.personalTrainerPreference || "N/A"} | Enfoque: {user.personalTrainerFocus || "N/A"}
-                    </p>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => window.open("https://wa.me/34627043397", "_blank", "noopener,noreferrer")}
-                    className="mt-3 w-full px-3 py-1.5 rounded-lg bg-emerald-500/25 border border-emerald-400/40 text-emerald-100 hover:bg-emerald-500/35 transition-colors"
-                  >
-                    Contactar por WhatsApp
-                  </button>
-                </div>
-              ))}
+          <div className="win2k-window" style={{minWidth:"160px"}}>
+            <div className="win2k-titlebar">
+              <span>⚡</span>
+              <span>Acciones Rápidas</span>
             </div>
-          )}
-          {filteredAssignedTrainerUsers.length > 12 && (
-            <div className="mt-4 flex items-center justify-center gap-2">
-              {hasMoreAssignedTrainerUsers ? (
-                <button
-                  type="button"
-                  onClick={() => setAssignedTrainerVisibleCount((prev) => prev + 12)}
-                  className="px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white/90 hover:bg-white/20 transition-colors text-sm"
-                >
-                  Ver más
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setAssignedTrainerVisibleCount(12)}
-                  className="px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white/90 hover:bg-white/20 transition-colors text-sm"
-                >
-                  Ver menos
-                </button>
-              )}
-            </div>
-          )}
-        </motion.div>
-
-        {/* Panel de Estadísticas de Ganancias */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="lg:col-span-2 p-6 rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-blue-500/30 backdrop-blur-sm"
-          >
-            <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-yellow-400">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1.41 16.09V20h-2.67v-1.93c-1.71-.36-3.16-1.46-3.27-3.4h1.96c.1 1.05.82 1.87 2.65 1.87 1.96 0 2.4-.98 2.4-1.59 0-.83-.44-1.61-2.67-2.14-2.48-.6-4.18-1.62-4.18-3.67 0-1.72 1.39-2.84 3.11-3.21V4h2.67v1.95c1.86.45 2.79 1.86 2.85 3.39H14.3c-.05-1.11-.64-1.87-2.22-1.87-1.5 0-2.4.68-2.4 1.64 0 .84.65 1.39 2.67 1.95s4.18 1.08 4.18 3.67c-.01 1.83-1.38 2.83-3.12 3.16z"/>
-              </svg>
-              Estadísticas de Ganancias
-            </h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <p className="text-white/60 text-xs mb-1">Ganancia Mensual Real</p>
-                <p className="text-2xl font-bold text-green-400">
-                  ${revenueStats.actualMonthly.toLocaleString('es-AR')}
-                </p>
-                <p className="text-white/40 text-xs mt-1">ARS / {(revenueStats.actualMonthly / 2000).toFixed(2)} EUR</p>
-              </div>
-              <div>
-                <p className="text-white/60 text-xs mb-1">Ganancia Mensual Estimada</p>
-                <p className="text-2xl font-bold text-yellow-400">
-                  ${revenueStats.estimatedMonthly.toLocaleString('es-AR')}
-                </p>
-                <p className="text-white/40 text-xs mt-1">ARS / {(revenueStats.estimatedMonthly / 2000).toFixed(2)} EUR</p>
-              </div>
-              <div>
-                <p className="text-white/60 text-xs mb-1">Premium Activos (Este Mes)</p>
-                <p className="text-2xl font-bold text-cyan-400">
-                  {revenueStats.premiumActiveThisMonth}
-                </p>
-                <p className="text-white/40 text-xs mt-1">usuarios</p>
-              </div>
-              <div>
-                <p className="text-white/60 text-xs mb-1">Pendientes de Pago</p>
-                <p className="text-2xl font-bold text-orange-400">
-                  {revenueStats.pendingPayments}
-                </p>
-                <p className="text-white/40 text-xs mt-1">usuarios</p>
-              </div>
-              <div>
-                <p className="text-white/60 text-xs mb-1">Renovando Pronto</p>
-                <p className="text-2xl font-bold text-blue-400">
-                  {revenueStats.renewingSoon}
-                </p>
-                <p className="text-white/40 text-xs mt-1">próximos 7 días</p>
-              </div>
-            </div>
-            <div className="mt-4 pt-4 border-t border-white/10">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white/60 text-sm">Proyección Anual</p>
-                  <p className="text-xl font-bold text-cyan-400">
-                    ${revenueStats.estimatedAnnual.toLocaleString('es-AR')} ARS
-                  </p>
-                  <p className="text-white/40 text-xs mt-1">{(revenueStats.estimatedAnnual / 2000).toFixed(2)} EUR</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-white/60 text-sm">Total Premium</p>
-                  <p className="text-xl font-bold text-purple-400">
-                    {revenueStats.totalPremiumUsers}
-                  </p>
-                  <p className="text-white/40 text-xs mt-1">
-                    usuarios premium registrados
-                  </p>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-          
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.2 }}
-            className="p-6 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm"
-          >
-            <h3 className="text-lg font-semibold text-white mb-4">Acciones Rápidas</h3>
-            <div className="space-y-3">
+            <div style={{padding:"6px", background:"#d4d0c8", display:"flex", flexDirection:"column", gap:"4px"}}>
               <button
                 onClick={() => {
                   const pendingUsers = users.filter(u => {
-                    // Excluir al admin
                     if (u.email?.toLowerCase() === "admin@fitplan-ai.com") return false;
                     const status = getPaymentStatus(u);
                     return status.status === "unpaid" && u.premium;
@@ -2369,7 +2289,8 @@ export default function Admin() {
                   const totalEUR = pendingUsers.length * 5;
                   alert(`${pendingUsers.length} usuarios premium están sin pagar este mes. Total a recuperar: $${totalARS.toLocaleString('es-AR')} ARS / ${totalEUR.toFixed(2)} EUR`);
                 }}
-                className="w-full px-4 py-2 rounded-lg bg-orange-500/20 border border-orange-500/30 text-orange-400 hover:bg-orange-500/30 transition-colors text-sm"
+                className="win2k-btn"
+                style={{width:"100%"}}
               >
                 Ver Pendientes
               </button>
@@ -2379,234 +2300,163 @@ export default function Admin() {
                   const totalRenewEUR = revenueStats.renewingSoon * 5;
                   alert(`${revenueStats.renewingSoon} usuarios renovarán en los próximos 7 días. Total esperado: $${totalRenewARS.toLocaleString('es-AR')} ARS / ${totalRenewEUR.toFixed(2)} EUR`);
                 }}
-                className="w-full px-4 py-2 rounded-lg bg-blue-500/20 border border-blue-500/30 text-blue-400 hover:bg-blue-500/30 transition-colors text-sm"
+                className="win2k-btn"
+                style={{width:"100%"}}
               >
                 Renovaciones Próximas
               </button>
-              <div className="pt-3 border-t border-white/10">
-                <p className="text-white/60 text-xs mb-2">Precios mensuales actuales</p>
-                <p className="text-lg font-bold text-white">$10.000 ARS</p>
-                <p className="text-lg font-bold text-white">5.00 EUR</p>
+              <div className="win2k-divider" style={{marginTop:"4px"}} />
+              <div style={{fontSize:"10px", color:"#444"}}>
+                <strong>Precios mensuales:</strong> $10.000 ARS / 5.00 EUR
               </div>
             </div>
-          </motion.div>
+          </div>
         </div>
 
         {/* Estadísticas rápidas */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="p-4 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm"
-          >
-            <p className="text-white/60 text-sm mb-1">Total Usuarios</p>
-            <p className="text-2xl font-bold text-blue-400">{totalUsers}</p>
-          </motion.div>
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.1 }}
-            className="p-4 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm"
-          >
-            <p className="text-white/60 text-sm mb-1">Usuarios Premium</p>
-            <p className="text-2xl font-bold text-yellow-400">
-              {premiumUsers}
-            </p>
-          </motion.div>
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.2 }}
-            className="p-4 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm"
-          >
-            <p className="text-white/60 text-sm mb-1">Usuarios Regulares</p>
-            <p className="text-2xl font-bold text-cyan-400">
-              {regularUsers}
-            </p>
-          </motion.div>
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.3 }}
-            className="p-4 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm"
-          >
-            <p className="text-white/60 text-sm mb-1">Atléticos</p>
-            <p className="text-2xl font-bold text-green-400">
-              {athleticUsers}
-            </p>
-          </motion.div>
+        <div style={{display:"grid", gridTemplateColumns:"repeat(4, 1fr)", gap:"4px", marginBottom:"4px"}}>
+          <div className="win2k-stat-box">
+            <div className="stat-label">Total Usuarios</div>
+            <div className="stat-value">{totalUsers}</div>
+          </div>
+          <div className="win2k-stat-box">
+            <div className="stat-label">Usuarios Premium</div>
+            <div className="stat-value" style={{color:"#808000"}}>{premiumUsers}</div>
+          </div>
+          <div className="win2k-stat-box">
+            <div className="stat-label">Usuarios Regulares</div>
+            <div className="stat-value" style={{color:"#005588"}}>{regularUsers}</div>
+          </div>
+          <div className="win2k-stat-box">
+            <div className="stat-label">Atléticos</div>
+            <div className="stat-value" style={{color:"#005500"}}>{athleticUsers}</div>
+          </div>
         </div>
 
         {/* Clientes provenientes del formulario de inicio */}
-        <div className="rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm overflow-hidden mb-8">
-          <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold">Clientes del formulario de inicio</h2>
-              <p className="text-xs text-white/60 mt-1">Leads que te contactan para entrenamiento 1:1</p>
+        <div className="win2k-window mb-2">
+          <div className="win2k-titlebar" style={{justifyContent:"space-between"}}>
+            <div style={{display:"flex", alignItems:"center", gap:"6px"}}>
+              <span>📋</span>
+              <span>Clientes del formulario de inicio</span>
+              <span style={{fontSize:"10px", fontWeight:"normal", opacity:"0.8"}}>— Leads para entrenamiento 1:1</span>
             </div>
-            <span className="text-sm text-cyan-300 font-medium">{intakeClients.length}</span>
+            <span className="win2k-badge" style={{background:"#0000a8", color:"#fff", border:"none"}}>{intakeClients.length}</span>
           </div>
 
           {loadingIntakeClients ? (
-            <div className="px-5 py-6 text-sm text-white/70">Cargando clientes...</div>
+            <div style={{padding:"8px", background:"#d4d0c8", fontSize:"11px", color:"#555"}}>Cargando clientes...</div>
           ) : intakeClients.length === 0 ? (
-            <div className="px-5 py-6 text-sm text-white/70">Aún no hay envíos del formulario.</div>
+            <div style={{padding:"8px", background:"#d4d0c8", fontSize:"11px", color:"#555"}}>Aún no hay envíos del formulario.</div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1180px]">
-                <thead className="bg-white/5 border-b border-white/10">
+            <div style={{overflowX:"auto", background:"#d4d0c8", padding:"4px"}}>
+              <div className="win2k-inset" style={{overflowX:"auto"}}>
+              <table className="win2k-table" style={{minWidth:"1100px"}}>
+                <thead>
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Nombre</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Email</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">WhatsApp</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Instagram</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Servicio</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Objetivo</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Trabajo</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Fecha</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Pago mes actual</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Acciones</th>
+                    <th>Nombre</th>
+                    <th>Email</th>
+                    <th>WhatsApp</th>
+                    <th>Instagram</th>
+                    <th>Servicio</th>
+                    <th>Objetivo</th>
+                    <th>Trabajo</th>
+                    <th>Fecha</th>
+                    <th>Pago mes</th>
+                    <th>Acciones</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/10">
+                <tbody>
                   {intakeClients.map((client) => (
-                    <tr key={client.id} className="hover:bg-white/5">
-                      <td className="px-4 py-3 text-sm text-white">{client.nombreCompleto || "N/A"}</td>
-                      <td className="px-4 py-3 text-sm text-white/85">{client.email || "N/A"}</td>
-                      <td className="px-4 py-3 text-sm text-white/85">{client.whatsapp || "N/A"}</td>
-                      <td className="px-4 py-3 text-sm text-white/85">{client.instagram || "N/A"}</td>
-                      <td className="px-4 py-3 text-sm text-white/85">{client.servicioInteres || "N/A"}</td>
-                      <td className="px-4 py-3 text-sm text-white/85">{client.objetivoPrincipal || "N/A"}</td>
-                      <td className="px-4 py-3 text-sm text-white/70">
+                    <tr key={client.id}>
+                      <td>{client.nombreCompleto || "N/A"}</td>
+                      <td>{client.email || "N/A"}</td>
+                      <td>{client.whatsapp || "N/A"}</td>
+                      <td>{client.instagram || "N/A"}</td>
+                      <td>{client.servicioInteres || "N/A"}</td>
+                      <td>{client.objetivoPrincipal || "N/A"}</td>
+                      <td>
                         {client.trabajoTurnos || client.diasTrabajo.length > 0
                           ? `${client.trabajoTurnos || "Sin horas"}${client.diasTrabajo.length > 0 ? ` · ${client.diasTrabajo.join(", ")}` : ""}`
                           : "N/A"}
                       </td>
-                      <td className="px-4 py-3 text-sm text-white/70">
+                      <td>
                         {client.createdAt
-                          ? new Date(client.createdAt).toLocaleString("es-ES", {
-                              day: "2-digit",
-                              month: "2-digit",
-                              year: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
+                          ? new Date(client.createdAt).toLocaleString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })
                           : "N/A"}
                       </td>
-                      <td className="px-4 py-3 text-sm">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-full border text-xs ${
-                            isIntakeCurrentMonthPaid(client)
-                              ? "bg-green-500/20 text-green-300 border-green-500/40"
-                              : client.paymentStatus === "pending"
-                              ? "bg-yellow-500/20 text-yellow-300 border-yellow-500/40"
-                              : "bg-red-500/20 text-red-300 border-red-500/40"
-                          }`}
-                        >
-                          <FaCircle className="h-2.5 w-2.5" />
-                          {isIntakeCurrentMonthPaid(client) ? "Pagado" : client.paymentStatus === "pending" ? "Pendiente" : "No pagó"}
+                      <td>
+                        <span className={`win2k-badge ${isIntakeCurrentMonthPaid(client) ? "win2k-badge-green" : client.paymentStatus === "pending" ? "win2k-badge-yellow" : "win2k-badge-red"}`}>
+                          {isIntakeCurrentMonthPaid(client) ? "✔ Pagado" : client.paymentStatus === "pending" ? "⏳ Pendiente" : "✗ No pagó"}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm">
-                        <div className="max-w-[420px] overflow-x-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
-                          <div className="flex flex-nowrap gap-2 min-w-max pr-2">
-                          <button
-                            onClick={() => handleOpenIntakeClientDetail(client)}
-                            className="px-3 py-1.5 rounded-lg bg-slate-500/20 border border-slate-400/40 text-slate-200 hover:bg-slate-500/30 transition-colors inline-flex items-center gap-1.5"
-                          >
-                            <FaUser className="h-3.5 w-3.5" />
-                            <span>Datos del Cliente</span>
+                      <td>
+                        <div className="win2k-actions">
+                          <button onClick={() => handleOpenIntakeClientDetail(client)} className="win2k-btn win2k-btn-sm">
+                            <FaUser style={{display:"inline", marginRight:"2px", fontSize:"9px"}} />Datos
                           </button>
-                          <button
-                            onClick={() => openIntakePlanModal(client, "generate")}
-                            className="px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 hover:bg-emerald-500/30 transition-colors inline-flex items-center gap-1.5"
-                          >
-                            <FaPlusCircle className="h-3.5 w-3.5" />
-                            <span>Generar Plan/es</span>
+                          <button onClick={() => openIntakePlanModal(client, "generate")} className="win2k-btn win2k-btn-sm">
+                            <FaPlusCircle style={{display:"inline", marginRight:"2px", fontSize:"9px"}} />Generar
                           </button>
                           {client.latestPlanId && (
                             <>
-                              <button
-                                onClick={() => openIntakePlanModal(client, "update")}
-                                className="px-3 py-1.5 rounded-lg bg-blue-500/20 border border-blue-400/40 text-blue-200 hover:bg-blue-500/30 transition-colors inline-flex items-center gap-1.5"
-                              >
-                                <FaSyncAlt className="h-3.5 w-3.5" />
-                                <span>Actualizar Plan/es</span>
+                              <button onClick={() => openIntakePlanModal(client, "update")} className="win2k-btn win2k-btn-sm">
+                                <FaSyncAlt style={{display:"inline", marginRight:"2px", fontSize:"9px"}} />Actualizar
                               </button>
-                              <button
-                                onClick={() => handleOpenGeneratedPlan(client)}
-                                className="px-3 py-1.5 rounded-lg bg-violet-500/20 border border-violet-400/40 text-violet-200 hover:bg-violet-500/30 transition-colors inline-flex items-center gap-1.5"
-                              >
-                                <FaEye className="h-3.5 w-3.5" />
-                                <span>Ver Plan/es</span>
+                              <button onClick={() => handleOpenGeneratedPlan(client)} className="win2k-btn win2k-btn-sm">
+                                <FaEye style={{display:"inline", marginRight:"2px", fontSize:"9px"}} />Ver Plan
                               </button>
-                              <button
-                                onClick={() => openDeletePlanModal(client)}
-                                disabled={processingIntakeAction}
-                                className="px-3 py-1.5 rounded-lg bg-orange-500/20 border border-orange-400/40 text-orange-200 hover:bg-orange-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
-                              >
-                                <FaTrashAlt className="h-3.5 w-3.5" />
-                                <span>Eliminar Plan/es</span>
+                              <button onClick={() => openDeletePlanModal(client)} disabled={processingIntakeAction} className="win2k-btn win2k-btn-sm">
+                                <FaTrashAlt style={{display:"inline", marginRight:"2px", fontSize:"9px"}} />Del. Plan
                               </button>
                             </>
                           )}
-                          <button
-                            onClick={() => openIntakePaymentModal(client)}
-                            className="px-3 py-1.5 rounded-lg bg-emerald-600/20 border border-emerald-400/40 text-emerald-200 hover:bg-emerald-600/30 transition-colors inline-flex items-center gap-1.5"
-                          >
-                            <FaLink className="h-3.5 w-3.5" />
-                            <span>Enviar Link Pago</span>
+                          <button onClick={() => openIntakePaymentModal(client)} className="win2k-btn win2k-btn-sm">
+                            <FaLink style={{display:"inline", marginRight:"2px", fontSize:"9px"}} />Pago
                           </button>
-                          <button
-                            onClick={() => openDeleteUserModal(client)}
-                            disabled={processingIntakeAction}
-                            className="px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-400/40 text-red-200 hover:bg-red-500/30 transition-colors disabled:opacity-60 inline-flex items-center gap-1.5"
-                          >
-                            <FaTrashAlt className="h-3.5 w-3.5" />
-                            <span>Eliminar Usuario</span>
+                          <button onClick={() => openDeleteUserModal(client)} disabled={processingIntakeAction} className="win2k-btn win2k-btn-sm" style={{color:"#cc0000"}}>
+                            <FaTrashAlt style={{display:"inline", marginRight:"2px", fontSize:"9px"}} />Borrar
                           </button>
-                          </div>
                         </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </div>
 
         {/* Lista de usuarios */}
-        <div className="rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm overflow-hidden">
+        <div className="win2k-window">
+          <div className="win2k-titlebar">
+            <span>👤</span>
+            <span>Usuarios del Sistema</span>
+          </div>
           {/* Vista de tabla para desktop */}
-          <div className="hidden lg:block overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-white/5 border-b border-white/10">
+          <div style={{overflowX:"auto", background:"#d4d0c8", padding:"4px"}}>
+            <div className="win2k-inset" style={{overflowX:"auto"}}>
+            <table className="win2k-table">
+              <thead>
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Nombre</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Contacto</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Plan</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Estado de Pago</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Edad</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Altura</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Peso</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Estado</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Creado</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Acciones</th>
+                  <th>Nombre</th>
+                  <th>Contacto</th>
+                  <th>Plan</th>
+                  <th>Estado de Pago</th>
+                  <th>Edad</th>
+                  <th>Altura</th>
+                  <th>Peso</th>
+                  <th>Estado</th>
+                  <th>Creado</th>
+                  <th>Acciones</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/10">
+              <tbody>
                 {users.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="px-6 py-12 text-center">
-                      <div className="flex flex-col items-center gap-3">
-                        <p className="text-white/60 text-sm">
-                          La carga de usuarios está deshabilitada temporalmente
-                        </p>
-                        <p className="text-white/40 text-xs">
-                          Esta funcionalidad se habilitará próximamente
-                        </p>
-                      </div>
+                    <td colSpan={10} style={{textAlign:"center", padding:"16px", color:"#555"}}>
+                      La carga de usuarios está deshabilitada temporalmente.
                     </td>
                   </tr>
                 ) : (
@@ -2614,136 +2464,89 @@ export default function Admin() {
                     const paymentStatus = getPaymentStatus(user);
                     const isNewUser = newUserIds.includes(user.id);
                     return (
-                    <motion.tr
+                    <tr
                       key={user.id}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: index * 0.05 }}
-                      className={`hover:bg-white/5 transition-colors border-l-4 group ${isNewUser ? "bg-green-500/10 border-green-400/70" : "border-transparent"}`}
+                      style={isNewUser ? {backgroundColor:"#e0ffe0"} : {}}
                     >
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
-                        <div className="flex items-center gap-2">
-                          <span>{user.nombre || user.email || "N/A"}</span>
-                          {isNewUser && (
-                            <span className="px-2 py-0.5 text-[10px] uppercase tracking-wide rounded-full bg-green-500/30 text-green-100 border border-green-500/40">
-                              Nuevo
+                      <td style={{whiteSpace:"nowrap"}}>
+                        <span style={{fontWeight: isNewUser ? "bold" : "normal"}}>{user.nombre || user.email || "N/A"}</span>
+                        {isNewUser && <span className="win2k-badge win2k-badge-green" style={{marginLeft:"4px", fontSize:"9px"}}>NUEVO</span>}
+                        {(user.pais || user.ciudad) && (
+                          <div className="relative group" style={{display:"inline-block", marginLeft:"4px"}}>
+                            <span
+                              onClick={() => {
+                                if (locationTooltipOpenUserId === user.id) {
+                                  setLocationTooltipOpenUserId(null);
+                                } else {
+                                  setLocationTooltipOpenUserId(user.id);
+                                }
+                              }}
+                              style={{cursor:"pointer", fontSize:"14px"}}
+                            >
+                              {user.pais ? getCountryFlag(user.pais) : "🌍"}
                             </span>
-                          )}
-                          {(user.pais || user.ciudad) && (
-                            <div className="relative group">
-                              <span
-                                onClick={() => {
-                                  if (locationTooltipOpenUserId === user.id) {
-                                    setLocationTooltipOpenUserId(null);
-                                  } else {
-                                    setLocationTooltipOpenUserId(user.id);
-                                  }
-                                }}
-                                className="text-xl cursor-pointer touch-manipulation"
-                              >
-                                {user.pais ? getCountryFlag(user.pais) : "🌍"}
-                              </span>
-                              {/* Tooltip (click en mobile, hover en desktop) */}
+                            {locationTooltipOpenUserId === user.id && (
                               <div
-                                className={`absolute left-1/2 bottom-full z-[9999] mb-2 w-48 -translate-x-1/2 rounded-lg border border-white/20 bg-black/95 px-3 py-2 text-xs text-white shadow-xl transition-opacity duration-200 ${
-                                  locationTooltipOpenUserId === user.id
-                                    ? "opacity-100 pointer-events-auto"
-                                    : "opacity-0 pointer-events-none md:group-hover:opacity-100"
-                                }`}
+                                className="win2k-tooltip"
+                                style={{position:"absolute", left:"0", bottom:"calc(100% + 2px)", zIndex:9999, whiteSpace:"nowrap"}}
                                 onClick={(e) => e.stopPropagation()}
                               >
-                                <div className="space-y-1">
-                                  {user.ciudad && (
-                                    <p className="text-white/90">
-                                      <span className="font-medium">Ciudad:</span> {user.ciudad}
-                                    </p>
-                                  )}
-                                  {user.pais && (
-                                    <p className="text-white/90">
-                                      <span className="font-medium">País:</span> {user.pais}
-                                    </p>
-                                  )}
-                                  {!user.ciudad && !user.pais && (
-                                    <p className="text-white/60">Ubicación no disponible</p>
-                                  )}
-                                </div>
-                                <div className="absolute left-1/2 top-full -translate-x-1/2 -mt-1">
-                                  <div className="h-2 w-2 rotate-45 border-r border-b border-white/20 bg-black/95"></div>
-                                </div>
+                                {user.ciudad && <p><strong>Ciudad:</strong> {user.ciudad}</p>}
+                                {user.pais && <p><strong>País:</strong> {user.pais}</p>}
+                                {!user.ciudad && !user.pais && <p>No disponible</p>}
                               </div>
-                            </div>
-                          )}
-                        </div>
+                            )}
+                          </div>
+                        )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <div className="flex items-center gap-2">
+                      <td style={{whiteSpace:"nowrap"}}>
+                        <div style={{display:"flex", gap:"2px", alignItems:"center"}}>
                           {user.email ? (
-                            <a
-                              href={`mailto:${user.email}`}
-                              className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-400 transition-colors"
-                              title={user.email}
-                            >
-                              <FaEnvelope className="text-sm" />
+                            <a href={`mailto:${user.email}`} className="win2k-btn win2k-btn-sm" title={user.email}>
+                              <FaEnvelope style={{fontSize:"9px"}} />
                             </a>
                           ) : (
-                            <span className="text-white/40">N/A</span>
+                            <span style={{color:"#888"}}>N/A</span>
                           )}
                           {user.email && user.email.toLowerCase() !== "admin@fitplan-ai.com" && (
                             <button
-                              onClick={() => {
-                                setSelectedUserForMessage(user);
-                                setSendMessageModalOpen(true);
-                              }}
-                              className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 text-green-400 transition-colors"
+                              onClick={() => { setSelectedUserForMessage(user); setSendMessageModalOpen(true); }}
+                              className="win2k-btn win2k-btn-sm"
                               title={`Enviar mensaje a ${user.nombre || user.email}`}
                             >
-                              <FaComment className="text-sm" />
+                              <FaComment style={{fontSize:"9px"}} />
                             </button>
                           )}
                           {user.email && user.email.toLowerCase() !== "admin@fitplan-ai.com" && (
                             <button
                               onClick={() => openPaymentLinkModal(user)}
-                              className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-300 transition-colors"
-                              title={`Generar link de pago para ${user.nombre || user.email}`}
+                              className="win2k-btn win2k-btn-sm"
+                              title={`Link de pago para ${user.nombre || user.email}`}
                             >
-                              <FaLink className="text-sm" />
+                              <FaLink style={{fontSize:"9px"}} />
                             </button>
                           )}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td style={{whiteSpace:"nowrap"}}>
                         {user.email?.toLowerCase() === "admin@fitplan-ai.com" ? (
-                          <span className="px-2 py-1 text-xs rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30">
-                            Admin
-                          </span>
+                          <span className="win2k-badge win2k-badge-purple">Admin</span>
                         ) : user.premium ? (
-                          <div className="flex flex-col gap-1">
-                            <span className="px-2 py-1 text-xs rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
-                              Premium
-                            </span>
+                          <div style={{display:"flex", flexDirection:"column", gap:"2px"}}>
+                            <span className="win2k-badge win2k-badge-yellow" style={{background:"#aaaa00", color:"#fff", borderColor:"#555500"}}>⭐ Premium</span>
                             {user.premiumPlanType && (
-                              <span className="px-2 py-0.5 text-[10px] rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                                {user.premiumPlanType === "monthly" 
-                                  ? "Mensual" 
-                                  : user.premiumPlanType === "quarterly"
-                                  ? "Trimestral"
-                                  : user.premiumPlanType === "annual"
-                                  ? "Anual"
-                                  : ""}
+                              <span className="win2k-badge win2k-badge-blue" style={{fontSize:"9px"}}>
+                                {user.premiumPlanType === "monthly" ? "Mensual" : user.premiumPlanType === "quarterly" ? "Trimestral" : user.premiumPlanType === "annual" ? "Anual" : ""}
                               </span>
                             )}
                           </div>
                         ) : (
-                          <span className="px-2 py-1 text-xs rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/30">
-                            Regular
-                          </span>
+                          <span className="win2k-badge">Regular</span>
                         )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td style={{whiteSpace:"nowrap"}}>
                         {user.email?.toLowerCase() === "admin@fitplan-ai.com" ? (
-                          <span className="px-2 py-1 text-xs rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/30">
-                            N/A
-                          </span>
+                          <span className="win2k-badge">N/A</span>
                         ) : user.premium ? (
                           <div className="relative flex items-center gap-2">
                             <FaCircle
@@ -2771,165 +2574,73 @@ export default function Admin() {
                                   setLoadingPaymentHistory(false);
                                 }
                               }}
-                              className={`px-2 py-1 text-xs rounded-full border cursor-pointer touch-manipulation hover:opacity-80 transition-opacity ${
+                              className={`win2k-badge cursor-pointer ${
                                 paymentStatus.status === "paid" 
-                                  ? "bg-green-500/20 text-green-400 border-green-500/30"
+                                  ? "win2k-badge-green"
                                   : paymentStatus.status === "expiring"
-                                  ? "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
-                                  : "bg-red-500/20 text-red-400 border-red-500/30"
+                                  ? "win2k-badge-yellow"
+                                  : "win2k-badge-red"
                               }`}
                             >
                               {paymentStatus.label}
                             </span>
-                            {/* Tooltip con información de vencimiento */}
-                            {paymentStatus.expiresAt && (
+                            {paymentStatus.expiresAt && tooltipOpenUserId === user.id && (
                               <div 
-                                className={`absolute left-1/2 bottom-full z-50 mb-2 w-64 -translate-x-1/2 rounded-lg border border-white/20 bg-black/95 px-3 py-2 text-xs text-white shadow-xl transition-opacity duration-200 ${
-                                  // Mostrar en desktop con hover, en mobile con click
-                                  tooltipOpenUserId === user.id 
-                                    ? "opacity-100 pointer-events-auto md:pointer-events-none" 
-                                    : "opacity-0 pointer-events-none md:group-hover:opacity-100 md:group-focus:opacity-100"
-                                }`}
+                                className="win2k-tooltip"
+                                style={{position:"absolute", left:"0", bottom:"calc(100% + 2px)", zIndex:9999, whiteSpace:"nowrap"}}
                                 onClick={(e) => e.stopPropagation()}
                               >
-                                <div className="space-y-1">
-                                  <p className="font-semibold text-white">
-                                    {paymentStatus.status === "expired" 
-                                      ? "⚠️ Plan Vencido"
-                                      : paymentStatus.status === "expiring"
-                                      ? "⏰ Por Vencer"
-                                      : "✅ Plan Activo"}
-                                  </p>
-                                  <p className="text-white/80">
-                                    <span className="font-medium">Vencimiento:</span>{" "}
-                                    {paymentStatus.expiresAt.toLocaleDateString('es-AR', { 
-                                      day: '2-digit', 
-                                      month: '2-digit', 
-                                      year: 'numeric',
-                                      hour: '2-digit',
-                                      minute: '2-digit'
-                                    })}
-                                  </p>
-                                  {paymentStatus.daysUntilExpiry !== null && (
-                                    <p className="text-white/80">
-                                      <span className="font-medium">
-                                        {paymentStatus.daysUntilExpiry < 0 
-                                          ? "Vencido hace:" 
-                                          : "Días restantes:"}
-                                      </span>{" "}
-                                      {Math.abs(paymentStatus.daysUntilExpiry)} día{Math.abs(paymentStatus.daysUntilExpiry) !== 1 ? 's' : ''}
-                                    </p>
-                                  )}
-                                  {(() => {
-                                    // Extraer monto del último pago
-                                    const payment = user.premiumPayment;
-                                    let amount: number | null = null;
-                                    
-                                    if (payment && typeof payment === 'object') {
-                                      const paymentObj = payment as Record<string, unknown>;
-                                      
-                                      // Intentar diferentes formas de acceder al amount
-                                      if (typeof paymentObj.amount === 'number') {
-                                        amount = paymentObj.amount;
-                                      } else if (typeof paymentObj.amount === 'string') {
-                                        amount = parseFloat(paymentObj.amount);
-                                      } else if (paymentObj.transaction_amount && typeof paymentObj.transaction_amount === 'number') {
-                                        amount = paymentObj.transaction_amount;
-                                      }
-                                    }
-                                    
-                                    // Fallback: calcular monto basado en el tipo de plan si premiumPayment es null
-                                    if (amount === null && user.premiumPlanType) {
-                                      const planPrices: Record<string, number> = {
-                                        monthly: 10000,
-                                        quarterly: 24000,
-                                        annual: 50000,
-                                      };
-                                      amount = planPrices[user.premiumPlanType] || null;
-                                    }
-                                    
-                                    return amount !== null && !isNaN(amount) && amount > 0 ? (
-                                      <p className="text-white/80">
-                                        <span className="font-medium">Último pago:</span>{" "}
-                                        ${amount.toLocaleString('es-AR')} ARS
-                                        {!payment && user.premiumPlanType && (
-                                          <span className="text-white/50 text-[10px] ml-1">(estimado)</span>
-                                        )}
-                                      </p>
-                                    ) : null;
-                                  })()}
-                                  {user.premiumPlanType && (
-                                    <p className="text-white/60 text-[10px] mt-1 pt-1 border-t border-white/10">
-                                      Plan: {user.premiumPlanType === "monthly" ? "Mensual" : user.premiumPlanType === "quarterly" ? "Trimestral" : "Anual"}
-                                    </p>
-                                  )}
-                                </div>
-                                {/* Flecha del tooltip */}
-                                <div className="absolute left-1/2 top-full -translate-x-1/2 -mt-1">
-                                  <div className="h-2 w-2 rotate-45 border-r border-b border-white/20 bg-black/95"></div>
-                                </div>
+                                <p style={{fontWeight:"bold"}}>
+                                  {paymentStatus.status === "expired" ? "⚠ Plan Vencido" : paymentStatus.status === "expiring" ? "⏰ Por Vencer" : "✔ Plan Activo"}
+                                </p>
+                                <p>Vence: {paymentStatus.expiresAt.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
+                                {paymentStatus.daysUntilExpiry !== null && (
+                                  <p>{paymentStatus.daysUntilExpiry < 0 ? "Vencido hace" : "Días restantes"}: {Math.abs(paymentStatus.daysUntilExpiry)}d</p>
+                                )}
                               </div>
                             )}
                           </div>
                         ) : (
-                          <span className="px-2 py-1 text-xs rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/30">
-                            Regular
-                          </span>
+                          <span className="win2k-badge">Regular</span>
                         )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-white/80">{user.edad || "N/A"}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-white/80">
-                        {user.alturaCm ? `${user.alturaCm} cm` : "N/A"}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-white/80">
-                        {user.peso ? `${user.peso} kg` : "N/A"}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <div className="flex items-center justify-center">
-                          <div className="relative group">
-                            <div
-                              onClick={() => {
-                                if (statusTooltipOpenUserId === user.id) {
-                                  setStatusTooltipOpenUserId(null);
-                                } else {
-                                  setStatusTooltipOpenUserId(user.id);
-                                }
-                              }}
-                              className="cursor-pointer"
-                            >
-                              {getIMCStatus(user.peso, user.alturaCm).icon}
-                            </div>
-                            {statusTooltipOpenUserId === user.id && (() => {
-                              const status = getIMCStatus(user.peso, user.alturaCm);
-                              if (status.status === "saludable") return null;
-                              return (
-                                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-[9999] px-3 py-2 rounded-lg bg-black/95 border border-white/20 shadow-xl text-sm whitespace-nowrap pointer-events-auto">
-                                  {status.status === "bajo" && status.weightDifference && (
-                                    <p className="text-blue-400">
-                                      {status.weightDifference.toFixed(1)} kg por debajo del peso ideal
-                                    </p>
-                                  )}
-                                  {status.status === "excedido" && status.weightDifference && (
-                                    <p className="text-red-400">
-                                      {status.weightDifference.toFixed(1)} kg por encima del peso ideal
-                                    </p>
-                                  )}
-                                  <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-white/20"></div>
-                                </div>
-                              );
-                            })()}
+                      <td style={{whiteSpace:"nowrap"}}>{user.edad || "N/A"}</td>
+                      <td style={{whiteSpace:"nowrap"}}>{user.alturaCm ? `${user.alturaCm} cm` : "N/A"}</td>
+                      <td style={{whiteSpace:"nowrap"}}>{user.peso ? `${user.peso} kg` : "N/A"}</td>
+                      <td style={{textAlign:"center"}}>
+                        <div style={{position:"relative", display:"inline-block"}}>
+                          <div
+                            onClick={() => {
+                              if (statusTooltipOpenUserId === user.id) {
+                                setStatusTooltipOpenUserId(null);
+                              } else {
+                                setStatusTooltipOpenUserId(user.id);
+                              }
+                            }}
+                            style={{cursor:"pointer"}}
+                          >
+                            {getIMCStatus(user.peso, user.alturaCm).icon}
                           </div>
+                          {statusTooltipOpenUserId === user.id && (() => {
+                            const status = getIMCStatus(user.peso, user.alturaCm);
+                            if (status.status === "saludable") return null;
+                            return (
+                              <div className="win2k-tooltip" style={{position:"absolute", left:"50%", transform:"translateX(-50%)", bottom:"calc(100% + 2px)", zIndex:9999, whiteSpace:"nowrap"}}>
+                                {status.status === "bajo" && status.weightDifference && (
+                                  <span style={{color:"#0000aa"}}>{status.weightDifference.toFixed(1)} kg bajo peso ideal</span>
+                                )}
+                                {status.status === "excedido" && status.weightDifference && (
+                                  <span style={{color:"#cc0000"}}>{status.weightDifference.toFixed(1)} kg sobre peso ideal</span>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-white/60">{formatDate(user.createdAt)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleEdit(user)}
-                            className="px-3 py-1.5 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30 transition-colors"
-                          >
-                            Editar
-                          </button>
+                      <td style={{whiteSpace:"nowrap"}}>{formatDate(user.createdAt)}</td>
+                      <td style={{whiteSpace:"nowrap"}}>
+                        <div className="win2k-actions">
+                          <button onClick={() => handleEdit(user)} className="win2k-btn win2k-btn-sm">Editar</button>
                           {user.email?.toLowerCase() !== "admin@fitplan-ai.com" && (
                             <button
                               onClick={async () => {
@@ -2948,23 +2659,24 @@ export default function Admin() {
                                   setLoadingHistory(false);
                                 }
                               }}
-                              className="px-3 py-1.5 rounded-lg bg-green-500/20 hover:bg-green-500/30 text-green-400 border border-green-500/30 transition-colors"
+                              className="win2k-btn win2k-btn-sm"
                             >
                               Historial
                             </button>
                           )}
                         </div>
                       </td>
-                    </motion.tr>
+                    </tr>
                     );
                   })
                 )}
               </tbody>
             </table>
+            </div>
           </div>
 
-          {/* Vista de cards para mobile y tablet */}
-          <div className="lg:hidden p-4 space-y-4">
+          {/* Vista de cards para mobile */}
+          <div style={{padding:"4px", background:"#d4d0c8"}}>
             {users.length === 0 ? (
               <div className="text-center py-12">
                 <div className="flex flex-col items-center gap-3">
@@ -3067,274 +2779,43 @@ export default function Admin() {
                             )}
                           </>
                         ) : (
-                          <span className="px-2 py-1 text-xs rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/30">
-                            Regular
-                          </span>
+                          <span className="win2k-badge">Regular</span>
                         )}
                       </div>
-                      <p className="text-white/40 text-xs">
-                        Última conexión: {formatDateTime(user.lastLogin)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {user.email ? (
-                        <>
-                          <a
-                            href={`mailto:${user.email}`}
-                            className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-400 transition-colors"
-                            title={user.email}
+                      <div className="win2k-panel" style={{padding:"4px 6px", marginTop:"4px"}}>
+                        <span style={{fontSize:"10px", color:"#555"}}>Edad: </span><strong>{user.edad || "N/A"}</strong>
+                        <span style={{fontSize:"10px", color:"#555", marginLeft:"8px"}}>Altura: </span><strong>{user.alturaCm ? `${user.alturaCm} cm` : "N/A"}</strong>
+                        <span style={{fontSize:"10px", color:"#555", marginLeft:"8px"}}>Peso: </span><strong>{user.peso ? `${user.peso} kg` : "N/A"}</strong>
+                      </div>
+                      <div className="win2k-actions" style={{marginTop:"4px"}}>
+                        {user.email && (
+                          <a href={`mailto:${user.email}`} className="win2k-btn win2k-btn-sm" title={user.email}>✉ Email</a>
+                        )}
+                        <button onClick={() => handleEdit(user)} className="win2k-btn win2k-btn-sm">Editar</button>
+                        {user.email?.toLowerCase() !== "admin@fitplan-ai.com" && (
+                          <button
+                            onClick={async () => {
+                              setSelectedUserForHistory(user);
+                              setHistoryModalOpen(true);
+                              setLoadingHistory(true);
+                              try {
+                                const response = await fetch(`/api/admin/userHistory?userId=${user.id}&adminUserId=${authUser?.uid}`);
+                                if (!response.ok) throw new Error("Error al cargar historial");
+                                const data = await response.json();
+                                setUserHistory(data);
+                              } catch (error) {
+                                console.error("Error al cargar historial:", error);
+                                setUserHistory(null);
+                              } finally {
+                                setLoadingHistory(false);
+                              }
+                            }}
+                            className="win2k-btn win2k-btn-sm"
                           >
-                            <FaEnvelope className="text-sm" />
-                          </a>
-                          {user.email.toLowerCase() !== "admin@fitplan-ai.com" && (
-                            <button
-                              onClick={() => {
-                                setSelectedUserForMessage(user);
-                                setSendMessageModalOpen(true);
-                              }}
-                              className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 text-green-400 transition-colors"
-                              title={`Enviar mensaje a ${user.nombre || user.email}`}
-                            >
-                              <FaComment className="text-sm" />
-                            </button>
-                          )}
-                          {user.email.toLowerCase() !== "admin@fitplan-ai.com" && (
-                            <button
-                              onClick={() => openPaymentLinkModal(user)}
-                              className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-300 transition-colors"
-                              title={`Generar link de pago para ${user.nombre || user.email}`}
-                            >
-                              <FaLink className="text-sm" />
-                            </button>
-                          )}
-                        </>
-                      ) : (
-                        <span className="text-white/40 text-sm">N/A</span>
-                      )}
-                    </div>
-
-                    {/* Información del usuario */}
-                    <div className="grid grid-cols-2 gap-3 text-sm">
-                      <div>
-                        <p className="text-white/60 text-xs mb-0.5">Edad</p>
-                        <p className="text-white font-medium">{user.edad || "N/A"} años</p>
-                      </div>
-                      <div>
-                        <p className="text-white/60 text-xs mb-0.5">Altura</p>
-                        <p className="text-white font-medium">{user.alturaCm ? `${user.alturaCm} cm` : "N/A"}</p>
-                      </div>
-                      <div>
-                        <p className="text-white/60 text-xs mb-0.5">Peso</p>
-                        <p className="text-white font-medium">{user.peso ? `${user.peso} kg` : "N/A"}</p>
-                      </div>
-                      <div>
-                        <p className="text-white/60 text-xs mb-0.5">Estado</p>
-                        <div className="flex items-center">
-                          <div className="relative group">
-                            <div
-                              onClick={() => {
-                                if (statusTooltipOpenUserId === user.id) {
-                                  setStatusTooltipOpenUserId(null);
-                                } else {
-                                  setStatusTooltipOpenUserId(user.id);
-                                }
-                              }}
-                              className="cursor-pointer"
-                            >
-                              {getIMCStatus(user.peso, user.alturaCm).icon}
-                            </div>
-                            {statusTooltipOpenUserId === user.id && (() => {
-                              const status = getIMCStatus(user.peso, user.alturaCm);
-                              if (status.status === "saludable") return null;
-                              return (
-                                <div className="absolute left-0 top-full mt-2 z-[9999] px-3 py-2 rounded-lg bg-black/95 border border-white/20 shadow-xl text-sm whitespace-nowrap pointer-events-auto">
-                                  {status.status === "bajo" && status.weightDifference && (
-                                    <p className="text-blue-400">
-                                      {status.weightDifference.toFixed(1)} kg por debajo del peso ideal
-                                    </p>
-                                  )}
-                                  {status.status === "excedido" && status.weightDifference && (
-                                    <p className="text-red-400">
-                                      {status.weightDifference.toFixed(1)} kg por encima del peso ideal
-                                    </p>
-                                  )}
-                                  <div className="absolute left-4 top-0 -translate-y-full w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-white/20"></div>
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        </div>
-                      </div>
-                      <div>
-                        <p className="text-white/60 text-xs mb-0.5">Estado de Pago</p>
-                        {user.email?.toLowerCase() === "admin@fitplan-ai.com" ? (
-                          <span className="px-2 py-1 text-xs rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/30">
-                            N/A
-                          </span>
-                        ) : user.premium ? (
-                          <div className="relative inline-block">
-                            <FaCircle
-                              className={`h-2.5 w-2.5 inline-block mr-1 ${
-                                isCurrentMonthPaid(user) ? "text-green-400 drop-shadow-[0_0_6px_rgba(74,222,128,0.9)]" : "text-red-400/80"
-                              }`}
-                              title={isCurrentMonthPaid(user) ? "Mes corriente pago" : "Mes corriente pendiente"}
-                            />
-                            <span 
-                              onClick={async () => {
-                                setSelectedUserForPaymentHistory(user);
-                                setPaymentHistoryModalOpen(true);
-                                setLoadingPaymentHistory(true);
-                                try {
-                                  const auth = getAuthSafe();
-                                  if (!auth?.currentUser) return;
-                                  const response = await fetch(`/api/admin/payments?userId=${user.id}&adminUserId=${auth.currentUser.uid}`);
-                                  if (!response.ok) throw new Error("Error al cargar historial");
-                                  const data = await response.json();
-                                  setPaymentHistory(data.payments || []);
-                                } catch (error) {
-                                  console.error("Error al cargar historial de pagos:", error);
-                                  setPaymentHistory([]);
-                                } finally {
-                                  setLoadingPaymentHistory(false);
-                                }
-                              }}
-                              className={`px-2 py-1 text-xs rounded-full border cursor-pointer touch-manipulation hover:opacity-80 transition-opacity ${
-                                paymentStatus.status === "paid" 
-                                  ? "bg-green-500/20 text-green-400 border-green-500/30"
-                                  : paymentStatus.status === "expiring"
-                                  ? "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
-                                  : "bg-red-500/20 text-red-400 border-red-500/30"
-                              }`}
-                            >
-                              {paymentStatus.label}
-                            </span>
-                            {/* Tooltip con información de vencimiento */}
-                            {paymentStatus.expiresAt && (
-                              <div 
-                                className={`absolute left-1/2 bottom-full z-50 mb-2 w-64 -translate-x-1/2 rounded-lg border border-white/20 bg-black/95 px-3 py-2 text-xs text-white shadow-xl transition-opacity duration-200 ${
-                                  tooltipOpenUserId === user.id 
-                                    ? "opacity-100 pointer-events-auto" 
-                                    : "opacity-0 pointer-events-none"
-                                }`}
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <div className="space-y-1">
-                                  <p className="font-semibold text-white">
-                                    {paymentStatus.status === "expired" 
-                                      ? "⚠️ Plan Vencido"
-                                      : paymentStatus.status === "expiring"
-                                      ? "⏰ Por Vencer"
-                                      : "✅ Plan Activo"}
-                                  </p>
-                                  <p className="text-white/80">
-                                    <span className="font-medium">Vencimiento:</span>{" "}
-                                    {paymentStatus.expiresAt.toLocaleDateString('es-AR', { 
-                                      day: '2-digit', 
-                                      month: '2-digit', 
-                                      year: 'numeric',
-                                      hour: '2-digit',
-                                      minute: '2-digit'
-                                    })}
-                                  </p>
-                                  {paymentStatus.daysUntilExpiry !== null && (
-                                    <p className="text-white/80">
-                                      <span className="font-medium">
-                                        {paymentStatus.daysUntilExpiry < 0 
-                                          ? "Vencido hace:" 
-                                          : "Días restantes:"}
-                                      </span>{" "}
-                                      {Math.abs(paymentStatus.daysUntilExpiry)} día{Math.abs(paymentStatus.daysUntilExpiry) !== 1 ? 's' : ''}
-                                    </p>
-                                  )}
-                                  {(() => {
-                                    const payment = user.premiumPayment;
-                                    let amount: number | null = null;
-                                    
-                                    if (payment && typeof payment === 'object') {
-                                      const paymentObj = payment as Record<string, unknown>;
-                                      if (typeof paymentObj.amount === 'number') {
-                                        amount = paymentObj.amount;
-                                      } else if (typeof paymentObj.amount === 'string') {
-                                        amount = parseFloat(paymentObj.amount);
-                                      } else if (paymentObj.transaction_amount && typeof paymentObj.transaction_amount === 'number') {
-                                        amount = paymentObj.transaction_amount;
-                                      }
-                                    }
-                                    
-                                    if (amount === null && user.premiumPlanType) {
-                                      const planPrices: Record<string, number> = {
-                                        monthly: 10000,
-                                        quarterly: 24000,
-                                        annual: 50000,
-                                      };
-                                      amount = planPrices[user.premiumPlanType] || null;
-                                    }
-                                    
-                                    return amount !== null && !isNaN(amount) && amount > 0 ? (
-                                      <p className="text-white/80">
-                                        <span className="font-medium">Último pago:</span>{" "}
-                                        ${amount.toLocaleString('es-AR')} ARS
-                                        {!payment && user.premiumPlanType && (
-                                          <span className="text-white/50 text-[10px] ml-1">(estimado)</span>
-                                        )}
-                                      </p>
-                                    ) : null;
-                                  })()}
-                                  {user.premiumPlanType && (
-                                    <p className="text-white/60 text-[10px] mt-1 pt-1 border-t border-white/10">
-                                      Plan: {user.premiumPlanType === "monthly" ? "Mensual" : user.premiumPlanType === "quarterly" ? "Trimestral" : "Anual"}
-                                    </p>
-                                  )}
-                                </div>
-                                <div className="absolute left-1/2 top-full -translate-x-1/2 -mt-1">
-                                  <div className="h-2 w-2 rotate-45 border-r border-b border-white/20 bg-black/95"></div>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="px-2 py-1 text-xs rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/30">
-                            Regular
-                          </span>
+                            Historial
+                          </button>
                         )}
                       </div>
-                      <div>
-                        <p className="text-white/60 text-xs mb-0.5">Creado</p>
-                        <p className="text-white font-medium text-xs">{formatDate(user.createdAt)}</p>
-                      </div>
-                    </div>
-
-                    {/* Botones de acción */}
-                    <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-white/10">
-                      <button
-                        onClick={() => handleEdit(user)}
-                        className="flex-1 px-3 py-2 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30 transition-colors text-sm font-medium"
-                      >
-                        Editar
-                      </button>
-                      {user.email?.toLowerCase() !== "admin@fitplan-ai.com" && (
-                        <button
-                          onClick={async () => {
-                            setSelectedUserForHistory(user);
-                            setHistoryModalOpen(true);
-                            setLoadingHistory(true);
-                            try {
-                              const response = await fetch(`/api/admin/userHistory?userId=${user.id}&adminUserId=${authUser?.uid}`);
-                              if (!response.ok) throw new Error("Error al cargar historial");
-                              const data = await response.json();
-                              setUserHistory(data);
-                            } catch (error) {
-                              console.error("Error al cargar historial:", error);
-                              setUserHistory(null);
-                            } finally {
-                              setLoadingHistory(false);
-                            }
-                          }}
-                          className="flex-1 px-3 py-2 rounded-lg bg-green-500/20 hover:bg-green-500/30 text-green-400 border border-green-500/30 transition-colors text-sm font-medium"
-                        >
-                          Historial
-                        </button>
-                      )}
                     </div>
                   </motion.div>
                 );
@@ -3345,43 +2826,47 @@ export default function Admin() {
 
         {/* Modal de edición */}
         {editingUser && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-            >
-              <h2 className="text-2xl font-bold text-white mb-4">
-                Editar Usuario: {editingUser.nombre || editingUser.id}
-              </h2>
+          <div className="win2k-modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="win2k-modal" style={{maxWidth:"600px", width:"100%", maxHeight:"90vh", overflowY:"auto", padding:"0"}}>
+              <div className="win2k-titlebar" style={{justifyContent:"space-between"}}>
+                <span>✏ Editar Usuario: {editingUser.nombre || editingUser.id}</span>
+                <button
+                  onClick={() => { setEditingUser(null); setEditForm({}); }}
+                  style={{background:"#d4d0c8", border:"2px solid", borderColor:"#fff #808080 #808080 #fff", width:"16px", height:"14px", fontSize:"10px", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:"bold"}}
+                >✕</button>
+              </div>
+              <div style={{padding:"8px", background:"#d4d0c8"}}>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px"}}>
                 <div>
-                  <label className="block text-sm font-medium text-white/60 mb-2">Nombre</label>
+                  <label style={{display:"block", fontSize:"11px", marginBottom:"2px"}}>Nombre</label>
                   <input
                     type="text"
                     value={editForm.nombre || ""}
                     onChange={(e) => setEditForm({ ...editForm, nombre: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="win2k-input"
+                    style={{width:"100%"}}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-white/60 mb-2">Email</label>
+                  <label style={{display:"block", fontSize:"11px", marginBottom:"2px"}}>Email</label>
                   <input
                     type="email"
                     value={editForm.email || ""}
                     onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="win2k-input"
+                    style={{width:"100%"}}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-white/60 mb-2">Sexo</label>
+                  <label style={{display:"block", fontSize:"11px", marginBottom:"2px"}}>Sexo</label>
                   <select
                     value={editForm.sexo || ""}
                     onChange={(e) => setEditForm({ ...editForm, sexo: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="win2k-input"
+                    style={{width:"100%"}}
                   >
                     <option value="">Seleccionar...</option>
                     <option value="masculino">Masculino</option>
@@ -3391,67 +2876,71 @@ export default function Admin() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-white/60 mb-2">Edad</label>
+                  <label style={{display:"block", fontSize:"11px", marginBottom:"2px"}}>Edad</label>
                   <input
                     type="number"
                     value={editForm.edad ?? ""}
                     onChange={(e) => setEditForm({ ...editForm, edad: e.target.value ? Number(e.target.value) : null })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="win2k-input"
+                    style={{width:"100%"}}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-white/60 mb-2">Altura (cm)</label>
+                  <label style={{display:"block", fontSize:"11px", marginBottom:"2px"}}>Altura (cm)</label>
                   <input
                     type="number"
                     value={editForm.alturaCm ?? ""}
                     onChange={(e) => setEditForm({ ...editForm, alturaCm: e.target.value ? Number(e.target.value) : null })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="win2k-input"
+                    style={{width:"100%"}}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-white/60 mb-2">Peso (kg)</label>
+                  <label style={{display:"block", fontSize:"11px", marginBottom:"2px"}}>Peso (kg)</label>
                   <input
                     type="number"
                     step="0.1"
                     value={editForm.peso ?? ""}
                     onChange={(e) => setEditForm({ ...editForm, peso: e.target.value ? Number(e.target.value) : null })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="win2k-input"
+                    style={{width:"100%"}}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-white/60 mb-2">Peso Objetivo (kg)</label>
+                  <label style={{display:"block", fontSize:"11px", marginBottom:"2px"}}>Peso Objetivo (kg)</label>
                   <input
                     type="number"
                     step="0.1"
                     value={editForm.pesoObjetivo ?? ""}
                     onChange={(e) => setEditForm({ ...editForm, pesoObjetivo: e.target.value ? Number(e.target.value) : null })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="win2k-input"
+                    style={{width:"100%"}}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-white/60 mb-2">Premium</label>
-                  <label className="flex items-center gap-2 cursor-pointer">
+                  <label style={{display:"block", fontSize:"11px", marginBottom:"2px"}}>Premium</label>
+                  <label style={{display:"flex", alignItems:"center", gap:"4px", cursor:"pointer"}}>
                     <input
                       type="checkbox"
                       checked={editForm.premium || false}
                       onChange={(e) => setEditForm({ ...editForm, premium: e.target.checked })}
-                      className="w-4 h-4 rounded bg-white/5 border border-white/10 text-blue-500 focus:ring-2 focus:ring-blue-500"
                     />
-                    <span className="text-white">Activar Premium</span>
+                    <span>Activar Premium</span>
                   </label>
                 </div>
 
                 {editForm.premium && (
                   <div>
-                    <label className="block text-sm font-medium text-white/60 mb-2">Tipo de Plan</label>
+                    <label style={{display:"block", fontSize:"11px", marginBottom:"2px"}}>Tipo de Plan</label>
                     <select
                       value={editForm.premiumPlanType || ""}
                       onChange={(e) => setEditForm({ ...editForm, premiumPlanType: e.target.value || null })}
-                      className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="win2k-input"
+                      style={{width:"100%"}}
                     >
                       <option value="">Seleccionar tipo de plan...</option>
                       <option value="monthly">Mensual ($10.000 ARS / 5 EUR)</option>
@@ -3462,102 +2951,106 @@ export default function Admin() {
                 )}
 
                 <div>
-                  <label className="block text-sm font-medium text-white/60 mb-2">Perfil Atlético</label>
-                  <label className="flex items-center gap-2 cursor-pointer">
+                  <label style={{display:"block", fontSize:"11px", marginBottom:"2px"}}>Perfil Atlético</label>
+                  <label style={{display:"flex", alignItems:"center", gap:"4px", cursor:"pointer"}}>
                     <input
                       type="checkbox"
                       checked={editForm.atletico || false}
                       onChange={(e) => setEditForm({ ...editForm, atletico: e.target.checked })}
-                      className="w-4 h-4 rounded bg-white/5 border border-white/10 text-blue-500 focus:ring-2 focus:ring-blue-500"
                     />
-                    <span className="text-white">Activar</span>
+                    <span>Activar</span>
                   </label>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-white/60 mb-2">Cintura (cm)</label>
+                  <label style={{display:"block", fontSize:"11px", marginBottom:"2px"}}>Cintura (cm)</label>
                   <input
                     type="number"
                     step="0.1"
                     value={editForm.cinturaCm ?? ""}
                     onChange={(e) => setEditForm({ ...editForm, cinturaCm: e.target.value ? Number(e.target.value) : null })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="win2k-input"
+                    style={{width:"100%"}}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-white/60 mb-2">Cuello (cm)</label>
+                  <label style={{display:"block", fontSize:"11px", marginBottom:"2px"}}>Cuello (cm)</label>
                   <input
                     type="number"
                     step="0.1"
                     value={editForm.cuelloCm ?? ""}
                     onChange={(e) => setEditForm({ ...editForm, cuelloCm: e.target.value ? Number(e.target.value) : null })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="win2k-input"
+                    style={{width:"100%"}}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-white/60 mb-2">Cadera (cm)</label>
+                  <label style={{display:"block", fontSize:"11px", marginBottom:"2px"}}>Cadera (cm)</label>
                   <input
                     type="number"
                     step="0.1"
                     value={editForm.caderaCm ?? ""}
                     onChange={(e) => setEditForm({ ...editForm, caderaCm: e.target.value ? Number(e.target.value) : null })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="win2k-input"
+                    style={{width:"100%"}}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-white/60 mb-2">Ciudad</label>
+                  <label style={{display:"block", fontSize:"11px", marginBottom:"2px"}}>Ciudad</label>
                   <input
                     type="text"
                     value={editForm.ciudad || ""}
                     onChange={(e) => setEditForm({ ...editForm, ciudad: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="win2k-input"
+                    style={{width:"100%"}}
                     placeholder="Ej: Buenos Aires"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-white/60 mb-2">País</label>
+                  <label style={{display:"block", fontSize:"11px", marginBottom:"2px"}}>País</label>
                   <input
                     type="text"
                     value={editForm.pais || ""}
                     onChange={(e) => setEditForm({ ...editForm, pais: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="win2k-input"
+                    style={{width:"100%"}}
                     placeholder="Ej: Argentina"
                   />
                 </div>
               </div>
 
-              <div className="flex gap-4 mt-6">
+              <div className="win2k-divider" />
+              <div style={{display:"flex", gap:"4px", justifyContent:"flex-end"}}>
                 <button
                   onClick={handleSave}
                   disabled={saving || deleting}
-                  className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                  className="win2k-btn win2k-btn-primary"
                 >
-                  {saving ? "Guardando..." : "Guardar Cambios"}
+                  {saving ? "Guardando..." : "✔ Guardar Cambios"}
                 </button>
                 <button
                   onClick={handleDelete}
                   disabled={saving || deleting || editingUser?.email?.toLowerCase() === "admin@fitplan-ai.com"}
-                  className="px-4 py-2 rounded-lg bg-red-500/20 border border-red-500/30 text-red-400 hover:bg-red-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="win2k-btn"
+                  style={{color:"#cc0000"}}
                   title={editingUser?.email?.toLowerCase() === "admin@fitplan-ai.com" ? "No se puede eliminar al administrador" : "Eliminar usuario"}
                 >
-                  {deleting ? "Eliminando..." : "Eliminar Usuario"}
+                  {deleting ? "Eliminando..." : "✕ Eliminar"}
                 </button>
                 <button
-                  onClick={() => {
-                    setEditingUser(null);
-                    setEditForm({});
-                  }}
+                  onClick={() => { setEditingUser(null); setEditForm({}); }}
                   disabled={saving || deleting}
-                  className="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-colors disabled:opacity-50"
+                  className="win2k-btn"
                 >
                   Cancelar
                 </button>
               </div>
-            </motion.div>
+              </div>
+            </div>
           </div>
         )}
 

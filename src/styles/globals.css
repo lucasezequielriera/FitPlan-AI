@@ -135,3 +135,352 @@ select.bg-transparent {
 .shimmer-animation {
   animation: shimmer 3s infinite;
 }
+
+/* ============================================================
+   WIN2K THEME — Microsoft Windows 2000 / classic UI style
+   ============================================================ */
+.win2k-desktop {
+  background-color: #008080 !important;
+  background-image: none !important;
+  min-height: 100vh;
+  font-family: "Tahoma", "MS Sans Serif", Arial, sans-serif !important;
+  font-size: 11px;
+  color: #000000;
+}
+
+.win2k-desktop * {
+  font-family: "Tahoma", "MS Sans Serif", Arial, sans-serif !important;
+  box-sizing: border-box;
+}
+
+/* Classic raised 3D panel */
+.win2k-panel {
+  background-color: #d4d0c8 !important;
+  border: 2px solid;
+  border-color: #ffffff #808080 #808080 #ffffff;
+  box-shadow: inset 1px 1px 0 #dfdfdf, inset -1px -1px 0 #404040;
+  border-radius: 0 !important;
+  color: #000000 !important;
+}
+
+/* Sunken / inset panel */
+.win2k-inset {
+  background-color: #ffffff !important;
+  border: 2px solid;
+  border-color: #808080 #ffffff #ffffff #808080;
+  box-shadow: inset 1px 1px 0 #404040, inset -1px -1px 0 #dfdfdf;
+  border-radius: 0 !important;
+  color: #000000 !important;
+}
+
+/* Title bar with classic blue gradient */
+.win2k-titlebar {
+  background: linear-gradient(to right, #0000a8, #1084d0) !important;
+  color: #ffffff !important;
+  font-weight: bold;
+  font-size: 11px;
+  padding: 3px 6px;
+  border-radius: 0 !important;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-bottom: 1px solid #000080;
+}
+
+/* Classic push button */
+.win2k-btn {
+  background-color: #d4d0c8 !important;
+  border: 2px solid;
+  border-color: #ffffff #808080 #808080 #ffffff;
+  box-shadow: inset 1px 1px 0 #dfdfdf;
+  color: #000000 !important;
+  font-family: "Tahoma", "MS Sans Serif", Arial, sans-serif !important;
+  font-size: 11px !important;
+  padding: 3px 10px !important;
+  cursor: pointer;
+  border-radius: 0 !important;
+  min-width: 75px;
+  text-align: center;
+  transition: none !important;
+}
+
+.win2k-btn:hover {
+  background-color: #dbd8d0 !important;
+}
+
+.win2k-btn:active {
+  border-color: #808080 #ffffff #ffffff #808080 !important;
+  box-shadow: inset -1px -1px 0 #dfdfdf !important;
+  padding: 4px 9px 2px 11px !important;
+}
+
+.win2k-btn-primary {
+  background-color: #d4d0c8 !important;
+  border: 2px solid;
+  border-color: #ffffff #808080 #808080 #ffffff;
+  box-shadow: inset 1px 1px 0 #dfdfdf, 0 0 0 1px #000000;
+  color: #000000 !important;
+  font-family: "Tahoma", "MS Sans Serif", Arial, sans-serif !important;
+  font-size: 11px !important;
+  padding: 3px 10px !important;
+  cursor: pointer;
+  border-radius: 0 !important;
+  min-width: 75px;
+}
+
+.win2k-btn-sm {
+  padding: 2px 6px !important;
+  min-width: auto;
+  font-size: 11px !important;
+}
+
+/* Table styles */
+.win2k-table {
+  border-collapse: collapse;
+  width: 100%;
+  background-color: #ffffff;
+  font-size: 11px;
+  color: #000000;
+}
+
+.win2k-table thead tr {
+  background-color: #d4d0c8 !important;
+}
+
+.win2k-table thead th {
+  background-color: #d4d0c8 !important;
+  color: #000000 !important;
+  font-weight: bold;
+  border-right: 1px solid #808080;
+  border-bottom: 2px solid #808080;
+  padding: 3px 6px !important;
+  text-align: left;
+  font-size: 11px;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  white-space: nowrap;
+}
+
+.win2k-table tbody tr {
+  background-color: #ffffff;
+}
+
+.win2k-table tbody tr:nth-child(even) {
+  background-color: #eef3fa;
+}
+
+.win2k-table tbody tr:hover {
+  background-color: #0000a8 !important;
+  color: #ffffff !important;
+}
+
+.win2k-table tbody tr:hover td {
+  color: #ffffff !important;
+}
+
+.win2k-table td {
+  border-bottom: 1px solid #d4d0c8;
+  border-right: 1px solid #d4d0c8;
+  padding: 3px 6px !important;
+  font-size: 11px;
+  color: #000000;
+}
+
+/* Status badges Win2K style */
+.win2k-badge {
+  display: inline-block;
+  background-color: #d4d0c8;
+  border: 1px solid #808080;
+  padding: 1px 5px;
+  font-size: 11px;
+  color: #000000;
+  border-radius: 0;
+}
+
+.win2k-badge-green {
+  background-color: #00aa00 !important;
+  color: #ffffff !important;
+  border-color: #005500 !important;
+}
+
+.win2k-badge-yellow {
+  background-color: #aaaa00 !important;
+  color: #ffffff !important;
+  border-color: #555500 !important;
+}
+
+.win2k-badge-red {
+  background-color: #cc0000 !important;
+  color: #ffffff !important;
+  border-color: #660000 !important;
+}
+
+.win2k-badge-blue {
+  background-color: #0000aa !important;
+  color: #ffffff !important;
+  border-color: #000055 !important;
+}
+
+.win2k-badge-purple {
+  background-color: #800080 !important;
+  color: #ffffff !important;
+  border-color: #400040 !important;
+}
+
+/* Stat box */
+.win2k-stat-box {
+  background-color: #d4d0c8;
+  border: 2px solid;
+  border-color: #ffffff #808080 #808080 #ffffff;
+  box-shadow: inset 1px 1px 0 #dfdfdf, inset -1px -1px 0 #404040;
+  padding: 6px 10px;
+  text-align: center;
+}
+
+.win2k-stat-box .stat-label {
+  font-size: 10px;
+  color: #444444;
+  margin-bottom: 2px;
+}
+
+.win2k-stat-box .stat-value {
+  font-size: 20px;
+  font-weight: bold;
+  color: #0000a8;
+  font-family: "Tahoma", Arial, sans-serif !important;
+}
+
+/* Section separator */
+.win2k-section-title {
+  background-color: #d4d0c8;
+  border-bottom: 1px solid #808080;
+  padding: 2px 6px;
+  font-weight: bold;
+  font-size: 11px;
+  color: #000000;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Notification bar */
+.win2k-notification {
+  background-color: #ffffc0;
+  border: 1px solid #808000;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: #000000;
+}
+
+/* Input / textbox */
+.win2k-input {
+  background-color: #ffffff !important;
+  border: 2px solid;
+  border-color: #808080 #ffffff #ffffff #808080 !important;
+  box-shadow: inset 1px 1px 0 #404040 !important;
+  border-radius: 0 !important;
+  padding: 2px 4px !important;
+  font-family: "Tahoma", "MS Sans Serif", Arial, sans-serif !important;
+  font-size: 11px !important;
+  color: #000000 !important;
+}
+
+/* Progress / divider */
+.win2k-divider {
+  border: none;
+  border-top: 1px solid #808080;
+  border-bottom: 1px solid #ffffff;
+  margin: 6px 0;
+}
+
+/* Window container */
+.win2k-window {
+  background-color: #d4d0c8;
+  border: 2px solid;
+  border-color: #ffffff #404040 #404040 #ffffff;
+  box-shadow: 2px 2px 6px rgba(0,0,0,0.4);
+  border-radius: 0;
+  overflow: hidden;
+}
+
+/* Scrollbar styling for Win2K feel */
+.win2k-desktop ::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
+}
+
+.win2k-desktop ::-webkit-scrollbar-track {
+  background: #d4d0c8;
+}
+
+.win2k-desktop ::-webkit-scrollbar-thumb {
+  background: #a0a0a0;
+  border: 1px solid;
+  border-color: #ffffff #808080 #808080 #ffffff;
+}
+
+.win2k-desktop ::-webkit-scrollbar-button {
+  background: #d4d0c8;
+  border: 1px solid;
+  border-color: #ffffff #808080 #808080 #ffffff;
+  height: 16px;
+  width: 16px;
+}
+
+/* Taskbar at the bottom feel for header */
+.win2k-header-bar {
+  background-color: #d4d0c8;
+  border-bottom: 2px solid;
+  border-color: #808080;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  padding: 4px 8px;
+}
+
+/* Selected row */
+.win2k-table tbody tr.selected,
+.win2k-table tbody tr.selected td {
+  background-color: #0000a8 !important;
+  color: #ffffff !important;
+}
+
+/* New user highlight */
+.win2k-new-row {
+  background-color: #e0ffe0 !important;
+}
+
+/* Modal overlay */
+.win2k-modal-overlay {
+  background-color: rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Modal window */
+.win2k-modal {
+  background-color: #d4d0c8 !important;
+  border: 2px solid !important;
+  border-color: #ffffff #404040 #404040 #ffffff !important;
+  box-shadow: 4px 4px 8px rgba(0,0,0,0.6) !important;
+  border-radius: 0 !important;
+}
+
+/* Tooltip */
+.win2k-tooltip {
+  background-color: #ffffe1 !important;
+  border: 1px solid #000000 !important;
+  color: #000000 !important;
+  font-size: 11px !important;
+  padding: 3px 6px !important;
+  border-radius: 0 !important;
+  box-shadow: 2px 2px 3px rgba(0,0,0,0.3) !important;
+}
+
+/* Action buttons row */
+.win2k-actions {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+/* Win2K green indicator light */
+.win2k-light-green { color: #00cc00 !important; }
+.win2k-light-red   { color: #cc0000 !important; }
+.win2k-light-yellow { color: #aaaa00 !important; }
