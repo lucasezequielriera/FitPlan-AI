@@ -1797,12 +1797,6 @@ Ajusta las calorías, macros y selección de alimentos según la intensidad y ti
           out.calorias_diarias = caloriasObjetivoDelFrontend;
         }
       }
-      if (typeof out.calorias_mantenimiento !== "number" || !isFinite(out.calorias_mantenimiento as number)) {
-        out.calorias_mantenimiento =
-          typeof tdeeDelFrontend === "number" && isFinite(tdeeDelFrontend)
-            ? Math.round(tdeeDelFrontend)
-            : Math.round((out.calorias_diarias as number) || 2200);
-      }
       // Fallback macros - usar valores precalculados del frontend si están disponibles
       if (!out.macros || typeof out.macros !== 'object') {
         out.macros = macrosDelFrontend 

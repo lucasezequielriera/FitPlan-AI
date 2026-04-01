@@ -118,365 +118,6 @@ const templateComidas = {
   },
 };
 
-type MacrosDiarias = { proteinas: number; grasas: number; carbohidratos: number };
-type RegionalProfile = "argentina" | "espana" | "neutral";
-type SupplementItem = { nombre: string; dosis: string; momento: string; motivo: string; nota?: string };
-
-function detectRegionalProfile(paisRaw?: string): RegionalProfile {
-  const text = (paisRaw || "").toLowerCase();
-  if (text.includes("argentina") || text.includes("buenos aires") || text.includes("córdoba") || text.includes("cordoba")) {
-    return "argentina";
-  }
-  if (text.includes("españa") || text.includes("espana") || text.includes("madrid") || text.includes("barcelona")) {
-    return "espana";
-  }
-  return "neutral";
-}
-
-function localizeFoodText(option: string, region: RegionalProfile): string {
-  if (region === "argentina") {
-    return option
-      .replace(/\bpatata(s)?\b/gi, "papa$1")
-      .replace(/\bzumo\b/gi, "jugo")
-      .replace(/\bmelocotón\b/gi, "durazno")
-      .replace(/\bjudías verdes\b/gi, "chauchas")
-      .replace(/\btostada(s)?\b/gi, "tostada$1");
-  }
-  if (region === "espana") {
-    return option
-      .replace(/\bpapa(s)?\b/gi, "patata$1")
-      .replace(/\bjugo\b/gi, "zumo")
-      .replace(/\bdurazno\b/gi, "melocotón")
-      .replace(/\bfrutilla(s)?\b/gi, "fresa$1");
-  }
-  return option;
-}
-
-function makeOptionMoreDescriptive(option: string): string {
-  const lower = option.toLowerCase();
-  const needsCookingHint =
-    lower.includes("huevo") ||
-    lower.includes("pechuga") ||
-    lower.includes("salmón") ||
-    lower.includes("salmon") ||
-    lower.includes("carne") ||
-    lower.includes("pavo") ||
-    lower.includes("merluza") ||
-    lower.includes("lentejas") ||
-    lower.includes("garbanzos") ||
-    lower.includes("tofu");
-
-  if (needsCookingHint) {
-    return `${option}. Preparación sugerida: usa plancha, horno o vapor y ajusta porción según hambre/saciedad.`;
-  }
-  return `${option}. Ajusta porción según hambre/saciedad y prioriza alimentos mínimamente procesados.`;
-}
-
-function parseMacroGrams(raw: string | undefined, fallback: number): number {
-  if (!raw) return fallback;
-  const parsed = Number(String(raw).replace(/[^\d.,-]/g, "").replace(",", "."));
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-function getMealShare(nombre: string): number {
-  const key = nombre.toLowerCase();
-  if (key.includes("desayuno")) return 0.25;
-  if (key.includes("almuerzo")) return 0.35;
-  if (key.includes("cena")) return 0.25;
-  return 0.075; // cada merienda/snack
-}
-
-function estimateOptionCalories(option: string, targetMealCalories: number): number {
-  const text = option.toLowerCase();
-  const heavyKeywords = ["costillas", "mantequilla", "queso", "salmón", "salmon", "res", "pasta", "arroz 150g", "papas 150g"];
-  const lightKeywords = ["ensalada", "vegetales", "verduras", "fruta", "hummus", "tofu", "merluza"];
-  const heavyHits = heavyKeywords.filter((word) => text.includes(word)).length;
-  const lightHits = lightKeywords.filter((word) => text.includes(word)).length;
-  const adjustment = heavyHits * 60 - lightHits * 30;
-  return Math.max(120, Math.round(targetMealCalories + adjustment));
-}
-
-function estimateOptionMacros(
-  optionCalories: number,
-  mealShare: number,
-  dailyMacros: MacrosDiarias
-): { proteinas_g: number; grasas_g: number; carbohidratos_g: number } {
-  const p = Math.max(5, Math.round(dailyMacros.proteinas * mealShare));
-  const g = Math.max(4, Math.round(dailyMacros.grasas * mealShare));
-  const c = Math.max(8, Math.round(dailyMacros.carbohidratos * mealShare));
-  const kcalFromMacros = p * 4 + g * 9 + c * 4;
-  if (kcalFromMacros <= 0) return { proteinas_g: p, grasas_g: g, carbohidratos_g: c };
-  const scale = optionCalories / kcalFromMacros;
-  return {
-    proteinas_g: Math.max(1, Math.round(p * scale)),
-    grasas_g: Math.max(1, Math.round(g * scale)),
-    carbohidratos_g: Math.max(1, Math.round(c * scale)),
-  };
-}
-
-function enrichMealWithApproxMacros(
-  meal: Pick<Comida, "hora" | "nombre" | "opciones">,
-  dailyCalories: number,
-  dailyMacros: MacrosDiarias,
-  region: RegionalProfile
-): Comida {
-  const mealShare = getMealShare(meal.nombre);
-  const targetMealCalories = Math.round(dailyCalories * mealShare);
-  const localizedOptions = meal.opciones.map((op) => makeOptionMoreDescriptive(localizeFoodText(op, region)));
-  const detalles = localizedOptions.map((opcion) => {
-    const calorias = estimateOptionCalories(opcion, targetMealCalories);
-    const macros = estimateOptionMacros(calorias, mealShare, dailyMacros);
-    return {
-      opcion,
-      calorias_kcal: calorias,
-      ...macros,
-    };
-  });
-
-  const promedio = detalles.reduce(
-    (acc, item) => {
-      acc.calorias += item.calorias_kcal;
-      acc.p += item.proteinas_g;
-      acc.g += item.grasas_g;
-      acc.c += item.carbohidratos_g;
-      return acc;
-    },
-    { calorias: 0, p: 0, g: 0, c: 0 }
-  );
-  const count = Math.max(1, detalles.length);
-  return {
-    ...meal,
-    opciones: localizedOptions,
-    calorias_kcal: Math.round(promedio.calorias / count),
-    macros_aprox: {
-      proteinas_g: Math.round(promedio.p / count),
-      grasas_g: Math.round(promedio.g / count),
-      carbohidratos_g: Math.round(promedio.c / count),
-    },
-    opciones_detalle: detalles,
-  };
-}
-
-function cardioRecommendationByGoal(
-  objetivo: string,
-  intensidad: string,
-  imc?: number
-): { objetivo_pasos_diarios: string; sesiones_por_semana: string; detalle: string } {
-  const lowerGoal = objetivo.toLowerCase();
-  const isFatLoss = lowerGoal.includes("perder") || lowerGoal.includes("definicion") || lowerGoal.includes("corte");
-  const isPerformance = lowerGoal.includes("rendimiento") || lowerGoal.includes("resistencia");
-  const isMassGain = lowerGoal.includes("ganar") || lowerGoal.includes("volumen") || lowerGoal.includes("bulk");
-  const isUnderweight = typeof imc === "number" && imc < 18.5;
-
-  if (isMassGain && isUnderweight) {
-    return {
-      objetivo_pasos_diarios: "6.000 - 8.000 pasos diarios",
-      sesiones_por_semana: "1-2 sesiones suaves de 15-20 minutos (solo recuperación)",
-      detalle:
-        "Prioriza recuperación y fuerza. Evita cardio intenso frecuente para no comprometer el superávit calórico ni la ganancia de masa.",
-    };
-  }
-
-  if (isPerformance) {
-    return {
-      objetivo_pasos_diarios: "8.000 - 10.000 pasos diarios",
-      sesiones_por_semana: "3-4 sesiones de carrera suave de 20-30 minutos",
-      detalle: "Mantén ritmo conversacional. Si hay fatiga alta, cambia 1 sesión de carrera por caminata rápida de 35 minutos.",
-    };
-  }
-  if (isFatLoss) {
-    return {
-      objetivo_pasos_diarios: "10.000 - 12.000 pasos diarios",
-      sesiones_por_semana: "4-5 sesiones semanales: caminar 35-45 minutos o trote suave 20-25 minutos",
-      detalle: "Prioriza caminar después de comer y deja la carrera para días sin molestias articulares.",
-    };
-  }
-  return {
-    objetivo_pasos_diarios: "7.000 - 9.000 pasos diarios",
-    sesiones_por_semana: "2-3 sesiones: caminar 30-40 minutos o trote opcional de 15-20 minutos",
-    detalle: "El cardio es complementario: no debe afectar la recuperación de fuerza.",
-  };
-}
-
-function enrichTrainingPlanDescriptions(plan: TrainingPlan, cardio: { detalle: string }): TrainingPlan {
-  const weeks = Array.isArray(plan.weeks) ? plan.weeks : [];
-  const enrichedWeeks = weeks.map((week) => {
-    const days = Array.isArray(week.days) ? week.days : [];
-    return {
-      ...week,
-      days: days.map((day) => {
-        const ejercicios = Array.isArray(day.ejercicios) ? day.ejercicios : [];
-        return {
-          ...day,
-          cardio_sugerido: cardio.detalle,
-          warmup: day.warmup || {
-            duration_minutes: 10,
-            description:
-              "Empieza con movilidad de cadera, hombros y columna (5 min) y luego 5 min de activación específica antes de la primera serie.",
-          },
-          ejercicios: ejercicios.map((exercise) => ({
-            ...exercise,
-            technique:
-              exercise.technique ||
-              "Controla la bajada (2-3 segundos), mantén abdomen activo y evita compensaciones con la espalda.",
-            progression:
-              exercise.progression ||
-              "Si completas todas las repeticiones con buena técnica, sube 2-5% la carga la próxima sesión.",
-            rest_seconds: exercise.rest_seconds || 90,
-          })),
-        };
-      }),
-    };
-  });
-
-  return {
-    ...plan,
-    weeks: enrichedWeeks,
-    progression_rules: [
-      "Semana 1: carga base (RPE 6-7).",
-      "Semana 2: +1 repetición por serie o +2,5% de carga.",
-      "Semana 3: +2,5-5% de carga manteniendo técnica.",
-      "Semana 4: deload ligero (reduce volumen 20-30%) si hay fatiga acumulada.",
-    ],
-    safety_notes: [
-      ...(Array.isArray(plan.safety_notes) ? plan.safety_notes : []),
-      "Cada ejercicio indica el músculo principal trabajado para facilitar la ejecución si eres principiante.",
-      "Detén la serie si aparece dolor agudo articular o mareo.",
-    ],
-    sync_with_nutrition: [
-      ...(Array.isArray(plan.sync_with_nutrition) ? plan.sync_with_nutrition : []),
-      "En días de entrenamiento prioriza hidratos en comida previa y posterior.",
-      "Mantén hidratación constante durante el día.",
-    ],
-  };
-}
-
-function buildProTwoDayPlan(
-  objetivo: string,
-  nivel: string,
-  equipamiento: string,
-  isUnderweight: boolean
-): TrainingPlan {
-  const isMass = objetivo.toLowerCase().includes("ganar") || objetivo.toLowerCase().includes("volumen") || objetivo.toLowerCase().includes("bulk");
-  const beginner = nivel === "principiante";
-  const home = equipamiento === "casa" || equipamiento === "sin_equipo";
-
-  const dayA: TrainingExercise[] = [
-    { name: home ? "Sentadilla goblet o sentadilla libre" : "Sentadilla trasera", sets: beginner ? 3 : 4, reps: "6-10", muscle_group: "Piernas", rpe: beginner ? 7 : 8, rest_seconds: 120 },
-    { name: home ? "Press de pecho con mancuernas" : "Press de banca", sets: 4, reps: "6-10", muscle_group: "Pecho", rpe: 8, rest_seconds: 120 },
-    { name: home ? "Remo con mancuerna a una mano" : "Remo con barra", sets: 4, reps: "8-12", muscle_group: "Espalda", rpe: 8, rest_seconds: 100 },
-    { name: home ? "Peso muerto rumano con mancuernas" : "Peso muerto rumano", sets: 3, reps: "8-12", muscle_group: "Isquiotibiales", rpe: 7, rest_seconds: 100 },
-    { name: "Elevaciones laterales", sets: 3, reps: "12-15", muscle_group: "Hombros", rpe: 7, rest_seconds: 75 },
-    { name: "Plancha + dead bug", sets: 2, reps: "30-45s + 10-12", muscle_group: "Abdominales", rpe: 6, rest_seconds: 60 },
-  ];
-
-  const dayB: TrainingExercise[] = [
-    { name: home ? "Zancadas búlgaras" : "Prensa de piernas o sentadilla frontal", sets: beginner ? 3 : 4, reps: "8-12", muscle_group: "Piernas", rpe: beginner ? 7 : 8, rest_seconds: 120 },
-    { name: home ? "Press militar con mancuernas" : "Press militar", sets: 4, reps: "6-10", muscle_group: "Hombros", rpe: 8, rest_seconds: 110 },
-    { name: home ? "Jalón con banda / dominadas asistidas" : "Jalón al pecho", sets: 4, reps: "8-12", muscle_group: "Espalda", rpe: 8, rest_seconds: 100 },
-    { name: home ? "Hip thrust con mancuerna" : "Hip thrust", sets: 3, reps: "8-12", muscle_group: "Glúteos", rpe: 8, rest_seconds: 100 },
-    { name: "Curl bíceps + extensión tríceps", sets: 3, reps: "10-12 + 10-12", muscle_group: "Bíceps/Tríceps", rpe: 7, rest_seconds: 75 },
-    { name: "Pallof press o plancha lateral", sets: 2, reps: "10-12/lado", muscle_group: "Abdominales", rpe: 6, rest_seconds: 60 },
-  ];
-
-  if (!isMass) {
-    dayA[0].reps = "8-12";
-    dayB[0].reps = "10-12";
-  }
-  if (isUnderweight && isMass) {
-    dayA.forEach((ex) => {
-      if (typeof ex.sets === "number" && ex.sets < 4 && ex.muscle_group !== "Abdominales") ex.sets += 1;
-    });
-    dayB.forEach((ex) => {
-      if (typeof ex.sets === "number" && ex.sets < 4 && ex.muscle_group !== "Abdominales") ex.sets += 1;
-    });
-  }
-
-  return {
-    split: "Full Body A/B 2x/week",
-    weeks: [
-      {
-        week: 1,
-        days: [
-          { day: "Día 1", split: "Full Body A", ejercicios: dayA },
-          { day: "Día 2", split: "Full Body B", ejercicios: dayB },
-        ],
-      },
-    ],
-    progression_rules: [
-      "Semana 1: técnica y margen de 2-3 repeticiones en reserva.",
-      "Semana 2: sube 1 repetición por serie en básicos.",
-      "Semana 3: sube 2,5-5% de carga en básicos si mantienes técnica.",
-      "Semana 4: deload 20-30% de volumen si notas fatiga acumulada.",
-    ],
-  };
-}
-
-function buildSupplementationRecommendations(user: UserInput): SupplementItem[] {
-  const patologias = (user.patologias || []).map((p) => p.toLowerCase());
-  const restricciones = (user.restricciones || []).map((r) => r.toLowerCase());
-  const preferencias = (user.preferencias || []).map((p) => p.toLowerCase());
-  const wantsSupps = preferencias.some((p) => p.includes("interés en suplementos"));
-
-  const items: SupplementItem[] = [
-    {
-      nombre: "Creatina monohidrato",
-      dosis: "3-5 g diarios",
-      momento: "A cualquier hora, todos los días",
-      motivo: "Mejora fuerza, rendimiento y recuperación muscular.",
-      nota: "Mantén hidratación adecuada.",
-    },
-    {
-      nombre: "Proteína en polvo (suero o vegetal)",
-      dosis: "20-30 g por toma",
-      momento: "Después de entrenar o cuando no llegues con comida",
-      motivo: "Ayuda a cumplir proteína diaria de forma práctica.",
-    },
-    {
-      nombre: "Omega-3 (EPA/DHA)",
-      dosis: "1-2 g de EPA+DHA/día",
-      momento: "Con comidas principales",
-      motivo: "Apoyo antiinflamatorio y salud cardiovascular.",
-    },
-    {
-      nombre: "Vitamina D3",
-      dosis: "1000-2000 UI/día (según analítica médica)",
-      momento: "Con comida con grasa saludable",
-      motivo: "Soporte inmune, óseo y muscular.",
-      nota: "Ideal confirmar dosis con analítica.",
-    },
-  ];
-
-  if (patologias.some((p) => p.includes("hipertensión") || p.includes("corazon"))) {
-    items.push({
-      nombre: "Magnesio (glicinato/citrato)",
-      dosis: "200-350 mg/día",
-      momento: "Noche",
-      motivo: "Apoyo en descanso y función neuromuscular.",
-      nota: "Coordinar con profesional si tomas medicación para presión/corazón.",
-    });
-  }
-
-  const excludesProteinPowder = restricciones.some((r) => r.includes("lácte") || r.includes("veg"));
-  const filtered = items.filter((item) =>
-    excludesProteinPowder ? !item.nombre.toLowerCase().includes("suero") : true
-  );
-
-  if (!wantsSupps) {
-    return [
-      {
-        nombre: "Sin suplementación obligatoria",
-        dosis: "No aplica",
-        momento: "No aplica",
-        motivo: "Puedes progresar solo con alimentación y entrenamiento bien estructurados.",
-      },
-      ...filtered.slice(2, 3),
-    ];
-  }
-
-  return filtered;
-}
-
 // ============================================================================
 // TEMPLATES DE ENTRENAMIENTOS POR OBJETIVO E INTENSIDAD
 // ============================================================================
@@ -649,15 +290,7 @@ export async function generateTemplateBasedPlan(
   const tipoDieta = user.tipoDieta || "estandar";
   const objetivo = user.objetivo;
   const intensidad = user.intensidad || "moderada";
-  const regionalProfile = detectRegionalProfile(user.pais);
   const dias = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
-  const macrosDiarias: MacrosDiarias = {
-    proteinas: parseMacroGrams(macrosObjetivo.proteinas, 140),
-    grasas: parseMacroGrams(macrosObjetivo.grasas, 70),
-    carbohidratos: parseMacroGrams(macrosObjetivo.carbohidratos, 220),
-  };
-  const imc = user.alturaCm > 0 ? user.pesoKg / ((user.alturaCm / 100) ** 2) : 0;
-  const isUnderweight = imc > 0 && imc < 18.5;
 
   // 1. Seleccionar templates de comidas
   const comidasTemplate = (templateComidas as any)[tipoDieta] || templateComidas.estandar;
@@ -667,22 +300,16 @@ export async function generateTemplateBasedPlan(
     const desayunoOpc = comidasTemplate.desayuno[index % comidasTemplate.desayuno.length];
     const almuerzoOpc = comidasTemplate.almuerzo[index % comidasTemplate.almuerzo.length];
     const meriendasOpc = comidasTemplate.merienda[index % comidasTemplate.merienda.length];
-    const meriendasAlt = comidasTemplate.merienda[(index + 1) % comidasTemplate.merienda.length];
     const cenaOpc = comidasTemplate.cena[index % comidasTemplate.cena.length];
 
     return {
       dia,
       comidas: [
-        enrichMealWithApproxMacros({ hora: "07:00", nombre: "Desayuno", opciones: desayunoOpc.opciones }, caloriasObjetivo, macrosDiarias, regionalProfile),
-        enrichMealWithApproxMacros({ hora: "10:00", nombre: "Merienda 1", opciones: meriendasOpc.opciones }, caloriasObjetivo, macrosDiarias, regionalProfile),
-        enrichMealWithApproxMacros({ hora: "13:00", nombre: "Almuerzo", opciones: almuerzoOpc.opciones }, caloriasObjetivo, macrosDiarias, regionalProfile),
-        enrichMealWithApproxMacros(
-          { hora: "16:00", nombre: "Merienda 2", opciones: [meriendasAlt.opciones[0] || meriendasOpc.opciones[1] || meriendasOpc.opciones[0]] },
-          caloriasObjetivo,
-          macrosDiarias,
-          regionalProfile
-        ),
-        enrichMealWithApproxMacros({ hora: "19:30", nombre: "Cena", opciones: cenaOpc.opciones }, caloriasObjetivo, macrosDiarias, regionalProfile),
+        { hora: "07:00", nombre: "Desayuno", opciones: desayunoOpc.opciones },
+        { hora: "10:00", nombre: "Merienda 1", opciones: meriendasOpc.opciones },
+        { hora: "13:00", nombre: "Almuerzo", opciones: almuerzoOpc.opciones },
+        { hora: "16:00", nombre: "Merienda 2", opciones: [meriendasOpc.opciones[0]] },
+        { hora: "19:30", nombre: "Cena", opciones: cenaOpc.opciones },
       ],
     };
   });
@@ -691,29 +318,20 @@ export async function generateTemplateBasedPlan(
   const diasGym = typeof user.diasGym === 'number' && user.diasGym > 0 ? user.diasGym : 3;
   const nivel = user.nivelExperiencia || "intermedio";
   const equip = user.equipamiento || "gimnasio";
-  const cardio = cardioRecommendationByGoal(objetivo, intensidad, imc);
-  const suplementacion = buildSupplementationRecommendations(user);
   let trainingPlan = generarPlanEntrenamiento(objetivo, intensidad, nivel, equip);
-  if (diasGym === 2) {
-    trainingPlan = buildProTwoDayPlan(objetivo, nivel, equip, isUnderweight);
-  }
   console.log(`📐 [TEMPLATES] Plan seleccionado tiene ${trainingPlan.weeks?.[0]?.days?.length || 0} días; usuario pide ${diasGym} días/semana (nivel=${nivel}, equipo=${equip})`);
   trainingPlan = ajustarDiasEntrenamiento(trainingPlan, diasGym);
 
   // reorganizar según distribución muscular ideal para el número de días
-  trainingPlan = distribuirGruposMusculares(trainingPlan, diasGym, objetivo, intensidad, equip, user.preferencias);
+  trainingPlan = distribuirGruposMusculares(trainingPlan, diasGym, objetivo, intensidad, equip);
 
   // después de la distribución y regeneración, aplicar variación para mezclar
-  // evitar inflado de volumen en casos de baja frecuencia semanal
-  if (diasGym > 3) {
-    trainingPlan = aplicarVariacionEjercicios(trainingPlan);
-  }
+  trainingPlan = aplicarVariacionEjercicios(trainingPlan);
 
   // aplicar modificaciones según equipamiento
   if (equip === "sin_equipo") {
     trainingPlan = aplicarFiltroSinEquipo(trainingPlan);
   }
-  trainingPlan = enrichTrainingPlanDescriptions(trainingPlan, cardio);
   console.log(`📐 [TEMPLATES] Después de ajuste, el plan tendrá ${trainingPlan.weeks?.[0]?.days?.length || 0} días`);
   // mark for debugging
   (trainingPlan as any)._debug = true;
@@ -729,7 +347,6 @@ export async function generateTemplateBasedPlan(
 
   return {
     calorias_diarias: caloriasObjetivo,
-    calorias_mantenimiento: tdeeCalculado,
     macros: macrosObjetivo,
     plan_semanal: planSemanal,
     duracion_plan_dias: 30,
@@ -738,8 +355,6 @@ export async function generateTemplateBasedPlan(
     dificultad: getDificultad(intensidad),
     dificultad_detalle: getDificultadDetalle(intensidad),
     training_plan: trainingPlan,
-    cardio_recomendado: cardio,
-    suplementacion_recomendada: suplementacion,
     // include debug copy so frontend can log full structure
     _debug_training_plan: trainingPlan,
     lista_compras: generarListaCompras(tipoDieta),
@@ -1049,17 +664,6 @@ const ejercicioPool: Record<string, string[]> = {
     "Fondos en paralelas",
     "Patada de tríceps"
   ],
-  "Glúteos": [
-    "Hip thrust",
-    "Puente de glúteos",
-    "Patada de glúteo en polea",
-    "Zancadas caminando"
-  ],
-  Gemelos: [
-    "Elevaciones de talones de pie",
-    "Elevaciones de talones sentado",
-    "Gemelos en prensa"
-  ],
   Abdominales: [
     "Crunch",
     "Plank",
@@ -1079,7 +683,7 @@ function applyMuscleVariation(day: any) {
   });
 
   Object.entries(byMuscle).forEach(([muscle, list]) => {
-    while (list.length < 2) {
+    while (list.length < 3) {
       // buscar en pool un nombre no usado
       const pool = ejercicioPool[muscle] || [];
       const disponibles = pool.filter(n => !list.some(e => e.name === n));
@@ -1096,13 +700,6 @@ function applyMuscleVariation(day: any) {
       list.push(nuevo);
     }
   });
-
-  if (day.ejercicios.length > 8) {
-    day.ejercicios = day.ejercicios.slice(0, 8);
-  }
-  if (day.ejercicios.length < 5) {
-    day.ejercicios.push({ name: "Plancha abdominal", sets: 2, reps: "30-45s", muscle_group: "Abdominales", rpe: 6 });
-  }
 
   // mezclar orden
   day.ejercicios = day.ejercicios.sort(() => Math.random() - 0.5);
@@ -1146,69 +743,21 @@ function aplicarVariacionEjercicios(plan: TrainingPlan): TrainingPlan {
 
 
 // Determina las asignaciones de grupos musculares por día según la frecuencia
-function getDayAssignments(diasGym: number, structure: "auto" | "ppl" | "upper_lower" | "full_body" = "auto"): string[][] {
+function getDayAssignments(diasGym: number): string[][] {
   const groups = ["Pecho","Espalda","Piernas","Hombros","Bíceps","Tríceps","Abdominales"];
-  if (structure === "full_body") {
-    return Array.from({ length: Math.max(1, Math.min(7, diasGym)) }).map(() => [
-      "Pecho",
-      "Espalda",
-      "Piernas",
-      "Hombros",
-      "Bíceps",
-      "Tríceps",
-      "Abdominales",
-    ]);
-  }
-  if (structure === "upper_lower" && diasGym >= 3) {
-    const pattern = [
-      ["Pecho", "Espalda", "Hombros", "Bíceps", "Tríceps", "Abdominales"],
-      ["Piernas", "Glúteos", "Gemelos", "Abdominales"],
-    ];
-    return Array.from({ length: diasGym }).map((_, idx) => pattern[idx % 2]);
-  }
-  if (structure === "ppl" && diasGym >= 3) {
-    const pattern = [
-      ["Pecho", "Tríceps", "Hombros", "Abdominales"],
-      ["Espalda", "Bíceps", "Abdominales"],
-      ["Piernas", "Glúteos", "Gemelos", "Abdominales"],
-    ];
-    return Array.from({ length: diasGym }).map((_, idx) => pattern[idx % 3]);
-  }
   switch (diasGym) {
     case 1:
       return [groups];
     case 2:
-      return [["Piernas","Pecho","Espalda","Abdominales"], ["Piernas","Hombros","Bíceps","Tríceps"]];
+      return [["Pecho","Espalda","Hombros","Bíceps","Tríceps","Abdominales"], ["Piernas"]];
     case 3:
-      return [
-        ["Pecho", "Tríceps", "Hombros", "Abdominales"],
-        ["Espalda", "Bíceps", "Abdominales"],
-        ["Piernas", "Glúteos", "Gemelos", "Abdominales"],
-      ];
+      return [["Pecho","Hombros","Tríceps"], ["Espalda","Bíceps"], ["Piernas","Abdominales"]];
     case 4:
-      return [
-        ["Pecho", "Tríceps", "Hombros"],
-        ["Espalda", "Bíceps", "Abdominales"],
-        ["Piernas", "Glúteos", "Gemelos"],
-        ["Pecho", "Espalda", "Abdominales"],
-      ];
+      return [["Pecho","Tríceps"], ["Espalda","Bíceps"], ["Piernas"], ["Hombros","Abdominales"]];
     case 5:
-      return [
-        ["Pecho", "Tríceps", "Hombros"],
-        ["Espalda", "Bíceps"],
-        ["Piernas", "Glúteos", "Gemelos"],
-        ["Pecho", "Espalda", "Abdominales"],
-        ["Piernas", "Hombros", "Abdominales"],
-      ];
+      return [["Pecho","Tríceps"], ["Espalda","Bíceps"], ["Piernas"], ["Hombros"], ["Abdominales"]];
     case 6:
-      return [
-        ["Pecho", "Tríceps", "Hombros"],
-        ["Espalda", "Bíceps", "Abdominales"],
-        ["Piernas", "Glúteos", "Gemelos"],
-        ["Pecho", "Tríceps", "Hombros"],
-        ["Espalda", "Bíceps", "Abdominales"],
-        ["Piernas", "Glúteos", "Gemelos"],
-      ];
+      return [["Pecho","Tríceps"], ["Espalda","Bíceps"], ["Piernas"], ["Hombros"], ["Abdominales"], ["Pecho","Espalda"]];
     default:
       // diasGym >= 7: un grupo por día, repetir abdominales al final
       const res: string[][] = [];
@@ -1217,15 +766,6 @@ function getDayAssignments(diasGym: number, structure: "auto" | "ppl" | "upper_l
       }
       return res;
   }
-}
-
-function extractTrainingStructure(preferencias: string[] | undefined): "auto" | "ppl" | "upper_lower" | "full_body" {
-  if (!Array.isArray(preferencias) || preferencias.length === 0) return "auto";
-  const text = preferencias.join(" ").toLowerCase();
-  if (text.includes("estructura entrenamiento preferida: ppl")) return "ppl";
-  if (text.includes("estructura entrenamiento preferida: upper_lower")) return "upper_lower";
-  if (text.includes("estructura entrenamiento preferida: full_body")) return "full_body";
-  return "auto";
 }
 
 // Construye un pool de ejercicios por músculo basado en la plantilla actual
@@ -1251,34 +791,16 @@ function buildExercisePool(objetivo: string, intensidad: string): Record<string,
   return pool;
 }
 
-function extractFocusMuscles(preferencias: string[] | undefined): string[] {
-  if (!Array.isArray(preferencias) || preferencias.length === 0) return [];
-  const text = preferencias.join(" ").toLowerCase();
-  const focus: string[] = [];
-  if (/(pecho|pectoral)/.test(text)) focus.push("Pecho");
-  if (/(espalda|dorsal)/.test(text)) focus.push("Espalda");
-  if (/(pierna|cuadricep|cuádricep|femoral|isquio)/.test(text)) focus.push("Piernas");
-  if (/(gluteo|glúteo)/.test(text)) focus.push("Glúteos");
-  if (/(hombro|deltoide)/.test(text)) focus.push("Hombros");
-  if (/(bicep|bícep)/.test(text)) focus.push("Bíceps");
-  if (/(tricep|trícep)/.test(text)) focus.push("Tríceps");
-  if (/(abdomen|abdominal|core)/.test(text)) focus.push("Abdominales");
-  return Array.from(new Set(focus));
-}
-
 // genera un plan de entrenamiento redistribuido por grupos musculares
 function distribuirGruposMusculares(
   plan: TrainingPlan,
   diasGym: number,
   objetivo: string,
   intensidad: string,
-  equipamiento: string,
-  preferencias?: string[]
+  equipamiento: string
 ): TrainingPlan {
-  const structure = extractTrainingStructure(preferencias);
-  const assignments = getDayAssignments(diasGym, structure);
+  const assignments = getDayAssignments(diasGym);
   const pool = buildExercisePool(objetivo, intensidad);
-  const focusMuscles = extractFocusMuscles(preferencias);
   // aplicar filtro de equipo si corresponde
   if (equipamiento === "sin_equipo") {
     // quitar ejercicios que mencionen "Press" o barras etc.
@@ -1291,46 +813,22 @@ function distribuirGruposMusculares(
     const days = assignments.map((grupos, idx) => {
       const ejercicios: TrainingExercise[] = [];
       grupos.forEach(mus => {
-        const list = [...(pool[mus] || [])];
-        const perMuscle =
-          diasGym <= 2 ? (mus === "Piernas" ? 2 : 1) : diasGym === 3 ? 2 : 1;
-        let added = 0;
-        while (added < perMuscle && list.length > 0) {
+        const list = pool[mus] || [];
+        // seleccionar hasta 3 ejercicios distintos
+        const used: Set<string> = new Set();
+        for (let i = 0; i < 3 && list.length > 0; i++) {
           const choice = list.splice(Math.floor(Math.random() * list.length), 1)[0];
-          if (choice) {
-            ejercicios.push({
-              name: choice,
-              sets: mus === "Piernas" ? 4 : 3,
-              reps: mus === "Piernas" ? "8-10" : "8-12",
-              muscle_group: mus,
-              rpe: 7,
-              rest_seconds: mus === "Piernas" ? 120 : 90,
-            });
-            added += 1;
+          if (choice && !used.has(choice)) {
+            ejercicios.push({ name: choice, sets: 3, reps: "10-12", muscle_group: mus, rpe: 7 });
+            used.add(choice);
           }
         }
-        if (added === 0) {
-          ejercicios.push({ name: `${mus} básico`, sets: 3, reps: "10-12", muscle_group: mus, rpe: 6, rest_seconds: 90 });
+        // si no encontramos ninguno, usar un filler genérico
+        if (!used.size) {
+          ejercicios.push({ name: `${mus} básico`, sets: 3, reps: "10-12", muscle_group: mus, rpe: 6 });
         }
       });
-      focusMuscles.forEach((focus) => {
-        if (!grupos.includes(focus)) return;
-        const already = ejercicios.filter((ex) => ex.muscle_group === focus).length;
-        if (already >= 2) return;
-        const list = [...(pool[focus] || [])];
-        const choice = list.find((name) => !ejercicios.some((ex) => ex.name === name)) || `${focus} accesorio`;
-        ejercicios.push({
-          name: choice,
-          sets: 2,
-          reps: "12-15",
-          muscle_group: focus,
-          rpe: 7,
-          rest_seconds: 75,
-          progression: "Cuando completes 15 repeticiones por serie, sube ligeramente la carga.",
-        });
-      });
-      const ordered = ejercicios.slice(0, diasGym <= 2 ? 6 : 8);
-      return { day: `Día ${idx + 1}`, split: "", warmup: undefined, ejercicios: ordered } as TrainingDayPlan;
+      return { day: `Día ${idx + 1}`, split: "", warmup: undefined, ejercicios } as TrainingDayPlan;
     });
     return { ...week, days };
   });

@@ -101,6 +101,8 @@ export default function Home() {
         <meta name="keywords" content="plan nutricional personalizado, plan de entrenamiento con IA, dieta personalizada, rutina de gym, macros, calorías, entrenamiento personalizado, bajar de peso, ganar masa muscular, perder grasa, recomposición corporal, alimentación saludable, nutricionista online, entrenador personal, plan alimenticio, dieta saludable, fitness, nutrición deportiva, plan de comidas semanal" />
         <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
         <link rel="canonical" href="https://www.fitplan-ai.com/" />
+        <link rel="alternate" hrefLang="es" href="https://www.fitplan-ai.com/" />
+        <link rel="alternate" hrefLang="en-US" href="https://www.fitplan-ai.com/en/transformacion-fitplan" />
 
         {/* Open Graph */}
         <meta property="og:title" content="FitPlan AI | Alimentación y Entrenamiento Personalizado con IA" />

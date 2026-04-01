@@ -2,6 +2,8 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import Stripe from "stripe";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { getStripeSubscriptionPlans, type PlanTypeKey } from "@/lib/stripePlanPrices";
+import { inferStripeCurrencyFromCountryLabel } from "@/lib/paymentUtils";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
   apiVersion: "2025-11-17.clover",
@@ -46,12 +48,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let link: string | null = null;
 
     if (selectedProvider === "stripe") {
-      const planPrices: Record<PlanType, { price: number; title: string; currency: string }> = {
-        monthly: { price: 5, currency: "eur", title: "Mensualidad asesoría personal - Lucas Riera" },
-        quarterly: { price: 12, currency: "eur", title: "Trimestral asesoría personal - Lucas Riera" },
-        annual: { price: 25, currency: "eur", title: "Anual asesoría personal - Lucas Riera" },
-      };
-      const p = planPrices[selectedPlan];
+      const stripeCurrency = inferStripeCurrencyFromCountryLabel((intake.pais as string | undefined) || null);
+      const planPrices = getStripeSubscriptionPlans(stripeCurrency);
+      const p = planPrices[selectedPlan as PlanTypeKey];
+      const intakeTitles: Record<PlanTypeKey, string> =
+        stripeCurrency === "usd"
+          ? {
+              monthly: "Monthly — Lucas Riera personal coaching",
+              quarterly: "Quarterly — Lucas Riera personal coaching",
+              annual: "Annual — Lucas Riera personal coaching",
+            }
+          : {
+              monthly: "Mensualidad asesoría personal - Lucas Riera",
+              quarterly: "Trimestral asesoría personal - Lucas Riera",
+              annual: "Anual asesoría personal - Lucas Riera",
+            };
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
         mode: "payment",
@@ -60,7 +71,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           {
             price_data: {
               currency: p.currency,
-              product_data: { name: p.title },
+              product_data: { name: intakeTitles[selectedPlan as PlanTypeKey] },
               unit_amount: Math.round(p.price * 100),
             },
             quantity: 1,

@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { FaCheckCircle, FaBolt, FaBrain, FaDumbbell, FaUtensils, FaWhatsapp } from "react-icons/fa";
 import Navbar from "@/components/Navbar";
 import LoginModal from "@/components/LoginModal";
+import LandingLangToggle from "@/components/LandingLangToggle";
 import { useAuthStore } from "@/store/authStore";
 
 export default function TransformacionFitPlanLanding() {
@@ -26,6 +27,7 @@ export default function TransformacionFitPlanLanding() {
   };
 
   const canonical = "https://www.fitplan-ai.com/transformacion-fitplan";
+  const canonicalEn = "https://www.fitplan-ai.com/en/transformacion-fitplan";
 
   const faqJsonLd = {
     "@context": "https://schema.org",
@@ -96,8 +98,13 @@ export default function TransformacionFitPlanLanding() {
         />
         <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />
         <link rel="canonical" href={canonical} />
+        <link rel="alternate" hrefLang="es" href={canonical} />
+        <link rel="alternate" hrefLang="en-US" href={canonicalEn} />
+        <link rel="alternate" hrefLang="x-default" href={canonical} />
 
         <meta property="og:type" content="website" />
+        <meta property="og:locale" content="es_ES" />
+        <meta property="og:locale:alternate" content="en_US" />
         <meta property="og:url" content={canonical} />
         <meta property="og:title" content="FitPlan Transformación 1:1 | Premium + Asesoría Humana" />
         <meta
@@ -122,6 +129,7 @@ export default function TransformacionFitPlanLanding() {
         />
       </Head>
 
+      <LandingLangToggle locale="es" />
       <Navbar />
 
       <main className="px-4 md:px-6">

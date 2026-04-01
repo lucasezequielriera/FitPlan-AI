@@ -2,6 +2,8 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import Stripe from "stripe";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { getStripeSubscriptionPlans, type PlanTypeKey } from "@/lib/stripePlanPrices";
+import { inferStripeCurrencyFromCountryLabel } from "@/lib/paymentUtils";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
   apiVersion: "2025-11-17.clover",
@@ -63,12 +65,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (!process.env.STRIPE_SECRET_KEY) {
         return res.status(500).json({ error: "Falta STRIPE_SECRET_KEY" });
       }
-      const planPrices: Record<PlanType, { price: number; title: string; description: string; currency: string }> = {
-        monthly: { price: 5, currency: "eur", title: "Plan Premium Mensual - FitPlan AI", description: "Acceso premium mensual" },
-        quarterly: { price: 12, currency: "eur", title: "Plan Premium Trimestral - FitPlan AI", description: "Acceso premium trimestral" },
-        annual: { price: 25, currency: "eur", title: "Plan Premium Anual - FitPlan AI", description: "Acceso premium anual" },
-      };
-      const selectedPlan = planPrices[selectedPlanType];
+      const stripeCurrency = inferStripeCurrencyFromCountryLabel((userData.pais as string | undefined) || null);
+      const planPrices = getStripeSubscriptionPlans(stripeCurrency);
+      const selectedPlan = planPrices[selectedPlanType as PlanTypeKey];
       const intervalCount = selectedPlanType === "annual" ? 12 : selectedPlanType === "quarterly" ? 3 : 1;
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],

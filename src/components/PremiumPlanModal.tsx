@@ -1,6 +1,11 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { getPaymentProvider } from "@/lib/paymentUtils";
+import { getPaymentProvider, getStripeCurrency } from "@/lib/paymentUtils";
+import {
+  getStripeSubscriptionPlans,
+  PLANS_EUR_UI,
+  PLANS_USD_UI,
+} from "@/lib/stripePlanPrices";
 
 interface PremiumPlanModalProps {
   isOpen: boolean;
@@ -16,10 +21,8 @@ interface Plan {
   type: PlanType;
   name: string;
   price: number;
-  priceEUR?: number;
   period: string;
   savings?: string;
-  savingsEUR?: string;
   popular?: boolean;
 }
 
@@ -49,40 +52,29 @@ const plansARS: Plan[] = [
   },
 ];
 
-// Planes en EUR (Stripe) - 5 EUR/mes
-const plansEUR: Plan[] = [
-  {
-    type: "monthly",
-    name: "Plan Mensual",
-    price: 5,
-    priceEUR: 5,
-    period: "mes",
-  },
-  {
-    type: "quarterly",
-    name: "Plan Trimestral",
-    price: 12,
-    priceEUR: 12,
-    period: "3 meses",
-    savings: "Ahorrás 20%",
-    savingsEUR: "4.00 EUR/mes",
-    popular: true,
-  },
-  {
-    type: "annual",
-    name: "Plan Anual",
-    price: 25,
-    priceEUR: 25,
-    period: "12 meses",
-    savings: "Ahorrás 58%",
-    savingsEUR: "2.08 EUR/mes",
-  },
-];
+function buildStripePlans(currency: "eur" | "usd"): Plan[] {
+  const stripe = getStripeSubscriptionPlans(currency);
+  const ui = currency === "usd" ? PLANS_USD_UI : PLANS_EUR_UI;
+  return (["monthly", "quarterly", "annual"] as const).map((key) => {
+    const row = ui[key];
+    const savings = "savings" in row && typeof row.savings === "string" ? row.savings : undefined;
+    const popular = "popular" in row && row.popular === true ? true : undefined;
+    return {
+      type: key,
+      name: row.name,
+      price: stripe[key].price,
+      period: row.period,
+      savings,
+      popular,
+    };
+  });
+}
 
 export default function PremiumPlanModal({ isOpen, onClose, userId, userEmail, returnUrl }: PremiumPlanModalProps) {
   const [selectedPlan, setSelectedPlan] = useState<PlanType | null>(null);
   const [processing, setProcessing] = useState(false);
   const [paymentProvider, setPaymentProvider] = useState<"stripe" | "mercadopago" | null>(null);
+  const [stripeCurrency, setStripeCurrency] = useState<"eur" | "usd">("eur");
   const [loadingProvider, setLoadingProvider] = useState(true);
 
   // Detectar el proveedor de pago al abrir el modal
@@ -93,6 +85,10 @@ export default function PremiumPlanModal({ isOpen, onClose, userId, userEmail, r
         try {
           const provider = await getPaymentProvider();
           setPaymentProvider(provider);
+          if (provider === "stripe") {
+            const cur = await getStripeCurrency();
+            setStripeCurrency(cur);
+          }
         } catch (error) {
           console.error("Error al detectar proveedor de pago:", error);
           // Fallback a MercadoPago si hay error
@@ -107,7 +103,7 @@ export default function PremiumPlanModal({ isOpen, onClose, userId, userEmail, r
 
   if (!isOpen) return null;
 
-  const plans = paymentProvider === "stripe" ? plansEUR : plansARS;
+  const plans = paymentProvider === "stripe" ? buildStripePlans(stripeCurrency) : plansARS;
 
   const handleSelectPlan = async (planType: PlanType) => {
     if (!userId || !userEmail) {
@@ -222,7 +218,9 @@ export default function PremiumPlanModal({ isOpen, onClose, userId, userEmail, r
                 <div className="mb-4">
                   <span className="text-3xl sm:text-4xl font-bold text-white">
                     {paymentProvider === "stripe" 
-                      ? `${plan.price.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+                      ? stripeCurrency === "usd"
+                        ? `$${plan.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                        : `${plan.price.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
                       : `$${plan.price.toLocaleString("es-AR")}`
                     }
                   </span>

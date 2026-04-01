@@ -34,7 +34,8 @@ export interface UserInput {
   cuelloCm?: number;
   caderaCm?: number; // principalmente para femenino
   atletico?: boolean;
-  pais?: string; // país de residencia para adaptar lenguaje de alimentos
+  /** País/región (texto libre desde intake) para adaptar alimentos y moneda de referencia */
+  pais?: string;
 }
 
 export interface Macros {
@@ -49,18 +50,6 @@ export interface Comida {
   opciones: string[];
   // Enriquecido por IA (opcionales)
   calorias_kcal?: number;
-  macros_aprox?: {
-    proteinas_g: number;
-    grasas_g: number;
-    carbohidratos_g: number;
-  };
-  opciones_detalle?: Array<{
-    opcion: string;
-    calorias_kcal: number;
-    proteinas_g: number;
-    grasas_g: number;
-    carbohidratos_g: number;
-  }>;
   cantidad_gramos?: number;
   ingredientes?: string[];
   pasos_preparacion?: string[];
@@ -73,7 +62,6 @@ export interface DiaPlan {
 
 export interface PlanAIResponse {
   calorias_diarias: number;
-  calorias_mantenimiento?: number;
   macros: Macros;
   plan_semanal: DiaPlan[];
   duracion_plan_dias: number;
@@ -92,26 +80,6 @@ export interface PlanAIResponse {
   };
   // Plan de entrenamiento generado por IA
   training_plan?: TrainingPlan;
-  // Recomendaciones de cardio/caminata
-  cardio_recomendado?: {
-    objetivo_pasos_diarios?: string;
-    sesiones_por_semana?: string;
-    detalle?: string;
-  };
-  suplementacion_recomendada?: Array<{
-    nombre: string;
-    dosis: string;
-    momento: string;
-    motivo: string;
-    nota?: string;
-  }>;
-  evaluacion_inicial?: {
-    imc?: number;
-    estado?: string;
-    decisionClinica?: string;
-    mensajeCliente?: string;
-  };
-  mensaje_ajuste_objetivo?: string;
   // Campos de debugging/metadatos usados por el flujo FREE/templates
   _debug_training_plan?: TrainingPlan;
   _planType?: "template" | "openai";
@@ -145,7 +113,6 @@ export interface TrainingExercise {
 export interface TrainingDayPlan {
   day: string; // "Lunes" ...
   split?: string; // Tipo de entrenamiento de este día: "Full Body", "Upper", "Lower", "Push", "Pull", "Legs", "Chest & Triceps", etc.
-  cardio_sugerido?: string; // indicación específica de caminar/correr para ese día
   warmup?: {
     duration_minutes: number; // Tiempo de calentamiento en minutos
     description: string; // Descripción detallada del calentamiento
