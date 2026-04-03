@@ -2,6 +2,9 @@
   "functions": {
     "src/pages/api/generatePlan.ts": {
       "maxDuration": 150
+    },
+    "src/pages/api/admin/intakeClientPlanAction.ts": {
+      "maxDuration": 150
     }
   },
   "crons": [

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { motion } from "framer-motion";
 import { jsPDF } from "jspdf";
+import { buildIntakePlanXlsxBuffer, parseClientTrackingExcel } from "@/lib/intakePlanExcel";
 import { useAuthStore } from "@/store/authStore";
 import { getDbSafe, getAuthSafe } from "@/lib/firebase";
 import Navbar from "@/components/Navbar";
@@ -400,7 +401,10 @@ export default function Admin() {
   const [intakeUpdateTrainingFeedback, setIntakeUpdateTrainingFeedback] = useState("");
   const [intakeUpdateCurrentWeight, setIntakeUpdateCurrentWeight] = useState("");
   const [intakeUpdateEnergyLevel, setIntakeUpdateEnergyLevel] = useState<"baja" | "media" | "alta">("media");
+  const [intakeUpdateExcelFile, setIntakeUpdateExcelFile] = useState<File | null>(null);
   const [processingIntakeAction, setProcessingIntakeAction] = useState(false);
+  /** Fila del formulario de inicio mientras se genera/actualiza el plan (feedback en tabla). */
+  const [intakePlanGeneratingClientId, setIntakePlanGeneratingClientId] = useState<string | null>(null);
   const [intakeGeneratedPlanModalOpen, setIntakeGeneratedPlanModalOpen] = useState(false);
   const [intakeGeneratedPlanLoading, setIntakeGeneratedPlanLoading] = useState(false);
   const [intakeGeneratedPlanError, setIntakeGeneratedPlanError] = useState<string | null>(null);
@@ -1504,6 +1508,7 @@ export default function Admin() {
     setIntakeUpdateTrainingFeedback("");
     setIntakeUpdateCurrentWeight("");
     setIntakeUpdateEnergyLevel("media");
+    setIntakeUpdateExcelFile(null);
     setIntakePlanModalOpen(true);
   };
 
@@ -1513,14 +1518,38 @@ export default function Admin() {
       alert("Selecciona al menos un tipo de plan.");
       return;
     }
-    if (intakePlanActionType === "update" && !intakeUpdateMainNeed.trim()) {
-      alert("Para actualizar, indica brevemente qué quieres mejorar en este mes.");
+    if (intakePlanActionType === "update" && !intakeUpdateMainNeed.trim() && !intakeUpdateExcelFile) {
+      alert("Para actualizar, escribe qué quieres mejorar o adjunta el Excel de seguimiento rellenado por el cliente.");
       return;
     }
+    let clientTrackingLog = "";
+    if (intakePlanActionType === "update" && intakeUpdateExcelFile) {
+      try {
+        const buf = await intakeUpdateExcelFile.arrayBuffer();
+        const parsed = parseClientTrackingExcel(buf);
+        if (!parsed.ok) {
+          throw new Error(parsed.error || "No se pudo leer el archivo");
+        }
+        if (parsed.emptyClientFields) {
+          const proceed = window.confirm(
+            "El Excel se leyó, pero no hay celdas rellenas en las columnas _CLIENTE (peso, descanso, RIR, notas, etc.). La IA no tendrá datos de seguimiento del archivo. ¿Continuar igual?"
+          );
+          if (!proceed) return;
+        }
+        clientTrackingLog = parsed.summary;
+      } catch (e) {
+        alert(e instanceof Error ? e.message : "No se pudo leer el Excel.");
+        return;
+      }
+    }
+    const mainNeedFinal =
+      intakeUpdateMainNeed.trim() ||
+      (clientTrackingLog ? "Actualización según Excel de seguimiento devuelto por el cliente." : "");
     try {
       const auth = getAuthSafe();
       if (!auth?.currentUser) return;
       setProcessingIntakeAction(true);
+      setIntakePlanGeneratingClientId(intakePlanClient.id);
       const response = await fetch("/api/admin/intakeClientPlanAction", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1538,11 +1567,12 @@ export default function Admin() {
           updateContext:
             intakePlanActionType === "update"
               ? {
-                  mainNeed: intakeUpdateMainNeed.trim(),
+                  mainNeed: mainNeedFinal,
                   nutritionFeedback: intakeUpdateNutritionFeedback.trim(),
                   trainingFeedback: intakeUpdateTrainingFeedback.trim(),
                   currentWeightKg: intakeUpdateCurrentWeight.trim(),
                   energyLevel: intakeUpdateEnergyLevel,
+                  ...(clientTrackingLog ? { clientTrackingLog } : {}),
                 }
               : null,
         }),
@@ -1570,10 +1600,12 @@ export default function Admin() {
       setIntakeUpdateTrainingFeedback("");
       setIntakeUpdateCurrentWeight("");
       setIntakeUpdateEnergyLevel("media");
+      setIntakeUpdateExcelFile(null);
     } catch (error) {
       alert(error instanceof Error ? error.message : "No se pudo guardar la acción.");
     } finally {
       setProcessingIntakeAction(false);
+      setIntakePlanGeneratingClientId(null);
     }
   };
 
@@ -2470,7 +2502,14 @@ export default function Admin() {
                 </thead>
                 <tbody className="divide-y divide-white/10">
                   {intakeClients.map((client) => (
-                    <tr key={client.id} className="hover:bg-white/5">
+                    <tr
+                      key={client.id}
+                      className={`hover:bg-white/5 transition-colors ${
+                        intakePlanGeneratingClientId === client.id
+                          ? "bg-cyan-500/[0.12] ring-1 ring-inset ring-cyan-400/40"
+                          : ""
+                      }`}
+                    >
                       <td className="px-4 py-3 text-sm text-white">{client.nombreCompleto || "N/A"}</td>
                       <td className="px-4 py-3 text-sm text-white/85">{client.email || "N/A"}</td>
                       <td className="px-4 py-3 text-sm text-white/85">{client.whatsapp || "N/A"}</td>
@@ -2509,8 +2548,19 @@ export default function Admin() {
                       </td>
                       <td className="px-4 py-3 text-sm">
                         <div className="max-w-[420px] overflow-x-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+                          {intakePlanGeneratingClientId === client.id && (
+                            <div className="mb-2 rounded-lg border border-cyan-400/35 bg-cyan-500/15 px-2.5 py-2 text-xs text-cyan-100 flex flex-wrap items-center gap-2">
+                              <span className="inline-block h-3.5 w-3.5 border-2 border-cyan-300/40 border-t-cyan-100 rounded-full animate-spin shrink-0" />
+                              <span>
+                                {intakePlanActionType === "generate"
+                                  ? "Generando plan… (la IA puede tardar 1–2 min)."
+                                  : "Actualizando plan… (la IA puede tardar 1–2 min)."}
+                              </span>
+                            </div>
+                          )}
                           <div className="flex flex-nowrap gap-2 min-w-max pr-2">
                           <button
+                            type="button"
                             onClick={() => handleOpenIntakeClientDetail(client)}
                             className="px-3 py-1.5 rounded-lg bg-slate-500/20 border border-slate-400/40 text-slate-200 hover:bg-slate-500/30 transition-colors inline-flex items-center gap-1.5"
                           >
@@ -2518,8 +2568,10 @@ export default function Admin() {
                             <span>Datos del Cliente</span>
                           </button>
                           <button
+                            type="button"
                             onClick={() => openIntakePlanModal(client, "generate")}
-                            className="px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 hover:bg-emerald-500/30 transition-colors inline-flex items-center gap-1.5"
+                            disabled={intakePlanGeneratingClientId !== null}
+                            className="px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 hover:bg-emerald-500/30 transition-colors inline-flex items-center gap-1.5 disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:bg-emerald-500/20"
                           >
                             <FaPlusCircle className="h-3.5 w-3.5" />
                             <span>Generar Plan/es</span>
@@ -2527,8 +2579,10 @@ export default function Admin() {
                           {client.latestPlanId && (
                             <>
                               <button
+                                type="button"
                                 onClick={() => openIntakePlanModal(client, "update")}
-                                className="px-3 py-1.5 rounded-lg bg-blue-500/20 border border-blue-400/40 text-blue-200 hover:bg-blue-500/30 transition-colors inline-flex items-center gap-1.5"
+                                disabled={intakePlanGeneratingClientId !== null}
+                                className="px-3 py-1.5 rounded-lg bg-blue-500/20 border border-blue-400/40 text-blue-200 hover:bg-blue-500/30 transition-colors inline-flex items-center gap-1.5 disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:bg-blue-500/20"
                               >
                                 <FaSyncAlt className="h-3.5 w-3.5" />
                                 <span>Actualizar Plan/es</span>
@@ -4430,6 +4484,8 @@ export default function Admin() {
             onChangeUpdateTrainingFeedback={setIntakeUpdateTrainingFeedback}
             onChangeUpdateCurrentWeight={setIntakeUpdateCurrentWeight}
             onChangeUpdateEnergyLevel={setIntakeUpdateEnergyLevel}
+            trackingExcelFile={intakeUpdateExcelFile}
+            onTrackingExcelChange={setIntakeUpdateExcelFile}
             onSubmit={handleSubmitIntakePlanAction}
           />
         )}
@@ -4565,6 +4621,8 @@ function IntakePlanActionModal({
   onChangeUpdateTrainingFeedback,
   onChangeUpdateCurrentWeight,
   onChangeUpdateEnergyLevel,
+  trackingExcelFile,
+  onTrackingExcelChange,
   onSubmit,
 }: {
   isOpen: boolean;
@@ -4594,6 +4652,8 @@ function IntakePlanActionModal({
   onChangeUpdateTrainingFeedback: (value: string) => void;
   onChangeUpdateCurrentWeight: (value: string) => void;
   onChangeUpdateEnergyLevel: (value: "baja" | "media" | "alta") => void;
+  trackingExcelFile: File | null;
+  onTrackingExcelChange: (file: File | null) => void;
   onSubmit: () => void;
 }) {
   if (!isOpen) return null;
@@ -4607,7 +4667,7 @@ function IntakePlanActionModal({
     <div
       className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget && !loading) onClose();
       }}
     >
       <motion.div
@@ -4622,7 +4682,15 @@ function IntakePlanActionModal({
             <p className="text-sm text-white/70 mt-1">{client.nombreCompleto || client.email || client.id}</p>
             <p className="text-xs text-white/50 mt-1">{subtitle}</p>
           </div>
-          <button onClick={onClose} className="text-white/60 hover:text-white">✕</button>
+          <button
+            type="button"
+            onClick={() => !loading && onClose()}
+            disabled={loading}
+            className="text-white/60 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
+            aria-label="Cerrar"
+          >
+            ✕
+          </button>
         </div>
 
         <div className="space-y-3">
@@ -4640,7 +4708,14 @@ function IntakePlanActionModal({
           <div className="space-y-3 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-3">
             <p className="text-xs text-white/70">Antes de generar, puedes ajustar el enfoque real del cliente.</p>
             <label className="flex flex-col gap-1">
-              <span className="text-xs text-white/70">Objetivo real a priorizar</span>
+              <span className="text-xs text-white/70">
+                Objetivo real a priorizar
+                {client.objetivoPrincipal && (
+                  <span className="text-[10px] text-white/50 ml-1">
+                    (del formulario: {client.objetivoPrincipal})
+                  </span>
+                )}
+              </span>
               <select
                 value={objectiveOverride}
                 onChange={(e) =>
@@ -4690,7 +4765,9 @@ function IntakePlanActionModal({
                 Para actualizar de forma eficiente, indica el objetivo del ajuste y los cambios necesarios.
               </p>
               <label className="flex flex-col gap-1">
-                <span className="text-xs text-white/70">¿Qué quieres mejorar este mes? *</span>
+                <span className="text-xs text-white/70">
+                  ¿Qué quieres mejorar este mes? (obligatorio si no adjuntas Excel de seguimiento)
+                </span>
                 <textarea
                   rows={2}
                   value={updateMainNeed}
@@ -4699,6 +4776,41 @@ function IntakePlanActionModal({
                   placeholder="Ej.: bajar grasa abdominal sin perder fuerza, mejorar adherencia..."
                 />
               </label>
+              {includeTraining && (
+                <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 space-y-2">
+                  <p className="text-xs text-emerald-100/90">
+                    Excel de seguimiento (opcional): si el cliente devolvió el archivo con pesos, descansos y RIR
+                    rellenados, súbelo aquí para que la IA lo use al actualizar.
+                  </p>
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    className="hidden"
+                    id="intake-tracking-excel-input"
+                    onChange={(e) => onTrackingExcelChange(e.target.files?.[0] ?? null)}
+                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label
+                      htmlFor="intake-tracking-excel-input"
+                      className="cursor-pointer px-3 py-1.5 rounded-lg bg-emerald-500/30 border border-emerald-400/40 text-emerald-100 text-sm hover:bg-emerald-500/40"
+                    >
+                      Elegir archivo
+                    </label>
+                    <span className="text-xs text-white/60 truncate max-w-[200px]">
+                      {trackingExcelFile ? trackingExcelFile.name : "Ningún archivo seleccionado"}
+                    </span>
+                    {trackingExcelFile && (
+                      <button
+                        type="button"
+                        onClick={() => onTrackingExcelChange(null)}
+                        className="text-xs text-red-300 hover:underline"
+                      >
+                        Quitar
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
               {includeNutrition && (
                 <label className="flex flex-col gap-1">
                   <span className="text-xs text-white/70">Feedback nutrición (opcional)</span>
@@ -4752,17 +4864,29 @@ function IntakePlanActionModal({
 
         <div className="mt-5 flex gap-3">
           <button
+            type="button"
             onClick={onClose}
-            className="flex-1 px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-white"
+            disabled={loading}
+            className="flex-1 px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-white disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Cancelar
           </button>
           <button
+            type="button"
             onClick={onSubmit}
             disabled={loading}
-            className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-medium disabled:opacity-60"
+            className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-medium disabled:opacity-60 inline-flex items-center justify-center gap-2"
           >
-            {loading ? "Guardando..." : actionType === "generate" ? "Generar" : "Actualizar"}
+            {loading ? (
+              <>
+                <span className="inline-block h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
+                {actionType === "generate" ? "Generando plan…" : "Actualizando plan…"}
+              </>
+            ) : actionType === "generate" ? (
+              "Generar"
+            ) : (
+              "Actualizar"
+            )}
           </button>
         </div>
       </motion.div>
@@ -5358,6 +5482,11 @@ function IntakeGeneratedPlanModal({
     if (firstWeekDays.length > 0) {
       lines.push("");
       lines.push("Entrenamiento (semana 1):");
+      const wr = trainingPlan?.week_order_rationale;
+      if (wr) {
+        lines.push(`Orden y criterio: ${String(wr)}`);
+        lines.push("");
+      }
       firstWeekDays.forEach((day) => {
         const dayName = String(day.day || "Día");
         const split = String(day.split || "Entrenamiento");
@@ -5422,47 +5551,16 @@ function IntakeGeneratedPlanModal({
   };
 
   const exportPlanAsExcel = () => {
-    const rows: string[] = [];
-    rows.push("Seccion;Dia;Hora;Elemento;Detalle;Proteinas_g;Grasas_g;Carbohidratos_g");
-    weeklyPlan.forEach((day) => {
-      const dayName = String(day.dia || "Día");
-      const meals = Array.isArray(day.comidas) ? (day.comidas as Array<Record<string, unknown>>) : [];
-      meals.forEach((meal) => {
-        const mealName = String(meal.nombre || "Comida");
-        const mealTime = String(meal.hora || "--:--");
-        const mealOption = Array.isArray(meal.opciones) ? String((meal.opciones as unknown[])[0] || "") : "Opción personalizada";
-        const mealMacros =
-          meal.macros_aprox && typeof meal.macros_aprox === "object"
-            ? (meal.macros_aprox as Record<string, unknown>)
-            : null;
-        rows.push(
-          `Nutricion;${dayName};${mealTime};${mealName};"${mealOption.replace(/"/g, '""')}";${String(
-            mealMacros?.proteinas_g ?? ""
-          )};${String(mealMacros?.grasas_g ?? "")};${String(mealMacros?.carbohidratos_g ?? "")}`
-        );
-      });
-    });
-    firstWeekDays.forEach((day) => {
-      const dayName = String(day.day || "Día");
-      const exercises = Array.isArray(day.ejercicios) ? (day.ejercicios as Array<Record<string, unknown>>) : [];
-      exercises.forEach((exercise) => {
-        rows.push(
-          `Entrenamiento;${dayName};;${String(exercise.name || "Ejercicio")};"${`Series: ${String(exercise.sets || "-")} | Reps: ${String(
-            exercise.reps || "-"
-          )} | Músculo: ${String(exercise.muscle_group || "N/A")}`.replace(/"/g, '""')}";;;`
-        );
-      });
-    });
-    suplementacionPlan.forEach((supp) => {
-      rows.push(
-        `Suplementacion;;;${String(supp.nombre || "Suplemento")};"${`Dosis: ${String(supp.dosis || "")} | Momento: ${String(
-          supp.momento || ""
-        )} | Motivo: ${String(supp.motivo || "")}`.replace(/"/g, '""')}";;;`
-      );
-    });
-    const csvContent = `\uFEFF${rows.join("\n")}`;
+    if (!plan?.plan || typeof plan.plan !== "object") return;
     const baseName = sanitizeFileName(client.nombreCompleto || client.email || "cliente");
-    downloadBlob(csvContent, "text/csv;charset=utf-8", `plan-lucas-riera-${baseName}.csv`);
+    const buf = buildIntakePlanXlsxBuffer(plan.plan as Record<string, unknown>, {
+      clientLabel: client.nombreCompleto || client.email || client.id,
+    });
+    downloadBlob(
+      buf,
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      `plan-lucas-riera-${baseName}.xlsx`
+    );
   };
 
   const handleExportPlan = async (format: "pdf" | "word" | "excel") => {
@@ -5543,7 +5641,7 @@ function IntakeGeneratedPlanModal({
                     className="w-full text-left px-3 py-2 rounded-lg text-white/90 hover:bg-white/10 transition-colors inline-flex items-center gap-2"
                   >
                     <FaFileExcel className="text-emerald-300" />
-                    Descargar en Excel
+                    Descargar Excel (.xlsx)
                   </button>
                 </div>
               )}
@@ -5611,6 +5709,12 @@ function IntakeGeneratedPlanModal({
                 <p className="text-sm text-violet-100">{String(trainingPlan?.split || "N/A")}</p>
               </div>
             </div>
+            {trainingPlan?.week_order_rationale ? (
+              <div className="rounded-lg border border-violet-400/25 bg-violet-500/5 px-3 py-2">
+                <p className="text-xs text-violet-100/80">Por qué este orden de días y ejercicios</p>
+                <p className="text-sm text-violet-50/95 whitespace-pre-wrap">{String(trainingPlan.week_order_rationale)}</p>
+              </div>
+            ) : null}
             {Boolean(plan?.plan?.evaluacion_inicial) && typeof plan?.plan?.evaluacion_inicial === "object" && (
               <div className="rounded-lg border border-fuchsia-400/20 bg-fuchsia-500/10 px-3 py-2">
                 <p className="text-xs text-fuchsia-100/80">Evaluación inicial</p>

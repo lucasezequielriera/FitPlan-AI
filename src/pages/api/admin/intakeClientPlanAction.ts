@@ -2,7 +2,10 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { generateTemplateBasedPlan } from "@/lib/templatePlans";
+import { generateIntakePlanWithOpenAI } from "@/lib/intakeOpenAiPlan";
 import type { Goal, UserInput } from "@/types/plan";
+
+export const maxDuration = 150;
 
 type ActionType = "generate" | "update";
 type ActionContext = {
@@ -16,6 +19,8 @@ type UpdateContext = {
   trainingFeedback?: string;
   currentWeightKg?: string;
   energyLevel?: "baja" | "media" | "alta";
+  /** Texto parseado desde Excel de seguimiento devuelto por el cliente */
+  clientTrackingLog?: string;
 } | null;
 
 function removeUndefinedDeep<T>(value: T): T {
@@ -217,6 +222,7 @@ function applyUpdateContext(
   const mainNeed = toString(updateContext.mainNeed);
   const nutritionFeedback = toString(updateContext.nutritionFeedback);
   const trainingFeedback = toString(updateContext.trainingFeedback);
+  const clientTrackingLog = toString(updateContext.clientTrackingLog);
   const energyLevel = toString(updateContext.energyLevel);
   const currentWeight = toNumber(updateContext.currentWeightKg, 0);
 
@@ -229,12 +235,16 @@ function applyUpdateContext(
     mainNeed ? `Actualización solicitada: ${mainNeed}` : "",
     includeNutrition && nutritionFeedback ? `Ajuste nutrición: ${nutritionFeedback}` : "",
     includeTraining && trainingFeedback ? `Ajuste entrenamiento: ${trainingFeedback}` : "",
+    includeTraining && clientTrackingLog
+      ? `Seguimiento real devuelto en Excel (pesos, descansos, RIR, nutrición si aplica):\n${clientTrackingLog}`
+      : "",
   ].filter(Boolean);
   next.preferencias = Array.from(new Set(contextualPreferences));
 
-  if (includeTraining && trainingFeedback) {
+  if (includeTraining && (trainingFeedback || clientTrackingLog)) {
+    const trainBlock = [trainingFeedback, clientTrackingLog].filter(Boolean).join("\n\n");
     next.doloresLesiones = Array.from(
-      new Set([...(Array.isArray(next.doloresLesiones) ? next.doloresLesiones : []), `Feedback entrenamiento: ${trainingFeedback}`])
+      new Set([...(Array.isArray(next.doloresLesiones) ? next.doloresLesiones : []), `Feedback entrenamiento: ${trainBlock}`])
     );
   }
 
@@ -604,17 +614,74 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { tdee, targetCalories, macros } = calculateCaloriesAndMacros(adjustedInput);
     let generatedPlan: Record<string, unknown>;
     let generationErrorDetail: string | null = null;
+    let usedOpenAi = false;
+
     try {
-      generatedPlan = (await generateTemplateBasedPlan(
-        adjustedInput,
+      const aiResult = await generateIntakePlanWithOpenAI({
+        formData,
+        actionContext: actionContext
+          ? {
+              objectiveOverride: actionContext.objectiveOverride,
+              additionalNotes: actionContext.additionalNotes,
+              trainingStructure: actionContext.trainingStructure,
+            }
+          : null,
+        updateContext: updateContext
+          ? {
+              mainNeed: updateContext.mainNeed,
+              nutritionFeedback: updateContext.nutritionFeedback,
+              trainingFeedback: updateContext.trainingFeedback,
+              currentWeightKg: updateContext.currentWeightKg,
+              energyLevel: updateContext.energyLevel,
+              clientTrackingLog: updateContext.clientTrackingLog,
+            }
+          : null,
+        includeNutrition: includeNutrition === true,
+        includeTraining: includeTraining === true,
         tdee,
         targetCalories,
-        macros
-      )) as unknown as Record<string, unknown>;
-    } catch (generationError) {
-      generationErrorDetail = generationError instanceof Error ? generationError.message : String(generationError);
-      console.error("Error generando plan con templates (fallback activado):", generationError);
-      generatedPlan = buildFallbackPlan(adjustedInput, tdee, targetCalories, macros) as unknown as Record<string, unknown>;
+        macros,
+        userInput: adjustedInput,
+        imc: imcAssessment,
+      });
+
+      if (aiResult.usedAi && aiResult.plan) {
+        generatedPlan = aiResult.plan;
+        usedOpenAi = true;
+      } else {
+        const detail = aiResult.detail || "IA no devolvió plan";
+        generationErrorDetail = `IA: ${detail}. Fallback a plantillas.`;
+        console.warn("Intake plan: IA no disponible o falló:", detail);
+        try {
+          generatedPlan = (await generateTemplateBasedPlan(
+            adjustedInput,
+            tdee,
+            targetCalories,
+            macros
+          )) as unknown as Record<string, unknown>;
+        } catch (generationError) {
+          const genMsg = generationError instanceof Error ? generationError.message : String(generationError);
+          generationErrorDetail = `${generationErrorDetail} | Plantillas: ${genMsg}`;
+          console.error("Error generando plan con templates (fallback final):", generationError);
+          generatedPlan = buildFallbackPlan(adjustedInput, tdee, targetCalories, macros) as unknown as Record<string, unknown>;
+        }
+      }
+    } catch (aiError) {
+      const msg = aiError instanceof Error ? aiError.message : String(aiError);
+      generationErrorDetail = `IA excepción: ${msg}. Fallback a plantillas.`;
+      console.error("Error en generación OpenAI intake:", aiError);
+      try {
+        generatedPlan = (await generateTemplateBasedPlan(
+          adjustedInput,
+          tdee,
+          targetCalories,
+          macros
+        )) as unknown as Record<string, unknown>;
+      } catch (generationError) {
+        const genMsg = generationError instanceof Error ? generationError.message : String(generationError);
+        generationErrorDetail = `${generationErrorDetail} | Plantillas: ${genMsg}`;
+        generatedPlan = buildFallbackPlan(adjustedInput, tdee, targetCalories, macros) as unknown as Record<string, unknown>;
+      }
     }
     const selectedPlan = prunePlanBySelection(
       generatedPlan,
@@ -653,6 +720,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
       plan: selectedPlan,
       generationErrorDetail,
+      usedOpenAi,
+      aiModel: usedOpenAi ? "gpt-4o" : null,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -697,6 +766,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       planId: planDoc.id,
       status,
       usedFallback: Boolean(generationErrorDetail),
+      usedOpenAi,
       generationErrorDetail,
     });
   } catch (error) {

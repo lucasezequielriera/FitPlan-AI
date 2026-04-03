@@ -6,6 +6,7 @@
  */
 
 import type { UserInput, PlanAIResponse, TrainingPlan, Comida, DiaPlan, TrainingExercise, TrainingDayPlan } from "@/types/plan";
+import { ensureMealMacrosAprox } from "@/lib/mealMacros";
 
 // ============================================================================
 // TEMPLATES DE COMIDAS POR TIPO DE DIETA
@@ -312,6 +313,12 @@ export async function generateTemplateBasedPlan(
         { hora: "19:30", nombre: "Cena", opciones: cenaOpc.opciones },
       ],
     };
+  });
+
+  ensureMealMacrosAprox(planSemanal as unknown as Array<Record<string, unknown>>, {
+    proteinas: macrosObjetivo.proteinas,
+    grasas: macrosObjetivo.grasas,
+    carbohidratos: macrosObjetivo.carbohidratos,
   });
 
   // 3. Seleccionar plan de entrenamiento
@@ -742,30 +749,80 @@ function aplicarVariacionEjercicios(plan: TrainingPlan): TrainingPlan {
 }
 
 
-// Determina las asignaciones de grupos musculares por día según la frecuencia
+/** 1–3 días: full body cada sesión. 4–5: piernas → pecho/trí → espalda/bí → hombros+abd (+ quinto día accesorios). */
 function getDayAssignments(diasGym: number): string[][] {
-  const groups = ["Pecho","Espalda","Piernas","Hombros","Bíceps","Tríceps","Abdominales"];
+  const fullBody = ["Pecho", "Espalda", "Piernas", "Hombros", "Bíceps", "Tríceps", "Abdominales"];
   switch (diasGym) {
     case 1:
-      return [groups];
+      return [fullBody];
     case 2:
-      return [["Pecho","Espalda","Hombros","Bíceps","Tríceps","Abdominales"], ["Piernas"]];
+      return [fullBody, fullBody];
     case 3:
-      return [["Pecho","Hombros","Tríceps"], ["Espalda","Bíceps"], ["Piernas","Abdominales"]];
+      return [fullBody, fullBody, fullBody];
     case 4:
-      return [["Pecho","Tríceps"], ["Espalda","Bíceps"], ["Piernas"], ["Hombros","Abdominales"]];
+      return [["Piernas"], ["Pecho", "Tríceps"], ["Espalda", "Bíceps"], ["Hombros", "Abdominales"]];
     case 5:
-      return [["Pecho","Tríceps"], ["Espalda","Bíceps"], ["Piernas"], ["Hombros"], ["Abdominales"]];
+      return [
+        ["Piernas"],
+        ["Pecho", "Tríceps"],
+        ["Espalda", "Bíceps"],
+        ["Hombros", "Abdominales"],
+        ["Bíceps", "Tríceps", "Gemelos", "Abdominales"],
+      ];
     case 6:
-      return [["Pecho","Tríceps"], ["Espalda","Bíceps"], ["Piernas"], ["Hombros"], ["Abdominales"], ["Pecho","Espalda"]];
-    default:
-      // diasGym >= 7: un grupo por día, repetir abdominales al final
+      return [["Pecho", "Tríceps"], ["Espalda", "Bíceps"], ["Piernas"], ["Hombros"], ["Abdominales"], ["Pecho", "Espalda"]];
+    default: {
+      const groups = ["Pecho", "Espalda", "Piernas", "Hombros", "Bíceps", "Tríceps", "Abdominales"];
       const res: string[][] = [];
       for (let i = 0; i < diasGym; i++) {
         res.push([groups[i % groups.length]]);
       }
       return res;
+    }
   }
+}
+
+function getDaySplitLabel(diasGym: number, dayIndex: number): string {
+  if (diasGym >= 1 && diasGym <= 3) return "Full Body";
+  if (diasGym === 4) {
+    const labels = ["Piernas", "Pecho y tríceps", "Espalda y bíceps", "Hombros y abdomen (+ cardio)"];
+    return labels[dayIndex] ?? `Día ${dayIndex + 1}`;
+  }
+  if (diasGym === 5) {
+    const labels = [
+      "Piernas",
+      "Pecho y tríceps",
+      "Espalda y bíceps",
+      "Hombros y abdomen (+ cardio)",
+      "Brazos, gemelos y core (+ HIIT opcional)",
+    ];
+    return labels[dayIndex] ?? `Día ${dayIndex + 1}`;
+  }
+  return `Día ${dayIndex + 1}`;
+}
+
+function getWeekOrderRationale(diasGym: number): string {
+  if (diasGym >= 1 && diasGym <= 3) {
+    return [
+      "Con 1–3 sesiones semanales se usa Full Body para estimular todo el cuerpo en cada entreno.",
+      "Compuestos primero (piernas/espalda/pecho) cuando la energía es mayor; core al final.",
+      "Poca frecuencia implica más volumen por sesión; se añade cardio ligero al cierre para adherencia sin sumar fatiga neural alta.",
+    ].join(" ");
+  }
+  if (diasGym === 4) {
+    return [
+      "Orden: piernas → pecho/tríceps → espalda/bíceps → hombros/abdominales.",
+      "Las piernas van al inicio de la microciclo para aprovechar frescura en cargas grandes; empuje y tirón van separados para recuperación.",
+      "Hombros con abdomen al final para no interferir con el press de pecho; cardio LISS al cierre del día de hombros cuando el volumen de grandes cargas es menor.",
+    ].join(" ");
+  }
+  if (diasGym === 5) {
+    return [
+      "Misma lógica que 4 días con un quinto día de accesorios (brazos, gemelos, core) o HIIT corto según nivel.",
+      "Esto suma volumen sin duplicar demasiado el trabajo de grandes grupos en días consecutivos.",
+    ].join(" ");
+  }
+  return "Distribución semanal adaptada a la frecuencia y al objetivo.";
 }
 
 // Construye un pool de ejercicios por músculo basado en la plantilla actual
@@ -801,6 +858,7 @@ function distribuirGruposMusculares(
 ): TrainingPlan {
   const assignments = getDayAssignments(diasGym);
   const pool = buildExercisePool(objetivo, intensidad);
+  const maxExPerMuscle = diasGym <= 3 ? 1 : 2;
   // aplicar filtro de equipo si corresponde
   if (equipamiento === "sin_equipo") {
     // quitar ejercicios que mencionen "Press" o barras etc.
@@ -809,30 +867,84 @@ function distribuirGruposMusculares(
     });
   }
 
+  const splitTitle =
+    diasGym <= 3
+      ? `Full Body (${diasGym}x/semana)`
+      : diasGym === 4
+        ? "Bro split 4 días (piernas / pecho-trí / espalda-bí / hombros-abd)"
+        : diasGym === 5
+          ? "Bro split 5 días (+ brazos/gemelos/core)"
+          : plan.split || "Personalizado";
+
   const newWeeks = plan.weeks.map(week => {
     const days = assignments.map((grupos, idx) => {
       const ejercicios: TrainingExercise[] = [];
       grupos.forEach(mus => {
-        const list = pool[mus] || [];
-        // seleccionar hasta 3 ejercicios distintos
+        const list = pool[mus] ? [...pool[mus]] : [];
         const used: Set<string> = new Set();
-        for (let i = 0; i < 3 && list.length > 0; i++) {
+        for (let i = 0; i < maxExPerMuscle && list.length > 0; i++) {
           const choice = list.splice(Math.floor(Math.random() * list.length), 1)[0];
           if (choice && !used.has(choice)) {
             ejercicios.push({ name: choice, sets: 3, reps: "10-12", muscle_group: mus, rpe: 7 });
             used.add(choice);
           }
         }
-        // si no encontramos ninguno, usar un filler genérico
         if (!used.size) {
           ejercicios.push({ name: `${mus} básico`, sets: 3, reps: "10-12", muscle_group: mus, rpe: 6 });
         }
       });
-      return { day: `Día ${idx + 1}`, split: "", warmup: undefined, ejercicios } as TrainingDayPlan;
+
+      if (diasGym <= 3) {
+        ejercicios.push({
+          name: "Cardio suave (bici, elíptica o caminata inclinada)",
+          sets: 1,
+          reps: "10-15 min",
+          muscle_group: "Cardio",
+          rest_seconds: 0,
+          technique: "Intensidad moderada; debes poder hablar con algo de esfuerzo",
+        });
+      } else if (diasGym === 4 && idx === 3) {
+        ejercicios.push({
+          name: "Cardio LISS (bici o caminata inclinada)",
+          sets: 1,
+          reps: "10-15 min",
+          muscle_group: "Cardio",
+          rest_seconds: 0,
+        });
+      } else if (diasGym === 5 && idx === 3) {
+        ejercicios.push({
+          name: "Cardio LISS moderado",
+          sets: 1,
+          reps: "8-14 min",
+          muscle_group: "Cardio",
+          rest_seconds: 0,
+        });
+      } else if (diasGym === 5 && idx === 4) {
+        ejercicios.push({
+          name: "HIIT opcional (cuerda o bicicleta)",
+          sets: 1,
+          reps: "10-12 min",
+          muscle_group: "Cardio",
+          rest_seconds: 0,
+          technique: "Alterna 30s fuerte / 60s suave solo si tu nivel y articulaciones lo permiten",
+        });
+      }
+
+      return {
+        day: `Día ${idx + 1}`,
+        split: getDaySplitLabel(diasGym, idx),
+        warmup: undefined,
+        ejercicios,
+      } as TrainingDayPlan;
     });
     return { ...week, days };
   });
-  return { ...plan, weeks: newWeeks };
+  return {
+    ...plan,
+    split: splitTitle,
+    week_order_rationale: getWeekOrderRationale(diasGym),
+    weeks: newWeeks,
+  };
 }
 
 

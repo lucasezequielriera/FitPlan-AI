@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { UserInput } from "@/types/plan";
 import { generateTemplateBasedPlan } from "@/lib/templatePlans";
+import { ensureMealMacrosAprox } from "@/lib/mealMacros";
 import { getAdminDb } from "@/lib/firebase-admin";
 
 // Interface para contexto multi-fase
@@ -211,6 +212,7 @@ NO calcules las calorías ni macros por tu cuenta. Estos valores ya consideran:
 - Días de actividad física
 
 Las comidas deben distribuirse para alcanzar EXACTAMENTE este total diario y macros.
+Cada comida en plan_semanal DEBE incluir "macros_aprox": { "proteinas_g", "grasas_g", "carbohidratos_g" } en gramos (números) que sumen aproximadamente los macros diarios obligatorios.
 ` : ''}
 ESQUEMA OBLIGATORIO (ORDEN IMPORTANTE - GENERAR plan_semanal PRIMERO):
 {
@@ -221,10 +223,10 @@ ESQUEMA OBLIGATORIO (ORDEN IMPORTANTE - GENERAR plan_semanal PRIMERO):
     {
       "dia": "Lunes",
       "comidas": [
-        { "hora": "08:00", "nombre": "Desayuno", "opciones": ["Avena con frutos rojos y miel", "Tostadas integrales con aguacate y huevo", "Yogurt griego con granola y frutas"], "calorias_kcal": number, "cantidad_gramos": number },
-        { "hora": "13:00", "nombre": "Almuerzo", "opciones": ["Pollo a la plancha con arroz integral", "Salmón al horno con quinoa", "Ensalada de garbanzos con vegetales"], "calorias_kcal": number, "cantidad_gramos": number },
-        { "hora": "17:00", "nombre": "Snack", "opciones": ["Batido de proteína con plátano", "Frutos secos y una manzana", "Huevo duro con palitos de zanahoria"], "calorias_kcal": number, "cantidad_gramos": number },
-        { "hora": "20:00", "nombre": "Cena", "opciones": ["Pescado al vapor con verduras", "Tortilla de claras con espinacas", "Ensalada mixta con pollo desmenuzado"], "calorias_kcal": number, "cantidad_gramos": number }
+        { "hora": "08:00", "nombre": "Desayuno", "opciones": ["Avena con frutos rojos y miel", "Tostadas integrales con aguacate y huevo", "Yogurt griego con granola y frutas"], "calorias_kcal": number, "cantidad_gramos": number, "macros_aprox": { "proteinas_g": number, "grasas_g": number, "carbohidratos_g": number } },
+        { "hora": "13:00", "nombre": "Almuerzo", "opciones": ["Pollo a la plancha con arroz integral", "Salmón al horno con quinoa", "Ensalada de garbanzos con vegetales"], "calorias_kcal": number, "cantidad_gramos": number, "macros_aprox": { "proteinas_g": number, "grasas_g": number, "carbohidratos_g": number } },
+        { "hora": "17:00", "nombre": "Snack", "opciones": ["Batido de proteína con plátano", "Frutos secos y una manzana", "Huevo duro con palitos de zanahoria"], "calorias_kcal": number, "cantidad_gramos": number, "macros_aprox": { "proteinas_g": number, "grasas_g": number, "carbohidratos_g": number } },
+        { "hora": "20:00", "nombre": "Cena", "opciones": ["Pescado al vapor con verduras", "Tortilla de claras con espinacas", "Ensalada mixta con pollo desmenuzado"], "calorias_kcal": number, "cantidad_gramos": number, "macros_aprox": { "proteinas_g": number, "grasas_g": number, "carbohidratos_g": number } }
       ]
     }
   ],
@@ -240,6 +242,7 @@ ESQUEMA OBLIGATORIO (ORDEN IMPORTANTE - GENERAR plan_semanal PRIMERO):
   },
   "training_plan": {
     "split": string (OBLIGATORIO: tipo de división de entrenamiento según días de gym y objetivo: "Full Body", "Upper/Lower", "Push/Pull/Legs", "Push/Pull", "Bro Split", etc.),
+    "week_order_rationale": string (OBLIGATORIO: por qué este orden de días y de ejercicios; descansos; prioridad de grupos),
     "weeks": [
       {
         "week": number (1-4),
@@ -506,74 +509,27 @@ ${(() => {
 
 ⚠️ CRÍTICO - ESTRUCTURA DEL PLAN DE ENTRENAMIENTO (DEBES SEGUIR ESTO ESTRICTAMENTE):
 
-1. SPLIT REQUERIDO según ${diasGym} días de gym y objetivo "${input.objetivo}":
+1. SPLIT REQUERIDO según ${diasGym} días de gym (prioridad sobre objetivo para la estructura; objetivo ajusta volumen/intensidad):
 ${(() => {
-  const objetivo = input.objetivo;
-  if (diasGym <= 2) {
-    return `   - SPLIT OBLIGATORIO: "Full Body"
-   - Cada día trabaja TODOS los grupos musculares: Pecho, Espalda, Piernas, Hombros, Bíceps, Tríceps, Abdominales
-   - Ejemplo de distribución por día:
-     * Día 1: 1-2 ejercicios de Pecho, 1-2 de Espalda, 1-2 de Piernas, 1 de Hombros, 1 de Bíceps/Tríceps, 1 de Abdominales
-     * Día 2: Variar ejercicios pero mantener todos los grupos musculares`;
-  } else if (diasGym === 3) {
-    if (objetivo === "perder_grasa" || objetivo === "definicion" || objetivo === "corte") {
-      return `   - SPLIT OBLIGATORIO: "Push/Pull/Legs" (mejor para quema de grasa)
-   - Día 1 (Push): Pecho, Hombros, Tríceps
-   - Día 2 (Pull): Espalda, Bíceps, Trapecio
-   - Día 3 (Legs): Cuádriceps, Isquiotibiales, Glúteos, Gemelos, Abdominales`;
-    } else {
-      return `   - SPLIT OBLIGATORIO: "Upper/Lower" o "Push/Pull/Legs"
-   - Si "Upper/Lower":
-     * Día 1 (Upper): Pecho, Espalda, Hombros, Bíceps, Tríceps
-     * Día 2 (Lower): Cuádriceps, Isquiotibiales, Glúteos, Gemelos, Abdominales
-     * Día 3 (Upper): Variación del Día 1 con ejercicios diferentes
-   - Si "Push/Pull/Legs":
-     * Día 1 (Push): Pecho, Hombros, Tríceps
-     * Día 2 (Pull): Espalda, Bíceps, Trapecio
-     * Día 3 (Legs): Cuádriceps, Isquiotibiales, Glúteos, Gemelos, Abdominales`;
-    }
-  } else if (diasGym === 4) {
-    return `   - SPLIT OBLIGATORIO: "Upper/Lower" (2x por semana cada uno)
-   - Día 1 (Upper A): Pecho, Espalda, Hombros, Bíceps, Tríceps
-   - Día 2 (Lower A): Cuádriceps, Isquiotibiales, Glúteos, Gemelos, Abdominales
-   - Día 3 (Upper B): Variación del Upper A con ejercicios diferentes
-   - Día 4 (Lower B): Variación del Lower A con ejercicios diferentes`;
-  } else if (diasGym >= 5) {
-    if (objetivo === "definicion" || objetivo === "corte" || objetivo === "perder_grasa") {
-      return `   - SPLIT OBLIGATORIO: "Push/Pull/Legs" con días adicionales (alta frecuencia para quema de grasa)
-   - Día 1 (Push): Pecho, Hombros, Tríceps
-   - Día 2 (Pull): Espalda, Bíceps, Trapecio
-   - Día 3 (Legs): Cuádriceps, Isquiotibiales, Glúteos, Gemelos
-   - Día 4 (Push): Variación del Día 1
-   - Día 5 (Pull): Variación del Día 2
-   - Día 6+ (Legs/Cardio/Full Body ligero): Variación o cardio`;
-    } else if (objetivo === "ganar_masa" || objetivo === "volumen") {
-      return `   - SPLIT OBLIGATORIO: "Bro Split" o "Push/Pull/Legs" especializado (alta frecuencia para hipertrofia)
-   - ⚠️ CRÍTICO: Para hipertrofia máxima (volumen/ganar_masa) con ${diasGym} días, PROHIBIDO usar "Full Body". Debes usar Bro Split o Push/Pull/Legs especializado.
-   - Opción "Bro Split" (RECOMENDADO para hipertrofia máxima):
-     * Día 1: Pecho y Tríceps
-     * Día 2: Espalda y Bíceps
-     * Día 3: Piernas (Cuádriceps, Isquiotibiales, Glúteos, Gemelos)
-     * Día 4: Hombros y Trapecio
-     * Día 5: Bíceps y Tríceps (o día de descanso activo)
-     * Día 6: Piernas (segunda sesión) o Full Body ligero (solo como complemento, NO como split principal)
-   - Opción "Push/Pull/Legs" (alternativa válida):
-     * Día 1 (Push): Pecho, Hombros, Tríceps
-     * Día 2 (Pull): Espalda, Bíceps, Trapecio
-     * Día 3 (Legs): Cuádriceps, Isquiotibiales, Glúteos, Gemelos, Abdominales
-     * Día 4 (Push): Variación del Día 1
-     * Día 5 (Pull): Variación del Día 2
-     * Día 6 (Legs): Segunda sesión de piernas o variación
-   - ⚠️ REGLA ABSOLUTA: El campo "split" en training_plan DEBE ser "Bro Split" o "Push/Pull/Legs", NUNCA "Full Body" con ${diasGym} días y objetivo de hipertrofia.`;
-    } else {
-      return `   - SPLIT OBLIGATORIO: "Push/Pull/Legs" con días adicionales
-   - Día 1 (Push): Pecho, Hombros, Tríceps
-   - Día 2 (Pull): Espalda, Bíceps, Trapecio
-   - Día 3 (Legs): Cuádriceps, Isquiotibiales, Glúteos, Gemelos, Abdominales
-   - Día 4+ (Repetir ciclo con variaciones o días de Full Body ligero)`;
-    }
+  if (diasGym >= 1 && diasGym <= 3) {
+    return `   - SPLIT OBLIGATORIO: "Full Body" en CADA sesión (1–3 días/semana).
+   - Cada día: piernas + empuje + tirón + algo de bíceps/tríceps + 2–3 ejercicios de abdomen/core; al final 5–12 min cardio ligero (un ejercicio con muscle_group "Cardio").
+   - training_plan.week_order_rationale (OBLIGATORIO): explica descansos entre días, por qué compuestos primero y cómo variar entre sesiones Full Body.
+   - Campo training_plan.split: "Full Body (${diasGym}x/semana)"`;
   }
-  return "";
+  if (diasGym === 4) {
+    return `   - SPLIT OBLIGATORIO: división tipo "Bro split 4 días" (NO Full Body).
+   - Orden de días: (1) Piernas — (2) Pecho + tríceps — (3) Espalda + bíceps — (4) Hombros + abdominales + cardio LISS al final (10–15 min, muscle_group "Cardio").
+   - week_order_rationale (OBLIGATORIO): explica por qué piernas primero (cargas mayores frescas), separación empuje/tirón, hombros+abdomen+cardio al final.
+   - Cada ejercicio con muscle_group en español (p. ej. "Cuádriceps", "Pecho", "Cardio").`;
+  }
+  if (diasGym === 5) {
+    return `   - SPLIT OBLIGATORIO: "Bro split 5 días" (NO Full Body como base).
+   - Días 1–4: igual que en 4 días (Piernas → Pecho+trí → Espalda+bí → Hombros+abd+cardio).
+   - Día 5: accesorios (bíceps, tríceps, gemelos, core) y/o HIIT corto (10–12 min, muscle_group "Cardio") según nivel.
+   - week_order_rationale obligatorio. PROHIBIDO usar Full Body en los 5 días simultáneos como plan principal.`;
+  }
+  return `   - ${diasGym} días/semana: usa split de alta frecuencia coherente (p. ej. PPL 2x o upper/lower 3x) con muscle_group y week_order_rationale obligatorios.`;
 })()}
 
 2. REGLAS OBLIGATORIAS:
@@ -584,7 +540,7 @@ ${(() => {
 - ⚠️ Cada día DEBE tener el campo "split" indicando qué tipo de entrenamiento es ese día específico (ej: "Full Body", "Upper", "Lower", "Push", "Pull", "Legs", "Chest & Triceps", etc.).
 - ⚠️ VARIACIÓN OBLIGATORIA: Cada semana debe tener ejercicios DIFERENTES o variaciones (cambiar ejercicios, series, reps, o músculos trabajados). NO repitas exactamente la misma rutina semana tras semana.
 - Cada día debe tener MÍNIMO 6-8 ejercicios diferentes para una rutina completa y efectiva.
-- Los ejercicios DEBEN estar organizados según el split especificado arriba. NO uses Full Body si el split requiere Upper/Lower o Push/Pull/Legs.
+- Los ejercicios DEBEN estar organizados según el split especificado arriba. Con 1–3 días SÍ es Full Body; con 4–5 días NO uses Full Body como estructura principal.
 - Cada ejercicio debe incluir (CAMPOS OBLIGATORIOS Y OPCIONALES):
   - "name": nombre descriptivo del ejercicio (OBLIGATORIO)
   - "sets": número de series (3-4 series típicamente) (OBLIGATORIO)
@@ -801,11 +757,11 @@ ${input.intensidad === "ultra" ? `
   * Ajustar descanso: Aumentar a 90-120s para mejor recuperación
 
 ⚠️ VALIDACIÓN FINAL DEL SPLIT - REGLAS CRÍTICAS:
-- Si el usuario tiene ${diasGym} días de gym y objetivo "${input.objetivo}":
-  * Con ${diasGym} días y objetivo "volumen" o "ganar_masa": PROHIBIDO usar "Full Body". DEBES usar "Bro Split" o "Push/Pull/Legs".
-  * Con ${diasGym} días y objetivo "definicion" o "perder_grasa": DEBES usar "Push/Pull/Legs" con días adicionales.
-  * Solo con 1-2 días de gym puedes usar "Full Body".
-- ⚠️ Si generaste "Full Body" pero el usuario tiene ${diasGym} días de gym y objetivo "${input.objetivo}", ESTÁS EQUIVOCADO. Revisa las reglas del split arriba y CORRÍGELO.
+- Con 1–3 días de gym/semana: "Full Body" es la estructura esperada.
+- Con 4–5 días/semana: NO uses "Full Body" como plan principal; usa el bro split descrito arriba (piernas → pecho+trí → espalda+bí → hombros+abd [+ día 5]).
+- Con 6+ días: PPL u upper/lower duplicado según nivel; coherente entre semanas.
+- Objetivo "${input.objetivo}" ajusta volumen/RPE, pero la estructura prioriza la frecuencia (${diasGym} días).
+- ⚠️ Si el split contradice la frecuencia (ej. Full Body con 4–5 días fijos/semana), CORRÍGELO según las reglas superiores.
 - Si generaste ejercicios que no corresponden al split del día (ej: ejercicios de piernas en un día "Upper"), ESTÁS EQUIVOCADO.
 - El split DEBE ser consistente en todas las semanas: si la semana 1 usa "Push/Pull/Legs", las semanas 2, 3 y 4 también deben usar "Push/Pull/Legs" (pero con ejercicios variados).
 - El campo "split" en training_plan DEBE coincidir con el split especificado en las reglas arriba.
@@ -1497,22 +1453,28 @@ Ajusta las calorías, macros y selección de alimentos según la intensidad y ti
                   }
                 }
                 
+                const macrosAprox =
+                  m.macros_aprox && typeof m.macros_aprox === "object" ? (m.macros_aprox as Record<string, unknown>) : null;
                 return {
                   hora: typeof m.hora === "string" ? m.hora : obtenerHoraPorDefecto(nombreNormalizado),
                   nombre: nombreNormalizado,
                   opciones: opcionesFinales.slice(0, 3),
                   calorias_kcal: typeof m.calorias_kcal === "number" ? m.calorias_kcal : 0,
                   cantidad_gramos: typeof m.cantidad_gramos === "number" ? m.cantidad_gramos : 0,
+                  ...(macrosAprox ? { macros_aprox: macrosAprox } : {}),
                 };
               }
             }
             
+            const macrosAprox =
+              m.macros_aprox && typeof m.macros_aprox === "object" ? (m.macros_aprox as Record<string, unknown>) : null;
             return {
               hora: typeof m.hora === "string" ? m.hora : obtenerHoraPorDefecto(nombreNormalizado),
               nombre: nombreNormalizado,
               opciones: opcionesValidas.slice(0, 3), // Asegurar exactamente 3 opciones válidas
               calorias_kcal: typeof m.calorias_kcal === "number" ? m.calorias_kcal : 0,
               cantidad_gramos: typeof m.cantidad_gramos === "number" ? m.cantidad_gramos : 0,
+              ...(macrosAprox ? { macros_aprox: macrosAprox } : {}),
             };
           });
           
@@ -1818,6 +1780,14 @@ Ajusta las calorías, macros y selección de alimentos según la intensidad y ti
             carbohidratos: macrosDelFrontend.carbohidratos 
           };
         }
+      }
+      if (Array.isArray(out.plan_semanal) && out.macros && typeof out.macros === "object") {
+        const mm = out.macros as Record<string, string>;
+        ensureMealMacrosAprox(out.plan_semanal as Array<Record<string, unknown>>, {
+          proteinas: mm.proteinas ?? "0g",
+          grasas: mm.grasas ?? "0g",
+          carbohidratos: mm.carbohidratos ?? "0g",
+        });
       }
       // Fallback distribución diaria
       if (!out.distribucion_diaria_pct || typeof out.distribucion_diaria_pct !== 'object') {

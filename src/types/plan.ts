@@ -51,6 +51,8 @@ export interface Comida {
   // Enriquecido por IA (opcionales)
   calorias_kcal?: number;
   cantidad_gramos?: number;
+  /** Gramos aproximados por macro en esta comida (planes IA / plantilla enriquecida) */
+  macros_aprox?: { proteinas_g: number; grasas_g: number; carbohidratos_g: number };
   ingredientes?: string[];
   pasos_preparacion?: string[];
 }
@@ -127,6 +129,8 @@ export interface TrainingWeekPlan {
 
 export interface TrainingPlan {
   split?: string; // Tipo de división de entrenamiento: "Full Body", "Upper/Lower", "Push/Pull/Legs", "Bro Split", etc.
+  /** Por qué se ordenaron los días de entreno así (descansos, prioridad de grupos, etc.) */
+  week_order_rationale?: string;
   weeks: TrainingWeekPlan[];
   progression_rules?: string[];
   equipment_variants?: string[];
