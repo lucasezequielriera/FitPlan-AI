@@ -3,6 +3,11 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { generateTemplateBasedPlan } from "@/lib/templatePlans";
 import { generateIntakePlanWithOpenAI } from "@/lib/intakeOpenAiPlan";
+import {
+  applyTrainingPlanPostProcess,
+  buildTrainingConstraintBlob,
+  shouldBlockSquatsAndLunges,
+} from "@/lib/trainingPlanGuards";
 import type { Goal, UserInput } from "@/types/plan";
 
 export const maxDuration = 150;
@@ -12,6 +17,10 @@ type ActionContext = {
   objectiveOverride?: "auto" | "perder_grasa" | "ganar_musculo" | "recomposicion" | "rendimiento" | "mantener";
   additionalNotes?: string;
   trainingStructure?: "auto" | "ppl" | "upper_lower" | "full_body";
+  /** Prioridad máxima en el prompt de entreno + post-procesado si hace falta. */
+  trainingCoachBrief?: string;
+  /** El coach confirma: el plan no debe incluir sentadilla, zancadas ni saltos de pierna. */
+  avoidSquatsAndLunges?: boolean;
 } | null;
 type UpdateContext = {
   mainNeed?: string;
@@ -271,6 +280,20 @@ function applyActionContext(input: UserInput, actionContext: ActionContext): Use
   }
   if (additionalNotes) {
     next.preferencias = Array.from(new Set([...(next.preferencias || []), `Nota extra del coach: ${additionalNotes}`]));
+  }
+  const trainingCoachBrief = toString(actionContext.trainingCoachBrief);
+  if (trainingCoachBrief) {
+    next.doloresLesiones = Array.from(
+      new Set([...(Array.isArray(next.doloresLesiones) ? next.doloresLesiones : []), `Coach (prioridad entreno): ${trainingCoachBrief}`])
+    );
+  }
+  if (actionContext.avoidSquatsAndLunges === true) {
+    next.doloresLesiones = Array.from(
+      new Set([
+        ...(Array.isArray(next.doloresLesiones) ? next.doloresLesiones : []),
+        "Coach: prohibido sentadilla, zancadas profundas y saltos con impacto en rodilla en este plan.",
+      ])
+    );
   }
   if (trainingStructure && trainingStructure !== "auto") {
     next.preferencias = Array.from(
@@ -624,6 +647,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               objectiveOverride: actionContext.objectiveOverride,
               additionalNotes: actionContext.additionalNotes,
               trainingStructure: actionContext.trainingStructure,
+              trainingCoachBrief: actionContext.trainingCoachBrief,
+              avoidSquatsAndLunges: actionContext.avoidSquatsAndLunges,
             }
           : null,
         updateContext: updateContext
@@ -688,6 +713,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       includeNutrition === true,
       includeTraining === true
     );
+    if (includeTraining === true) {
+      const coachBrief = toString(actionContext?.trainingCoachBrief);
+      const coachAvoid = actionContext?.avoidSquatsAndLunges === true;
+      const blob = buildTrainingConstraintBlob(formData, adjustedInput.doloresLesiones, coachBrief);
+      const blockSquatsLunges = shouldBlockSquatsAndLunges({
+        textBlob: blob,
+        coachAvoidSquats: coachAvoid,
+      });
+      applyTrainingPlanPostProcess(selectedPlan, { blockSquatsLunges });
+    }
     if (actionType === "update" && includeTraining === true) {
       const history = Array.isArray(targetData?.planActionHistory) ? targetData.planActionHistory : [];
       const cycleNumber = Math.max(2, history.length + 1);

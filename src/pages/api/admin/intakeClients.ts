@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { formatIntakeClinicalHintForList } from "@/lib/trainingPlanGuards";
 
 type IntakeClient = {
   id: string;
@@ -21,6 +22,8 @@ type IntakeClient = {
   paymentProvider?: "stripe" | "mercadopago" | null;
   paymentLastPaidAt?: string | null;
   createdAt: string | null;
+  /** Lesiones/cirugías resumidas del formulario (solo lectura en admin). */
+  clinicalTrainingHint?: string | null;
 };
 
 function toISO(value: unknown): string | null {
@@ -93,6 +96,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         paymentProvider: ((data.paymentProvider as "stripe" | "mercadopago" | undefined) || null),
         paymentLastPaidAt: toISO(data.paymentLastPaidAt),
         createdAt: toISO(data.createdAt),
+        clinicalTrainingHint: formatIntakeClinicalHintForList(formData),
       };
     });
 

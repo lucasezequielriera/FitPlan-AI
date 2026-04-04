@@ -84,6 +84,14 @@ interface IntakeClient {
   paymentProvider?: "stripe" | "mercadopago" | null;
   paymentLastPaidAt?: string | null;
   createdAt: string | null;
+  /** Resumen de lesiones/cirugías desde el formulario (API intakeClients). */
+  clinicalTrainingHint?: string | null;
+}
+
+/** Heurística para pre-marcar “sin sentadilla” al abrir el modal. */
+function clinicalHintSuggestsKneeCare(hint: string | null | undefined): boolean {
+  if (!hint) return false;
+  return /rodilla|menisc|lca|lc[aá]|cirug|operad|gonalgia|rótula|rotula|ligamento/i.test(hint);
 }
 
 type IntakePlanActionType = "generate" | "update";
@@ -396,6 +404,8 @@ export default function Admin() {
     "auto"
   );
   const [intakePlanAdditionalNotes, setIntakePlanAdditionalNotes] = useState("");
+  const [intakePlanTrainingCoachBrief, setIntakePlanTrainingCoachBrief] = useState("");
+  const [intakePlanAvoidSquatsLunges, setIntakePlanAvoidSquatsLunges] = useState(false);
   const [intakeUpdateMainNeed, setIntakeUpdateMainNeed] = useState("");
   const [intakeUpdateNutritionFeedback, setIntakeUpdateNutritionFeedback] = useState("");
   const [intakeUpdateTrainingFeedback, setIntakeUpdateTrainingFeedback] = useState("");
@@ -1503,6 +1513,8 @@ export default function Admin() {
     setIntakePlanObjectiveOverride("auto");
     setIntakeTrainingStructure("auto");
     setIntakePlanAdditionalNotes("");
+    setIntakePlanTrainingCoachBrief("");
+    setIntakePlanAvoidSquatsLunges(clinicalHintSuggestsKneeCare(client.clinicalTrainingHint));
     setIntakeUpdateMainNeed("");
     setIntakeUpdateNutritionFeedback("");
     setIntakeUpdateTrainingFeedback("");
@@ -1521,6 +1533,18 @@ export default function Admin() {
     if (intakePlanActionType === "update" && !intakeUpdateMainNeed.trim() && !intakeUpdateExcelFile) {
       alert("Para actualizar, escribe qué quieres mejorar o adjunta el Excel de seguimiento rellenado por el cliente.");
       return;
+    }
+    if (
+      intakePlanActionType === "generate" &&
+      intakePlanIncludeTraining &&
+      clinicalHintSuggestsKneeCare(intakePlanClient.clinicalTrainingHint) &&
+      !intakePlanAvoidSquatsLunges &&
+      !intakePlanTrainingCoachBrief.trim()
+    ) {
+      const ok = window.confirm(
+        "El formulario del cliente menciona posible afectación de rodilla/cirugía, pero no marcaste «Sin sentadilla / zancadas» ni escribiste notas de entreno. ¿Seguir igual? (Recomendado: cancelar y marcar la casilla o detallar en notas.)"
+      );
+      if (!ok) return;
     }
     let clientTrackingLog = "";
     if (intakePlanActionType === "update" && intakeUpdateExcelFile) {
@@ -1563,6 +1587,8 @@ export default function Admin() {
             objectiveOverride: intakePlanObjectiveOverride,
             additionalNotes: intakePlanAdditionalNotes.trim(),
             trainingStructure: intakeTrainingStructure,
+            trainingCoachBrief: intakePlanTrainingCoachBrief.trim(),
+            avoidSquatsAndLunges: intakePlanIncludeTraining ? intakePlanAvoidSquatsLunges : false,
           },
           updateContext:
             intakePlanActionType === "update"
@@ -1595,6 +1621,8 @@ export default function Admin() {
       setIntakePlanClient(null);
       setIntakePlanObjectiveOverride("auto");
       setIntakePlanAdditionalNotes("");
+      setIntakePlanTrainingCoachBrief("");
+      setIntakePlanAvoidSquatsLunges(false);
       setIntakeUpdateMainNeed("");
       setIntakeUpdateNutritionFeedback("");
       setIntakeUpdateTrainingFeedback("");
@@ -4464,6 +4492,9 @@ export default function Admin() {
             objectiveOverride={intakePlanObjectiveOverride}
             trainingStructure={intakeTrainingStructure}
             additionalNotes={intakePlanAdditionalNotes}
+            clinicalTrainingHint={intakePlanClient.clinicalTrainingHint ?? null}
+            trainingCoachBrief={intakePlanTrainingCoachBrief}
+            avoidSquatsAndLunges={intakePlanAvoidSquatsLunges}
             updateMainNeed={intakeUpdateMainNeed}
             updateNutritionFeedback={intakeUpdateNutritionFeedback}
             updateTrainingFeedback={intakeUpdateTrainingFeedback}
@@ -4479,6 +4510,8 @@ export default function Admin() {
             onChangeObjectiveOverride={setIntakePlanObjectiveOverride}
             onChangeTrainingStructure={setIntakeTrainingStructure}
             onChangeAdditionalNotes={setIntakePlanAdditionalNotes}
+            onChangeTrainingCoachBrief={setIntakePlanTrainingCoachBrief}
+            onChangeAvoidSquatsLunges={setIntakePlanAvoidSquatsLunges}
             onChangeUpdateMainNeed={setIntakeUpdateMainNeed}
             onChangeUpdateNutritionFeedback={setIntakeUpdateNutritionFeedback}
             onChangeUpdateTrainingFeedback={setIntakeUpdateTrainingFeedback}
@@ -4604,6 +4637,9 @@ function IntakePlanActionModal({
   objectiveOverride,
   trainingStructure,
   additionalNotes,
+  clinicalTrainingHint,
+  trainingCoachBrief,
+  avoidSquatsAndLunges,
   updateMainNeed,
   updateNutritionFeedback,
   updateTrainingFeedback,
@@ -4616,6 +4652,8 @@ function IntakePlanActionModal({
   onChangeObjectiveOverride,
   onChangeTrainingStructure,
   onChangeAdditionalNotes,
+  onChangeTrainingCoachBrief,
+  onChangeAvoidSquatsLunges,
   onChangeUpdateMainNeed,
   onChangeUpdateNutritionFeedback,
   onChangeUpdateTrainingFeedback,
@@ -4633,6 +4671,9 @@ function IntakePlanActionModal({
   objectiveOverride: "auto" | "perder_grasa" | "ganar_musculo" | "recomposicion" | "rendimiento" | "mantener";
   trainingStructure: "auto" | "ppl" | "upper_lower" | "full_body";
   additionalNotes: string;
+  clinicalTrainingHint: string | null;
+  trainingCoachBrief: string;
+  avoidSquatsAndLunges: boolean;
   updateMainNeed: string;
   updateNutritionFeedback: string;
   updateTrainingFeedback: string;
@@ -4647,6 +4688,8 @@ function IntakePlanActionModal({
   ) => void;
   onChangeTrainingStructure: (value: "auto" | "ppl" | "upper_lower" | "full_body") => void;
   onChangeAdditionalNotes: (value: string) => void;
+  onChangeTrainingCoachBrief: (value: string) => void;
+  onChangeAvoidSquatsLunges: (value: boolean) => void;
   onChangeUpdateMainNeed: (value: string) => void;
   onChangeUpdateNutritionFeedback: (value: string) => void;
   onChangeUpdateTrainingFeedback: (value: string) => void;
@@ -4673,7 +4716,7 @@ function IntakePlanActionModal({
       <motion.div
         initial={{ opacity: 0, scale: 0.96, y: 14 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-lg w-full"
+        className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-xl w-full max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3 mb-4">
@@ -4681,6 +4724,11 @@ function IntakePlanActionModal({
             <h3 className="text-xl font-bold text-white">{title}</h3>
             <p className="text-sm text-white/70 mt-1">{client.nombreCompleto || client.email || client.id}</p>
             <p className="text-xs text-white/50 mt-1">{subtitle}</p>
+            {includeTraining && (
+              <p className="text-[11px] text-cyan-200/80 mt-2 leading-snug">
+                Si marcas limitaciones de entreno abajo, la IA las prioriza y el sistema corrige sentadilla/zancada si aun así aparecieran.
+              </p>
+            )}
           </div>
           <button
             type="button"
@@ -4759,6 +4807,67 @@ function IntakePlanActionModal({
               </label>
             )}
           </div>
+          {includeTraining && (
+            <div className="space-y-3 rounded-lg border border-amber-500/30 bg-amber-500/[0.08] px-3 py-3">
+              <p className="text-xs font-semibold text-amber-100">Entreno — lo que tú confirmas ahora</p>
+              {clinicalTrainingHint ? (
+                <p className="text-[11px] text-amber-100/85 leading-relaxed">
+                  <span className="text-white/45">Resumen del formulario:</span> {clinicalTrainingHint}
+                </p>
+              ) : (
+                <p className="text-[11px] text-white/45">
+                  No hay texto de lesiones/cirugías en el formulario. Si aplica, usa la casilla y las notas.
+                </p>
+              )}
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={avoidSquatsAndLunges}
+                  onChange={(e) => onChangeAvoidSquatsLunges(e.target.checked)}
+                  className="h-4 w-4 mt-0.5 shrink-0 rounded border-white/20"
+                />
+                <span className="text-xs text-white/90 leading-snug">
+                  Prohibir sentadilla, zancadas y saltos de pierna en este plan (además, el sistema lo aplica si el formulario habla de rodilla/menisco/LCA, etc.).
+                </span>
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-white/70">Notas para la rutina (opcional pero muy recomendado)</span>
+                <textarea
+                  rows={3}
+                  value={trainingCoachBrief}
+                  onChange={(e) => onChangeTrainingCoachBrief(e.target.value)}
+                  className="rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white outline-none"
+                  placeholder="Ej.: rodilla operada — sin flexión profunda cargada; máximo 50 min por sesión; sustituir dominadas por jalón…"
+                />
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() =>
+                    onChangeTrainingCoachBrief(
+                      `${trainingCoachBrief ? `${trainingCoachBrief.trim()}\n` : ""}Rodilla/cirugía: sin sentadilla ni zancadas; máquinas y extensión de cuádriceps con ROM corto.`.trim()
+                    )
+                  }
+                  className="text-[11px] px-2.5 py-1 rounded-md bg-white/10 border border-white/15 text-white/90 hover:bg-white/15 disabled:opacity-40"
+                >
+                  + Texto rodilla / sin sentadilla
+                </button>
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() =>
+                    onChangeTrainingCoachBrief(
+                      `${trainingCoachBrief ? `${trainingCoachBrief.trim()}\n` : ""}Sesiones cortas (~45 min); priorizar técnica y adherencia.`.trim()
+                    )
+                  }
+                  className="text-[11px] px-2.5 py-1 rounded-md bg-white/10 border border-white/15 text-white/90 hover:bg-white/15 disabled:opacity-40"
+                >
+                  + ~45 min sesión
+                </button>
+              </div>
+            </div>
+          )}
           {actionType === "update" && (
             <div className="space-y-3 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-3">
               <p className="text-xs text-white/70">
