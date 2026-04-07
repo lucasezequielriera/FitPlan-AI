@@ -168,6 +168,7 @@ CALIDAD ENTRENAMIENTO (includeTraining = true) — NO rutinas “de tres ejercic
 - Genera EXACTAMENTE 4 semanas en "weeks", todas con los mismos días de entreno y ejercicios completos; varía series, reps, variantes o densidad entre semanas 1–2 vs 3–4. NO dejes weeks[1], weeks[2] o weeks[3] vacías ni con días sin ejercicios.
 - "week_order_rationale": 4–10 frases, tono profesional, citando lógica de recuperación y prioridad de estímulos (no relleno genérico).
 - "minutos_sesion_gym": estimación realista según volumen (típ. 50–85 min con calentamiento si hay 5–7 ejercicios + core + cardio breve).
+- NO incluyas en el JSON las claves "demo_video_url", "demo_poster_url" ni "exercise_media_overrides" (reservadas para vídeos que sube el coach después; no inventes URLs).
 
 ESTRUCTURA ESPERADA (ajusta omitiendo bloques si se indica includeNutrition/includeTraining):
 {

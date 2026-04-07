@@ -24,7 +24,20 @@ type IntakeClient = {
   createdAt: string | null;
   /** Lesiones/cirugías resumidas del formulario (solo lectura en admin). */
   clinicalTrainingHint?: string | null;
+  /** Peso declarado en el formulario (kg). */
+  pesoInicialKg?: number | null;
 };
+
+function parsePesoInicialKg(formData: Record<string, unknown> | null): number | null {
+  if (!formData) return null;
+  const raw = formData.pesoKg;
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  if (typeof raw === "string") {
+    const n = parseFloat(raw.replace(",", "."));
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
 
 function toISO(value: unknown): string | null {
   if (!value) return null;
@@ -97,6 +110,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         paymentLastPaidAt: toISO(data.paymentLastPaidAt),
         createdAt: toISO(data.createdAt),
         clinicalTrainingHint: formatIntakeClinicalHintForList(formData),
+        pesoInicialKg: parsePesoInicialKg(formData),
       };
     });
 

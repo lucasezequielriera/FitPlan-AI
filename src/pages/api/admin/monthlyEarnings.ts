@@ -51,12 +51,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const data = adminMonthDoc.data();
-    const totalEarnings = data?.totalEarnings || 0;
+    const ars = typeof data?.totalEarningsArs === "number" ? data.totalEarningsArs : 0;
+    const eur = typeof data?.totalEarningsEur === "number" ? data.totalEarningsEur : 0;
+    const legacy = typeof data?.totalEarnings === "number" ? data.totalEarnings : 0;
+    const hasSplit =
+      typeof data?.totalEarningsArs === "number" || typeof data?.totalEarningsEur === "number";
+    const totalEarningsArs = hasSplit ? ars : legacy;
+    const totalEarningsEur = hasSplit ? eur : 0;
     const paymentCount = data?.paymentCount || 0;
 
     return res.status(200).json({
       monthId: monthId as string,
-      totalEarnings,
+      totalEarningsArs,
+      totalEarningsEur,
+      /** Compat: suma aproximada en “pesos equivalentes” para la tarjeta del panel */
+      totalEarnings: totalEarningsArs + totalEarningsEur * 2000,
       paymentCount,
     });
   } catch (error) {

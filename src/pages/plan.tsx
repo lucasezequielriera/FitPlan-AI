@@ -21,6 +21,7 @@ import { getAuthSafe, getDbSafe } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { useAuthStore } from "@/store/authStore";
 import { FaUtensils, FaChartLine } from "react-icons/fa";
+import ExerciseDemoMedia from "@/components/ExerciseDemoMedia";
 
 interface TrainingWeek {
   week: number;
@@ -62,6 +63,8 @@ interface TrainingExercise {
   progression?: string; // Cómo progresar este ejercicio
   alternative?: string; // Ejercicio alternativo si hay lesión o falta de equipo
   cues?: string[]; // Pistas mentales para ejecución correcta
+  demo_video_url?: string;
+  demo_poster_url?: string;
   // Campos legacy (para compatibilidad)
   url?: string;
   rest_sec?: number;
@@ -71,6 +74,7 @@ interface TrainingExercise {
 interface TrainingPlan {
   split?: string; // Tipo de división de entrenamiento: "Full Body", "Upper/Lower", "Push/Pull/Legs", etc.
   weeks?: TrainingWeek[];
+  exercise_media_overrides?: Record<string, { demo_video_url?: string; demo_poster_url?: string }>;
 }
 
 export default function PlanPage() {
@@ -1190,6 +1194,11 @@ export default function PlanPage() {
     const musculos = muscleGroups.size >= 5 
       ? "Full Body" 
       : Array.from(muscleGroups).sort().join(", ");
+
+    const exerciseMediaOverrides = useMemo(() => {
+      const tp = (plan as unknown as Record<string, unknown>)?.training_plan as TrainingPlan | undefined;
+      return tp?.exercise_media_overrides ?? null;
+    }, [plan]);
     
     const dateStr = date ? date.toLocaleDateString('es-AR', { 
       weekday: 'long', 
@@ -1274,6 +1283,13 @@ export default function PlanPage() {
                         </div>
                       </div>
                     </div>
+
+                    <ExerciseDemoMedia
+                      exerciseName={ejercicio.name}
+                      demoVideoUrl={ejercicio.demo_video_url}
+                      demoPosterUrl={ejercicio.demo_poster_url}
+                      planMediaOverrides={exerciseMediaOverrides}
+                    />
                     
                     {/* Técnica, progresión, cues, alternativa (igual que en el modal) */}
                     {ejercicio.technique && (
@@ -5496,6 +5512,13 @@ export default function PlanPage() {
                                           </div>
                                         </div>
                                       </div>
+
+                                      <ExerciseDemoMedia
+                                        exerciseName={ejercicio.name}
+                                        demoVideoUrl={ejercicio.demo_video_url}
+                                        demoPosterUrl={ejercicio.demo_poster_url}
+                                        planMediaOverrides={tp?.exercise_media_overrides ?? null}
+                                      />
                                       
                                       {/* Técnica (expandible) */}
                                       {ejercicio.technique && (

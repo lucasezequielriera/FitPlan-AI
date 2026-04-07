@@ -5,6 +5,12 @@
     },
     "src/pages/api/admin/intakeClientPlanAction.ts": {
       "maxDuration": 150
+    },
+    "src/pages/api/admin/exportIntakePlanExcel.ts": {
+      "maxDuration": 60
+    },
+    "src/pages/api/admin/exerciseCatalogMediaCoverage.ts": {
+      "maxDuration": 60
     }
   },
   "crons": [

@@ -400,11 +400,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               const amount = payment.transaction_amount || 0;
               
               if (!adminMonthDoc.exists) {
-                // Crear documento inicial para el mes
+                // Crear documento inicial para el mes (Mercado Pago = ARS)
                 await adminMonthRef.set({
                   month: monthId,
                   year: year,
                   monthNumber: parseInt(month),
+                  totalEarningsArs: amount,
+                  totalEarningsEur: 0,
                   totalEarnings: amount,
                   paymentCount: 1,
                   createdAt: FieldValue.serverTimestamp(),
@@ -414,6 +416,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               } else {
                 // Actualizar documento existente con incremento atómico
                 await adminMonthRef.update({
+                  totalEarningsArs: FieldValue.increment(amount),
                   totalEarnings: FieldValue.increment(amount),
                   paymentCount: FieldValue.increment(1),
                   updatedAt: FieldValue.serverTimestamp(),

@@ -110,6 +110,10 @@ export interface TrainingExercise {
   progression?: string; // Cómo progresar este ejercicio (aumentar peso, reps, etc.), opcional
   alternative?: string; // Ejercicio alternativo si no se puede hacer este (por lesión o falta de equipo), opcional
   cues?: string[]; // Pistas mentales para ejecución correcta (ej: ["Mantén el core activo", "Empuja con los talones"]), opcional
+  /** Vídeo propio HTTPS directo (.mp4 / .webm / .mov), sin YouTube. Opcional; ver también `TrainingPlan.exercise_media_overrides`. */
+  demo_video_url?: string;
+  /** Imagen previa opcional para el vídeo (HTTPS, .jpg/.png/.webp…). */
+  demo_poster_url?: string;
 }
 
 export interface TrainingDayPlan {
@@ -136,6 +140,11 @@ export interface TrainingPlan {
   equipment_variants?: string[];
   safety_notes?: string[];
   sync_with_nutrition?: string[];
+  /**
+   * Vídeo o póster propio por ejercicio (clave = nombre normalizado, ver `normalizeExerciseMediaKey` en código).
+   * Lo gestiona el coach desde admin; tiene prioridad sobre ilustraciones de catálogo público.
+   */
+  exercise_media_overrides?: Record<string, { demo_video_url?: string; demo_poster_url?: string }>;
 }
 
 // ============================================

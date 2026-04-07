@@ -175,6 +175,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             month: monthId,
             year: year,
             monthNumber: monthNumber,
+            totalEarningsArs: data.total,
+            totalEarningsEur: 0,
             totalEarnings: data.total,
             paymentCount: data.count,
             createdAt: FieldValue.serverTimestamp(),
@@ -186,7 +188,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // Actualizar documento existente (usar set con merge para evitar sobrescribir)
         const currentData = adminMonthDoc.data();
         const currentTotal = currentData?.totalEarnings || 0;
-        const currentCount = currentData?.paymentCount || 0;
         
         // Solo actualizar si el total calculado es mayor (para evitar duplicados)
         if (data.total > currentTotal) {
@@ -195,6 +196,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               month: monthId,
               year: year,
               monthNumber: monthNumber,
+              totalEarningsArs: data.total,
+              totalEarningsEur: 0,
               totalEarnings: data.total,
               paymentCount: data.count,
               updatedAt: FieldValue.serverTimestamp(),

@@ -2,11 +2,13 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { motion } from "framer-motion";
 import { jsPDF } from "jspdf";
-import { buildIntakePlanXlsxBuffer, parseClientTrackingExcel } from "@/lib/intakePlanExcel";
+import { parseClientTrackingExcel } from "@/lib/intakePlanExcel";
 import { useAuthStore } from "@/store/authStore";
 import { getDbSafe, getAuthSafe } from "@/lib/firebase";
 import Navbar from "@/components/Navbar";
 import WeeklyStatsModal from "@/components/WeeklyStatsModal";
+import ExerciseDemoMedia from "@/components/ExerciseDemoMedia";
+import { normalizeExerciseMediaKey } from "@/lib/exerciseMedia";
 import {
   FaArrowUp,
   FaArrowDown,
@@ -27,6 +29,9 @@ import {
   FaBell,
   FaWhatsapp,
   FaCircle,
+  FaCog,
+  FaUserFriends,
+  FaExternalLinkAlt,
 } from "react-icons/fa";
 
 interface User {
@@ -86,6 +91,8 @@ interface IntakeClient {
   createdAt: string | null;
   /** Resumen de lesiones/cirugías desde el formulario (API intakeClients). */
   clinicalTrainingHint?: string | null;
+  /** Peso declarado al enviar el formulario (kg). */
+  pesoInicialKg?: number | null;
 }
 
 /** Heurística para pre-marcar “sin sentadilla” al abrir el modal. */
@@ -345,7 +352,7 @@ export default function Admin() {
   const [selectedPlanIdForStats, setSelectedPlanIdForStats] = useState<string | null>(null);
   const [sendMessageModalOpen, setSendMessageModalOpen] = useState(false);
   const [selectedUserForMessage, setSelectedUserForMessage] = useState<User | null>(null);
-  
+  const [assignedTrainerModalOpen, setAssignedTrainerModalOpen] = useState(false);
   // Cerrar tooltips al hacer click fuera (solo en mobile)
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent | TouchEvent) => {
@@ -386,6 +393,9 @@ export default function Admin() {
   const [athleticUsers, setAthleticUsers] = useState<number>(0);
   const [intakeClients, setIntakeClients] = useState<IntakeClient[]>([]);
   const [loadingIntakeClients, setLoadingIntakeClients] = useState(false);
+  const [intakeSearchQuery, setIntakeSearchQuery] = useState("");
+  const [intakePaymentFilter, setIntakePaymentFilter] = useState<"all" | "paid" | "pending" | "unpaid">("all");
+  const [intakeServiceFilter, setIntakeServiceFilter] = useState("all");
   const [copiedFormLink, setCopiedFormLink] = useState(false);
   const [intakeClientModalOpen, setIntakeClientModalOpen] = useState(false);
   const [selectedIntakeClient, setSelectedIntakeClient] = useState<IntakeClient | null>(null);
@@ -470,6 +480,25 @@ export default function Admin() {
     totalPremiumUsers: 0,
     totalRevenueFromPayments: 0, // Suma real de todos los pagos de usuarios premium
   });
+
+  const [yearlyEarningsModalOpen, setYearlyEarningsModalOpen] = useState(false);
+  const [yearlyEarningsYear, setYearlyEarningsYear] = useState(() => new Date().getFullYear());
+  const [yearlyEarningsLoading, setYearlyEarningsLoading] = useState(false);
+  const [yearlyEarningsPayload, setYearlyEarningsPayload] = useState<{
+    year: number;
+    months: Array<{
+      monthIndex: number;
+      monthId: string;
+      monthLabel: string;
+      totalEarningsArs: number;
+      totalEarningsEur: number;
+      legacyTotal: number;
+      paymentCount: number;
+    }>;
+    yearlyTotalArs: number;
+    yearlyTotalEur: number;
+    yearlyLegacyTotal: number;
+  } | null>(null);
 
   // Función para convertir timestamp a Date
   const convertTimestampToDate = (ts: unknown): Date | null => {
@@ -728,7 +757,10 @@ export default function Admin() {
         return 0;
       }
       const data = await response.json();
-      return data.totalEarnings || 0;
+      if (typeof data.totalEarnings === "number") return data.totalEarnings;
+      const ars = typeof data.totalEarningsArs === "number" ? data.totalEarningsArs : 0;
+      const eur = typeof data.totalEarningsEur === "number" ? data.totalEarningsEur : 0;
+      return ars + eur * 2000;
     } catch (error) {
       console.error("Error al obtener ganancias mensuales:", error);
       return 0;
@@ -1135,6 +1167,28 @@ export default function Admin() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin, authUser]);
 
+  useEffect(() => {
+    if (!yearlyEarningsModalOpen || !authUser?.uid) return;
+    let cancelled = false;
+    (async () => {
+      setYearlyEarningsLoading(true);
+      try {
+        const res = await fetch(
+          `/api/admin/yearlyEarnings?year=${yearlyEarningsYear}&adminUserId=${encodeURIComponent(authUser.uid)}`
+        );
+        if (!res.ok) throw new Error("yearlyEarnings");
+        const data = await res.json();
+        if (!cancelled) setYearlyEarningsPayload(data);
+      } catch {
+        if (!cancelled) setYearlyEarningsPayload(null);
+      } finally {
+        if (!cancelled) setYearlyEarningsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [yearlyEarningsModalOpen, yearlyEarningsYear, authUser?.uid]);
 
   const loadUserStats = async (lastUsersCheck?: string | null, silent = false) => {
     try {
@@ -1637,6 +1691,35 @@ export default function Admin() {
     }
   };
 
+  const handleCopyIntakeClientPublicPlanLink = async (client: IntakeClient) => {
+    if (!client.latestPlanId) {
+      alert("Primero genera un plan para este cliente.");
+      return;
+    }
+    try {
+      const auth = getAuthSafe();
+      if (!auth?.currentUser) return;
+      const response = await fetch("/api/admin/issueIntakeClientViewToken", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          adminUserId: auth.currentUser.uid,
+          intakeClientId: client.id,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(typeof data.error === "string" ? data.error : `HTTP ${response.status}`);
+      }
+      const url = typeof data.url === "string" ? data.url : "";
+      if (!url) throw new Error("No se recibió la URL");
+      await navigator.clipboard.writeText(url);
+      alert("Enlace copiado. Pégalo al cliente: podrá ver su nutrición y entrenamiento sin iniciar sesión.");
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "No se pudo generar el enlace.");
+    }
+  };
+
   const handleOpenGeneratedPlan = async (client: IntakeClient) => {
     if (!client.latestPlanId) {
       alert("Este cliente todavía no tiene un plan generado.");
@@ -2086,11 +2169,48 @@ export default function Admin() {
   });
   const visibleAssignedTrainerUsers = filteredAssignedTrainerUsers.slice(0, assignedTrainerVisibleCount);
   const hasMoreAssignedTrainerUsers = filteredAssignedTrainerUsers.length > assignedTrainerVisibleCount;
+  const intakeServiceOptions = Array.from(
+    new Set(
+      intakeClients
+        .map((client) => (client.servicioInteres || "").trim())
+        .filter((service) => service.length > 0)
+    )
+  ).sort((a, b) => a.localeCompare(b, "es"));
+  const normalizedIntakeSearch = intakeSearchQuery.trim().toLowerCase();
+  const filteredIntakeClients = intakeClients.filter((client) => {
+    const paymentMatches =
+      intakePaymentFilter === "all"
+        ? true
+        : intakePaymentFilter === "paid"
+        ? isIntakeCurrentMonthPaid(client)
+        : intakePaymentFilter === "pending"
+        ? !isIntakeCurrentMonthPaid(client) && client.paymentStatus === "pending"
+        : !isIntakeCurrentMonthPaid(client) && client.paymentStatus !== "pending";
+
+    const serviceMatches =
+      intakeServiceFilter === "all" ? true : (client.servicioInteres || "").trim() === intakeServiceFilter;
+
+    if (!normalizedIntakeSearch) return paymentMatches && serviceMatches;
+
+    const searchHaystack = [
+      client.nombreCompleto,
+      client.email,
+      client.whatsapp,
+      client.instagram,
+      client.servicioInteres,
+      client.objetivoPrincipal,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+
+    return paymentMatches && serviceMatches && searchHaystack.includes(normalizedIntakeSearch);
+  });
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900">
       <Navbar />
-      
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -2105,6 +2225,14 @@ export default function Admin() {
               <p className="text-white/60">Gestiona usuarios y permisos del sistema</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => router.push("/admin/configuraciones")}
+                className="px-4 py-2 rounded-lg bg-violet-500/20 border border-violet-400/40 text-violet-100 hover:bg-violet-500/30 transition-colors text-sm font-medium inline-flex items-center gap-2"
+              >
+                <FaCog className="h-3.5 w-3.5" />
+                Configuraciones
+              </button>
               <button
                 onClick={async () => {
                   const nextOpen = !paymentNotificationOpen;
@@ -2220,123 +2348,6 @@ export default function Admin() {
           </motion.div>
         )}
 
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8 p-6 rounded-xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/20 to-cyan-500/10 backdrop-blur-sm"
-        >
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold text-white">Usuarios con entrenador asignado</h2>
-            <div className="flex items-center gap-2">
-              <div className="inline-flex rounded-lg border border-white/20 bg-black/20 p-1 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setTrainerPreferenceFilter("all")}
-                  className={`px-2 py-1 rounded-md transition-colors ${
-                    trainerPreferenceFilter === "all" ? "bg-white/20 text-white" : "text-white/70 hover:text-white"
-                  }`}
-                >
-                  Todos
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTrainerPreferenceFilter("hombre")}
-                  className={`px-2 py-1 rounded-md transition-colors ${
-                    trainerPreferenceFilter === "hombre" ? "bg-cyan-500/30 text-cyan-100" : "text-white/70 hover:text-white"
-                  }`}
-                >
-                  Hombre
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTrainerPreferenceFilter("mujer")}
-                  className={`px-2 py-1 rounded-md transition-colors ${
-                    trainerPreferenceFilter === "mujer" ? "bg-fuchsia-500/30 text-fuchsia-100" : "text-white/70 hover:text-white"
-                  }`}
-                >
-                  Mujer
-                </button>
-              </div>
-              <span className="px-3 py-1 rounded-full text-xs font-medium bg-white/10 border border-white/20 text-white/85">
-                {filteredAssignedTrainerUsers.length} usuarios
-              </span>
-            </div>
-          </div>
-
-          {filteredAssignedTrainerUsers.length === 0 ? (
-            <p className="mt-3 text-sm text-white/70">
-              Aun no hay solicitudes de entrenador personal humano.
-            </p>
-          ) : (
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-              {visibleAssignedTrainerUsers.map((user) => (
-                <div
-                  key={user.id}
-                  className="rounded-lg border border-white/15 bg-black/20 p-3 text-sm text-white/85"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-medium text-white">{user.nombre || user.email || user.id}</p>
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[11px] border ${
-                        user.personalTrainerPreference === "mujer"
-                          ? "bg-fuchsia-500/20 border-fuchsia-400/40 text-fuchsia-100"
-                          : user.personalTrainerPreference === "hombre"
-                            ? "bg-cyan-500/20 border-cyan-400/40 text-cyan-100"
-                            : "bg-white/10 border-white/25 text-white/80"
-                      }`}
-                    >
-                      {user.personalTrainerPreference === "mujer"
-                        ? "Entrenadora"
-                        : user.personalTrainerPreference === "hombre"
-                          ? "Entrenador"
-                          : "Sin preferencia"}
-                    </span>
-                  </div>
-                  <p className="text-xs text-white/60">{user.email || "Sin email"}</p>
-                  {user.personalTrainerRequestNote && (
-                    <p className="mt-2 text-xs text-white/75 line-clamp-3">
-                      Motivo: {user.personalTrainerRequestNote}
-                    </p>
-                  )}
-                  {(user.personalTrainerPreference || user.personalTrainerFocus) && (
-                    <p className="mt-1 text-xs text-white/70 line-clamp-2">
-                      Preferencia: {user.personalTrainerPreference || "N/A"} | Enfoque: {user.personalTrainerFocus || "N/A"}
-                    </p>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => window.open("https://wa.me/34627043397", "_blank", "noopener,noreferrer")}
-                    className="mt-3 w-full px-3 py-1.5 rounded-lg bg-emerald-500/25 border border-emerald-400/40 text-emerald-100 hover:bg-emerald-500/35 transition-colors"
-                  >
-                    Contactar por WhatsApp
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-          {filteredAssignedTrainerUsers.length > 12 && (
-            <div className="mt-4 flex items-center justify-center gap-2">
-              {hasMoreAssignedTrainerUsers ? (
-                <button
-                  type="button"
-                  onClick={() => setAssignedTrainerVisibleCount((prev) => prev + 12)}
-                  className="px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white/90 hover:bg-white/20 transition-colors text-sm"
-                >
-                  Ver más
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setAssignedTrainerVisibleCount(12)}
-                  className="px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white/90 hover:bg-white/20 transition-colors text-sm"
-                >
-                  Ver menos
-                </button>
-              )}
-            </div>
-          )}
-        </motion.div>
-
         {/* Panel de Estadísticas de Ganancias */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           <motion.div
@@ -2344,12 +2355,24 @@ export default function Admin() {
             animate={{ opacity: 1, scale: 1 }}
             className="lg:col-span-2 p-6 rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-blue-500/30 backdrop-blur-sm"
           >
-            <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-yellow-400">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1.41 16.09V20h-2.67v-1.93c-1.71-.36-3.16-1.46-3.27-3.4h1.96c.1 1.05.82 1.87 2.65 1.87 1.96 0 2.4-.98 2.4-1.59 0-.83-.44-1.61-2.67-2.14-2.48-.6-4.18-1.62-4.18-3.67 0-1.72 1.39-2.84 3.11-3.21V4h2.67v1.95c1.86.45 2.79 1.86 2.85 3.39H14.3c-.05-1.11-.64-1.87-2.22-1.87-1.5 0-2.4.68-2.4 1.64 0 .84.65 1.39 2.67 1.95s4.18 1.08 4.18 3.67c-.01 1.83-1.38 2.83-3.12 3.16z"/>
-              </svg>
-              Estadísticas de Ganancias
-            </h2>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 shrink-0 text-yellow-400">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1.41 16.09V20h-2.67v-1.93c-1.71-.36-3.16-1.46-3.27-3.4h1.96c.1 1.05.82 1.87 2.65 1.87 1.96 0 2.4-.98 2.4-1.59 0-.83-.44-1.61-2.67-2.14-2.48-.6-4.18-1.62-4.18-3.67 0-1.72 1.39-2.84 3.11-3.21V4h2.67v1.95c1.86.45 2.79 1.86 2.85 3.39H14.3c-.05-1.11-.64-1.87-2.22-1.87-1.5 0-2.4.68-2.4 1.64 0 .84.65 1.39 2.67 1.95s4.18 1.08 4.18 3.67c-.01 1.83-1.38 2.83-3.12 3.16z"/>
+                </svg>
+                Estadísticas de Ganancias
+              </h2>
+              <button
+                type="button"
+                onClick={() => {
+                  setYearlyEarningsYear(new Date().getFullYear());
+                  setYearlyEarningsModalOpen(true);
+                }}
+                className="shrink-0 px-4 py-2 rounded-lg bg-cyan-500/25 border border-cyan-400/40 text-cyan-100 hover:bg-cyan-500/35 transition-colors text-sm font-semibold w-full sm:w-auto text-center"
+              >
+                Ver {new Date().getFullYear()}
+              </button>
+            </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
                 <p className="text-white/60 text-xs mb-1">Ganancia Mensual Real</p>
@@ -2417,6 +2440,19 @@ export default function Admin() {
           >
             <h3 className="text-lg font-semibold text-white mb-4">Acciones Rápidas</h3>
             <div className="space-y-3">
+              <button
+                type="button"
+                onClick={() => setAssignedTrainerModalOpen(true)}
+                className="w-full px-4 py-2 rounded-lg bg-emerald-500/20 border border-emerald-400/35 text-emerald-100 hover:bg-emerald-500/30 transition-colors text-sm font-medium inline-flex items-center justify-center gap-2"
+              >
+                <FaUserFriends className="h-3.5 w-3.5 shrink-0" />
+                <span className="text-left flex-1">Entrenadores asignados</span>
+                {assignedTrainerUsers.length > 0 && (
+                  <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[10px] bg-emerald-400/25 text-emerald-100 border border-emerald-400/30">
+                    {assignedTrainerUsers.length}
+                  </span>
+                )}
+              </button>
               <button
                 onClick={() => {
                   const pendingUsers = users.filter(u => {
@@ -2499,83 +2535,167 @@ export default function Admin() {
 
         {/* Clientes provenientes del formulario de inicio */}
         <div className="rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm overflow-hidden mb-8">
-          <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+          <div className="px-5 py-4 border-b border-white/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold">Clientes del formulario de inicio</h2>
               <p className="text-xs text-white/60 mt-1">Leads que te contactan para entrenamiento 1:1</p>
             </div>
-            <span className="text-sm text-cyan-300 font-medium">{intakeClients.length}</span>
+            <span className="inline-flex items-center gap-2 rounded-full bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 px-3 py-1 text-xs font-medium w-fit">
+              {filteredIntakeClients.length} de {intakeClients.length}
+            </span>
           </div>
+          {!loadingIntakeClients && intakeClients.length > 0 && (
+            <div className="px-5 py-3 border-t border-white/10 grid grid-cols-1 lg:grid-cols-3 gap-2.5 bg-black/10">
+              <input
+                type="text"
+                value={intakeSearchQuery}
+                onChange={(e) => setIntakeSearchQuery(e.target.value)}
+                placeholder="Buscar por nombre, email, WhatsApp, Instagram..."
+                className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-cyan-500/45"
+              />
+              <select
+                value={intakePaymentFilter}
+                onChange={(e) =>
+                  setIntakePaymentFilter(e.target.value as "all" | "paid" | "pending" | "unpaid")
+                }
+                className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/45"
+              >
+                <option value="all">Todos los pagos</option>
+                <option value="paid">Pagado mes actual</option>
+                <option value="pending">Pendiente</option>
+                <option value="unpaid">No pagó</option>
+              </select>
+              <div className="flex gap-2">
+                <select
+                  value={intakeServiceFilter}
+                  onChange={(e) => setIntakeServiceFilter(e.target.value)}
+                  className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/45"
+                >
+                  <option value="all">Todos los servicios</option>
+                  {intakeServiceOptions.map((service) => (
+                    <option key={service} value={service}>
+                      {service}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIntakeSearchQuery("");
+                    setIntakePaymentFilter("all");
+                    setIntakeServiceFilter("all");
+                  }}
+                  className="shrink-0 px-3 py-2 rounded-lg border border-white/20 bg-white/10 text-white/85 hover:bg-white/20 text-xs font-medium transition-colors"
+                >
+                  Limpiar
+                </button>
+              </div>
+            </div>
+          )}
 
           {loadingIntakeClients ? (
             <div className="px-5 py-6 text-sm text-white/70">Cargando clientes...</div>
           ) : intakeClients.length === 0 ? (
             <div className="px-5 py-6 text-sm text-white/70">Aún no hay envíos del formulario.</div>
+          ) : filteredIntakeClients.length === 0 ? (
+            <div className="px-5 py-6 text-sm text-white/70">No hay resultados con esos filtros.</div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1180px]">
-                <thead className="bg-white/5 border-b border-white/10">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Nombre</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Email</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">WhatsApp</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Instagram</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Servicio</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Objetivo</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Trabajo</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Fecha</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Pago mes actual</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/10">
-                  {intakeClients.map((client) => (
-                    <tr
-                      key={client.id}
-                      className={`hover:bg-white/5 transition-colors ${
-                        intakePlanGeneratingClientId === client.id
-                          ? "bg-cyan-500/[0.12] ring-1 ring-inset ring-cyan-400/40"
-                          : ""
-                      }`}
-                    >
-                      <td className="px-4 py-3 text-sm text-white">{client.nombreCompleto || "N/A"}</td>
-                      <td className="px-4 py-3 text-sm text-white/85">{client.email || "N/A"}</td>
-                      <td className="px-4 py-3 text-sm text-white/85">{client.whatsapp || "N/A"}</td>
-                      <td className="px-4 py-3 text-sm text-white/85">{client.instagram || "N/A"}</td>
-                      <td className="px-4 py-3 text-sm text-white/85">{client.servicioInteres || "N/A"}</td>
-                      <td className="px-4 py-3 text-sm text-white/85">{client.objetivoPrincipal || "N/A"}</td>
-                      <td className="px-4 py-3 text-sm text-white/70">
-                        {client.trabajoTurnos || client.diasTrabajo.length > 0
-                          ? `${client.trabajoTurnos || "Sin horas"}${client.diasTrabajo.length > 0 ? ` · ${client.diasTrabajo.join(", ")}` : ""}`
-                          : "N/A"}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-white/70">
-                        {client.createdAt
-                          ? new Date(client.createdAt).toLocaleString("es-ES", {
-                              day: "2-digit",
-                              month: "2-digit",
-                              year: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
-                          : "N/A"}
-                      </td>
-                      <td className="px-4 py-3 text-sm">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-full border text-xs ${
-                            isIntakeCurrentMonthPaid(client)
-                              ? "bg-green-500/20 text-green-300 border-green-500/40"
-                              : client.paymentStatus === "pending"
-                              ? "bg-yellow-500/20 text-yellow-300 border-yellow-500/40"
-                              : "bg-red-500/20 text-red-300 border-red-500/40"
-                          }`}
-                        >
-                          <FaCircle className="h-2.5 w-2.5" />
-                          {isIntakeCurrentMonthPaid(client) ? "Pagado" : client.paymentStatus === "pending" ? "Pendiente" : "No pagó"}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm">
-                        <div className="max-w-[420px] overflow-x-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+            <>
+              {/* Desktop */}
+              <div className="hidden lg:block overflow-x-auto">
+                <table className="w-full min-w-[1280px]">
+                  <thead className="bg-white/5 border-b border-white/10">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Cliente</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Perfil</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Contacto</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Pago</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Peso inicial</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Creado</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/10">
+                    {filteredIntakeClients.map((client) => (
+                      <tr
+                        key={client.id}
+                        className={`hover:bg-white/5 transition-colors align-top ${
+                          intakePlanGeneratingClientId === client.id
+                            ? "bg-cyan-500/[0.12] ring-1 ring-inset ring-cyan-400/40"
+                            : ""
+                        }`}
+                      >
+                        <td className="px-4 py-3 text-sm text-white min-w-[220px]">
+                          <p className="font-medium text-white">{client.nombreCompleto || "N/A"}</p>
+                          <p className="text-white/60 text-xs mt-1">ID: {client.id}</p>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-white/85 min-w-[290px]">
+                          <div className="flex flex-wrap gap-1.5">
+                            <span className="px-2 py-0.5 rounded-full border border-white/20 bg-white/5 text-[11px] text-white/85">
+                              Servicio: {client.servicioInteres || "N/A"}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full border border-white/20 bg-white/5 text-[11px] text-white/85">
+                              Objetivo: {client.objetivoPrincipal || "N/A"}
+                            </span>
+                          </div>
+                          <p className="text-white/65 text-xs mt-2">
+                            Trabajo:{" "}
+                            {client.trabajoTurnos || client.diasTrabajo.length > 0
+                              ? `${client.trabajoTurnos || "Sin horas"}${client.diasTrabajo.length > 0 ? ` · ${client.diasTrabajo.join(", ")}` : ""}`
+                              : "N/A"}
+                          </p>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-white/85 min-w-[240px]">
+                          <div className="space-y-1.5">
+                            <p className="text-xs text-white/80">
+                              <span className="text-white/55">Email:</span> {client.email || "N/A"}
+                            </p>
+                            <p className="text-xs text-white/80">
+                              <span className="text-white/55">WhatsApp:</span> {client.whatsapp || "N/A"}
+                            </p>
+                            <p className="text-xs text-white/80">
+                              <span className="text-white/55">Instagram:</span> {client.instagram || "N/A"}
+                            </p>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-sm min-w-[140px]">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-1 rounded-full border text-xs ${
+                              isIntakeCurrentMonthPaid(client)
+                                ? "bg-green-500/20 text-green-300 border-green-500/40"
+                                : client.paymentStatus === "pending"
+                                ? "bg-yellow-500/20 text-yellow-300 border-yellow-500/40"
+                                : "bg-red-500/20 text-red-300 border-red-500/40"
+                            }`}
+                          >
+                            <FaCircle className="h-2.5 w-2.5" />
+                            {isIntakeCurrentMonthPaid(client) ? "Pagado" : client.paymentStatus === "pending" ? "Pendiente" : "No pagó"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-white/70 min-w-[100px] tabular-nums">
+                          {typeof client.pesoInicialKg === "number" && Number.isFinite(client.pesoInicialKg) ? (
+                            <span className="text-white/90 font-medium">
+                              {Number.isInteger(client.pesoInicialKg)
+                                ? client.pesoInicialKg
+                                : client.pesoInicialKg.toFixed(1)}{" "}
+                              kg
+                            </span>
+                          ) : (
+                            <span className="text-white/45">—</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-white/70 min-w-[150px]">
+                          {client.createdAt
+                            ? new Date(client.createdAt).toLocaleString("es-ES", {
+                                day: "2-digit",
+                                month: "2-digit",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })
+                            : "N/A"}
+                        </td>
+                        <td className="px-4 py-3 text-sm min-w-[420px]">
                           {intakePlanGeneratingClientId === client.id && (
                             <div className="mb-2 rounded-lg border border-cyan-400/35 bg-cyan-500/15 px-2.5 py-2 text-xs text-cyan-100 flex flex-wrap items-center gap-2">
                               <span className="inline-block h-3.5 w-3.5 border-2 border-cyan-300/40 border-t-cyan-100 rounded-full animate-spin shrink-0" />
@@ -2586,75 +2706,237 @@ export default function Admin() {
                               </span>
                             </div>
                           )}
-                          <div className="flex flex-nowrap gap-2 min-w-max pr-2">
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenIntakeClientDetail(client)}
+                              className="px-3 py-1.5 rounded-lg bg-slate-500/20 border border-slate-400/40 text-slate-200 hover:bg-slate-500/30 transition-colors inline-flex items-center gap-1.5"
+                            >
+                              <FaUser className="h-3.5 w-3.5" />
+                              <span>Datos</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openIntakePlanModal(client, "generate")}
+                              disabled={intakePlanGeneratingClientId !== null}
+                              className="px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 hover:bg-emerald-500/30 transition-colors inline-flex items-center gap-1.5 disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:bg-emerald-500/20"
+                            >
+                              <FaPlusCircle className="h-3.5 w-3.5" />
+                              <span>Generar</span>
+                            </button>
+                            {client.latestPlanId && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => openIntakePlanModal(client, "update")}
+                                  disabled={intakePlanGeneratingClientId !== null}
+                                  className="px-3 py-1.5 rounded-lg bg-blue-500/20 border border-blue-400/40 text-blue-200 hover:bg-blue-500/30 transition-colors inline-flex items-center gap-1.5 disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:bg-blue-500/20"
+                                >
+                                  <FaSyncAlt className="h-3.5 w-3.5" />
+                                  <span>Actualizar</span>
+                                </button>
+                                <button
+                                  onClick={() => handleOpenGeneratedPlan(client)}
+                                  className="px-3 py-1.5 rounded-lg bg-violet-500/20 border border-violet-400/40 text-violet-200 hover:bg-violet-500/30 transition-colors inline-flex items-center gap-1.5"
+                                >
+                                  <FaEye className="h-3.5 w-3.5" />
+                                  <span>Ver</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void handleCopyIntakeClientPublicPlanLink(client)}
+                                  className="px-3 py-1.5 rounded-lg bg-teal-500/20 border border-teal-400/40 text-teal-100 hover:bg-teal-500/30 transition-colors inline-flex items-center gap-1.5"
+                                  title="Copiar URL para que el cliente vea su plan (nutrición y entreno) sin iniciar sesión"
+                                >
+                                  <FaExternalLinkAlt className="h-3.5 w-3.5" />
+                                  <span>Enlace web</span>
+                                </button>
+                                <button
+                                  onClick={() => openDeletePlanModal(client)}
+                                  disabled={processingIntakeAction}
+                                  className="px-3 py-1.5 rounded-lg bg-orange-500/20 border border-orange-400/40 text-orange-200 hover:bg-orange-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
+                                >
+                                  <FaTrashAlt className="h-3.5 w-3.5" />
+                                  <span>Eliminar plan</span>
+                                </button>
+                              </>
+                            )}
+                            <button
+                              onClick={() => openIntakePaymentModal(client)}
+                              className="px-3 py-1.5 rounded-lg bg-emerald-600/20 border border-emerald-400/40 text-emerald-200 hover:bg-emerald-600/30 transition-colors inline-flex items-center gap-1.5"
+                            >
+                              <FaLink className="h-3.5 w-3.5" />
+                              <span>Link pago</span>
+                            </button>
+                            <button
+                              onClick={() => openDeleteUserModal(client)}
+                              disabled={processingIntakeAction}
+                              className="px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-400/40 text-red-200 hover:bg-red-500/30 transition-colors disabled:opacity-60 inline-flex items-center gap-1.5"
+                            >
+                              <FaTrashAlt className="h-3.5 w-3.5" />
+                              <span>Eliminar</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile / Tablet */}
+              <div className="lg:hidden p-4 space-y-3">
+                {filteredIntakeClients.map((client) => (
+                  <div
+                    key={client.id}
+                    className={`rounded-xl border p-3 ${
+                      intakePlanGeneratingClientId === client.id
+                        ? "border-cyan-400/40 bg-cyan-500/10"
+                        : "border-white/10 bg-black/20"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-white">{client.nombreCompleto || "N/A"}</p>
+                        <p className="text-[11px] text-white/55 mt-0.5">
+                          {client.createdAt
+                            ? `Creado: ${new Date(client.createdAt).toLocaleString("es-ES", {
+                                day: "2-digit",
+                                month: "2-digit",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}`
+                            : "Creado: N/A"}
+                        </p>
+                      </div>
+                      <span
+                        className={`inline-flex items-center gap-1 px-2 py-1 rounded-full border text-[11px] ${
+                          isIntakeCurrentMonthPaid(client)
+                            ? "bg-green-500/20 text-green-300 border-green-500/40"
+                            : client.paymentStatus === "pending"
+                            ? "bg-yellow-500/20 text-yellow-300 border-yellow-500/40"
+                            : "bg-red-500/20 text-red-300 border-red-500/40"
+                        }`}
+                      >
+                        <FaCircle className="h-2.5 w-2.5" />
+                        {isIntakeCurrentMonthPaid(client) ? "Pagado" : client.paymentStatus === "pending" ? "Pendiente" : "No pagó"}
+                      </span>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                      <p className="text-white/80"><span className="text-white/55">Email:</span> {client.email || "N/A"}</p>
+                      <p className="text-white/80"><span className="text-white/55">WhatsApp:</span> {client.whatsapp || "N/A"}</p>
+                      <p className="text-white/80"><span className="text-white/55">Instagram:</span> {client.instagram || "N/A"}</p>
+                      <p className="text-white/80"><span className="text-white/55">Servicio:</span> {client.servicioInteres || "N/A"}</p>
+                      <p className="text-white/80 sm:col-span-2"><span className="text-white/55">Objetivo:</span> {client.objetivoPrincipal || "N/A"}</p>
+                      <p className="text-white/80">
+                        <span className="text-white/55">Peso inicial:</span>{" "}
+                        {typeof client.pesoInicialKg === "number" && Number.isFinite(client.pesoInicialKg) ? (
+                          <span className="text-white/90 font-medium tabular-nums">
+                            {Number.isInteger(client.pesoInicialKg)
+                              ? client.pesoInicialKg
+                              : client.pesoInicialKg.toFixed(1)}{" "}
+                            kg
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </p>
+                      <p className="text-white/70 sm:col-span-2">
+                        <span className="text-white/55">Trabajo:</span>{" "}
+                        {client.trabajoTurnos || client.diasTrabajo.length > 0
+                          ? `${client.trabajoTurnos || "Sin horas"}${client.diasTrabajo.length > 0 ? ` · ${client.diasTrabajo.join(", ")}` : ""}`
+                          : "N/A"}
+                      </p>
+                    </div>
+
+                    {intakePlanGeneratingClientId === client.id && (
+                      <div className="mt-3 rounded-lg border border-cyan-400/35 bg-cyan-500/15 px-2.5 py-2 text-xs text-cyan-100 flex flex-wrap items-center gap-2">
+                        <span className="inline-block h-3.5 w-3.5 border-2 border-cyan-300/40 border-t-cyan-100 rounded-full animate-spin shrink-0" />
+                        <span>
+                          {intakePlanActionType === "generate"
+                            ? "Generando plan… (la IA puede tardar 1–2 min)."
+                            : "Actualizando plan… (la IA puede tardar 1–2 min)."}
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenIntakeClientDetail(client)}
+                        className="px-3 py-1.5 rounded-lg bg-slate-500/20 border border-slate-400/40 text-slate-200 hover:bg-slate-500/30 transition-colors inline-flex items-center gap-1.5 text-xs"
+                      >
+                        <FaUser className="h-3.5 w-3.5" />
+                        <span>Datos</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openIntakePlanModal(client, "generate")}
+                        disabled={intakePlanGeneratingClientId !== null}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 hover:bg-emerald-500/30 transition-colors inline-flex items-center gap-1.5 disabled:opacity-45 disabled:cursor-not-allowed text-xs"
+                      >
+                        <FaPlusCircle className="h-3.5 w-3.5" />
+                        <span>Generar</span>
+                      </button>
+                      {client.latestPlanId && (
+                        <>
                           <button
                             type="button"
-                            onClick={() => handleOpenIntakeClientDetail(client)}
-                            className="px-3 py-1.5 rounded-lg bg-slate-500/20 border border-slate-400/40 text-slate-200 hover:bg-slate-500/30 transition-colors inline-flex items-center gap-1.5"
-                          >
-                            <FaUser className="h-3.5 w-3.5" />
-                            <span>Datos del Cliente</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => openIntakePlanModal(client, "generate")}
+                            onClick={() => openIntakePlanModal(client, "update")}
                             disabled={intakePlanGeneratingClientId !== null}
-                            className="px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 hover:bg-emerald-500/30 transition-colors inline-flex items-center gap-1.5 disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:bg-emerald-500/20"
+                            className="px-3 py-1.5 rounded-lg bg-blue-500/20 border border-blue-400/40 text-blue-200 hover:bg-blue-500/30 transition-colors inline-flex items-center gap-1.5 disabled:opacity-45 disabled:cursor-not-allowed text-xs"
                           >
-                            <FaPlusCircle className="h-3.5 w-3.5" />
-                            <span>Generar Plan/es</span>
-                          </button>
-                          {client.latestPlanId && (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => openIntakePlanModal(client, "update")}
-                                disabled={intakePlanGeneratingClientId !== null}
-                                className="px-3 py-1.5 rounded-lg bg-blue-500/20 border border-blue-400/40 text-blue-200 hover:bg-blue-500/30 transition-colors inline-flex items-center gap-1.5 disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:bg-blue-500/20"
-                              >
-                                <FaSyncAlt className="h-3.5 w-3.5" />
-                                <span>Actualizar Plan/es</span>
-                              </button>
-                              <button
-                                onClick={() => handleOpenGeneratedPlan(client)}
-                                className="px-3 py-1.5 rounded-lg bg-violet-500/20 border border-violet-400/40 text-violet-200 hover:bg-violet-500/30 transition-colors inline-flex items-center gap-1.5"
-                              >
-                                <FaEye className="h-3.5 w-3.5" />
-                                <span>Ver Plan/es</span>
-                              </button>
-                              <button
-                                onClick={() => openDeletePlanModal(client)}
-                                disabled={processingIntakeAction}
-                                className="px-3 py-1.5 rounded-lg bg-orange-500/20 border border-orange-400/40 text-orange-200 hover:bg-orange-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
-                              >
-                                <FaTrashAlt className="h-3.5 w-3.5" />
-                                <span>Eliminar Plan/es</span>
-                              </button>
-                            </>
-                          )}
-                          <button
-                            onClick={() => openIntakePaymentModal(client)}
-                            className="px-3 py-1.5 rounded-lg bg-emerald-600/20 border border-emerald-400/40 text-emerald-200 hover:bg-emerald-600/30 transition-colors inline-flex items-center gap-1.5"
-                          >
-                            <FaLink className="h-3.5 w-3.5" />
-                            <span>Enviar Link Pago</span>
+                            <FaSyncAlt className="h-3.5 w-3.5" />
+                            <span>Actualizar</span>
                           </button>
                           <button
-                            onClick={() => openDeleteUserModal(client)}
+                            onClick={() => handleOpenGeneratedPlan(client)}
+                            className="px-3 py-1.5 rounded-lg bg-violet-500/20 border border-violet-400/40 text-violet-200 hover:bg-violet-500/30 transition-colors inline-flex items-center gap-1.5 text-xs"
+                          >
+                            <FaEye className="h-3.5 w-3.5" />
+                            <span>Ver</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleCopyIntakeClientPublicPlanLink(client)}
+                            className="px-3 py-1.5 rounded-lg bg-teal-500/20 border border-teal-400/40 text-teal-100 hover:bg-teal-500/30 transition-colors inline-flex items-center gap-1.5 text-xs"
+                            title="Copiar URL para el cliente"
+                          >
+                            <FaExternalLinkAlt className="h-3.5 w-3.5" />
+                            <span>Enlace web</span>
+                          </button>
+                          <button
+                            onClick={() => openDeletePlanModal(client)}
                             disabled={processingIntakeAction}
-                            className="px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-400/40 text-red-200 hover:bg-red-500/30 transition-colors disabled:opacity-60 inline-flex items-center gap-1.5"
+                            className="px-3 py-1.5 rounded-lg bg-orange-500/20 border border-orange-400/40 text-orange-200 hover:bg-orange-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5 text-xs"
                           >
                             <FaTrashAlt className="h-3.5 w-3.5" />
-                            <span>Eliminar Usuario</span>
+                            <span>Eliminar plan</span>
                           </button>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                        </>
+                      )}
+                      <button
+                        onClick={() => openIntakePaymentModal(client)}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-600/20 border border-emerald-400/40 text-emerald-200 hover:bg-emerald-600/30 transition-colors inline-flex items-center gap-1.5 text-xs"
+                      >
+                        <FaLink className="h-3.5 w-3.5" />
+                        <span>Link pago</span>
+                      </button>
+                      <button
+                        onClick={() => openDeleteUserModal(client)}
+                        disabled={processingIntakeAction}
+                        className="px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-400/40 text-red-200 hover:bg-red-500/30 transition-colors disabled:opacity-60 inline-flex items-center gap-1.5 text-xs"
+                      >
+                        <FaTrashAlt className="h-3.5 w-3.5" />
+                        <span>Eliminar</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </div>
 
@@ -4612,6 +4894,264 @@ export default function Admin() {
         )}
 
         {/* Modal para enviar mensaje a usuario */}
+        {assignedTrainerModalOpen && (
+          <div
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setAssignedTrainerModalOpen(false);
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.97 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-gray-900 rounded-xl border border-emerald-500/30 max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-white/10 shrink-0">
+                <h2 className="text-lg font-semibold text-white">Usuarios con entrenador asignado</h2>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="inline-flex rounded-lg border border-white/20 bg-black/20 p-1 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setTrainerPreferenceFilter("all")}
+                      className={`px-2 py-1 rounded-md transition-colors ${
+                        trainerPreferenceFilter === "all" ? "bg-white/20 text-white" : "text-white/70 hover:text-white"
+                      }`}
+                    >
+                      Todos
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTrainerPreferenceFilter("hombre")}
+                      className={`px-2 py-1 rounded-md transition-colors ${
+                        trainerPreferenceFilter === "hombre" ? "bg-cyan-500/30 text-cyan-100" : "text-white/70 hover:text-white"
+                      }`}
+                    >
+                      Hombre
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTrainerPreferenceFilter("mujer")}
+                      className={`px-2 py-1 rounded-md transition-colors ${
+                        trainerPreferenceFilter === "mujer" ? "bg-fuchsia-500/30 text-fuchsia-100" : "text-white/70 hover:text-white"
+                      }`}
+                    >
+                      Mujer
+                    </button>
+                  </div>
+                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-white/10 border border-white/20 text-white/85">
+                    {filteredAssignedTrainerUsers.length} usuarios
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setAssignedTrainerModalOpen(false)}
+                    className="px-3 py-1.5 rounded-lg bg-white/10 border border-white/20 text-white/90 hover:bg-white/20 text-sm"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+              <div className="overflow-y-auto flex-1 px-5 py-4">
+                {filteredAssignedTrainerUsers.length === 0 ? (
+                  <p className="text-sm text-white/70">
+                    Aún no hay solicitudes de entrenador personal humano.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                    {visibleAssignedTrainerUsers.map((user) => (
+                      <div
+                        key={user.id}
+                        className="rounded-lg border border-white/15 bg-black/20 p-3 text-sm text-white/85"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-medium text-white">{user.nombre || user.email || user.id}</p>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[11px] border ${
+                              user.personalTrainerPreference === "mujer"
+                                ? "bg-fuchsia-500/20 border-fuchsia-400/40 text-fuchsia-100"
+                                : user.personalTrainerPreference === "hombre"
+                                  ? "bg-cyan-500/20 border-cyan-400/40 text-cyan-100"
+                                  : "bg-white/10 border-white/25 text-white/80"
+                            }`}
+                          >
+                            {user.personalTrainerPreference === "mujer"
+                              ? "Entrenadora"
+                              : user.personalTrainerPreference === "hombre"
+                                ? "Entrenador"
+                                : "Sin preferencia"}
+                          </span>
+                        </div>
+                        <p className="text-xs text-white/60">{user.email || "Sin email"}</p>
+                        {user.personalTrainerRequestNote && (
+                          <p className="mt-2 text-xs text-white/75 line-clamp-3">
+                            Motivo: {user.personalTrainerRequestNote}
+                          </p>
+                        )}
+                        {(user.personalTrainerPreference || user.personalTrainerFocus) && (
+                          <p className="mt-1 text-xs text-white/70 line-clamp-2">
+                            Preferencia: {user.personalTrainerPreference || "N/A"} | Enfoque: {user.personalTrainerFocus || "N/A"}
+                          </p>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => window.open("https://wa.me/34627043397", "_blank", "noopener,noreferrer")}
+                          className="mt-3 w-full px-3 py-1.5 rounded-lg bg-emerald-500/25 border border-emerald-400/40 text-emerald-100 hover:bg-emerald-500/35 transition-colors"
+                        >
+                          Contactar por WhatsApp
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {filteredAssignedTrainerUsers.length > 12 && (
+                  <div className="mt-4 flex items-center justify-center gap-2">
+                    {hasMoreAssignedTrainerUsers ? (
+                      <button
+                        type="button"
+                        onClick={() => setAssignedTrainerVisibleCount((prev) => prev + 12)}
+                        className="px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white/90 hover:bg-white/20 transition-colors text-sm"
+                      >
+                        Ver más
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setAssignedTrainerVisibleCount(12)}
+                        className="px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white/90 hover:bg-white/20 transition-colors text-sm"
+                      >
+                        Ver menos
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {yearlyEarningsModalOpen && (
+          <div
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-3 sm:p-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setYearlyEarningsModalOpen(false);
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.97 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-gray-900 rounded-xl border border-cyan-500/30 max-w-xl w-full max-h-[min(90vh,720px)] overflow-hidden flex flex-col shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5 sm:py-4 border-b border-white/10 shrink-0">
+                <h2 className="text-base sm:text-lg font-semibold text-white">Ganancias por mes</h2>
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+                  <label className="flex items-center gap-2 text-sm text-white/80">
+                    <span className="sr-only">Año</span>
+                    <select
+                      value={yearlyEarningsYear}
+                      onChange={(e) => setYearlyEarningsYear(Number(e.target.value))}
+                      className="rounded-lg border border-white/20 bg-black/40 px-3 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                    >
+                      {Array.from(
+                        { length: new Date().getFullYear() - 2019 },
+                        (_, i) => 2020 + i
+                      ).map((y) => (
+                        <option key={y} value={y}>
+                          {y}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setYearlyEarningsModalOpen(false)}
+                    className="px-3 py-1.5 rounded-lg bg-white/10 border border-white/20 text-white/90 hover:bg-white/20 text-sm"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+              <div className="overflow-y-auto flex-1 px-4 py-3 sm:px-5 sm:py-4 min-h-0">
+                {yearlyEarningsLoading && (
+                  <p className="text-sm text-white/60">Cargando…</p>
+                )}
+                {!yearlyEarningsLoading && yearlyEarningsPayload && (
+                  <>
+                    <p className="text-white/60 text-xs mb-3">
+                      Mercado Pago en pesos (ARS); Stripe en euros (EUR). Meses antiguos sin desglose aparecen aparte.
+                    </p>
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] gap-x-2 gap-y-1 text-[11px] sm:text-xs text-white/60 mb-2 px-1 border-b border-white/10 pb-2">
+                      <span>Mes</span>
+                      <span className="text-right">Pagos</span>
+                      <span className="text-right">ARS</span>
+                      <span className="text-right">EUR</span>
+                    </div>
+                    <ul className="space-y-2">
+                      {yearlyEarningsPayload.months.map((row) => (
+                        <li
+                          key={row.monthId}
+                          className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] gap-x-2 gap-y-1 text-sm items-center rounded-lg border border-white/10 bg-black/25 px-2 py-2 sm:px-3"
+                        >
+                          <span className="text-white/90 font-medium truncate">{row.monthLabel}</span>
+                          <span className="text-white/50 text-[11px] sm:text-xs tabular-nums text-right">
+                            {row.paymentCount > 0 ? row.paymentCount : "—"}
+                          </span>
+                          <span className="text-green-400 font-semibold tabular-nums text-right text-xs sm:text-sm">
+                            {row.totalEarningsArs > 0
+                              ? `$${row.totalEarningsArs.toLocaleString("es-AR")}`
+                              : "—"}
+                          </span>
+                          <span className="text-sky-300 font-semibold tabular-nums text-right text-xs sm:text-sm">
+                            {row.totalEarningsEur > 0
+                              ? `€${row.totalEarningsEur.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                              : "—"}
+                          </span>
+                          {row.legacyTotal > 0 &&
+                            row.totalEarningsArs === 0 &&
+                            row.totalEarningsEur === 0 && (
+                            <span className="col-span-4 text-[10px] text-amber-200/80 pl-0.5 -mt-0.5">
+                              Solo total histórico (sin ARS/EUR separados): ${row.legacyTotal.toLocaleString("es-AR")}
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="mt-4 pt-4 border-t border-white/15 space-y-2">
+                      <span className="text-white font-semibold">Total año {yearlyEarningsPayload.year}</span>
+                      <div className="flex flex-wrap justify-between gap-2 text-sm">
+                        <span className="text-white/70">ARS</span>
+                        <span className="text-green-400 font-bold tabular-nums">
+                          ${yearlyEarningsPayload.yearlyTotalArs.toLocaleString("es-AR")}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap justify-between gap-2 text-sm">
+                        <span className="text-white/70">EUR</span>
+                        <span className="text-sky-300 font-bold tabular-nums">
+                          €{yearlyEarningsPayload.yearlyTotalEur.toLocaleString("es-AR", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </span>
+                      </div>
+                      {yearlyEarningsPayload.yearlyLegacyTotal > 0 && (
+                        <div className="flex flex-wrap justify-between gap-2 text-sm">
+                          <span className="text-amber-200/90">Histórico sin desglose</span>
+                          <span className="text-amber-200 font-semibold tabular-nums">
+                            ${yearlyEarningsPayload.yearlyLegacyTotal.toLocaleString("es-AR")}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+                {!yearlyEarningsLoading && !yearlyEarningsPayload && (
+                  <p className="text-sm text-red-300/90">No se pudieron cargar las ganancias de ese año.</p>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+
         {sendMessageModalOpen && selectedUserForMessage && authUser && (
           <AdminSendMessageModal
             isOpen={sendMessageModalOpen}
@@ -4623,6 +5163,7 @@ export default function Admin() {
             adminUserId={authUser.uid}
           />
         )}
+
       </div>
     </div>
   );
@@ -5414,6 +5955,28 @@ function IntakeClientDetailsModal({
   );
 }
 
+function collectExerciseNamesFromIntakeTrainingPlan(tp: Record<string, unknown>): string[] {
+  const weeks = tp.weeks;
+  if (!Array.isArray(weeks)) return [];
+  const set = new Set<string>();
+  weeks.forEach((w: unknown) => {
+    if (!w || typeof w !== "object") return;
+    const days = Array.isArray((w as { days?: unknown }).days) ? (w as { days: unknown[] }).days : [];
+    days.forEach((d: unknown) => {
+      if (!d || typeof d !== "object") return;
+      const ejercicios = Array.isArray((d as { ejercicios?: unknown }).ejercicios)
+        ? (d as { ejercicios: unknown[] }).ejercicios
+        : [];
+      ejercicios.forEach((e: unknown) => {
+        if (!e || typeof e !== "object") return;
+        const n = typeof (e as { name?: unknown }).name === "string" ? (e as { name: string }).name.trim() : "";
+        if (n.length >= 2) set.add(n);
+      });
+    });
+  });
+  return Array.from(set).sort((a, b) => a.localeCompare(b, "es"));
+}
+
 function IntakeGeneratedPlanModal({
   isOpen,
   onClose,
@@ -5433,6 +5996,48 @@ function IntakeGeneratedPlanModal({
   const [showTechnicalJson, setShowTechnicalJson] = useState(false);
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
   const [exportingFormat, setExportingFormat] = useState<"pdf" | "word" | "excel" | null>(null);
+  const [exerciseMediaRows, setExerciseMediaRows] = useState<Array<{ name: string; video: string; poster: string }>>([]);
+  const [savingExerciseMedia, setSavingExerciseMedia] = useState(false);
+  const [exerciseMediaMessage, setExerciseMediaMessage] = useState<string | null>(null);
+  /** Tras guardar, sustituye la vista previa de overrides; null = usar solo el plan cargado. */
+  const [savedMediaOverrides, setSavedMediaOverrides] = useState<Record<
+    string,
+    { demo_video_url?: string; demo_poster_url?: string }
+  > | null>(null);
+
+  useEffect(() => {
+    if (!isOpen || !plan?.plan) {
+      setExerciseMediaRows([]);
+      setSavedMediaOverrides(null);
+      return;
+    }
+    const root = plan.plan as Record<string, unknown>;
+    const tp = root.training_plan;
+    if (!tp || typeof tp !== "object") {
+      setExerciseMediaRows([]);
+      setSavedMediaOverrides(null);
+      return;
+    }
+    setSavedMediaOverrides(null);
+    const tpObj = tp as Record<string, unknown>;
+    const names = collectExerciseNamesFromIntakeTrainingPlan(tpObj);
+    const ov =
+      tpObj.exercise_media_overrides && typeof tpObj.exercise_media_overrides === "object" && !Array.isArray(tpObj.exercise_media_overrides)
+        ? (tpObj.exercise_media_overrides as Record<string, { demo_video_url?: string; demo_poster_url?: string }>)
+        : {};
+    setExerciseMediaRows(
+      names.map((name) => {
+        const k = normalizeExerciseMediaKey(name);
+        return {
+          name,
+          video: ov[k]?.demo_video_url?.trim() || "",
+          poster: ov[k]?.demo_poster_url?.trim() || "",
+        };
+      })
+    );
+    setExerciseMediaMessage(null);
+  }, [isOpen, plan?.id, plan?.plan]);
+
   if (!isOpen) return null;
   const nutritionDays = Array.isArray(plan?.plan?.plan_semanal) ? plan?.plan?.plan_semanal.length : 0;
   const trainingWeeks = Array.isArray(plan?.plan?.training_plan && (plan.plan.training_plan as { weeks?: unknown[] }).weeks)
@@ -5461,6 +6066,65 @@ function IntakeGeneratedPlanModal({
     Array.isArray((trainingPlan.weeks as Array<Record<string, unknown>>)[0].days)
       ? (((trainingPlan.weeks as Array<Record<string, unknown>>)[0].days as Array<Record<string, unknown>>) || [])
       : [];
+
+  type ExerciseMediaOv = Record<string, { demo_video_url?: string; demo_poster_url?: string }>;
+  const baseExerciseMediaOv: ExerciseMediaOv =
+    trainingPlan &&
+    typeof trainingPlan.exercise_media_overrides === "object" &&
+    !Array.isArray(trainingPlan.exercise_media_overrides)
+      ? (trainingPlan.exercise_media_overrides as ExerciseMediaOv)
+      : {};
+  const planMediaOverridesMerged: ExerciseMediaOv =
+    savedMediaOverrides !== null ? savedMediaOverrides : baseExerciseMediaOv;
+
+  const handleSaveExerciseMedia = async () => {
+    const auth = getAuthSafe();
+    if (!auth?.currentUser || !plan?.id) {
+      setExerciseMediaMessage("No hay sesión o plan.");
+      return;
+    }
+    setSavingExerciseMedia(true);
+    setExerciseMediaMessage(null);
+    try {
+      const exercise_media_overrides: ExerciseMediaOv = {};
+      for (const row of exerciseMediaRows) {
+        const v = row.video.trim();
+        const p = row.poster.trim();
+        if (!v && !p) continue;
+        exercise_media_overrides[row.name] = {
+          ...(v ? { demo_video_url: v } : {}),
+          ...(p ? { demo_poster_url: p } : {}),
+        };
+      }
+      const response = await fetch("/api/admin/patchIntakePlanExerciseMedia", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: auth.currentUser.uid,
+          planId: plan.id,
+          exercise_media_overrides,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || data.detail || `HTTP ${response.status}`);
+      const nextPreview: ExerciseMediaOv = {};
+      for (const row of exerciseMediaRows) {
+        const v = row.video.trim();
+        const p = row.poster.trim();
+        if (!v && !p) continue;
+        nextPreview[normalizeExerciseMediaKey(row.name)] = {
+          ...(v ? { demo_video_url: v } : {}),
+          ...(p ? { demo_poster_url: p } : {}),
+        };
+      }
+      setSavedMediaOverrides(nextPreview);
+      setExerciseMediaMessage("Guardado. Los vídeos se muestran en la vista previa y en el plan del cliente.");
+    } catch (e) {
+      setExerciseMediaMessage(e instanceof Error ? e.message : "Error al guardar");
+    } finally {
+      setSavingExerciseMedia(false);
+    }
+  };
 
   const buildWhatsappSummary = () => {
     if (!plan?.plan) return "";
@@ -5659,14 +6323,52 @@ function IntakeGeneratedPlanModal({
     downloadBlob(html, "application/msword;charset=utf-8", `plan-lucas-riera-${baseName}.doc`);
   };
 
-  const exportPlanAsExcel = () => {
+  const exportPlanAsExcel = async () => {
     if (!plan?.plan || typeof plan.plan !== "object") return;
+    const auth = getAuthSafe();
+    if (!auth?.currentUser) {
+      alert("Inicia sesión como administrador para exportar el Excel.");
+      return;
+    }
+    const root = { ...(plan.plan as Record<string, unknown>) };
+    const tpRaw = root.training_plan;
+    if (tpRaw && typeof tpRaw === "object" && !Array.isArray(tpRaw)) {
+      const liveMedia: Record<string, { demo_video_url?: string; demo_poster_url?: string }> = {
+        ...planMediaOverridesMerged,
+      };
+      for (const row of exerciseMediaRows) {
+        const v = row.video.trim();
+        const p = row.poster.trim();
+        if (!v && !p) continue;
+        const k = normalizeExerciseMediaKey(row.name);
+        liveMedia[k] = {
+          ...liveMedia[k],
+          ...(v ? { demo_video_url: v } : {}),
+          ...(p ? { demo_poster_url: p } : {}),
+        };
+      }
+      root.training_plan = {
+        ...(tpRaw as Record<string, unknown>),
+        exercise_media_overrides: liveMedia,
+      };
+    }
     const baseName = sanitizeFileName(client.nombreCompleto || client.email || "cliente");
-    const buf = buildIntakePlanXlsxBuffer(plan.plan as Record<string, unknown>, {
-      clientLabel: client.nombreCompleto || client.email || client.id,
+    const response = await fetch("/api/admin/exportIntakePlanExcel", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: auth.currentUser.uid,
+        clientLabel: client.nombreCompleto || client.email || client.id,
+        plan: root,
+      }),
     });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(typeof data.error === "string" ? data.error : `HTTP ${response.status}`);
+    }
+    const blob = await response.blob();
     downloadBlob(
-      buf,
+      blob,
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       `plan-lucas-riera-${baseName}.xlsx`
     );
@@ -5677,7 +6379,7 @@ function IntakeGeneratedPlanModal({
       setExportingFormat(format);
       if (format === "pdf") exportPlanAsPdf();
       if (format === "word") exportPlanAsWord();
-      if (format === "excel") exportPlanAsExcel();
+      if (format === "excel") await exportPlanAsExcel();
       setShowDownloadMenu(false);
     } catch {
       alert("No se pudo descargar el plan en el formato seleccionado.");
@@ -5750,7 +6452,7 @@ function IntakeGeneratedPlanModal({
                     className="w-full text-left px-3 py-2 rounded-lg text-white/90 hover:bg-white/10 transition-colors inline-flex items-center gap-2"
                   >
                     <FaFileExcel className="text-emerald-300" />
-                    Descargar Excel (.xlsx)
+                    Excel con ilustraciones (.xlsx)
                   </button>
                 </div>
               )}
@@ -5927,17 +6629,89 @@ function IntakeGeneratedPlanModal({
                       <div key={`${dayName}-${split}-${dayIndex}`} className="rounded-md border border-white/10 bg-black/20 px-3 py-3">
                         <p className="text-sm font-semibold text-violet-200">{dayName}</p>
                         <p className="text-xs text-white/70 mt-1">{split} · {exercises.length} ejercicios</p>
-                        <div className="mt-2 space-y-1">
-                          {exercises.slice(0, 6).map((exercise, exIndex) => (
-                            <p key={`${dayName}-ex-${exIndex}`} className="text-xs text-white/85">
-                              {exIndex + 1}. {String(exercise.name || "Ejercicio")} · {String(exercise.sets || "-")} series ·{" "}
-                              {String(exercise.reps || "-")} reps
-                            </p>
-                          ))}
+                        <div className="mt-2 space-y-3">
+                          {exercises.slice(0, 6).map((exercise, exIndex) => {
+                            const exName = String(exercise.name || "Ejercicio");
+                            return (
+                              <div
+                                key={`${dayName}-ex-${exIndex}`}
+                                className="text-xs text-white/85 border-b border-white/5 pb-2 last:border-0 last:pb-0"
+                              >
+                                <p>
+                                  {exIndex + 1}. {exName} · {String(exercise.sets || "-")} series ·{" "}
+                                  {String(exercise.reps || "-")} reps
+                                </p>
+                                {exName.length >= 2 ? (
+                                  <ExerciseDemoMedia
+                                    exerciseName={exName}
+                                    demoVideoUrl={typeof exercise.demo_video_url === "string" ? exercise.demo_video_url : null}
+                                    demoPosterUrl={typeof exercise.demo_poster_url === "string" ? exercise.demo_poster_url : null}
+                                    planMediaOverrides={planMediaOverridesMerged}
+                                  />
+                                ) : null}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     );
                   })}
+                </div>
+              </div>
+            )}
+
+            {plan.includeTraining && exerciseMediaRows.length > 0 && (
+              <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/[0.07] px-3 py-3 space-y-3">
+                <div>
+                  <p className="text-sm font-semibold text-emerald-100">Vídeos propios del coach</p>
+                  <p className="text-[11px] text-white/55 mt-1 leading-relaxed">
+                    Enlaces HTTPS directos a archivo (.mp4, .webm o .mov). Sin YouTube. Opcional: URL de imagen como póster (.jpg, .png, .webp).
+                    Sube el archivo a tu CDN o almacenamiento (R2, S3, etc.) y pega la URL pública.
+                  </p>
+                </div>
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                  {exerciseMediaRows.map((row) => (
+                    <div key={row.name} className="rounded-md border border-white/10 bg-black/20 p-2 space-y-1.5">
+                      <p className="text-xs font-medium text-white/90">{row.name}</p>
+                      <input
+                        type="url"
+                        value={row.video}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setExerciseMediaRows((prev) =>
+                            prev.map((r) => (r.name === row.name ? { ...r, video: v } : r))
+                          );
+                        }}
+                        placeholder="https://…/ejercicio.mp4"
+                        className="w-full rounded bg-white/5 border border-white/10 px-2 py-1.5 text-[11px] text-white placeholder:text-white/30"
+                      />
+                      <input
+                        type="url"
+                        value={row.poster}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setExerciseMediaRows((prev) =>
+                            prev.map((r) => (r.name === row.name ? { ...r, poster: v } : r))
+                          );
+                        }}
+                        placeholder="Póster opcional: https://…/poster.jpg"
+                        className="w-full rounded bg-white/5 border border-white/10 px-2 py-1.5 text-[11px] text-white placeholder:text-white/30"
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={savingExerciseMedia}
+                    onClick={() => void handleSaveExerciseMedia()}
+                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium disabled:opacity-50"
+                  >
+                    {savingExerciseMedia ? "Guardando…" : "Guardar vídeos en el plan"}
+                  </button>
+                  {exerciseMediaMessage ? (
+                    <span className="text-xs text-white/70">{exerciseMediaMessage}</span>
+                  ) : null}
                 </div>
               </div>
             )}

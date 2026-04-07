@@ -1,6 +1,6 @@
 import * as XLSX from "xlsx";
 
-export const INTAKE_EXCEL_TEMPLATE_VERSION = "2026.2";
+export const INTAKE_EXCEL_TEMPLATE_VERSION = "2026.3";
 export const SHEET_TRAINING = "Entrenamiento_seguimiento";
 export const SHEET_NUTRITION = "Nutricion";
 export const SHEET_INFO = "Instrucciones";
@@ -32,7 +32,7 @@ function asWeekArray(raw: unknown): Array<Record<string, unknown>> {
   return [];
 }
 
-function getWeekDays(week: Record<string, unknown>): Array<Record<string, unknown>> {
+export function getWeekDays(week: Record<string, unknown>): Array<Record<string, unknown>> {
   const d = week.days ?? week.dias ?? week.Days;
   if (Array.isArray(d)) return d as Array<Record<string, unknown>>;
   if (d && typeof d === "object" && !Array.isArray(d)) {
@@ -45,13 +45,13 @@ function getWeekDays(week: Record<string, unknown>): Array<Record<string, unknow
   return [];
 }
 
-function getDayExercises(day: Record<string, unknown>): Array<Record<string, unknown>> {
+export function getDayExercises(day: Record<string, unknown>): Array<Record<string, unknown>> {
   const e = day.ejercicios ?? day.exercises ?? day.ejercicio;
   if (Array.isArray(e)) return e as Array<Record<string, unknown>>;
   return [];
 }
 
-function exerciseName(ex: Record<string, unknown>): string {
+export function exerciseName(ex: Record<string, unknown>): string {
   return safeStr(ex.name ?? ex.nombre ?? ex.ejercicio ?? "Ejercicio");
 }
 
@@ -67,7 +67,7 @@ function deepClone<T>(v: T): T {
  * Asegura 4 semanas exportables: la IA a menudo devuelve solo semana 1 con días;
  * las demás vienen vacías y el Excel quedaba casi sin entreno.
  */
-function normalizeTrainingWeeksForExport(weeksRaw: unknown): Array<Record<string, unknown>> {
+export function normalizeTrainingWeeksForExport(weeksRaw: unknown): Array<Record<string, unknown>> {
   let weeks = asWeekArray(weeksRaw);
   if (weeks.length === 0) return [];
 
@@ -101,7 +101,7 @@ function normalizeTrainingWeeksForExport(weeksRaw: unknown): Array<Record<string
   return out;
 }
 
-function resolveTrainingPlan(planRoot: Record<string, unknown>): Record<string, unknown> | null {
+export function resolveTrainingPlan(planRoot: Record<string, unknown>): Record<string, unknown> | null {
   const tp = planRoot.training_plan;
   if (tp && typeof tp === "object") return tp as Record<string, unknown>;
   const alt = (planRoot as Record<string, unknown>).trainingPlan;
@@ -125,9 +125,10 @@ export function buildIntakePlanXlsxBuffer(
     [""],
     ["Cómo usar este archivo"],
     ["1) La hoja «Entrenamiento_seguimiento» lista cada ejercicio (hasta 4 semanas; si el plan solo traía 1 semana detallada, se repite la misma rutina para seguimiento mensual)."],
-    ["2) Completa SOLO las columnas que terminan en _CLIENTE (peso usado, descanso real, RIR percibido, notas)."],
-    ["3) No renombres hojas ni encabezados: así podremos importar tus datos al actualizar el plan con IA."],
-    ["4) Devuelve este archivo (o un CSV exportado desde Excel) cuando tu entrenador te pida actualizar."],
+    ["2) La columna «Ilustracion_ref» y la imagen junto a cada ejercicio son orientativas (catálogo wger o póster HTTPS del coach). No sustituyen la supervisión presencial."],
+    ["3) Completa SOLO las columnas que terminan en _CLIENTE (peso usado, descanso real, RIR percibido, notas)."],
+    ["4) No renombres hojas ni encabezados: así podremos importar tus datos al actualizar el plan con IA."],
+    ["5) Devuelve este archivo (o un CSV exportado desde Excel) cuando tu entrenador te pida actualizar."],
     [""],
     ["Nota: RIR = repeticiones en reserva (0 = fallo técnico, 1–3 = cerca del fallo)."],
   ];
@@ -200,6 +201,7 @@ export function buildIntakePlanXlsxBuffer(
     "Dia",
     "Orden",
     "Ejercicio",
+    "Ilustracion_ref",
     "Series_plan",
     "Reps_plan",
     "Musculo",
@@ -234,6 +236,7 @@ export function buildIntakePlanXlsxBuffer(
           dayName,
           ei + 1,
           exerciseName(ex),
+          "",
           numOrEmpty(ex.sets ?? ex.series),
           safeStr(ex.reps ?? ex.repeticiones ?? ""),
           muscle,
@@ -257,6 +260,7 @@ export function buildIntakePlanXlsxBuffer(
     { wch: 12 },
     { wch: 5 },
     { wch: 36 },
+    { wch: 34 },
     { wch: 11 },
     { wch: 12 },
     { wch: 14 },

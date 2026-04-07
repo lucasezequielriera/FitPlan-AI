@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import Stripe from "stripe";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { recordStripeMonthlyEarningIfNew } from "@/lib/adminMonthlyEarningsStripe";
 import { FieldValue, Timestamp as AdminTimestamp, type Firestore } from "firebase-admin/firestore";
 import { sendTelegramMessage, formatPaymentMessage } from "@/lib/telegram";
 
@@ -162,6 +163,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           paymentId: session.id,
           createdAt: FieldValue.serverTimestamp(),
         });
+        try {
+          const paidAt =
+            typeof session.created === "number" ? new Date(session.created * 1000) : new Date();
+          const inv = session.invoice;
+          const ledgerKey =
+            typeof inv === "string"
+              ? inv
+              : inv && typeof inv === "object" && "id" in inv
+                ? String((inv as { id: string }).id)
+                : `cs_${session.id}`;
+          await recordStripeMonthlyEarningIfNew(adminDb, ledgerKey, paidAt, amountTotal);
+        } catch (ledgerErr) {
+          console.warn("⚠️ No se pudo registrar ganancia mensual (intake Stripe):", ledgerErr);
+        }
         return res.status(200).json({ received: true });
       }
 
@@ -216,6 +231,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }).catch((err) => {
         console.warn("⚠️ Error al crear notificación admin de pago Stripe:", err);
       });
+
+      try {
+        const paidAt =
+          typeof session.created === "number" ? new Date(session.created * 1000) : new Date();
+        const invoiceRef = session.invoice;
+        const ledgerKey =
+          typeof invoiceRef === "string"
+            ? invoiceRef
+            : invoiceRef && typeof invoiceRef === "object" && "id" in invoiceRef
+              ? String((invoiceRef as { id: string }).id)
+              : null;
+        if (ledgerKey && checkoutAmount > 0) {
+          await recordStripeMonthlyEarningIfNew(adminDb, ledgerKey, paidAt, checkoutAmount);
+        }
+      } catch (ledgerErr) {
+        console.warn("⚠️ No se pudo registrar ganancia mensual (checkout Stripe):", ledgerErr);
+      }
 
       if (!wasPremium || !welcomeAlreadySent) {
         try {
@@ -333,28 +365,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       try {
-        const year = paymentDate.getFullYear();
-        const month = String(paymentDate.getMonth() + 1).padStart(2, "0");
-        const monthId = `${year}-${month}`;
-        const adminMonthRef = adminDb.collection("admin").doc(monthId);
-        const adminMonthDoc = await adminMonthRef.get();
-        if (!adminMonthDoc.exists) {
-          await adminMonthRef.set({
-            month: monthId,
-            year: year,
-            monthNumber: parseInt(month, 10),
-            totalEarnings: amount,
-            paymentCount: 1,
-            createdAt: FieldValue.serverTimestamp(),
-            updatedAt: FieldValue.serverTimestamp(),
-          });
-        } else {
-          await adminMonthRef.update({
-            totalEarnings: FieldValue.increment(amount),
-            paymentCount: FieldValue.increment(1),
-            updatedAt: FieldValue.serverTimestamp(),
-          });
-        }
+        await recordStripeMonthlyEarningIfNew(adminDb, invoice.id, paymentDate, amount);
       } catch (adminError: unknown) {
         console.error("❌ Error al registrar ganancias mensuales:", adminError);
       }
