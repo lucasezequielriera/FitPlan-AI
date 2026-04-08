@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { IntakeWorkoutSession } from "@/types/intakeWorkoutLog";
 
 type ExerciseRow = {
@@ -65,6 +65,9 @@ export default function IntakeWorkoutDayLog({
   const [saving, setSaving] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [banner, setBanner] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [hasPendingChanges, setHasPendingChanges] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const lastSavedSnapshotRef = useRef<string>("");
 
   const sameSlotSessions = useMemo(() => {
     return sessions
@@ -109,6 +112,7 @@ export default function IntakeWorkoutDayLog({
   }, [initDraft]);
 
   const updateCell = (exIdx: number, setIdx: number, field: "kg" | "rest", value: string) => {
+    setHasPendingChanges(true);
     setDraft((prev) => {
       const row = prev[exIdx] ? [...prev[exIdx]] : [];
       const cell = row[setIdx] || { kg: "", rest: "" };
@@ -117,8 +121,7 @@ export default function IntakeWorkoutDayLog({
     });
   };
 
-  const handleSave = async () => {
-    setBanner(null);
+  const buildExercisesPayload = useCallback(() => {
     const exercisesPayload: {
       exerciseIndex: number;
       exerciseName: string;
@@ -141,8 +144,7 @@ export default function IntakeWorkoutDayLog({
       }));
       for (const s of cleaned) {
         if (s.kg !== null && (s.kg < 0 || s.kg > 600)) {
-          setBanner({ type: "err", text: "Revisa los kg (0–600) en todas las series." });
-          return;
+          return { error: "Revisa los kg (0–600) en todas las series." as const };
         }
       }
       exercisesPayload.push({
@@ -151,7 +153,24 @@ export default function IntakeWorkoutDayLog({
         sets: cleaned,
       });
     }
+    return { exercisesPayload } as const;
+  }, [draft, exercises]);
 
+  const saveDraft = useCallback(async () => {
+    setBanner(null);
+    const parsed = buildExercisesPayload();
+    if ("error" in parsed) {
+      setBanner({ type: "err", text: parsed.error });
+      return false;
+    }
+    const snapshot = JSON.stringify({
+      completedOn,
+      exercises: parsed.exercisesPayload,
+    });
+    if (snapshot === lastSavedSnapshotRef.current) {
+      setHasPendingChanges(false);
+      return true;
+    }
     setSaving(true);
     try {
       const res = await fetch(
@@ -165,7 +184,7 @@ export default function IntakeWorkoutDayLog({
             dayIndex,
             dayLabel,
             completedOn,
-            exercises: exercisesPayload,
+            exercises: parsed.exercisesPayload,
           }),
         }
       );
@@ -175,13 +194,36 @@ export default function IntakeWorkoutDayLog({
       }
       const session = data.session as IntakeWorkoutSession | undefined;
       if (session) onSessionSaved(session);
-      setBanner({ type: "ok", text: "Guardado. Podés seguir completando otros días cuando te toque." });
+      lastSavedSnapshotRef.current = snapshot;
+      setHasPendingChanges(false);
+      setLastSavedAt(new Date());
+      setBanner({ type: "ok", text: "Guardado automático." });
+      return true;
     } catch (e) {
       setBanner({ type: "err", text: e instanceof Error ? e.message : "No se pudo guardar." });
+      return false;
     } finally {
       setSaving(false);
     }
-  };
+  }, [
+    buildExercisesPayload,
+    clientId,
+    completedOn,
+    dayIndex,
+    dayLabel,
+    onSessionSaved,
+    planId,
+    viewToken,
+    weekIndex,
+  ]);
+
+  useEffect(() => {
+    if (!hasPendingChanges) return;
+    const timer = setTimeout(() => {
+      void saveDraft();
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [draft, completedOn, hasPendingChanges, saveDraft]);
 
   if (exercises.length === 0) return null;
 
@@ -194,7 +236,10 @@ export default function IntakeWorkoutDayLog({
           <input
             type="date"
             value={completedOn}
-            onChange={(e) => setCompletedOn(e.target.value)}
+            onChange={(e) => {
+              setHasPendingChanges(true);
+              setCompletedOn(e.target.value);
+            }}
             className="rounded-lg border border-white/15 bg-black/30 px-2 py-1.5 text-sm text-white outline-none focus:border-emerald-400/50"
           />
         </label>
@@ -278,14 +323,12 @@ export default function IntakeWorkoutDayLog({
         })}
       </div>
 
-      <button
-        type="button"
-        disabled={saving}
-        onClick={() => void handleSave()}
-        className="mt-4 w-full rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-900/30 disabled:opacity-50"
-      >
-        {saving ? "Guardando…" : "Guardar registro de este día"}
-      </button>
+      <div className="mt-4 rounded-lg border border-emerald-400/20 bg-emerald-900/20 px-3 py-2 text-xs text-emerald-100/90">
+        {saving ? "Guardando automáticamente..." : hasPendingChanges ? "Cambios pendientes de guardado..." : "Guardado automático activo."}
+        {!saving && !hasPendingChanges && lastSavedAt ? (
+          <span className="ml-2 text-emerald-200/80">Último guardado: {lastSavedAt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
+        ) : null}
+      </div>
 
       <button
         type="button"
