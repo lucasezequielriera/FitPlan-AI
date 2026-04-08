@@ -49,6 +49,26 @@ function avgRestSec(sets: { restAfterSec: number | null }[]): number | null {
   return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
 }
 
+function monthKeyFromYmd(ymd: string): string {
+  return ymd.slice(0, 7);
+}
+
+function weekOfMonthFromYmd(ymd: string): 1 | 2 | 3 | 4 {
+  const day = Number(ymd.slice(8, 10));
+  if (Number.isNaN(day) || day <= 7) return 1;
+  if (day <= 14) return 2;
+  if (day <= 21) return 3;
+  return 4;
+}
+
+function monthLabelFromKey(key: string): string {
+  const [year, month] = key.split("-");
+  const y = Number(year);
+  const m = Number(month);
+  if (!Number.isFinite(y) || !Number.isFinite(m)) return key;
+  return new Date(y, m - 1, 1).toLocaleDateString("es-AR", { month: "long", year: "numeric" });
+}
+
 export default function IntakeWorkoutDayLog({
   clientId,
   viewToken,
@@ -78,6 +98,19 @@ export default function IntakeWorkoutDayLog({
         return b.weekIndex - a.weekIndex;
       });
   }, [sessions, planId, dayIndex]);
+
+  const historyByMonth = useMemo(() => {
+    const grouped = new Map<string, IntakeWorkoutSession[]>();
+    for (const sess of sameSlotSessions) {
+      const key = monthKeyFromYmd(sess.completedOn);
+      const arr = grouped.get(key) || [];
+      arr.push(sess);
+      grouped.set(key, arr);
+    }
+    return Array.from(grouped.entries())
+      .sort(([a], [b]) => b.localeCompare(a))
+      .map(([key, monthSessions]) => ({ key, sessions: monthSessions }));
+  }, [sameSlotSessions]);
 
   const initDraft = useCallback(() => {
     const next: Record<number, { kg: string; rest: string }[]> = {};
@@ -340,27 +373,58 @@ export default function IntakeWorkoutDayLog({
 
       {historyOpen && sameSlotSessions.length > 0 ? (
         <div className="mt-3 space-y-2 rounded-lg border border-white/10 bg-black/20 px-3 py-3">
-          <p className="text-[11px] text-white/50">
-            Mismos ejercicios en este día de la semana (distintas semanas del plan), más reciente primero.
-          </p>
-          {sameSlotSessions.slice(0, 24).map((sess) => (
-            <div key={sess.id} className="rounded-md border border-white/10 bg-black/30 px-3 py-2">
-              <p className="text-xs text-emerald-200/90">
-                {sess.completedOn} · Semana {sess.weekIndex + 1}
-              </p>
-              <ul className="mt-1 space-y-1 text-[11px] text-white/75">
-                {sess.exercises.map((ex) => {
-                  const ar = avgRestSec(ex.sets);
-                  return (
-                    <li key={`${sess.id}-ex-${ex.exerciseIndex}`}>
-                      <span className="text-white/90">{ex.exerciseName}:</span> {formatKgLine(ex.sets)}
-                      {ar != null ? ` · descanso medio ~${ar}s` : ""}
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))}
+          <p className="text-[11px] text-white/50">Historial mensual de este día del plan, separado por semanas 1/2/3/4.</p>
+          {historyByMonth.map(({ key, sessions: monthSessions }) => {
+            const slotMap = new Map<number, IntakeWorkoutSession>();
+            for (const sess of monthSessions) {
+              const weekSlot = weekOfMonthFromYmd(sess.completedOn);
+              if (!slotMap.has(weekSlot)) slotMap.set(weekSlot, sess);
+            }
+            return (
+              <div key={key} className="rounded-lg border border-white/10 bg-black/30 px-3 py-3">
+                <p className="text-sm font-semibold text-emerald-200/90 capitalize">{monthLabelFromKey(key)}</p>
+                <div className="mt-2 overflow-x-auto">
+                  <table className="w-full min-w-[680px] text-[11px]">
+                    <thead>
+                      <tr className="border-b border-white/10 text-white/60">
+                        <th className="py-2 pr-2 text-left font-medium">Ejercicio</th>
+                        <th className="py-2 px-2 text-left font-medium">Semana 1</th>
+                        <th className="py-2 px-2 text-left font-medium">Semana 2</th>
+                        <th className="py-2 px-2 text-left font-medium">Semana 3</th>
+                        <th className="py-2 pl-2 text-left font-medium">Semana 4</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {exercises.map((ex, idx) => (
+                        <tr key={`month-${key}-ex-${idx}`} className="border-b border-white/5 last:border-0 align-top">
+                          <td className="py-2 pr-2 text-white/90 font-medium">{ex.name}</td>
+                          {[1, 2, 3, 4].map((slot) => {
+                            const session = slotMap.get(slot);
+                            const exLog = session?.exercises.find((e) => e.exerciseIndex === idx);
+                            const ar = exLog ? avgRestSec(exLog.sets) : null;
+                            return (
+                              <td key={`slot-${slot}`} className="py-2 px-2 text-white/75">
+                                {exLog ? (
+                                  <div>
+                                    <p>{formatKgLine(exLog.sets)}</p>
+                                    <p className="text-white/45">
+                                      {ar != null ? `Descanso medio ~${ar}s` : "Sin descanso cargado"}
+                                    </p>
+                                  </div>
+                                ) : (
+                                  <span className="text-white/30">—</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })}
         </div>
       ) : null}
 
