@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { getAuthSafe } from "@/lib/firebase";
-import { FaDumbbell, FaImage, FaPlus, FaSearch, FaTags, FaTimes, FaTrash } from "react-icons/fa";
+import { FaDumbbell, FaImage, FaPlus, FaSearch, FaTags, FaTimes, FaTrash, FaVideo } from "react-icons/fa";
 
 type CatalogEntry = {
   normKey: string;
@@ -214,8 +214,18 @@ export default function AdminExerciseCatalogModal({
     }
   };
 
-  const pickPlanExerciseLabel = (label: string) => {
-    setNewLabel(label);
+  const pickPlanExercise = (row: { normKey: string; label: string; inCatalog: boolean }) => {
+    setNewLabel(row.label);
+    const entry = entries.find((e) => e.normKey === row.normKey);
+    if (!entry) return;
+    if (entry.source === "wger") {
+      setMediaMode("wger");
+      setNewId(entry.wgerExerciseId != null ? String(entry.wgerExerciseId) : "");
+      setCustomUrl("");
+    } else {
+      setMediaMode("custom");
+      setCustomUrl(entry.customImageUrl?.trim() || "");
+    }
   };
 
   const visiblePlanExercises =
@@ -346,7 +356,7 @@ export default function AdminExerciseCatalogModal({
                       <button
                         key={row.normKey}
                         type="button"
-                        onClick={() => pickPlanExerciseLabel(row.label)}
+                        onClick={() => pickPlanExercise(row)}
                         className="w-full text-left px-3 py-2 hover:bg-white/5 flex flex-wrap items-center gap-2 gap-y-1"
                       >
                         <span
@@ -444,6 +454,10 @@ export default function AdminExerciseCatalogModal({
                 Imagen / GIF (URL)
               </button>
             </div>
+            <p className="text-[11px] text-white/45">
+              Pegá la URL completa del vídeo tal cual (p. ej. Cloudinary <code className="text-violet-300/80">…mp4</code>); este formulario{" "}
+              <span className="text-violet-200/90">no añade</span> extensiones automáticas.
+            </p>
             <input
               value={newLabel}
               onChange={(e) => setNewLabel(e.target.value)}
@@ -459,17 +473,19 @@ export default function AdminExerciseCatalogModal({
               />
             ) : (
               <div className="space-y-2">
+                <div className="inline-flex items-center gap-1.5 rounded-md border border-emerald-400/30 bg-emerald-500/10 px-2 py-1 text-[11px] text-emerald-100/90">
+                  <FaVideo className="text-[10px] shrink-0" />
+                  Vídeo: pegá la URL completa (.mp4 / .webm / Cloudinary); no se modifica el final del enlace.
+                </div>
                 <input
                   value={customUrl}
                   onChange={(e) => setCustomUrl(e.target.value)}
-                  placeholder="curl-femoral-tumbado.webp  o  public/ejercicios/…  o  https://…"
+                  placeholder="https://res.cloudinary.com/…/video/upload/…/archivo.mp4  o  /ejercicios/imagen.webp"
                   className="w-full rounded-lg bg-black/40 border border-white/15 px-3 py-2 text-sm text-white placeholder:text-white/35"
                 />
                 <p className="text-[11px] text-white/45 leading-relaxed">
-                  Archivo en <code className="text-violet-300/80">public/ejercicios/</code>: podés escribir solo el nombre (
-                  <code className="text-violet-300/80">mi-ejercicio.webp</code>), o{" "}
-                  <code className="text-violet-300/80">public/ejercicios/mi-ejercicio.webp</code>, o la URL completa https (o http en
-                  local). Al guardar se guarda la URL absoluta correcta. Sin YouTube ni Vimeo.
+                  Archivo en <code className="text-violet-300/80">public/ejercicios/</code>: podés escribir ruta o nombre con extensión (
+                  <code className="text-violet-300/80">mi-ejercicio.webp</code>), o URL https completa. Sin YouTube ni Vimeo.
                 </p>
               </div>
             )}

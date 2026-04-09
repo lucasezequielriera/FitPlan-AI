@@ -10,6 +10,7 @@ import {
   FaTags,
   FaTimes,
   FaTrash,
+  FaVideo,
 } from "react-icons/fa";
 
 type CatalogEntry = {
@@ -70,7 +71,7 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
   const [newLabel, setNewLabel] = useState("");
   const [newId, setNewId] = useState("");
   const [customUrl, setCustomUrl] = useState("");
-  const [customExt, setCustomExt] = useState<".webp" | ".gif">(".webp");
+  const [customExt, setCustomExt] = useState<".webp" | ".gif" | "none">(".webp");
   const [searchQ, setSearchQ] = useState("");
   const [searchResults, setSearchResults] = useState<SearchHit[]>([]);
   const [searching, setSearching] = useState(false);
@@ -197,8 +198,11 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
   const appendSelectedExtIfNeeded = (raw: string): string => {
     const s = raw.trim();
     if (!s) return s;
+    // Vídeo o recurso ya con extensión final: no concatenar .webp/.gif
+    if (/\.(mp4|webm|mov|m4v|mkv)(\?.*)?$/i.test(s)) return s;
     if (/\.(jpg|jpeg|png|gif|webp|avif)(\?.*)?$/i.test(s)) return s;
     if (s.endsWith("/")) return s;
+    if (customExt === "none") return s;
     return `${s}${customExt}`;
   };
 
@@ -296,8 +300,26 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
     }
   };
 
-  const pickPlanExerciseLabel = (label: string) => {
-    setNewLabel(label);
+  const pickPlanExercise = (row: { normKey: string; label: string; inCatalog: boolean }) => {
+    setNewLabel(row.label);
+    const entry = entries.find((e) => e.normKey === row.normKey);
+    if (!entry) return;
+    if (entry.source === "wger") {
+      setMediaMode("wger");
+      setNewId(entry.wgerExerciseId != null ? String(entry.wgerExerciseId) : "");
+      setCustomUrl("");
+    } else {
+      setMediaMode("custom");
+      const url = entry.customImageUrl?.trim() || "";
+      setCustomUrl(url);
+      if (/\.(mp4|webm|mov|m4v|mkv)(\?.*)?$/i.test(url)) {
+        setCustomExt("none");
+      } else if (/\.gif(\?.*)?$/i.test(url)) {
+        setCustomExt(".gif");
+      } else {
+        setCustomExt(".webp");
+      }
+    }
   };
 
   const planExercisePriority = (e: PlanAllExercise): number => {
@@ -489,7 +511,7 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
                       <button
                         key={row.normKey}
                         type="button"
-                        onClick={() => pickPlanExerciseLabel(row.label)}
+                        onClick={() => pickPlanExercise(row)}
                         className="w-full text-left px-3 py-2 hover:bg-white/5 flex flex-wrap items-center gap-2 gap-y-1"
                       >
                         <span
@@ -606,6 +628,10 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
                 Imagen / GIF (URL)
               </button>
             </div>
+            <p className="text-[11px] text-white/45">
+              Para <span className="text-violet-200/90">vídeos</span> (p. ej. Cloudinary <code className="text-violet-300/80">…/video/upload/…mp4</code>) elegí abajo{" "}
+              <span className="text-violet-200/90">Vídeo / URL exacta</span> para que no se concatene <code className="text-violet-300/80">.webp</code> al final.
+            </p>
             <input
               value={newLabel}
               onChange={(e) => setNewLabel(e.target.value)}
@@ -627,7 +653,7 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
                   placeholder="curl-femoral-tumbado  o  public/ejercicios/curl-femoral-tumbado  o  https://…"
                   className="w-full rounded-lg bg-black/40 border border-white/15 px-3 py-2 text-sm text-white placeholder:text-white/35"
                 />
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="text-[11px] text-white/55">Extensión rápida:</span>
                   <button
                     type="button"
@@ -651,15 +677,29 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
                   >
                     .gif
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setCustomExt("none")}
+                    className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium border ${
+                      customExt === "none"
+                        ? "bg-emerald-500/25 border-emerald-400/50 text-emerald-100"
+                        : "bg-black/30 border-white/15 text-white/60 hover:text-white/80"
+                    }`}
+                  >
+                    <FaVideo className="text-[10px]" />
+                    Vídeo / URL exacta
+                  </button>
                   <span className="text-[11px] text-white/45">
-                    si no escribís extensión, se agrega <code className="text-violet-300/80">{customExt}</code>
+                    {customExt === "none"
+                      ? "no se añade ninguna extensión"
+                      : `si no escribís extensión, se agrega ${customExt}`}
                   </span>
                 </div>
                 <p className="text-[11px] text-white/45 leading-relaxed">
                   Archivo en <code className="text-violet-300/80">public/ejercicios/</code>: podés escribir solo el nombre (
                   <code className="text-violet-300/80">mi-ejercicio</code>), o{" "}
                   <code className="text-violet-300/80">public/ejercicios/mi-ejercicio</code>, o la URL completa https (o http en local). Si ya
-                  escribís extensión, se respeta; si no, se agrega la elegida arriba. Sin YouTube ni Vimeo.
+                  escribís extensión, se respeta; si no, se agrega la elegida arriba (salvo modo vídeo). Sin YouTube ni Vimeo.
                 </p>
               </div>
             )}
