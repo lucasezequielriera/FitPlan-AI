@@ -16,10 +16,10 @@ function normalizeObjective(raw: string | null): string {
   if (!value) return "mejorar tu composición corporal";
   const map: Record<string, string> = {
     perder_grasa: "pérdida de grasa",
-    perder grasa: "pérdida de grasa",
+    "perder grasa": "pérdida de grasa",
     bajar_grasa: "pérdida de grasa",
     ganar_musculo: "ganancia muscular",
-    ganar musculo: "ganancia muscular",
+    "ganar musculo": "ganancia muscular",
     ganar_masa_muscular: "ganancia muscular",
     recomposicion: "recomposición corporal",
     recomposicion_corporal: "recomposición corporal",

@@ -152,6 +152,162 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
     setOpenTechniqueByExercise((prev) => (prev[key] ? {} : { [key]: true }));
   };
 
+  const techniqueSteps = (technique: string): string[] => {
+    const raw = technique
+      .split(/\n|\. |; |• |\u2022 /g)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    if (raw.length >= 2) return raw.slice(0, 8);
+    return [
+      "Posición inicial estable: pies firmes, core activo y postura neutra.",
+      "Iniciá el movimiento de forma controlada, sin impulso.",
+      "Mantené alineación articular durante todo el recorrido.",
+      "Terminá cada repetición con control y respiración constante.",
+    ];
+  };
+
+  const isGenericTechnique = (technique: string): boolean => {
+    const t = technique.toLowerCase();
+    return (
+      !t ||
+      t.includes("postura neutra") ||
+      t.includes("movimiento controlado") ||
+      t.includes("sin impulso") ||
+      t.includes("respiración constante")
+    );
+  };
+
+  const exerciseSpecificTechniqueSteps = (exerciseName: string): string[] => {
+    const ex = exerciseName.toLowerCase();
+    const hash = Array.from(ex).reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+    const pick = <T,>(arr: T[]): T => arr[hash % arr.length];
+
+    const withName = (steps: string[]) => [
+      `Para ${exerciseName}: ${steps[0]}`,
+      ...steps.slice(1),
+    ];
+
+    if (/prensa/.test(ex)) {
+      return withName([
+        "sentate con espalda completamente apoyada y pies al ancho de hombros en la plataforma.",
+        "bajá controlado hasta un rango cómodo sin despegar cadera del respaldo.",
+        "empujá con todo el pie (talón + medio pie), evitando colapsar rodillas hacia adentro.",
+        "extendé sin bloquear agresivamente las rodillas al final.",
+      ]);
+    }
+    if (/hip thrust|empuje de cadera|puente de gluteo|puente de glúteo/.test(ex)) {
+      return withName([
+        "apoyá escápulas en banco y pies firmes al ancho de cadera.",
+        "mantené mentón levemente recogido y costillas controladas.",
+        "elevá cadera contrayendo glúteos hasta alinear hombros-cadera-rodillas.",
+        "bajá lento sin perder tensión en glúteos.",
+      ]);
+    }
+    if (/sentadilla|squat|goblet/.test(ex)) {
+      const opts = [
+        [
+          "colocá pies al ancho de hombros y puntas ligeramente abiertas.",
+          "braceá abdomen y bajá llevando cadera atrás y rodillas alineadas con puntas.",
+          "llegá a profundidad útil sin perder columna neutra.",
+          "subí empujando el piso con todo el pie, manteniendo tronco firme.",
+        ],
+        [
+          "armá base estable con peso repartido en talón y mediopié.",
+          "descendé controlado manteniendo pecho abierto y core activo.",
+          "evitá que las rodillas colapsen hacia adentro.",
+          "ascendé en bloque, cadera y torso suben juntos.",
+        ],
+      ];
+      return withName(pick(opts));
+    }
+    if (/peso muerto|deadlift|rumano|hip hinge/.test(ex)) {
+      return withName([
+        "pies al ancho de cadera y carga cerca del cuerpo.",
+        "iniciá con bisagra de cadera y espalda neutra, no con flexión lumbar.",
+        "bajá sintiendo tensión en isquios, manteniendo barra/mancuernas pegadas.",
+        "subí extendiendo cadera y contrayendo glúteos, sin hiperextender la espalda.",
+      ]);
+    }
+    if (/press banca|bench|press pecho|press inclinado/.test(ex)) {
+      return withName([
+        "apoyá escápulas y glúteos en banco, con pies firmes en el suelo.",
+        "bajá la carga con control hacia zona media-baja del pecho.",
+        "mantené codos en ángulo moderado, evitando abrirlos en exceso.",
+        "empujá en línea estable sin perder tensión escapular.",
+      ]);
+    }
+    if (/remo|row/.test(ex)) {
+      return withName([
+        "iniciá con pecho abierto y columna neutra.",
+        "tirá llevando codos hacia atrás, no hacia arriba.",
+        "evitá balancear tronco o usar impulso de cadera.",
+        "regresá controlado, manteniendo tensión en espalda.",
+      ]);
+    }
+    if (/jalon|jalón|dominada|pull/.test(ex)) {
+      return withName([
+        "tomá agarre firme y deprimí escápulas antes de traccionar.",
+        "llevá codos hacia costillas sin encoger hombros.",
+        "acercá barra/pecho con torso estable y controlado.",
+        "subí lento hasta casi extender brazos, sin perder postura.",
+      ]);
+    }
+    if (/press militar|overhead|hombro/.test(ex)) {
+      return withName([
+        "estabilizá pies, glúteos y abdomen antes de iniciar.",
+        "partí desde hombros con muñecas neutras y antebrazos verticales.",
+        "empujá en línea vertical controlando costillas y zona lumbar.",
+        "descendé lento al punto inicial manteniendo escápulas activas.",
+      ]);
+    }
+    if (/zancada|lunge|split squat/.test(ex)) {
+      return withName([
+        "elegí una zancada cómoda y mantené cadera estable.",
+        "descendé vertical con control, evitando colapso de rodilla.",
+        "mantené talón delantero apoyado durante todo el gesto.",
+        "ascendé empujando con la pierna delantera sin perder equilibrio.",
+      ]);
+    }
+    if (/curl/.test(ex)) {
+      return withName([
+        "fijá codos cerca del torso y hombros estables.",
+        "flexioná codo sin usar impulso de espalda.",
+        "hacé una pausa corta arriba para máxima contracción.",
+        "bajá lento controlando la fase excéntrica.",
+      ]);
+    }
+    if (/triceps|tríceps|extension/.test(ex)) {
+      return withName([
+        "mantené codos fijos y hombros quietos.",
+        "extendé codo completo sin bloqueo brusco.",
+        "sostené muñeca neutra para no cargar antebrazo.",
+        "regresá controlado manteniendo tensión constante.",
+      ]);
+    }
+    if (/abduccion|abducción|glute kick|patada de gluteo|patada de glúteo/.test(ex)) {
+      return withName([
+        "alineá pelvis y activá abdomen para evitar compensaciones.",
+        "mové la pierna desde cadera, no desde zona lumbar.",
+        "alcanzá rango útil sin rotar tronco.",
+        "volvé lento para mantener tensión en glúteo medio.",
+      ]);
+    }
+    if (/gemelo|pantorrilla|calf/.test(ex)) {
+      return withName([
+        "apoyá metatarsos firmes y mantené rodillas estables.",
+        "subí talones al máximo con pausa breve arriba.",
+        "evitá rebotes; el movimiento debe ser controlado.",
+        "bajá completo para aprovechar todo el rango de tobillo.",
+      ]);
+    }
+    return withName([
+      `ajustá una postura inicial estable específica para ${exerciseName}.`,
+      "ejecutá el recorrido completo con control, sin impulso.",
+      "mantené alineación articular y respiración fluida en cada repetición.",
+      "finalizá con técnica limpia antes de aumentar carga o reps.",
+    ]);
+  };
+
   const root = plan.plan;
   if (!root || typeof root !== "object") {
     return (
@@ -542,22 +698,11 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
                                 {exercises.map((exercise, exIndex) => {
                                   const exName = String(exercise.name || "Ejercicio");
                                   const exTechnique = typeof exercise.technique === "string" ? exercise.technique.trim() : "";
-                                  const exCues = Array.isArray(exercise.cues)
-                                    ? (exercise.cues as unknown[]).filter((x): x is string => typeof x === "string" && x.trim().length > 0)
-                                    : [];
-                                  const exTempo = typeof exercise.tempo === "string" ? exercise.tempo : "";
-                                  const exRpe = typeof exercise.rpe === "number" ? exercise.rpe : null;
-                                  const exRest = typeof exercise.rest_seconds === "number" ? exercise.rest_seconds : null;
-                                  const exProgression = typeof exercise.progression === "string" ? exercise.progression : "";
-                                  const exAlternative = typeof exercise.alternative === "string" ? exercise.alternative : "";
-                                  const hasTechniqueInfo =
-                                    exTechnique.length > 0 ||
-                                    exCues.length > 0 ||
-                                    exTempo.length > 0 ||
-                                    exRpe !== null ||
-                                    exRest !== null ||
-                                    exProgression.length > 0 ||
-                                    exAlternative.length > 0;
+                                  const exTechniqueSteps =
+                                    exTechnique.length > 0 && !isGenericTechnique(exTechnique)
+                                      ? techniqueSteps(exTechnique)
+                                      : exerciseSpecificTechniqueSteps(exName);
+                                  const hasTechniqueInfo = exTechniqueSteps.length > 0;
                                   const exTechKey = `wk-${weekIndex}-dy-${dayIndex}-ex-${exIndex}`;
                                   const ovKey = normalizeExerciseMediaKey(exName);
                                   const ov = planMediaOverridesMerged[ovKey];
@@ -599,18 +744,11 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
                                             }`}
                                           >
                                             <p className="text-[10px] uppercase tracking-wide text-cyan-200/80">Guía técnica</p>
-                                              {exTechnique ? <p><strong>Técnica:</strong> {exTechnique}</p> : null}
-                                              {exCues.length > 0 ? <p><strong>Cues:</strong> {exCues.join(" · ")}</p> : null}
-                                              {(exTempo || exRpe !== null || exRest !== null) ? (
-                                                <p>
-                                                  <strong>Parámetros:</strong>{" "}
-                                                  {exTempo ? `Tempo ${exTempo}` : ""}{exTempo && (exRpe !== null || exRest !== null) ? " · " : ""}
-                                                  {exRpe !== null ? `RPE ${exRpe}` : ""}{exRpe !== null && exRest !== null ? " · " : ""}
-                                                  {exRest !== null ? `Descanso ${exRest}s` : ""}
+                                              {exTechniqueSteps.map((step, idx) => (
+                                                <p key={`${exTechKey}-step-${idx}`}>
+                                                  <strong>Paso {idx + 1}:</strong> {step}
                                                 </p>
-                                              ) : null}
-                                              {exProgression ? <p><strong>Progresión:</strong> {exProgression}</p> : null}
-                                              {exAlternative ? <p><strong>Alternativa:</strong> {exAlternative}</p> : null}
+                                              ))}
                                           </div>
                                         </div>
                                       ) : null}
@@ -699,23 +837,20 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
                         {exercises.map((exercise, exIndex) => {
                           const exName = String(exercise.name || "Ejercicio");
                           const exTechnique = typeof exercise.technique === "string" ? exercise.technique.trim() : "";
-                          const exCues = Array.isArray(exercise.cues)
-                            ? (exercise.cues as unknown[]).filter((x): x is string => typeof x === "string" && x.trim().length > 0)
-                            : [];
-                          const exTempo = typeof exercise.tempo === "string" ? exercise.tempo : "";
-                          const exRpe = typeof exercise.rpe === "number" ? exercise.rpe : null;
-                          const exRest = typeof exercise.rest_seconds === "number" ? exercise.rest_seconds : null;
-                          const exProgression = typeof exercise.progression === "string" ? exercise.progression : "";
-                          const exAlternative = typeof exercise.alternative === "string" ? exercise.alternative : "";
-                          const hasTechniqueInfo =
-                            exTechnique.length > 0 ||
-                            exCues.length > 0 ||
-                            exTempo.length > 0 ||
-                            exRpe !== null ||
-                            exRest !== null ||
-                            exProgression.length > 0 ||
-                            exAlternative.length > 0;
+                          const exTechniqueSteps =
+                            exTechnique.length > 0 && !isGenericTechnique(exTechnique)
+                              ? techniqueSteps(exTechnique)
+                              : exerciseSpecificTechniqueSteps(exName);
+                          const hasTechniqueInfo = exTechniqueSteps.length > 0;
                           const exTechKey = `fb-dy-${dayIndex}-ex-${exIndex}`;
+                          const ovKeyFb = normalizeExerciseMediaKey(exName);
+                          const ovFb = planMediaOverridesMerged[ovKeyFb];
+                          const demoVideoFb =
+                            (typeof exercise.demo_video_url === "string" ? exercise.demo_video_url : null) ||
+                            (typeof ovFb?.demo_video_url === "string" ? ovFb.demo_video_url : null);
+                          const demoPosterFb =
+                            (typeof exercise.demo_poster_url === "string" ? exercise.demo_poster_url : null) ||
+                            (typeof ovFb?.demo_poster_url === "string" ? ovFb.demo_poster_url : null);
                           return (
                             <div
                               key={`${dayName}-ex-${exIndex}`}
@@ -747,26 +882,19 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
                                     }`}
                                   >
                                     <p className="text-[10px] uppercase tracking-wide text-cyan-200/80">Guía técnica</p>
-                                      {exTechnique ? <p><strong>Técnica:</strong> {exTechnique}</p> : null}
-                                      {exCues.length > 0 ? <p><strong>Cues:</strong> {exCues.join(" · ")}</p> : null}
-                                      {(exTempo || exRpe !== null || exRest !== null) ? (
-                                        <p>
-                                          <strong>Parámetros:</strong>{" "}
-                                          {exTempo ? `Tempo ${exTempo}` : ""}{exTempo && (exRpe !== null || exRest !== null) ? " · " : ""}
-                                          {exRpe !== null ? `RPE ${exRpe}` : ""}{exRpe !== null && exRest !== null ? " · " : ""}
-                                          {exRest !== null ? `Descanso ${exRest}s` : ""}
+                                      {exTechniqueSteps.map((step, idx) => (
+                                        <p key={`${exTechKey}-step-${idx}`}>
+                                          <strong>Paso {idx + 1}:</strong> {step}
                                         </p>
-                                      ) : null}
-                                      {exProgression ? <p><strong>Progresión:</strong> {exProgression}</p> : null}
-                                      {exAlternative ? <p><strong>Alternativa:</strong> {exAlternative}</p> : null}
+                                      ))}
                                   </div>
                                 </div>
                               ) : null}
                               {exName.length >= 2 ? (
                                 <ExerciseDemoMedia
                                   exerciseName={exName}
-                                  demoVideoUrl={typeof exercise.demo_video_url === "string" ? exercise.demo_video_url : null}
-                                  demoPosterUrl={typeof exercise.demo_poster_url === "string" ? exercise.demo_poster_url : null}
+                                  demoVideoUrl={demoVideoFb}
+                                  demoPosterUrl={demoPosterFb}
                                   planMediaOverrides={planMediaOverridesMerged}
                                 />
                               ) : null}

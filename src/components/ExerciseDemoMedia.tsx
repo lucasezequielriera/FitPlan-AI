@@ -1,10 +1,19 @@
 import React, { useCallback, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import {
   isAllowedPosterUrl,
-  isAllowedVideoUrl,
   normalizeExerciseMediaKey,
+  resolveExerciseVideoSource,
   type ExerciseMediaOverride,
 } from "@/lib/exerciseMedia";
+
+const CldVideoPlayer = dynamic(
+  () => import("next-cloudinary").then((m) => m.CldVideoPlayer),
+  {
+    ssr: false,
+    loading: () => <p className="text-[10px] text-white/50">Cargando reproductor…</p>,
+  }
+);
 
 type WgerPayload = {
   source: "wger" | "custom";
@@ -17,14 +26,6 @@ type WgerPayload = {
 };
 
 type LoadState = "idle" | "loading" | "ready" | "empty" | "error";
-
-function resolveOwnVideoUrl(
-  inline: string | undefined | null,
-  override: ExerciseMediaOverride | null | undefined
-): string | null {
-  const v = (inline?.trim() || override?.demo_video_url?.trim() || "") as string;
-  return isAllowedVideoUrl(v) ? v : null;
-}
 
 function resolveOwnPosterUrl(
   inline: string | undefined | null,
@@ -44,7 +45,7 @@ type Props = {
 };
 
 /**
- * Vídeo propio (HTTPS) o ilustración wger. Sin YouTube.
+ * Vídeo propio (HTTPS, Cloudinary u otro host permitido) o ilustración wger. Sin YouTube.
  */
 export default function ExerciseDemoMedia({
   exerciseName,
@@ -57,8 +58,8 @@ export default function ExerciseDemoMedia({
     return planMediaOverrides?.[k] ?? null;
   }, [exerciseName, planMediaOverrides]);
 
-  const ownVideo = useMemo(
-    () => resolveOwnVideoUrl(demoVideoUrl, override),
+  const resolvedVideo = useMemo(
+    () => resolveExerciseVideoSource(demoVideoUrl, override),
     [demoVideoUrl, override]
   );
   const ownPoster = useMemo(
@@ -66,7 +67,12 @@ export default function ExerciseDemoMedia({
     [demoPosterUrl, override]
   );
 
-  const hasOwnVideo = Boolean(ownVideo);
+  const cloudName =
+    typeof process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME === "string"
+      ? process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME.trim()
+      : "";
+
+  const hasOwnVideo = Boolean(resolvedVideo);
   const [lightbox, setLightbox] = useState<"wger" | "video" | null>(null);
   const [state, setState] = useState<LoadState>("idle");
   const [wger, setWger] = useState<WgerPayload | null>(null);
@@ -109,6 +115,47 @@ export default function ExerciseDemoMedia({
 
   const summaryLabel = hasOwnVideo ? "Forma del movimiento (vídeo del equipo)" : "Forma del movimiento (ilustración)";
 
+  const renderVideoPlayer = (opts: { compact: boolean }) => {
+    if (!resolvedVideo) return null;
+    if (resolvedVideo.kind === "direct") {
+      return (
+        <video
+          src={resolvedVideo.url}
+          poster={ownPoster || undefined}
+          className={
+            opts.compact
+              ? "w-full max-h-52 rounded-md border border-emerald-500/25 bg-black/50 object-contain"
+              : "max-w-full max-h-[85vh] rounded-lg shadow-2xl"
+          }
+          controls
+          playsInline
+          preload="metadata"
+          autoPlay={!opts.compact}
+        />
+      );
+    }
+    if (!cloudName) {
+      return (
+        <p className="text-xs text-amber-200/90">
+          Falta <code className="text-amber-100/90">NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME</code> en el servidor para reproducir
+          vídeos de Cloudinary.
+        </p>
+      );
+    }
+    return (
+      <div className={opts.compact ? "w-full max-h-52 overflow-hidden rounded-md border border-emerald-500/25 bg-black/50" : "w-full max-w-3xl"}>
+        <CldVideoPlayer
+          src={resolvedVideo.publicId}
+          width={opts.compact ? 720 : 1080}
+          height={opts.compact ? 1280 : 1920}
+          className={opts.compact ? "w-full max-h-52" : "w-full max-h-[85vh]"}
+          poster={ownPoster || undefined}
+          logo={false}
+        />
+      </div>
+    );
+  };
+
   return (
     <>
       <details className="mt-2 group" onToggle={onToggle}>
@@ -119,19 +166,14 @@ export default function ExerciseDemoMedia({
           {summaryLabel}
         </summary>
         <div className="mt-2 rounded-lg border border-white/10 bg-black/30 p-3 space-y-3">
-          {hasOwnVideo && ownVideo ? (
+          {hasOwnVideo && resolvedVideo ? (
             <div className="space-y-2">
               <p className="text-[10px] text-emerald-200/90">
-                Vídeo proporcionado por tu plan (enlace HTTPS directo, sin YouTube).
+                {resolvedVideo.kind === "cloudinary"
+                  ? "Vídeo desde Cloudinary (calidad adaptativa)."
+                  : "Vídeo proporcionado por tu plan (enlace HTTPS directo, sin YouTube)."}
               </p>
-              <video
-                src={ownVideo}
-                poster={ownPoster || undefined}
-                className="w-full max-h-52 rounded-md border border-emerald-500/25 bg-black/50 object-contain"
-                controls
-                playsInline
-                preload="metadata"
-              />
+              {renderVideoPlayer({ compact: true })}
               <button
                 type="button"
                 onClick={() => setLightbox("video")}
@@ -267,7 +309,7 @@ export default function ExerciseDemoMedia({
         </div>
       ) : null}
 
-      {lightbox === "video" && ownVideo ? (
+      {lightbox === "video" && resolvedVideo ? (
         <div
           role="dialog"
           aria-modal="true"
@@ -285,16 +327,30 @@ export default function ExerciseDemoMedia({
           >
             Cerrar
           </button>
-          <video
-            src={ownVideo}
-            poster={ownPoster || undefined}
-            className="max-w-full max-h-[85vh] rounded-lg shadow-2xl"
-            controls
-            autoPlay
-            playsInline
-            onClick={(e) => e.stopPropagation()}
-          />
-          <p className="mt-3 text-xs text-white/60 max-w-md text-center">{exerciseName}</p>
+          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-4xl flex flex-col items-center">
+            {resolvedVideo.kind === "direct" ? (
+              <video
+                src={resolvedVideo.url}
+                poster={ownPoster || undefined}
+                className="max-w-full max-h-[85vh] rounded-lg shadow-2xl"
+                controls
+                autoPlay
+                playsInline
+              />
+            ) : cloudName ? (
+              <CldVideoPlayer
+                src={resolvedVideo.publicId}
+                width={1080}
+                height={1920}
+                className="max-w-full max-h-[85vh]"
+                poster={ownPoster || undefined}
+                logo={false}
+              />
+            ) : (
+              <p className="text-sm text-amber-200">Configura NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME.</p>
+            )}
+            <p className="mt-3 text-xs text-white/60 max-w-md text-center">{exerciseName}</p>
+          </div>
         </div>
       ) : null}
     </>

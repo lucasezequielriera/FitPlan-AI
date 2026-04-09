@@ -33,6 +33,7 @@
     "jspdf": "^3.0.3",
     "mercadopago": "^2.9.0",
     "next": "^16.0.7",
+    "next-cloudinary": "^6.17.5",
     "nodemailer": "^8.0.2",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",

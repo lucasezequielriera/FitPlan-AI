@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { getAuthSafe } from "@/lib/firebase";
-import { FaDumbbell, FaExclamationTriangle, FaImage, FaPlus, FaSearch, FaTags, FaTimes, FaTrash } from "react-icons/fa";
+import {
+  FaDumbbell,
+  FaExclamationTriangle,
+  FaImage,
+  FaPlus,
+  FaSearch,
+  FaTags,
+  FaTimes,
+  FaTrash,
+} from "react-icons/fa";
 
 type CatalogEntry = {
   normKey: string;
@@ -345,7 +354,8 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
             <p className="text-xs text-white/55 mt-0.5 leading-relaxed">
               Cada entrada fija la ilustración para ese nombre: bien un ID de wger, bien imagen o GIF en{" "}
               <code className="text-violet-300/90">public/ejercicios/</code> (podés poner solo el nombre del archivo o la URL completa). El
-              nombre del ejercicio debe coincidir con el plan (típicamente lo que va antes del ·).
+              nombre del ejercicio debe coincidir con el plan (típicamente lo que va antes del ·). Los vídeos de técnica se enlazan con
+              Cloudinary o URL directa en el plan (sección «Vídeos propios del coach» en el detalle del plan).
             </p>
           </div>
         </div>

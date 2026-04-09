@@ -6158,6 +6158,24 @@ function IntakePaymentLinkModal({
   );
 }
 
+type IntakeBasicsDraft = {
+  nombre: string;
+  apellido: string;
+  email: string;
+  edad: string;
+  ciudad: string;
+  instagram: string;
+  whatsapp: string;
+  emailVerified: boolean;
+  whatsappVerified: boolean;
+  privacyConsentAccepted: boolean;
+};
+
+type IntakeBasicsStringKey = keyof Pick<
+  IntakeBasicsDraft,
+  "nombre" | "apellido" | "email" | "edad" | "ciudad" | "instagram" | "whatsapp"
+>;
+
 function IntakeClientDetailsModal({
   isOpen,
   onClose,
@@ -6178,7 +6196,7 @@ function IntakeClientDetailsModal({
   const [editOpen, setEditOpen] = useState(false);
   const [savingBasics, setSavingBasics] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [draft, setDraft] = useState({
+  const [draft, setDraft] = useState<IntakeBasicsDraft>({
     nombre: "",
     apellido: "",
     email: "",
@@ -6348,17 +6366,20 @@ function IntakeClientDetailsModal({
                 ["ciudad", "Ciudad"],
                 ["instagram", "Instagram"],
                 ["whatsapp", "WhatsApp"],
-              ].map(([key, label]) => (
+              ].map(([key, label]) => {
+                const k = key as IntakeBasicsStringKey;
+                return (
                 <label key={key} className="text-xs text-white/70">
                   {label}
                   <input
                     type={key === "edad" ? "number" : "text"}
-                    value={draft[key as keyof typeof draft]}
-                    onChange={(e) => setDraft((prev) => ({ ...prev, [key]: e.target.value }))}
+                    value={draft[k]}
+                    onChange={(e) => setDraft((prev) => ({ ...prev, [k]: e.target.value }))}
                     className="mt-1 w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white"
                   />
                 </label>
-              ))}
+                );
+              })}
             </div>
             <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
               <label className="text-xs text-white/80 inline-flex items-center gap-2">
@@ -7235,8 +7256,9 @@ function IntakeGeneratedPlanModal({
                 <div>
                   <p className="text-sm font-semibold text-emerald-100">Vídeos propios del coach</p>
                   <p className="text-[11px] text-white/55 mt-1 leading-relaxed">
-                    Enlaces HTTPS directos a archivo (.mp4, .webm o .mov). Sin YouTube. Opcional: URL de imagen como póster (.jpg, .png, .webp).
-                    Sube el archivo a tu CDN o almacenamiento (R2, S3, etc.) y pega la URL pública.
+                    URL HTTPS a .mp4/.webm/.mov, URL de Cloudinary (<code className="text-emerald-200/90">res.cloudinary.com/.../video/upload/...</code>) o{" "}
+                    <strong className="text-white/75">public ID</strong> de Cloudinary (ej. <code className="text-emerald-200/90">carpeta/ejercicio</code>) con{" "}
+                    <code className="text-emerald-200/90">NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME</code> en el proyecto. Sin YouTube. Póster: imagen HTTPS o Cloudinary.
                   </p>
                 </div>
                 <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
@@ -7244,7 +7266,7 @@ function IntakeGeneratedPlanModal({
                     <div key={row.name} className="rounded-md border border-white/10 bg-black/20 p-2 space-y-1.5">
                       <p className="text-xs font-medium text-white/90">{row.name}</p>
                       <input
-                        type="url"
+                        type="text"
                         value={row.video}
                         onChange={(e) => {
                           const v = e.target.value;
@@ -7252,11 +7274,11 @@ function IntakeGeneratedPlanModal({
                             prev.map((r) => (r.name === row.name ? { ...r, video: v } : r))
                           );
                         }}
-                        placeholder="https://…/ejercicio.mp4"
+                        placeholder="https://…/ejercicio.mp4 o public ID Cloudinary"
                         className="w-full rounded bg-white/5 border border-white/10 px-2 py-1.5 text-[11px] text-white placeholder:text-white/30"
                       />
                       <input
-                        type="url"
+                        type="text"
                         value={row.poster}
                         onChange={(e) => {
                           const v = e.target.value;

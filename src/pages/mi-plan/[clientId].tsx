@@ -202,17 +202,27 @@ export default function MiPlanIntakePage() {
                 ["ciudad", "Ciudad"],
                 ["instagram", "Instagram"],
                 ["whatsapp", "WhatsApp"],
-              ].map(([key, label]) => (
+              ].map(([key, label]) => {
+                const k = key as
+                  | "nombre"
+                  | "apellido"
+                  | "email"
+                  | "edad"
+                  | "ciudad"
+                  | "instagram"
+                  | "whatsapp";
+                return (
                 <label key={key} className="text-sm text-white/80">
                   {label}
                   <input
                     type={key === "edad" ? "number" : "text"}
-                    value={profileDraft[key as keyof typeof profileDraft]}
-                    onChange={(e) => setProfileDraft((prev) => ({ ...prev, [key]: e.target.value }))}
+                    value={profileDraft[k]}
+                    onChange={(e) => setProfileDraft((prev) => ({ ...prev, [k]: e.target.value }))}
                     className="mt-1 w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-white placeholder-white/35"
                   />
                 </label>
-              ))}
+                );
+              })}
             </div>
             <label className="mt-3 inline-flex items-center gap-2 text-xs text-white/75">
               <input
