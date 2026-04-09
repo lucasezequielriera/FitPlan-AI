@@ -47,7 +47,7 @@ export default function AdminExerciseCatalogModal({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [mediaMode, setMediaMode] = useState<"wger" | "custom">("wger");
+  const [mediaMode, setMediaMode] = useState<"wger" | "custom" | "video">("wger");
   const [newLabel, setNewLabel] = useState("");
   const [newId, setNewId] = useState("");
   const [customUrl, setCustomUrl] = useState("");
@@ -142,8 +142,13 @@ export default function AdminExerciseCatalogModal({
     setSaving(true);
     setError(null);
     try {
-      if (mediaMode === "custom") {
+      if (mediaMode === "custom" || mediaMode === "video") {
         const url = customUrl.trim();
+        if (!url) {
+          setError(mediaMode === "video" ? "Pegá la URL del vídeo." : "Indica una URL o ruta de imagen.");
+          setSaving(false);
+          return;
+        }
         const r = await fetch("/api/admin/exerciseWgerCatalog", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -223,8 +228,13 @@ export default function AdminExerciseCatalogModal({
       setNewId(entry.wgerExerciseId != null ? String(entry.wgerExerciseId) : "");
       setCustomUrl("");
     } else {
-      setMediaMode("custom");
-      setCustomUrl(entry.customImageUrl?.trim() || "");
+      const url = entry.customImageUrl?.trim() || "";
+      setCustomUrl(url);
+      if (/\.(mp4|webm|mov|m4v|mkv)(\?.*)?$/i.test(url)) {
+        setMediaMode("video");
+      } else {
+        setMediaMode("custom");
+      }
     }
   };
 
@@ -451,13 +461,28 @@ export default function AdminExerciseCatalogModal({
                 }`}
               >
                 <FaImage className="text-[10px]" />
-                Imagen / GIF (URL)
+                Imagen / GIF
+              </button>
+              <button
+                type="button"
+                onClick={() => setMediaMode("video")}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                  mediaMode === "video"
+                    ? "bg-emerald-500/25 border-emerald-400/50 text-emerald-100"
+                    : "bg-black/30 border-white/15 text-white/60 hover:text-white/80"
+                }`}
+              >
+                <FaVideo className="text-[10px]" />
+                Vídeo (URL)
               </button>
             </div>
-            <p className="text-[11px] text-white/45">
-              Pegá la URL completa del vídeo tal cual (p. ej. Cloudinary <code className="text-violet-300/80">…mp4</code>); este formulario{" "}
-              <span className="text-violet-200/90">no añade</span> extensiones automáticas.
-            </p>
+            {mediaMode === "custom" ? (
+              <p className="text-[11px] text-violet-200/70">URL o ruta de imagen en public/ejercicios/.</p>
+            ) : mediaMode === "video" ? (
+              <p className="text-[11px] text-emerald-200/80">
+                URL del vídeo completa; no se añaden extensiones automáticas.
+              </p>
+            ) : null}
             <input
               value={newLabel}
               onChange={(e) => setNewLabel(e.target.value)}
@@ -471,21 +496,26 @@ export default function AdminExerciseCatalogModal({
                 placeholder="ID wger (exerciseinfo)"
                 className="w-full rounded-lg bg-black/40 border border-white/15 px-3 py-2 text-sm text-white font-mono placeholder:text-white/35"
               />
-            ) : (
+            ) : mediaMode === "video" ? (
               <div className="space-y-2">
-                <div className="inline-flex items-center gap-1.5 rounded-md border border-emerald-400/30 bg-emerald-500/10 px-2 py-1 text-[11px] text-emerald-100/90">
-                  <FaVideo className="text-[10px] shrink-0" />
-                  Vídeo: pegá la URL completa (.mp4 / .webm / Cloudinary); no se modifica el final del enlace.
-                </div>
                 <input
                   value={customUrl}
                   onChange={(e) => setCustomUrl(e.target.value)}
-                  placeholder="https://res.cloudinary.com/…/video/upload/…/archivo.mp4  o  /ejercicios/imagen.webp"
+                  placeholder="https://…/video/upload/…/archivo.mp4"
+                  className="w-full rounded-lg bg-black/40 border border-emerald-500/25 px-3 py-2 text-sm text-white placeholder:text-white/35"
+                />
+                <p className="text-[11px] text-white/45">.webm / .mov también. Sin YouTube ni Vimeo.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <input
+                  value={customUrl}
+                  onChange={(e) => setCustomUrl(e.target.value)}
+                  placeholder="https://…/imagen.webp  o  public/ejercicios/archivo.webp"
                   className="w-full rounded-lg bg-black/40 border border-white/15 px-3 py-2 text-sm text-white placeholder:text-white/35"
                 />
                 <p className="text-[11px] text-white/45 leading-relaxed">
-                  Archivo en <code className="text-violet-300/80">public/ejercicios/</code>: podés escribir ruta o nombre con extensión (
-                  <code className="text-violet-300/80">mi-ejercicio.webp</code>), o URL https completa. Sin YouTube ni Vimeo.
+                  Archivo en <code className="text-violet-300/80">public/ejercicios/</code> o URL https de imagen. Sin YouTube ni Vimeo.
                 </p>
               </div>
             )}

@@ -67,11 +67,11 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [mediaMode, setMediaMode] = useState<"wger" | "custom">("wger");
+  const [mediaMode, setMediaMode] = useState<"wger" | "custom" | "video">("wger");
   const [newLabel, setNewLabel] = useState("");
   const [newId, setNewId] = useState("");
   const [customUrl, setCustomUrl] = useState("");
-  const [customExt, setCustomExt] = useState<".webp" | ".gif" | "none">(".webp");
+  const [customExt, setCustomExt] = useState<".webp" | ".gif">(".webp");
   const [searchQ, setSearchQ] = useState("");
   const [searchResults, setSearchResults] = useState<SearchHit[]>([]);
   const [searching, setSearching] = useState(false);
@@ -202,7 +202,6 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
     if (/\.(mp4|webm|mov|m4v|mkv)(\?.*)?$/i.test(s)) return s;
     if (/\.(jpg|jpeg|png|gif|webp|avif)(\?.*)?$/i.test(s)) return s;
     if (s.endsWith("/")) return s;
-    if (customExt === "none") return s;
     return `${s}${customExt}`;
   };
 
@@ -220,8 +219,13 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
     setSaving(true);
     setError(null);
     try {
-      if (mediaMode === "custom") {
-        const url = appendSelectedExtIfNeeded(customUrl);
+      if (mediaMode === "custom" || mediaMode === "video") {
+        const url = mediaMode === "video" ? customUrl.trim() : appendSelectedExtIfNeeded(customUrl);
+        if (!url) {
+          setError(mediaMode === "video" ? "Pegá la URL del vídeo." : "Indica una URL o archivo en public/ejercicios/.");
+          setSaving(false);
+          return;
+        }
         const r = await fetch("/api/admin/exerciseWgerCatalog", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -312,15 +316,17 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
       setNewId(entry.wgerExerciseId != null ? String(entry.wgerExerciseId) : "");
       setCustomUrl("");
     } else {
-      setMediaMode("custom");
       const url = entry.customImageUrl?.trim() || "";
       setCustomUrl(url);
       if (/\.(mp4|webm|mov|m4v|mkv)(\?.*)?$/i.test(url)) {
-        setCustomExt("none");
-      } else if (/\.gif(\?.*)?$/i.test(url)) {
-        setCustomExt(".gif");
+        setMediaMode("video");
       } else {
-        setCustomExt(".webp");
+        setMediaMode("custom");
+        if (/\.gif(\?.*)?$/i.test(url)) {
+          setCustomExt(".gif");
+        } else {
+          setCustomExt(".webp");
+        }
       }
     }
   };
@@ -628,13 +634,30 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
                 }`}
               >
                 <FaImage className="text-[10px]" />
-                Imagen / GIF (URL)
+                Imagen / GIF
+              </button>
+              <button
+                type="button"
+                onClick={() => setMediaMode("video")}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                  mediaMode === "video"
+                    ? "bg-emerald-500/25 border-emerald-400/50 text-emerald-100"
+                    : "bg-black/30 border-white/15 text-white/60 hover:text-white/80"
+                }`}
+              >
+                <FaVideo className="text-[10px]" />
+                Vídeo (URL)
               </button>
             </div>
-            <p className="text-[11px] text-white/45">
-              Para <span className="text-violet-200/90">vídeos</span> (p. ej. Cloudinary <code className="text-violet-300/80">…/video/upload/…mp4</code>) elegí abajo{" "}
-              <span className="text-violet-200/90">Vídeo / URL exacta</span> para que no se concatene <code className="text-violet-300/80">.webp</code> al final.
-            </p>
+            {mediaMode === "custom" ? (
+              <p className="text-[11px] text-violet-200/70">
+                Imágenes en <code className="text-violet-300/80">public/ejercicios/</code> o URL https; si no ponés extensión se añade .webp o .gif según el botón de abajo.
+              </p>
+            ) : mediaMode === "video" ? (
+              <p className="text-[11px] text-emerald-200/80">
+                Pegá la URL completa del vídeo (p. ej. Cloudinary <code className="text-emerald-300/80">…/video/upload/…mp4</code>). No se añade ninguna extensión automática.
+              </p>
+            ) : null}
             <input
               value={newLabel}
               onChange={(e) => setNewLabel(e.target.value)}
@@ -648,6 +671,18 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
                 placeholder="ID wger (exerciseinfo)"
                 className="w-full rounded-lg bg-black/40 border border-white/15 px-3 py-2 text-sm text-white font-mono placeholder:text-white/35"
               />
+            ) : mediaMode === "video" ? (
+              <div className="space-y-2">
+                <input
+                  value={customUrl}
+                  onChange={(e) => setCustomUrl(e.target.value)}
+                  placeholder="https://res.cloudinary.com/…/video/upload/…/archivo.mp4"
+                  className="w-full rounded-lg bg-black/40 border border-emerald-500/25 px-3 py-2 text-sm text-white placeholder:text-white/35"
+                />
+                <p className="text-[11px] text-white/45 leading-relaxed">
+                  También .webm / .mov por https. Sin YouTube ni Vimeo.
+                </p>
+              </div>
             ) : (
               <div className="space-y-2">
                 <input
@@ -657,7 +692,7 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
                   className="w-full rounded-lg bg-black/40 border border-white/15 px-3 py-2 text-sm text-white placeholder:text-white/35"
                 />
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[11px] text-white/55">Extensión rápida:</span>
+                  <span className="text-[11px] text-white/55">Si falta extensión:</span>
                   <button
                     type="button"
                     onClick={() => setCustomExt(".webp")}
@@ -680,29 +715,11 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
                   >
                     .gif
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setCustomExt("none")}
-                    className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium border ${
-                      customExt === "none"
-                        ? "bg-emerald-500/25 border-emerald-400/50 text-emerald-100"
-                        : "bg-black/30 border-white/15 text-white/60 hover:text-white/80"
-                    }`}
-                  >
-                    <FaVideo className="text-[10px]" />
-                    Vídeo / URL exacta
-                  </button>
-                  <span className="text-[11px] text-white/45">
-                    {customExt === "none"
-                      ? "no se añade ninguna extensión"
-                      : `si no escribís extensión, se agrega ${customExt}`}
-                  </span>
+                  <span className="text-[11px] text-white/45">se concatena al nombre corto</span>
                 </div>
                 <p className="text-[11px] text-white/45 leading-relaxed">
                   Archivo en <code className="text-violet-300/80">public/ejercicios/</code>: podés escribir solo el nombre (
-                  <code className="text-violet-300/80">mi-ejercicio</code>), o{" "}
-                  <code className="text-violet-300/80">public/ejercicios/mi-ejercicio</code>, o la URL completa https (o http en local). Si ya
-                  escribís extensión, se respeta; si no, se agrega la elegida arriba (salvo modo vídeo). Sin YouTube ni Vimeo.
+                  <code className="text-violet-300/80">mi-ejercicio</code>), o ruta completa, o URL https de imagen. Sin YouTube ni Vimeo.
                 </p>
               </div>
             )}
