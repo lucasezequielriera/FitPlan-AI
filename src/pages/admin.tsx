@@ -93,6 +93,8 @@ interface IntakeClient {
   clinicalTrainingHint?: string | null;
   /** Peso declarado al enviar el formulario (kg). */
   pesoInicialKg?: number | null;
+  digestEmailEnabled?: boolean;
+  digestFrequency?: "weekly" | "biweekly" | "monthly";
 }
 
 /** Heurística para pre-marcar “sin sentadilla” al abrir el modal. */
@@ -118,6 +120,22 @@ interface IntakeGeneratedPlanDetail {
 
 interface IntakeClientDetail extends IntakeClient {
   updatedAt: string | null;
+  emailVerified?: boolean;
+  whatsappVerified?: boolean;
+  privacyConsentAccepted?: boolean;
+  privacyConsentAt?: string | null;
+  adherence?: {
+    sessionsLast28d: number;
+    sessionsLast56d: number;
+    activeWeeksLast4: number;
+    weeklyAvgLast4: number;
+  } | null;
+  profileEdits?: Array<{
+    id: string;
+    actorType: string | null;
+    createdAt: string | null;
+    after: Record<string, unknown> | null;
+  }>;
   formData: Record<string, unknown> | null;
 }
 
@@ -446,9 +464,20 @@ export default function Admin() {
   const [paymentLinkPlan, setPaymentLinkPlan] = useState<PaymentLinkPlan>("monthly");
   const [paymentLinkLoading, setPaymentLinkLoading] = useState(false);
   const [paymentNotificationOpen, setPaymentNotificationOpen] = useState(false);
+  const [paymentNotificationFilter, setPaymentNotificationFilter] = useState<"all" | "payments" | "fatigue" | "emails">("all");
   const [paymentNotificationUnread, setPaymentNotificationUnread] = useState(0);
   const [paymentNotificationItems, setPaymentNotificationItems] = useState<
-    Array<{ id: string; userName?: string; userEmail?: string; amount?: number; currency?: string; provider?: string; createdAt?: unknown }>
+    Array<{
+      id: string;
+      userName?: string;
+      userEmail?: string;
+      amount?: number;
+      currency?: string;
+      provider?: string;
+      type?: string;
+      message?: string;
+      createdAt?: unknown;
+    }>
   >([]);
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const [selectedUserForHistory, setSelectedUserForHistory] = useState<User | null>(null);
@@ -459,6 +488,24 @@ export default function Admin() {
     weightRecords?: Array<{ fecha: string; peso: number; planId: string; planCreatedAt?: string }>;
   } | null>(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [intakeEmailHistoryOpen, setIntakeEmailHistoryOpen] = useState(false);
+  const [intakeEmailHistoryClient, setIntakeEmailHistoryClient] = useState<IntakeClient | null>(null);
+  const [intakeEmailHistoryLoading, setIntakeEmailHistoryLoading] = useState(false);
+  const [sendingIntakeWelcomeEmail, setSendingIntakeWelcomeEmail] = useState(false);
+  const [intakeEmailHistoryMessage, setIntakeEmailHistoryMessage] = useState<string | null>(null);
+  const [intakeEmailHistoryItems, setIntakeEmailHistoryItems] = useState<
+    Array<{
+      id: string;
+      subject?: string | null;
+      to?: string | null;
+      weekKey?: string | null;
+      createdAt?: string | null;
+      html?: string | null;
+      status?: string | null;
+      error?: string | null;
+      frequency?: string | null;
+    }>
+  >([]);
   const [adminMeta, setAdminMeta] = useState<{ lastUsersCheck?: string | null }>({});
   const [newUsersList, setNewUsersList] = useState<Array<{ id: string; nombre: string | null; email: string | null; createdAt?: string | null }>>([]);
   const [newUserIds, setNewUserIds] = useState<string[]>([]);
@@ -1420,6 +1467,88 @@ export default function Admin() {
     }
   };
 
+  const handleOpenIntakeEmailHistory = async (client: IntakeClient) => {
+    try {
+      const auth = getAuthSafe();
+      if (!auth?.currentUser) return;
+      setIntakeEmailHistoryClient(client);
+      setIntakeEmailHistoryOpen(true);
+      setIntakeEmailHistoryItems([]);
+      setIntakeEmailHistoryMessage(null);
+      setIntakeEmailHistoryLoading(true);
+      const response = await fetch(
+        `/api/admin/intakeClientEmailHistory?adminUserId=${auth.currentUser.uid}&clientId=${client.id}`
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+      setIntakeEmailHistoryItems(Array.isArray(data.items) ? data.items : []);
+    } catch (e) {
+      console.error("Error cargando historial de emails intake:", e);
+      setIntakeEmailHistoryItems([]);
+    } finally {
+      setIntakeEmailHistoryLoading(false);
+    }
+  };
+
+  const handleSendIntakeWelcomeEmail = async () => {
+    try {
+      const auth = getAuthSafe();
+      if (!auth?.currentUser || !intakeEmailHistoryClient) return;
+      setSendingIntakeWelcomeEmail(true);
+      setIntakeEmailHistoryMessage(null);
+      const response = await fetch("/api/admin/sendIntakeWelcomeEmail", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          adminUserId: auth.currentUser.uid,
+          clientId: intakeEmailHistoryClient.id,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+      setIntakeEmailHistoryMessage("Email de bienvenida enviado.");
+      await handleOpenIntakeEmailHistory(intakeEmailHistoryClient);
+    } catch (e) {
+      setIntakeEmailHistoryMessage(e instanceof Error ? e.message : "No se pudo enviar el email.");
+    } finally {
+      setSendingIntakeWelcomeEmail(false);
+    }
+  };
+
+  const handleUpdateIntakeDigestPrefs = async (
+    clientId: string,
+    patch: Partial<Pick<IntakeClient, "digestEmailEnabled" | "digestFrequency">>
+  ) => {
+    try {
+      const auth = getAuthSafe();
+      if (!auth?.currentUser) return;
+      const current = intakeClients.find((c) => c.id === clientId);
+      const digestEmailEnabled =
+        typeof patch.digestEmailEnabled === "boolean"
+          ? patch.digestEmailEnabled
+          : current?.digestEmailEnabled !== false;
+      const digestFrequency =
+        patch.digestFrequency === "biweekly" || patch.digestFrequency === "monthly" || patch.digestFrequency === "weekly"
+          ? patch.digestFrequency
+          : current?.digestFrequency || "weekly";
+      setIntakeClients((prev) =>
+        prev.map((c) => (c.id === clientId ? { ...c, digestEmailEnabled, digestFrequency } : c))
+      );
+      await fetch("/api/admin/updateIntakeClientDigestPrefs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          adminUserId: auth.currentUser.uid,
+          intakeClientId: clientId,
+          digestEmailEnabled,
+          digestFrequency,
+        }),
+      });
+    } catch (e) {
+      console.error("Error actualizando preferencias de digest:", e);
+    }
+  };
+
   const openDeleteUserModal = (client: IntakeClient) => {
     setDeleteUserTarget(client);
     setDeleteUserModalOpen(true);
@@ -2206,6 +2335,21 @@ export default function Admin() {
 
     return paymentMatches && serviceMatches && searchHaystack.includes(normalizedIntakeSearch);
   });
+  const visibleNotificationItems = paymentNotificationItems.filter((item) => {
+    if (paymentNotificationFilter === "all") return true;
+    if (paymentNotificationFilter === "payments") return item.type === "payment_success";
+    if (paymentNotificationFilter === "fatigue") return item.type === "coach_alert";
+    return item.type === "weekly_digest_sent" || item.type === "weekly_digest_failed";
+  });
+  const notificationCounts = paymentNotificationItems.reduce(
+    (acc, item) => {
+      if (item.type === "payment_success") acc.payments += 1;
+      else if (item.type === "coach_alert") acc.fatigue += 1;
+      else if (item.type === "weekly_digest_sent" || item.type === "weekly_digest_failed") acc.emails += 1;
+      return acc;
+    },
+    { payments: 0, fatigue: 0, emails: 0 }
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900">
@@ -2256,7 +2400,18 @@ export default function Admin() {
                 className="relative px-4 py-2 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-emerald-100 hover:bg-emerald-500/30 transition-colors text-sm font-medium inline-flex items-center gap-2"
               >
                 <FaBell className="h-3.5 w-3.5" />
-                Cobros
+                Notificaciones
+                <span className="ml-1 inline-flex items-center gap-1">
+                  <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-emerald-400/30 text-emerald-100 border border-emerald-300/40">
+                    C {notificationCounts.payments}
+                  </span>
+                  <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-400/30 text-amber-100 border border-amber-300/40">
+                    F {notificationCounts.fatigue}
+                  </span>
+                  <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-cyan-400/30 text-cyan-100 border border-cyan-300/40">
+                    E {notificationCounts.emails}
+                  </span>
+                </span>
                 {paymentNotificationUnread > 0 && (
                   <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-emerald-400 text-black font-bold">
                     {paymentNotificationUnread}
@@ -2279,15 +2434,40 @@ export default function Admin() {
           </div>
           {paymentNotificationOpen && (
             <div className="mt-3 rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-3">
-              <p className="text-xs text-emerald-100 mb-2">Pagos confirmados recientes</p>
+              <p className="text-xs text-emerald-100 mb-2">Cobros y alertas recientes</p>
+              <div className="mb-2 flex flex-wrap gap-2">
+                {[
+                  ["all", "Todo"],
+                  ["payments", "Cobros"],
+                  ["fatigue", "Fatiga"],
+                  ["emails", "Emails"],
+                ].map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setPaymentNotificationFilter(id as "all" | "payments" | "fatigue" | "emails")}
+                    className={`px-2 py-1 rounded text-[11px] border ${
+                      paymentNotificationFilter === id
+                        ? "bg-emerald-400/30 border-emerald-300/50 text-emerald-50"
+                        : "bg-white/5 border-white/15 text-white/70 hover:bg-white/10"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
               <div className="space-y-1 max-h-40 overflow-y-auto">
-                {paymentNotificationItems.length === 0 ? (
+                {visibleNotificationItems.length === 0 ? (
                   <p className="text-xs text-white/60">Sin cobros recientes.</p>
                 ) : (
-                  paymentNotificationItems.map((item) => (
+                  visibleNotificationItems.map((item) => (
                     <div key={item.id} className="text-xs text-white/85 bg-white/5 border border-white/10 rounded px-2 py-1 flex items-center justify-between gap-2">
-                      <span>{item.userName || item.userEmail || "Usuario"} · {item.amount || 0} {item.currency || ""}</span>
-                      <span className="text-white/50">{String(item.provider || "").toUpperCase()}</span>
+                      <span>
+                        {item.message
+                          ? `${item.userName || item.userEmail || "Cliente"} · ${String(item.message)}`
+                          : `${item.userName || item.userEmail || "Usuario"} · ${item.amount || 0} ${item.currency || ""}`}
+                      </span>
+                      <span className="text-white/50">{String(item.provider || item.type || "").toUpperCase()}</span>
                     </div>
                   ))
                 )}
@@ -2656,6 +2836,35 @@ export default function Admin() {
                             <p className="text-xs text-white/80">
                               <span className="text-white/55">Instagram:</span> {client.instagram || "N/A"}
                             </p>
+                            <div className="mt-2 rounded-md border border-white/10 bg-black/20 p-2">
+                              <label className="inline-flex items-center gap-2 text-[11px] text-white/80">
+                                <input
+                                  type="checkbox"
+                                  checked={client.digestEmailEnabled !== false}
+                                  onChange={(e) =>
+                                    void handleUpdateIntakeDigestPrefs(client.id, {
+                                      digestEmailEnabled: e.target.checked,
+                                    })
+                                  }
+                                />
+                                Enviar email automático
+                              </label>
+                              <div className="mt-1">
+                                <select
+                                  value={client.digestFrequency || "weekly"}
+                                  onChange={(e) =>
+                                    void handleUpdateIntakeDigestPrefs(client.id, {
+                                      digestFrequency: e.target.value as "weekly" | "biweekly" | "monthly",
+                                    })
+                                  }
+                                  className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white"
+                                >
+                                  <option value="weekly">Cada semana</option>
+                                  <option value="biweekly">Cada 2 semanas</option>
+                                  <option value="monthly">Cada mes</option>
+                                </select>
+                              </div>
+                            </div>
                           </div>
                         </td>
                         <td className="px-4 py-3 text-sm min-w-[140px]">
@@ -2769,6 +2978,13 @@ export default function Admin() {
                               <span>Link pago</span>
                             </button>
                             <button
+                              onClick={() => void handleOpenIntakeEmailHistory(client)}
+                              className="px-3 py-1.5 rounded-lg bg-fuchsia-500/20 border border-fuchsia-400/40 text-fuchsia-200 hover:bg-fuchsia-500/30 transition-colors inline-flex items-center gap-1.5"
+                            >
+                              <FaEnvelope className="h-3.5 w-3.5" />
+                              <span>Emails</span>
+                            </button>
+                            <button
                               onClick={() => openDeleteUserModal(client)}
                               disabled={processingIntakeAction}
                               className="px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-400/40 text-red-200 hover:bg-red-500/30 transition-colors disabled:opacity-60 inline-flex items-center gap-1.5"
@@ -2830,6 +3046,33 @@ export default function Admin() {
                       <p className="text-white/80"><span className="text-white/55">Instagram:</span> {client.instagram || "N/A"}</p>
                       <p className="text-white/80"><span className="text-white/55">Servicio:</span> {client.servicioInteres || "N/A"}</p>
                       <p className="text-white/80 sm:col-span-2"><span className="text-white/55">Objetivo:</span> {client.objetivoPrincipal || "N/A"}</p>
+                      <div className="sm:col-span-2 rounded-md border border-white/10 bg-black/20 p-2">
+                        <label className="inline-flex items-center gap-2 text-[11px] text-white/80">
+                          <input
+                            type="checkbox"
+                            checked={client.digestEmailEnabled !== false}
+                            onChange={(e) =>
+                              void handleUpdateIntakeDigestPrefs(client.id, {
+                                digestEmailEnabled: e.target.checked,
+                              })
+                            }
+                          />
+                          Enviar email automático
+                        </label>
+                        <select
+                          value={client.digestFrequency || "weekly"}
+                          onChange={(e) =>
+                            void handleUpdateIntakeDigestPrefs(client.id, {
+                              digestFrequency: e.target.value as "weekly" | "biweekly" | "monthly",
+                            })
+                          }
+                          className="mt-1 w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white"
+                        >
+                          <option value="weekly">Cada semana</option>
+                          <option value="biweekly">Cada 2 semanas</option>
+                          <option value="monthly">Cada mes</option>
+                        </select>
+                      </div>
                       <p className="text-white/80">
                         <span className="text-white/55">Peso inicial:</span>{" "}
                         {typeof client.pesoInicialKg === "number" && Number.isFinite(client.pesoInicialKg) ? (
@@ -2923,6 +3166,13 @@ export default function Admin() {
                       >
                         <FaLink className="h-3.5 w-3.5" />
                         <span>Link pago</span>
+                      </button>
+                      <button
+                        onClick={() => void handleOpenIntakeEmailHistory(client)}
+                        className="px-3 py-1.5 rounded-lg bg-fuchsia-500/20 border border-fuchsia-400/40 text-fuchsia-200 hover:bg-fuchsia-500/30 transition-colors inline-flex items-center gap-1.5 text-xs"
+                      >
+                        <FaEnvelope className="h-3.5 w-3.5" />
+                        <span>Emails</span>
                       </button>
                       <button
                         onClick={() => openDeleteUserModal(client)}
@@ -4762,7 +5012,82 @@ export default function Admin() {
             detail={intakeClientDetail}
             loading={intakeClientDetailLoading}
             error={intakeClientDetailError}
+            onClientPatched={(patch) => {
+              setSelectedIntakeClient((prev) => (prev ? { ...prev, ...patch } : prev));
+              setIntakeClientDetail((prev) => (prev ? { ...prev, ...patch } : prev));
+              setIntakeClients((prev) => prev.map((c) => (c.id === selectedIntakeClient.id ? { ...c, ...patch } : c)));
+            }}
           />
+        )}
+        {intakeEmailHistoryOpen && intakeEmailHistoryClient && (
+          <div
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setIntakeEmailHistoryOpen(false);
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <div>
+                  <h2 className="text-xl font-bold text-white">Historial de emails</h2>
+                  <p className="text-xs text-white/60 mt-1">{intakeEmailHistoryClient.nombreCompleto || intakeEmailHistoryClient.email || intakeEmailHistoryClient.id}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => void handleSendIntakeWelcomeEmail()}
+                    disabled={sendingIntakeWelcomeEmail}
+                    className="px-3 py-1.5 rounded-lg bg-cyan-500/20 border border-cyan-400/40 text-cyan-100 hover:bg-cyan-500/30 disabled:opacity-60 text-xs"
+                  >
+                    {sendingIntakeWelcomeEmail ? "Enviando..." : "Enviar bienvenida"}
+                  </button>
+                  <button onClick={() => setIntakeEmailHistoryOpen(false)} className="text-white/70 hover:text-white">✕</button>
+                </div>
+              </div>
+              {intakeEmailHistoryMessage ? (
+                <p className="text-xs mb-3 text-cyan-200">{intakeEmailHistoryMessage}</p>
+              ) : null}
+              {intakeEmailHistoryLoading ? (
+                <p className="text-sm text-white/70">Cargando…</p>
+              ) : intakeEmailHistoryItems.length === 0 ? (
+                <p className="text-sm text-white/60">No hay emails enviados para este cliente.</p>
+              ) : (
+                <div className="space-y-3">
+                  {intakeEmailHistoryItems.map((item) => (
+                    <details key={item.id} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                      <summary className="cursor-pointer text-sm text-white">
+                        {item.subject || "Email"} · {item.weekKey || "—"} ·{" "}
+                        <span className={item.status === "failed" ? "text-red-300" : "text-emerald-300"}>
+                          {item.status === "failed" ? "Fallido" : "Enviado"}
+                        </span>{" "}
+                        ·{" "}
+                        <span className="text-white/60">{item.createdAt ? new Date(item.createdAt).toLocaleString("es-ES") : "s/f"}</span>
+                      </summary>
+                      <div className="mt-2 text-xs text-white/80 space-y-2">
+                        <p><span className="text-white/60">Para:</span> {item.to || "N/A"}</p>
+                        <p><span className="text-white/60">Frecuencia:</span> {item.frequency || "weekly"}</p>
+                        {item.status === "failed" ? (
+                          <p className="text-red-300"><span className="text-red-200/80">Error:</span> {item.error || "Sin detalle"}</p>
+                        ) : (
+                          <div className="rounded bg-white border border-white/10 p-2 max-h-72 overflow-auto">
+                            {item.html ? (
+                              <div dangerouslySetInnerHTML={{ __html: item.html }} />
+                            ) : (
+                              <p className="text-xs text-gray-600">Sin cuerpo HTML</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </details>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          </div>
         )}
         {intakePlanModalOpen && intakePlanClient && (
           <IntakePlanActionModal
@@ -5840,6 +6165,7 @@ function IntakeClientDetailsModal({
   detail,
   loading,
   error,
+  onClientPatched,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -5847,7 +6173,23 @@ function IntakeClientDetailsModal({
   detail: IntakeClientDetail | null;
   loading: boolean;
   error: string | null;
+  onClientPatched: (patch: Partial<IntakeClientDetail>) => void;
 }) {
+  const [editOpen, setEditOpen] = useState(false);
+  const [savingBasics, setSavingBasics] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [draft, setDraft] = useState({
+    nombre: "",
+    apellido: "",
+    email: "",
+    edad: "",
+    ciudad: "",
+    instagram: "",
+    whatsapp: "",
+    emailVerified: false,
+    whatsappVerified: false,
+    privacyConsentAccepted: false,
+  });
   if (!isOpen) return null;
 
   const formData = detail?.formData || null;
@@ -5868,6 +6210,91 @@ function IntakeClientDetailsModal({
       return (detail as unknown as Record<string, unknown>)[key];
     }
     return undefined;
+  };
+  const openBasicsEdit = () => {
+    const fullName = (detail?.nombreCompleto || client.nombreCompleto || "").trim();
+    const nameParts = fullName.split(/\s+/).filter(Boolean);
+    const baseFormData = detail?.formData && typeof detail.formData === "object" ? detail.formData : null;
+    const edadFromForm =
+      baseFormData && typeof baseFormData.edad === "number"
+        ? baseFormData.edad
+        : baseFormData && typeof baseFormData.edad === "string" && baseFormData.edad.trim()
+          ? Number(baseFormData.edad)
+          : null;
+    const edadFromDetail =
+      detail && Object.prototype.hasOwnProperty.call(detail, "edad")
+        ? Number((detail as unknown as Record<string, unknown>).edad)
+        : null;
+    const edadRaw = Number.isFinite(edadFromForm as number)
+      ? (edadFromForm as number)
+      : Number.isFinite(edadFromDetail as number)
+        ? (edadFromDetail as number)
+        : null;
+    const ciudadRaw = baseFormData && typeof baseFormData.ciudadPais === "string" ? baseFormData.ciudadPais : null;
+    setSaveError(null);
+    setDraft({
+      nombre: nameParts.length ? nameParts[0] : "",
+      apellido: nameParts.length > 1 ? nameParts.slice(1).join(" ") : "",
+      email: detail?.email || client.email || "",
+      edad: typeof edadRaw === "number" ? String(edadRaw) : "",
+      ciudad: ciudadRaw || "",
+      instagram: detail?.instagram || client.instagram || "",
+      whatsapp: detail?.whatsapp || client.whatsapp || "",
+      emailVerified: detail?.emailVerified === true,
+      whatsappVerified: detail?.whatsappVerified === true,
+      privacyConsentAccepted: detail?.privacyConsentAccepted === true,
+    });
+    setEditOpen(true);
+  };
+  const saveBasics = async () => {
+    const auth = getAuthSafe();
+    if (!auth?.currentUser?.uid) {
+      setSaveError("No hay sesión activa para guardar.");
+      return;
+    }
+    setSavingBasics(true);
+    setSaveError(null);
+    try {
+      const response = await fetch("/api/admin/updateIntakeClientBasics", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          adminUserId: auth.currentUser.uid,
+          intakeClientId: client.id,
+          ...draft,
+          edad: draft.edad.trim() ? Number(draft.edad) : null,
+        }),
+      });
+      const json = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(typeof json.error === "string" ? json.error : `Error ${response.status}`);
+      const nombreCompleto = [draft.nombre.trim(), draft.apellido.trim()].filter(Boolean).join(" ").trim() || null;
+      onClientPatched({
+        nombreCompleto,
+        email: draft.email.trim() || null,
+        whatsapp: draft.whatsapp.trim() || null,
+        instagram: draft.instagram.trim() || null,
+        emailVerified: draft.emailVerified,
+        whatsappVerified: draft.whatsappVerified,
+        privacyConsentAccepted: draft.privacyConsentAccepted,
+        formData: {
+          ...(detail?.formData || {}),
+          nombreCompleto,
+          email: draft.email.trim() || null,
+          edad: draft.edad.trim() ? Number(draft.edad) : null,
+          ciudadPais: draft.ciudad.trim() || null,
+          instagram: draft.instagram.trim() || null,
+          whatsapp: draft.whatsapp.trim() || null,
+          emailVerified: draft.emailVerified,
+          whatsappVerified: draft.whatsappVerified,
+          privacyConsentAccepted: draft.privacyConsentAccepted,
+        },
+      });
+      setEditOpen(false);
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "No se pudieron guardar los datos");
+    } finally {
+      setSavingBasics(false);
+    }
   };
 
   return (
@@ -5892,14 +6319,92 @@ function IntakeClientDetailsModal({
               {client.nombreCompleto || client.email || client.id}
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="text-white/70 hover:text-white transition-colors"
-            aria-label="Cerrar modal de detalle"
-          >
-            ✕
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={openBasicsEdit}
+              className="px-3 py-1.5 rounded-lg border border-cyan-300/30 bg-cyan-500/10 text-cyan-200 text-sm hover:bg-cyan-500/20"
+            >
+              Editar esenciales
+            </button>
+            <button
+              onClick={onClose}
+              className="text-white/70 hover:text-white transition-colors"
+              aria-label="Cerrar modal de detalle"
+            >
+              ✕
+            </button>
+          </div>
         </div>
+
+        {editOpen && (
+          <div className="mb-5 rounded-xl border border-cyan-300/20 bg-cyan-500/5 p-4">
+            <p className="text-sm font-medium text-cyan-200">Editar datos esenciales</p>
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {[
+                ["nombre", "Nombre"],
+                ["apellido", "Apellido"],
+                ["email", "Email"],
+                ["edad", "Edad"],
+                ["ciudad", "Ciudad"],
+                ["instagram", "Instagram"],
+                ["whatsapp", "WhatsApp"],
+              ].map(([key, label]) => (
+                <label key={key} className="text-xs text-white/70">
+                  {label}
+                  <input
+                    type={key === "edad" ? "number" : "text"}
+                    value={draft[key as keyof typeof draft]}
+                    onChange={(e) => setDraft((prev) => ({ ...prev, [key]: e.target.value }))}
+                    className="mt-1 w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white"
+                  />
+                </label>
+              ))}
+            </div>
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <label className="text-xs text-white/80 inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={draft.emailVerified}
+                  onChange={(e) => setDraft((prev) => ({ ...prev, emailVerified: e.target.checked }))}
+                />
+                Email verificado
+              </label>
+              <label className="text-xs text-white/80 inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={draft.whatsappVerified}
+                  onChange={(e) => setDraft((prev) => ({ ...prev, whatsappVerified: e.target.checked }))}
+                />
+                WhatsApp verificado
+              </label>
+              <label className="text-xs text-white/80 inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={draft.privacyConsentAccepted}
+                  onChange={(e) => setDraft((prev) => ({ ...prev, privacyConsentAccepted: e.target.checked }))}
+                />
+                Consentimiento privacidad
+              </label>
+            </div>
+            {saveError ? <p className="text-xs text-red-300 mt-3">{saveError}</p> : null}
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={() => setEditOpen(false)}
+                disabled={savingBasics}
+                className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white hover:bg-white/10 disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => void saveBasics()}
+                disabled={savingBasics}
+                className="px-3 py-1.5 rounded-lg bg-cyan-500/20 border border-cyan-300/30 text-cyan-100 hover:bg-cyan-500/30 disabled:opacity-60"
+              >
+                {savingBasics ? "Guardando..." : "Guardar"}
+              </button>
+            </div>
+          </div>
+        )}
 
         {loading ? (
           <div className="py-10 flex justify-center">
@@ -5928,7 +6433,52 @@ function IntakeClientDetailsModal({
                     : "N/A"}
                 </p>
               </div>
+              <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                <p className="text-xs text-white/60">Verificación de contacto</p>
+                <p className="text-sm text-white">
+                  Email: {detail.emailVerified ? "Verificado" : "Pendiente"} · WhatsApp: {detail.whatsappVerified ? "Verificado" : "Pendiente"}
+                </p>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                <p className="text-xs text-white/60">Consentimiento privacidad</p>
+                <p className="text-sm text-white">
+                  {detail.privacyConsentAccepted ? "Aceptado" : "Pendiente"}
+                  {detail.privacyConsentAt ? ` · ${new Date(detail.privacyConsentAt).toLocaleString("es-ES")}` : ""}
+                </p>
+              </div>
             </div>
+            {detail.adherence ? (
+              <div className="rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-3 py-2">
+                <p className="text-xs text-cyan-100 mb-1">Adherencia (dashboard rápido)</p>
+                <p className="text-sm text-white">
+                  28d: {detail.adherence.sessionsLast28d} sesiones · 56d: {detail.adherence.sessionsLast56d} sesiones ·
+                  Semanas activas (4): {detail.adherence.activeWeeksLast4}/4 · Promedio semanal: {detail.adherence.weeklyAvgLast4}
+                </p>
+              </div>
+            ) : null}
+            {Array.isArray(detail.profileEdits) && detail.profileEdits.length > 0 ? (
+              <div className="rounded-lg border border-fuchsia-400/30 bg-fuchsia-500/10 px-3 py-2">
+                <p className="text-xs text-fuchsia-100 mb-2">Historial de cambios de datos (últimos)</p>
+                <div className="space-y-2">
+                  {detail.profileEdits.slice(0, 5).map((ev) => (
+                    <div key={ev.id} className="rounded border border-white/10 bg-black/20 px-2 py-1.5 text-xs text-white/85">
+                      <p>
+                        {ev.actorType === "admin" ? "Admin" : "Cliente"} · {ev.createdAt ? new Date(ev.createdAt).toLocaleString("es-ES") : "s/f"}
+                      </p>
+                      <p className="text-white/60">
+                        {[
+                          ev.after?.nombreCompleto ? `Nombre: ${String(ev.after.nombreCompleto)}` : null,
+                          ev.after?.email ? `Email: ${String(ev.after.email)}` : null,
+                          ev.after?.whatsapp ? `WP: ${String(ev.after.whatsapp)}` : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ") || "Cambio registrado"}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
 
             <div className="space-y-3">
               {keysToRender.length === 0 ? (
@@ -6595,6 +7145,16 @@ function IntakeGeneratedPlanModal({
                             const mealOption = Array.isArray(meal.opciones)
                               ? String((meal.opciones as unknown[])[0] || "")
                               : "";
+                            const mealPortions =
+                              meal.porciones_aprox && typeof meal.porciones_aprox === "object"
+                                ? (meal.porciones_aprox as Record<string, unknown>)
+                                : null;
+                            const mealOptionSpecific = Array.isArray(meal.porciones_opcion_aprox)
+                              ? (meal.porciones_opcion_aprox as unknown[]).filter((x): x is string => typeof x === "string")
+                              : [];
+                            const mealPortionGuide = Array.isArray(mealPortions?.guia)
+                              ? (mealPortions?.guia as unknown[]).filter((x): x is string => typeof x === "string")
+                              : [];
                             return (
                               <div key={`${dayName}-${mealName}-${mealIndex}`} className="rounded-md border border-white/10 bg-white/[0.03] px-3 py-2">
                                 <div className="flex items-center justify-between gap-2">
@@ -6606,6 +7166,16 @@ function IntakeGeneratedPlanModal({
                                   Proteínas {String(mealMacros?.proteinas_g ?? "-")}g · Grasas {String(mealMacros?.grasas_g ?? "-")}g · Carbohidratos{" "}
                                   {String(mealMacros?.carbohidratos_g ?? "-")}g
                                 </p>
+                                {mealPortionGuide.length > 0 ? (
+                                  <p className="text-[11px] text-cyan-100/90 mt-1">
+                                    Porciones aprox: {mealPortionGuide.slice(0, 3).join(" · ")}
+                                  </p>
+                                ) : null}
+                                {mealOptionSpecific.length > 0 ? (
+                                  <p className="text-[11px] text-violet-100/90 mt-1">
+                                    Según esta opción: {mealOptionSpecific.join(" · ")}
+                                  </p>
+                                ) : null}
                               </div>
                             );
                           })}

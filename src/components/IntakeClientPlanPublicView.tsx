@@ -23,10 +23,20 @@ type Props = {
 export default function IntakeClientPlanPublicView({ clientName, plan, clientId, viewToken }: Props) {
   const [nutritionOpen, setNutritionOpen] = useState(false);
   const [trainingOpen, setTrainingOpen] = useState(false);
+  const [usefulOpen, setUsefulOpen] = useState(false);
+  const [usefulTab, setUsefulTab] = useState<"training" | "nutrition">("training");
   const [openNutritionDays, setOpenNutritionDays] = useState<Record<string, boolean>>({});
   const [openTrainingDays, setOpenTrainingDays] = useState<Record<string, boolean>>({});
   const [workoutSessions, setWorkoutSessions] = useState<IntakeWorkoutSession[]>([]);
   const [workoutSessionsLoading, setWorkoutSessionsLoading] = useState(false);
+  const [openTechniqueByExercise, setOpenTechniqueByExercise] = useState<Record<string, boolean>>({});
+  const [trainerQaQuestion, setTrainerQaQuestion] = useState("");
+  const [trainerQaAnswer, setTrainerQaAnswer] = useState<string | null>(null);
+  const [trainerQaLoading, setTrainerQaLoading] = useState(false);
+  const [trainerQaError, setTrainerQaError] = useState<string | null>(null);
+  const [trainerQaRemaining, setTrainerQaRemaining] = useState<number | null>(null);
+  const [trainerQaMaxFree, setTrainerQaMaxFree] = useState<number>(5);
+  const [trainerQaIsPremium, setTrainerQaIsPremium] = useState(false);
 
   const toggleNutritionDay = (key: string) => {
     setOpenNutritionDays((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -66,6 +76,81 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
       cancelled = true;
     };
   }, [clientId, viewToken, plan.id]);
+
+  useEffect(() => {
+    if (!clientId || !viewToken) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/public/intake-trainer-qa?clientId=${encodeURIComponent(clientId)}&t=${encodeURIComponent(viewToken)}`
+        );
+        const json = (await res.json().catch(() => ({}))) as {
+          remaining?: number;
+          maxFreeQuestions?: number;
+          isPremium?: boolean;
+        };
+        if (!res.ok || cancelled) return;
+        setTrainerQaRemaining(typeof json.remaining === "number" ? json.remaining : null);
+        setTrainerQaMaxFree(typeof json.maxFreeQuestions === "number" ? json.maxFreeQuestions : 5);
+        setTrainerQaIsPremium(json.isPremium === true);
+      } catch {
+        // noop
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [clientId, viewToken]);
+
+  const askTrainer = async () => {
+    if (!clientId || !viewToken) return;
+    if (!trainerQaQuestion.trim()) return;
+    setTrainerQaLoading(true);
+    setTrainerQaError(null);
+    setTrainerQaAnswer(null);
+    try {
+      const res = await fetch(
+        `/api/public/intake-trainer-qa?clientId=${encodeURIComponent(clientId)}&t=${encodeURIComponent(viewToken)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question: trainerQaQuestion.trim() }),
+        }
+      );
+      const json = (await res.json().catch(() => ({}))) as {
+        answer?: string;
+        error?: string;
+        remaining?: number;
+        maxFreeQuestions?: number;
+        isPremium?: boolean;
+        requiresPremium?: boolean;
+      };
+      if (!res.ok) {
+        setTrainerQaError(
+          json.requiresPremium
+            ? "Alcanzaste tu límite gratuito. Para seguir consultando, activá premium."
+            : (json.error || `Error ${res.status}`)
+        );
+        if (typeof json.remaining === "number") setTrainerQaRemaining(json.remaining);
+        if (json.isPremium === true) setTrainerQaIsPremium(true);
+        return;
+      }
+      setTrainerQaAnswer(typeof json.answer === "string" ? json.answer : "Sin respuesta.");
+      setTrainerQaRemaining(typeof json.remaining === "number" ? json.remaining : trainerQaRemaining);
+      setTrainerQaMaxFree(typeof json.maxFreeQuestions === "number" ? json.maxFreeQuestions : trainerQaMaxFree);
+      setTrainerQaIsPremium(json.isPremium === true);
+      setTrainerQaQuestion("");
+    } catch {
+      setTrainerQaError("No se pudo procesar la consulta.");
+    } finally {
+      setTrainerQaLoading(false);
+    }
+  };
+
+  const toggleTechnique = (key: string) => {
+    setOpenTechniqueByExercise((prev) => (prev[key] ? {} : { [key]: true }));
+  };
 
   const root = plan.plan;
   if (!root || typeof root !== "object") {
@@ -206,6 +291,121 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
         </div>
       )}
 
+      <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+        <button
+          type="button"
+          onClick={() => setUsefulOpen((prev) => !prev)}
+          className="w-full inline-flex items-center justify-between gap-2 text-left"
+        >
+          <p className="text-xs text-white/60">Guía útil (referencia rápida)</p>
+          <span className="text-[11px] text-emerald-200">{usefulOpen ? "Ocultar guía" : "Ver guía"}</span>
+        </button>
+        {usefulOpen ? (
+          <div className="mt-2">
+            <div className="flex gap-2 mb-2">
+              <button
+                type="button"
+                onClick={() => setUsefulTab("training")}
+                className={`px-2 py-1 rounded text-xs border ${
+                  usefulTab === "training"
+                    ? "bg-violet-500/25 border-violet-300/40 text-violet-100"
+                    : "bg-white/5 border-white/10 text-white/70"
+                }`}
+              >
+                Entrenamiento
+              </button>
+              <button
+                type="button"
+                onClick={() => setUsefulTab("nutrition")}
+                className={`px-2 py-1 rounded text-xs border ${
+                  usefulTab === "nutrition"
+                    ? "bg-cyan-500/25 border-cyan-300/40 text-cyan-100"
+                    : "bg-white/5 border-white/10 text-white/70"
+                }`}
+              >
+                Alimentación
+              </button>
+            </div>
+            {usefulTab === "training" ? (
+              <div className="rounded-md border border-violet-400/20 bg-violet-500/10 px-3 py-2 text-xs text-violet-50 space-y-3">
+                <div className="space-y-1">
+                  <p>• Prioriza técnica correcta antes de subir peso.</p>
+                  <p>• Deja 1-3 repeticiones en recámara la mayor parte del tiempo (RIR).</p>
+                  <p>• Si una molestia supera 4/10, baja carga o cambia el ejercicio.</p>
+                  <p>• Descansos: básicos 90-180s, accesorios 45-90s.</p>
+                  <p>• Progresá poco a poco: +1-2 reps o +1-2.5 kg por semana cuando salga limpio.</p>
+                </div>
+                <div className="rounded border border-violet-300/20 bg-black/20 px-2 py-2 space-y-1">
+                  <p className="text-violet-200 font-semibold">Palabras clave (entrenamiento)</p>
+                  <p><strong>RIR:</strong> repeticiones que te quedan antes del fallo.</p>
+                  <p><strong>HIT:</strong> alta intensidad en poco volumen; útil en bloques puntuales.</p>
+                  <p><strong>Fallo muscular:</strong> no poder completar otra repetición con técnica correcta.</p>
+                  <p><strong>Volumen:</strong> series efectivas totales por músculo y semana.</p>
+                  <p><strong>Sobrecarga progresiva:</strong> aumentar gradualmente carga, reps o calidad.</p>
+                  <p><strong>Deload:</strong> semana de descarga para reducir fatiga acumulada.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-md border border-cyan-400/20 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-50 space-y-3">
+                <div className="space-y-1">
+                  <p>• Cumplí macros diarios: la constancia semanal manda.</p>
+                  <p>• Pesá alimentos clave (proteínas, carbos base y grasas añadidas).</p>
+                  <p>• Hidratación base: 30-40 ml por kg de peso al día.</p>
+                  <p>• Armá el plato con proteína + carbohidrato + grasa + vegetales.</p>
+                  <p>• Si tenés hambre alta: subí volumen de verduras sin tocar macros objetivo.</p>
+                </div>
+                <div className="rounded border border-cyan-300/20 bg-black/20 px-2 py-2 space-y-1">
+                  <p className="text-cyan-200 font-semibold">Palabras clave (nutrición)</p>
+                  <p><strong>Macros:</strong> proteínas, carbohidratos y grasas del día.</p>
+                  <p><strong>Déficit calórico:</strong> comer menos kcal que tu gasto para perder grasa.</p>
+                  <p><strong>Superávit calórico:</strong> comer más kcal que tu gasto para ganar masa.</p>
+                  <p><strong>Mantenimiento:</strong> kcal para sostener tu peso actual.</p>
+                  <p><strong>Fibra:</strong> mejora saciedad, digestión y control glucémico.</p>
+                  <p><strong>Timing:</strong> distribuir comidas alrededor del entrenamiento para rendir mejor.</p>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : null}
+      </div>
+
+      <div className="rounded-lg border border-emerald-400/25 bg-emerald-500/10 px-3 py-2">
+        <p className="text-xs text-emerald-100/80">Preguntar a mi Trainer</p>
+        <p className="text-[11px] text-emerald-100/80 mt-1">
+          {trainerQaIsPremium
+            ? "Premium activo: consultas habilitadas."
+            : `Plan gratis: ${trainerQaRemaining ?? 0}/${trainerQaMaxFree} preguntas restantes.`}
+        </p>
+        <textarea
+          value={trainerQaQuestion}
+          onChange={(e) => setTrainerQaQuestion(e.target.value)}
+          rows={3}
+          placeholder="Ej: ¿Cómo manejo RIR en mis básicos esta semana?"
+          className="mt-2 w-full rounded-lg bg-black/20 border border-white/10 px-3 py-2 text-sm text-white placeholder-white/40"
+          disabled={!trainerQaIsPremium && (trainerQaRemaining ?? 0) <= 0}
+        />
+        <div className="mt-2 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void askTrainer()}
+            disabled={trainerQaLoading || !trainerQaQuestion.trim() || (!trainerQaIsPremium && (trainerQaRemaining ?? 0) <= 0)}
+            className="px-3 py-1.5 rounded-lg bg-emerald-500/25 border border-emerald-300/40 text-emerald-50 text-xs hover:bg-emerald-500/35 disabled:opacity-60"
+          >
+            {trainerQaLoading ? "Respondiendo..." : "Enviar pregunta"}
+          </button>
+          {!trainerQaIsPremium && (trainerQaRemaining ?? 0) <= 0 ? (
+            <span className="text-[11px] text-amber-200">Límite alcanzado. Activá premium para continuar.</span>
+          ) : null}
+        </div>
+        {trainerQaError ? <p className="text-xs text-red-200 mt-2">{trainerQaError}</p> : null}
+        {trainerQaAnswer ? (
+          <div className="mt-2 rounded-md border border-white/10 bg-black/20 px-3 py-2">
+            <p className="text-[11px] text-emerald-200 mb-1">Respuesta del trainer</p>
+            <p className="text-sm text-white/90">{trainerQaAnswer}</p>
+          </div>
+        ) : null}
+      </div>
+
       {plan.includeNutrition && weeklyPlan.length > 0 && (
         <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
           <button
@@ -245,6 +445,16 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
                           const mealOption = Array.isArray(meal.opciones)
                             ? String((meal.opciones as unknown[])[0] || "")
                             : "";
+                          const mealPortions =
+                            meal.porciones_aprox && typeof meal.porciones_aprox === "object"
+                              ? (meal.porciones_aprox as Record<string, unknown>)
+                              : null;
+                          const mealOptionSpecific = Array.isArray(meal.porciones_opcion_aprox)
+                            ? (meal.porciones_opcion_aprox as unknown[]).filter((x): x is string => typeof x === "string")
+                            : [];
+                          const mealPortionGuide = Array.isArray(mealPortions?.guia)
+                            ? (mealPortions?.guia as unknown[]).filter((x): x is string => typeof x === "string")
+                            : [];
                           return (
                             <div
                               key={`${dayName}-${mealName}-${mealIndex}`}
@@ -260,6 +470,16 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
                                 {String(mealMacros?.grasas_g ?? "-")}g · Carbohidratos{" "}
                                 {String(mealMacros?.carbohidratos_g ?? "-")}g
                               </p>
+                              {mealPortionGuide.length > 0 ? (
+                                <p className="text-[11px] text-cyan-100/90 mt-1">
+                                  Porciones aprox: {mealPortionGuide.slice(0, 3).join(" · ")}
+                                </p>
+                              ) : null}
+                              {mealOptionSpecific.length > 0 ? (
+                                <p className="text-[11px] text-violet-100/90 mt-1">
+                                  Según esta opción: {mealOptionSpecific.join(" · ")}
+                                </p>
+                              ) : null}
                             </div>
                           );
                         })}
@@ -321,6 +541,24 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
                               <div className="mt-2 space-y-3">
                                 {exercises.map((exercise, exIndex) => {
                                   const exName = String(exercise.name || "Ejercicio");
+                                  const exTechnique = typeof exercise.technique === "string" ? exercise.technique.trim() : "";
+                                  const exCues = Array.isArray(exercise.cues)
+                                    ? (exercise.cues as unknown[]).filter((x): x is string => typeof x === "string" && x.trim().length > 0)
+                                    : [];
+                                  const exTempo = typeof exercise.tempo === "string" ? exercise.tempo : "";
+                                  const exRpe = typeof exercise.rpe === "number" ? exercise.rpe : null;
+                                  const exRest = typeof exercise.rest_seconds === "number" ? exercise.rest_seconds : null;
+                                  const exProgression = typeof exercise.progression === "string" ? exercise.progression : "";
+                                  const exAlternative = typeof exercise.alternative === "string" ? exercise.alternative : "";
+                                  const hasTechniqueInfo =
+                                    exTechnique.length > 0 ||
+                                    exCues.length > 0 ||
+                                    exTempo.length > 0 ||
+                                    exRpe !== null ||
+                                    exRest !== null ||
+                                    exProgression.length > 0 ||
+                                    exAlternative.length > 0;
+                                  const exTechKey = `wk-${weekIndex}-dy-${dayIndex}-ex-${exIndex}`;
                                   const ovKey = normalizeExerciseMediaKey(exName);
                                   const ov = planMediaOverridesMerged[ovKey];
                                   const demoVideo =
@@ -339,6 +577,43 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
                                         {exIndex + 1}. {exName} · {String(exercise.sets || "-")} series ·{" "}
                                         {String(exercise.reps || "-")} reps
                                       </p>
+                                      {hasTechniqueInfo ? (
+                                        <div className="mt-1 relative inline-block">
+                                          <button
+                                            type="button"
+                                            onClick={() => toggleTechnique(exTechKey)}
+                                            title="Info técnica del ejercicio"
+                                            className={`h-6 w-6 inline-flex items-center justify-center rounded-full border text-[12px] transition-all duration-200 ${
+                                              openTechniqueByExercise[exTechKey]
+                                                ? "border-cyan-200/70 bg-cyan-400/25 text-cyan-50 shadow-[0_0_0_3px_rgba(34,211,238,0.15)] scale-105"
+                                                : "border-cyan-300/35 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20 hover:scale-105"
+                                            }`}
+                                          >
+                                            i
+                                          </button>
+                                          <div
+                                            className={`absolute left-8 top-0 z-20 w-[min(22rem,80vw)] rounded-lg border border-cyan-300/30 bg-slate-950/95 backdrop-blur px-2.5 py-2 space-y-1 text-[11px] text-cyan-50 shadow-xl transition-all duration-200 ${
+                                              openTechniqueByExercise[exTechKey]
+                                                ? "opacity-100 translate-y-0 pointer-events-auto"
+                                                : "opacity-0 -translate-y-1 pointer-events-none"
+                                            }`}
+                                          >
+                                            <p className="text-[10px] uppercase tracking-wide text-cyan-200/80">Guía técnica</p>
+                                              {exTechnique ? <p><strong>Técnica:</strong> {exTechnique}</p> : null}
+                                              {exCues.length > 0 ? <p><strong>Cues:</strong> {exCues.join(" · ")}</p> : null}
+                                              {(exTempo || exRpe !== null || exRest !== null) ? (
+                                                <p>
+                                                  <strong>Parámetros:</strong>{" "}
+                                                  {exTempo ? `Tempo ${exTempo}` : ""}{exTempo && (exRpe !== null || exRest !== null) ? " · " : ""}
+                                                  {exRpe !== null ? `RPE ${exRpe}` : ""}{exRpe !== null && exRest !== null ? " · " : ""}
+                                                  {exRest !== null ? `Descanso ${exRest}s` : ""}
+                                                </p>
+                                              ) : null}
+                                              {exProgression ? <p><strong>Progresión:</strong> {exProgression}</p> : null}
+                                              {exAlternative ? <p><strong>Alternativa:</strong> {exAlternative}</p> : null}
+                                          </div>
+                                        </div>
+                                      ) : null}
                                       {exName.length >= 2 ? (
                                         <ExerciseDemoMedia
                                           exerciseName={exName}
@@ -423,6 +698,24 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
                       <div className="mt-2 space-y-3">
                         {exercises.map((exercise, exIndex) => {
                           const exName = String(exercise.name || "Ejercicio");
+                          const exTechnique = typeof exercise.technique === "string" ? exercise.technique.trim() : "";
+                          const exCues = Array.isArray(exercise.cues)
+                            ? (exercise.cues as unknown[]).filter((x): x is string => typeof x === "string" && x.trim().length > 0)
+                            : [];
+                          const exTempo = typeof exercise.tempo === "string" ? exercise.tempo : "";
+                          const exRpe = typeof exercise.rpe === "number" ? exercise.rpe : null;
+                          const exRest = typeof exercise.rest_seconds === "number" ? exercise.rest_seconds : null;
+                          const exProgression = typeof exercise.progression === "string" ? exercise.progression : "";
+                          const exAlternative = typeof exercise.alternative === "string" ? exercise.alternative : "";
+                          const hasTechniqueInfo =
+                            exTechnique.length > 0 ||
+                            exCues.length > 0 ||
+                            exTempo.length > 0 ||
+                            exRpe !== null ||
+                            exRest !== null ||
+                            exProgression.length > 0 ||
+                            exAlternative.length > 0;
+                          const exTechKey = `fb-dy-${dayIndex}-ex-${exIndex}`;
                           return (
                             <div
                               key={`${dayName}-ex-${exIndex}`}
@@ -432,6 +725,43 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
                                 {exIndex + 1}. {exName} · {String(exercise.sets || "-")} series ·{" "}
                                 {String(exercise.reps || "-")} reps
                               </p>
+                              {hasTechniqueInfo ? (
+                                <div className="mt-1 relative inline-block">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleTechnique(exTechKey)}
+                                    title="Info técnica del ejercicio"
+                                    className={`h-6 w-6 inline-flex items-center justify-center rounded-full border text-[12px] transition-all duration-200 ${
+                                      openTechniqueByExercise[exTechKey]
+                                        ? "border-cyan-200/70 bg-cyan-400/25 text-cyan-50 shadow-[0_0_0_3px_rgba(34,211,238,0.15)] scale-105"
+                                        : "border-cyan-300/35 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20 hover:scale-105"
+                                    }`}
+                                  >
+                                    i
+                                  </button>
+                                  <div
+                                    className={`absolute left-8 top-0 z-20 w-[min(22rem,80vw)] rounded-lg border border-cyan-300/30 bg-slate-950/95 backdrop-blur px-2.5 py-2 space-y-1 text-[11px] text-cyan-50 shadow-xl transition-all duration-200 ${
+                                      openTechniqueByExercise[exTechKey]
+                                        ? "opacity-100 translate-y-0 pointer-events-auto"
+                                        : "opacity-0 -translate-y-1 pointer-events-none"
+                                    }`}
+                                  >
+                                    <p className="text-[10px] uppercase tracking-wide text-cyan-200/80">Guía técnica</p>
+                                      {exTechnique ? <p><strong>Técnica:</strong> {exTechnique}</p> : null}
+                                      {exCues.length > 0 ? <p><strong>Cues:</strong> {exCues.join(" · ")}</p> : null}
+                                      {(exTempo || exRpe !== null || exRest !== null) ? (
+                                        <p>
+                                          <strong>Parámetros:</strong>{" "}
+                                          {exTempo ? `Tempo ${exTempo}` : ""}{exTempo && (exRpe !== null || exRest !== null) ? " · " : ""}
+                                          {exRpe !== null ? `RPE ${exRpe}` : ""}{exRpe !== null && exRest !== null ? " · " : ""}
+                                          {exRest !== null ? `Descanso ${exRest}s` : ""}
+                                        </p>
+                                      ) : null}
+                                      {exProgression ? <p><strong>Progresión:</strong> {exProgression}</p> : null}
+                                      {exAlternative ? <p><strong>Alternativa:</strong> {exAlternative}</p> : null}
+                                  </div>
+                                </div>
+                              ) : null}
                               {exName.length >= 2 ? (
                                 <ExerciseDemoMedia
                                   exerciseName={exName}

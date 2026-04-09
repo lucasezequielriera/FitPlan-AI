@@ -26,6 +26,8 @@ type IntakeClient = {
   clinicalTrainingHint?: string | null;
   /** Peso declarado en el formulario (kg). */
   pesoInicialKg?: number | null;
+  digestEmailEnabled?: boolean;
+  digestFrequency?: "weekly" | "biweekly" | "monthly";
 };
 
 function parsePesoInicialKg(formData: Record<string, unknown> | null): number | null {
@@ -111,6 +113,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         createdAt: toISO(data.createdAt),
         clinicalTrainingHint: formatIntakeClinicalHintForList(formData),
         pesoInicialKg: parsePesoInicialKg(formData),
+        digestEmailEnabled: data.digestEmailEnabled !== false,
+        digestFrequency:
+          data.digestFrequency === "biweekly" || data.digestFrequency === "monthly"
+            ? (data.digestFrequency as "biweekly" | "monthly")
+            : "weekly",
       };
     });
 

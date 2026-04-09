@@ -16,6 +16,35 @@ interface ContextoMultiFase {
   cambiaFase: boolean;
 }
 
+function improveAlternativeForExercise(exerciseNameRaw: unknown, alternativeRaw: unknown): string {
+  const exerciseName = typeof exerciseNameRaw === "string" ? exerciseNameRaw.trim() : "Ejercicio";
+  const alt = typeof alternativeRaw === "string" ? alternativeRaw.trim() : "";
+  const ex = exerciseName.toLowerCase();
+  const altLower = alt.toLowerCase();
+  const isWeakBandOnly =
+    altLower.includes("banda") &&
+    (altLower.includes(ex.split(" ")[0] || "") || altLower.includes("mismo") || altLower.includes("igual"));
+  const isGeneric =
+    !alt ||
+    altLower === "n/a" ||
+    altLower === "-" ||
+    altLower.includes("opcional") ||
+    altLower.includes("según disponibilidad");
+  if (!isGeneric && !isWeakBandOnly) return alt;
+
+  if (/sentadilla|squat/.test(ex)) return "Prensa 45° o sentadilla goblet con mancuerna.";
+  if (/peso muerto|deadlift|rumano/.test(ex)) return "Hip thrust o bisagra con mancuerna ligera, priorizando columna neutra.";
+  if (/press banca|bench|press pecho/.test(ex)) return "Press con mancuernas en banco o flexiones inclinadas.";
+  if (/press militar|overhead|hombro/.test(ex)) return "Press con mancuernas sentado o landmine press.";
+  if (/remo|row/.test(ex)) return "Remo en máquina con apoyo de pecho o jalón en polea.";
+  if (/dominada|pull[- ]?up|jalon|jalón/.test(ex)) return "Jalón al pecho en polea con agarre neutro.";
+  if (/zancada|lunge/.test(ex)) return "Split squat asistido o prensa unilateral.";
+  if (/curl/.test(ex)) return "Curl en polea baja o curl alternado con mancuernas.";
+  if (/triceps|tríceps|fondos/.test(ex)) return "Extensión de tríceps en polea con cuerda.";
+  if (/abdominal|core|plancha/.test(ex)) return "Dead bug o plancha con apoyo de rodillas.";
+  return "Versión en máquina o mancuerna estable del mismo patrón, con menor carga y control técnico.";
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
@@ -2625,7 +2654,14 @@ Ejemplo de estructura:
                   name: String(e.name || "Ejercicio"),
                   sets: e.sets || 3,
                   reps: e.reps || "8-12",
-                  muscle_group: String(e.muscle_group || "General")
+                  muscle_group: String(e.muscle_group || "General"),
+                  rpe: typeof e.rpe === "number" ? e.rpe : undefined,
+                  tempo: typeof e.tempo === "string" ? e.tempo : undefined,
+                  rest_seconds: typeof e.rest_seconds === "number" ? e.rest_seconds : undefined,
+                  technique: typeof e.technique === "string" ? e.technique : undefined,
+                  progression: typeof e.progression === "string" ? e.progression : undefined,
+                  alternative: improveAlternativeForExercise(e.name, e.alternative),
+                  cues: Array.isArray(e.cues) ? (e.cues as unknown[]).filter((c): c is string => typeof c === "string").slice(0, 4) : undefined,
                 })) : [];
                 // FILTRAR EJERCICIOS PELIGROSOS (VALIDACIÓN CRÍTICA DE SEGURIDAD)
                 return filtrarEjerciciosPeligrosos(ejerciciosRaw as unknown as Array<{ name: string; [key: string]: unknown }>, tieneHerniaDisco, tieneDolorLumbar);

@@ -14,20 +14,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!adminDoc.exists || email !== "admin@fitplan-ai.com") {
       return res.status(403).json({ error: "Solo administradores" });
     }
-    const unreadSnap = await db
+    const unreadPaymentSnap = await db
       .collection("adminNotifications")
       .where("type", "==", "payment_success")
       .where("read", "==", false)
       .limit(50)
       .get();
+    const unreadCoachSnap = await db
+      .collection("adminNotifications")
+      .where("type", "==", "coach_alert")
+      .where("read", "==", false)
+      .limit(50)
+      .get();
+    const unreadDigestSnap = await db
+      .collection("adminNotifications")
+      .where("type", "==", "weekly_digest_sent")
+      .where("read", "==", false)
+      .limit(50)
+      .get();
+    const unreadDigestFailedSnap = await db
+      .collection("adminNotifications")
+      .where("type", "==", "weekly_digest_failed")
+      .where("read", "==", false)
+      .limit(50)
+      .get();
     const recentSnap = await db
       .collection("adminNotifications")
-      .where("type", "==", "payment_success")
+      .where("type", "in", ["payment_success", "coach_alert", "weekly_digest_sent", "weekly_digest_failed"])
       .orderBy("createdAt", "desc")
-      .limit(6)
+      .limit(12)
       .get();
     return res.status(200).json({
-      unreadCount: unreadSnap.size,
+      unreadCount: unreadPaymentSnap.size + unreadCoachSnap.size + unreadDigestSnap.size + unreadDigestFailedSnap.size,
       items: recentSnap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Record<string, unknown>) })),
     });
   }
@@ -40,15 +58,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!adminDoc.exists || email !== "admin@fitplan-ai.com") {
       return res.status(403).json({ error: "Solo administradores" });
     }
-    const unreadSnap = await db
+    const unreadPaymentSnap = await db
       .collection("adminNotifications")
       .where("type", "==", "payment_success")
       .where("read", "==", false)
       .limit(100)
       .get();
-    if (!unreadSnap.empty) {
+    const unreadCoachSnap = await db
+      .collection("adminNotifications")
+      .where("type", "==", "coach_alert")
+      .where("read", "==", false)
+      .limit(100)
+      .get();
+    const unreadDigestSnap = await db
+      .collection("adminNotifications")
+      .where("type", "==", "weekly_digest_sent")
+      .where("read", "==", false)
+      .limit(100)
+      .get();
+    const unreadDigestFailedSnap = await db
+      .collection("adminNotifications")
+      .where("type", "==", "weekly_digest_failed")
+      .where("read", "==", false)
+      .limit(100)
+      .get();
+    const allUnread = [...unreadPaymentSnap.docs, ...unreadCoachSnap.docs, ...unreadDigestSnap.docs, ...unreadDigestFailedSnap.docs];
+    if (allUnread.length > 0) {
       const batch = db.batch();
-      unreadSnap.docs.forEach((doc) => {
+      allUnread.forEach((doc) => {
         batch.set(doc.ref, { read: true, readAt: FieldValue.serverTimestamp() }, { merge: true });
       });
       await batch.commit();

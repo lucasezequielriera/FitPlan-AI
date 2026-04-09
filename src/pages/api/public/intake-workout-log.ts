@@ -33,6 +33,22 @@ function parseOptionalNumber(n: unknown): number | null {
   return null;
 }
 
+/** RIR 0–4 (entero). */
+function parseOptionalRir(n: unknown): number | null {
+  if (n === null || n === undefined || n === "") return null;
+  let v: number;
+  if (typeof n === "number" && Number.isFinite(n)) v = Math.floor(n);
+  else if (typeof n === "string") {
+    const t = n.trim();
+    if (!t) return null;
+    const p = Number(t);
+    if (!Number.isFinite(p)) return null;
+    v = Math.floor(p);
+  } else return null;
+  if (v < 0 || v > 4) return null;
+  return v;
+}
+
 function toISO(value: unknown): string | null {
   if (!value) return null;
   if (typeof value === "string") return value;
@@ -47,6 +63,25 @@ function toISO(value: unknown): string | null {
     }
   }
   return null;
+}
+
+function monthKeyFromYmd(ymd: string): string {
+  return ymd.slice(0, 7);
+}
+
+function exerciseMaxKg(ex: SerializedExerciseLog): number {
+  return Math.max(...ex.sets.map((s) => (typeof s.kg === "number" ? s.kg : 0)));
+}
+
+function avgRir(session: SerializedWorkoutSession): number | null {
+  const vals: number[] = [];
+  session.exercises.forEach((ex) =>
+    ex.sets.forEach((s) => {
+      if (typeof s.rir === "number") vals.push(s.rir);
+    })
+  );
+  if (!vals.length) return null;
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
 }
 
 function mapDocToSession(d: QueryDocumentSnapshot): SerializedWorkoutSession {
@@ -85,6 +120,11 @@ function validateSessionPayload(body: Record<string, unknown>): SerializedWorkou
     if (exerciseIndex < 0) return { error: "exerciseIndex inválido" };
     const exerciseName = typeof o.exerciseName === "string" ? o.exerciseName.slice(0, 200) : "";
     if (!exerciseName) return { error: "Falta nombre de ejercicio" };
+    const noteRaw = o.note;
+    if (noteRaw !== undefined && noteRaw !== null && typeof noteRaw !== "string") {
+      return { error: "note inválido" };
+    }
+    const exerciseNote = typeof noteRaw === "string" ? noteRaw.slice(0, 2000).trim() || null : null;
     const setsRaw = o.sets;
     if (!Array.isArray(setsRaw) || setsRaw.length === 0 || setsRaw.length > 25) {
       return { error: "sets inválido" };
@@ -98,9 +138,13 @@ function validateSessionPayload(body: Record<string, unknown>): SerializedWorkou
       if (kg !== null && (kg < 0 || kg > 600)) return { error: "kg fuera de rango" };
       const rest = parseOptionalNumber(so.restAfterSec);
       if (rest !== null && (rest < 0 || rest > 3600)) return { error: "Descanso fuera de rango" };
-      sets.push({ kg, restAfterSec: rest });
+      const rir = parseOptionalRir(so.rir);
+      if (so.rir !== undefined && so.rir !== null && so.rir !== "" && rir === null) {
+        return { error: "RIR debe ser un entero entre 0 y 4" };
+      }
+      sets.push({ kg, restAfterSec: rest, rir });
     }
-    exercises.push({ exerciseIndex, exerciseName, sets });
+    exercises.push({ exerciseIndex, exerciseName, sets, note: exerciseNote });
   }
 
   return {
@@ -196,6 +240,95 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         exercises: Array.isArray(data.exercises) ? (data.exercises as SerializedExerciseLog[]) : parsed.exercises,
         updatedAt: toISO(data.updatedAt),
       };
+
+      try {
+        const sessionsSnap = await auth.db
+          .collection("intakeClients")
+          .doc(clientId)
+          .collection("workoutSessions")
+          .where("planId", "==", parsed.planId)
+          .where("dayIndex", "==", parsed.dayIndex)
+          .get();
+        const recent = sessionsSnap.docs
+          .map(mapDocToSession)
+          .sort((a, b) => b.completedOn.localeCompare(a.completedOn))
+          .slice(0, 6);
+        const clientName =
+          typeof auth.intakeData.nombreCompleto === "string" && auth.intakeData.nombreCompleto.trim()
+            ? auth.intakeData.nombreCompleto.trim()
+            : "Cliente intake";
+        const monthKey = monthKeyFromYmd(parsed.completedOn);
+
+        // Fatiga alta sostenida: promedio RIR <= 1 en 2+ sesiones recientes.
+        const highFatigueCount = recent
+          .map((s) => avgRir(s))
+          .filter((v): v is number => typeof v === "number" && v <= 1).length;
+        if (highFatigueCount >= 2) {
+          const alertId = `coach_fatigue_${clientId}_${parsed.planId}_${parsed.dayIndex}_${monthKey}`;
+          await auth.db.collection("adminNotifications").doc(alertId).set(
+            {
+              type: "coach_alert",
+              read: false,
+              provider: "coach",
+              userName: clientName,
+              userEmail: auth.intakeData.email || null,
+              amount: 0,
+              currency: "N/A",
+              message: `Fatiga alta sostenida en ${parsed.dayLabel}. Revisar volumen/intensidad.`,
+              createdAt: FieldValue.serverTimestamp(),
+              payload: { kind: "fatigue_high", clientId, planId: parsed.planId, dayIndex: parsed.dayIndex },
+            },
+            { merge: true }
+          );
+        }
+
+        // Estancamiento: sin mejora de carga máxima en >=3 registros recientes y RIR medio >=2.
+        const stalled = recent.some((session) => {
+          const rir = avgRir(session);
+          if (rir == null || rir < 2) return false;
+          const exMap = new Map<number, number>();
+          session.exercises.forEach((ex) => exMap.set(ex.exerciseIndex, exerciseMaxKg(ex)));
+          return Array.from(exMap.values()).some((maxKg) => maxKg > 0);
+        });
+        const hasNoLoadIncrease =
+          recent.length >= 3 &&
+          (() => {
+            const byExercise = new Map<number, number[]>();
+            recent.forEach((s) => {
+              s.exercises.forEach((ex) => {
+                const arr = byExercise.get(ex.exerciseIndex) || [];
+                arr.push(exerciseMaxKg(ex));
+                byExercise.set(ex.exerciseIndex, arr);
+              });
+            });
+            return Array.from(byExercise.values()).some((series) => {
+              if (series.length < 3) return false;
+              const latest3 = series.slice(0, 3);
+              return latest3.every((v) => Math.abs(v - latest3[0]) < 0.01);
+            });
+          })();
+        if (stalled && hasNoLoadIncrease) {
+          const alertId = `coach_stall_${clientId}_${parsed.planId}_${parsed.dayIndex}_${monthKey}`;
+          await auth.db.collection("adminNotifications").doc(alertId).set(
+            {
+              type: "coach_alert",
+              read: false,
+              provider: "coach",
+              userName: clientName,
+              userEmail: auth.intakeData.email || null,
+              amount: 0,
+              currency: "N/A",
+              message: `Posible estancamiento en ${parsed.dayLabel}. Sugerir +carga/+reps.`,
+              createdAt: FieldValue.serverTimestamp(),
+              payload: { kind: "stagnation", clientId, planId: parsed.planId, dayIndex: parsed.dayIndex },
+            },
+            { merge: true }
+          );
+        }
+      } catch (alertErr) {
+        console.error("intake-workout-log alert side-effect:", alertErr);
+      }
+
       return res.status(200).json({ session: out });
     } catch (e) {
       console.error("intake-workout-log POST:", e);
