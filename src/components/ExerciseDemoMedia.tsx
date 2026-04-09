@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import {
   isAllowedPosterUrl,
+  isAllowedVideoUrl,
   normalizeExerciseMediaKey,
   resolveExerciseVideoSource,
   type ExerciseMediaOverride,
@@ -76,6 +77,9 @@ export default function ExerciseDemoMedia({
   const [lightbox, setLightbox] = useState<"wger" | "video" | null>(null);
   const [state, setState] = useState<LoadState>("idle");
   const [wger, setWger] = useState<WgerPayload | null>(null);
+  const catalogCustomIsVideo = Boolean(
+    wger && wger.source === "custom" && isAllowedVideoUrl(wger.imageUrl)
+  );
 
   const loadWger = useCallback(async () => {
     if (state === "loading" || state === "ready" || state === "empty") return;
@@ -203,21 +207,34 @@ export default function ExerciseDemoMedia({
                 onClick={() => setLightbox("wger")}
                 className="block w-full text-left rounded-md overflow-hidden border border-white/10 focus:outline-none focus:ring-2 focus:ring-sky-500/50"
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={wger.imageUrl}
-                  alt={`Ilustración orientativa: ${wger.matchedName}`}
-                  className="w-full max-h-48 object-contain bg-black/40"
-                  loading="lazy"
-                  decoding="async"
-                />
+                {catalogCustomIsVideo ? (
+                  <video
+                    src={wger.imageUrl}
+                    className="w-full max-h-48 object-contain bg-black/40"
+                    controls
+                    muted
+                    playsInline
+                    preload="metadata"
+                  />
+                ) : (
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={wger.imageUrl}
+                      alt={`Ilustración orientativa: ${wger.matchedName}`}
+                      className="w-full max-h-48 object-contain bg-black/40"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </>
+                )}
                 <span className="block text-[10px] text-white/45 px-2 py-1">Pulsa para ampliar</span>
               </button>
               <p className="text-[10px] leading-relaxed text-white/45">
                 {wger.source === "custom" ? (
                   <>
-                    Imagen o GIF del catálogo interno («{wger.matchedName}»). {wger.licenseShortName}. No sustituye supervisión en
-                    persona.
+                    {catalogCustomIsVideo ? "Vídeo del catálogo interno" : "Imagen o GIF del catálogo interno"} («{wger.matchedName}»).{" "}
+                    {wger.licenseShortName}. No sustituye supervisión en persona.
                   </>
                 ) : (
                   <>
@@ -255,13 +272,26 @@ export default function ExerciseDemoMedia({
                 )}
                 {state === "ready" && wger ? (
                   <>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={wger.imageUrl}
-                      alt={wger.matchedName}
-                      className="w-full max-h-40 object-contain rounded bg-black/40"
-                      loading="lazy"
-                    />
+                    {catalogCustomIsVideo ? (
+                      <video
+                        src={wger.imageUrl}
+                        className="w-full max-h-40 object-contain rounded bg-black/40"
+                        controls
+                        muted
+                        playsInline
+                        preload="metadata"
+                      />
+                    ) : (
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={wger.imageUrl}
+                          alt={wger.matchedName}
+                          className="w-full max-h-40 object-contain rounded bg-black/40"
+                          loading="lazy"
+                        />
+                      </>
+                    )}
                     <p className="text-[10px] text-white/40">
                       {wger.source === "custom" ? "Catálogo · " : "wger · "}
                       {wger.matchedName}
@@ -298,13 +328,26 @@ export default function ExerciseDemoMedia({
           >
             Cerrar
           </button>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={wger.imageUrl}
-            alt={wger.matchedName}
-            className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          />
+          {catalogCustomIsVideo ? (
+            <video
+              src={wger.imageUrl}
+              className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
+              controls
+              autoPlay
+              playsInline
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={wger.imageUrl}
+                alt={wger.matchedName}
+                className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </>
+          )}
           <p className="mt-3 text-xs text-white/60 max-w-md text-center">{wger.matchedName}</p>
         </div>
       ) : null}

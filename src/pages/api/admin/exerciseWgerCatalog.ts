@@ -1,6 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
-import { normalizeExerciseMediaKey, resolveCustomExerciseMediaInputToAbsoluteUrl } from "@/lib/exerciseMedia";
+import {
+  isAllowedVideoUrl,
+  normalizeExerciseMediaKey,
+  resolveCustomExerciseMediaInputToAbsoluteUrl,
+} from "@/lib/exerciseMedia";
 import { getSiteOriginFromRequest } from "@/lib/requestSiteOrigin";
 import {
   adminDeleteExerciseWgerCatalogEntry,
@@ -63,11 +67,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (m === "custom") {
         const raw = typeof customImageUrl === "string" ? customImageUrl.trim() : "";
         const siteOrigin = getSiteOriginFromRequest(req.headers);
-        const url = resolveCustomExerciseMediaInputToAbsoluteUrl(raw, siteOrigin);
+        let url = resolveCustomExerciseMediaInputToAbsoluteUrl(raw, siteOrigin);
+        if (!url && isAllowedVideoUrl(raw)) {
+          url = raw;
+        }
         if (!url) {
           return res.status(400).json({
             error:
-              "Imagen no válida: URL https completa, o solo el archivo (ej. curl-femoral.webp), o ruta public/ejercicios/archivo.webp. Extensiones: .png, .jpg, .gif, .webp, .avif.",
+              "URL no válida: imagen (.png, .jpg, .gif, .webp, .avif), archivo en public/ejercicios/, o vídeo HTTPS (.mp4, .webm, .mov, p. ej. Cloudinary …/video/upload/…).",
           });
         }
         resolvedCustomImageUrl = url;

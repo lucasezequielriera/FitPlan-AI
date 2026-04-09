@@ -208,7 +208,10 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
 
   const handleSave = async () => {
     const auth = getAuthSafe();
-    if (!auth?.currentUser) return;
+    if (!auth?.currentUser) {
+      setError("Iniciá sesión como administrador para guardar.");
+      return;
+    }
     const lab = newLabel.trim();
     if (lab.length < 2) {
       setError("Indica el nombre del ejercicio tal como aparece en los planes.");

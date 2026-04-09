@@ -6663,12 +6663,16 @@ function IntakeGeneratedPlanModal({
     setSavingExerciseMedia(true);
     setExerciseMediaMessage(null);
     try {
-      const exercise_media_overrides: ExerciseMediaOv = {};
+      const exercise_media_overrides: ExerciseMediaOv = { ...baseExerciseMediaOv };
       for (const row of exerciseMediaRows) {
         const v = row.video.trim();
         const p = row.poster.trim();
-        if (!v && !p) continue;
-        exercise_media_overrides[row.name] = {
+        const k = normalizeExerciseMediaKey(row.name);
+        if (!v && !p) {
+          delete exercise_media_overrides[k];
+          continue;
+        }
+        exercise_media_overrides[k] = {
           ...(v ? { demo_video_url: v } : {}),
           ...(p ? { demo_poster_url: p } : {}),
         };
@@ -6916,8 +6920,11 @@ function IntakeGeneratedPlanModal({
       for (const row of exerciseMediaRows) {
         const v = row.video.trim();
         const p = row.poster.trim();
-        if (!v && !p) continue;
         const k = normalizeExerciseMediaKey(row.name);
+        if (!v && !p) {
+          delete liveMedia[k];
+          continue;
+        }
         liveMedia[k] = {
           ...liveMedia[k],
           ...(v ? { demo_video_url: v } : {}),
