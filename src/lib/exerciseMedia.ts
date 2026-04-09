@@ -86,12 +86,25 @@ export function resolveExerciseVideoSource(
   }
   if (/^https?:\/\//i.test(v)) {
     if (isCloudinaryVideoDeliveryUrl(v)) {
+      // URL de entrega HTTPS: reproducir con <video> nativo (no depende de NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME).
+      if (isAllowedDirectMediaUrl(v, "video")) {
+        return { kind: "direct", url: v.trim() };
+      }
       const pid = cloudinaryVideoPublicIdFromUrl(v);
       return pid ? { kind: "cloudinary", publicId: pid } : null;
     }
     return isAllowedDirectMediaUrl(v, "video") ? { kind: "direct", url: v } : null;
   }
   return null;
+}
+
+/** Nombre del ejercicio en planes intake: el esquema usa `name`; datos antiguos o manuales pueden usar `nombre`. */
+export function getIntakeExerciseName(ex: Record<string, unknown>): string {
+  const name = ex.name;
+  const nombre = ex.nombre;
+  if (typeof name === "string" && name.trim().length >= 1) return name.trim();
+  if (typeof nombre === "string" && nombre.trim().length >= 1) return nombre.trim();
+  return "Ejercicio";
 }
 
 function isLocalDevHost(hostname: string): boolean {

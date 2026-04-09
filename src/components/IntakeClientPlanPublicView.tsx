@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import ExerciseDemoMedia from "@/components/ExerciseDemoMedia";
 import IntakeWorkoutDayLog from "@/components/IntakeWorkoutDayLog";
-import { normalizeExerciseMediaKey } from "@/lib/exerciseMedia";
+import { getIntakeExerciseName, normalizeExerciseMediaKey } from "@/lib/exerciseMedia";
 import type { IntakeWorkoutSession } from "@/types/intakeWorkoutLog";
 
 export type PublicIntakePlanDetail = {
@@ -696,7 +696,7 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
                             {dayOpen ? (
                               <div className="mt-2 space-y-3">
                                 {exercises.map((exercise, exIndex) => {
-                                  const exName = String(exercise.name || "Ejercicio");
+                                  const exName = getIntakeExerciseName(exercise as Record<string, unknown>);
                                   const exTechnique = typeof exercise.technique === "string" ? exercise.technique.trim() : "";
                                   const exTechniqueSteps =
                                     exTechnique.length > 0 && !isGenericTechnique(exTechnique)
@@ -776,7 +776,7 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
                                       dayIndex={dayIndex}
                                       dayLabel={dayName}
                                       exercises={exercises.map((ex) => ({
-                                        name: String(ex.name || "Ejercicio"),
+                                        name: getIntakeExerciseName(ex as Record<string, unknown>),
                                         setsRaw: ex.sets,
                                         repsRaw: ex.reps,
                                       }))}
@@ -835,7 +835,7 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
                     {dayOpen ? (
                       <div className="mt-2 space-y-3">
                         {exercises.map((exercise, exIndex) => {
-                          const exName = String(exercise.name || "Ejercicio");
+                          const exName = getIntakeExerciseName(exercise as Record<string, unknown>);
                           const exTechnique = typeof exercise.technique === "string" ? exercise.technique.trim() : "";
                           const exTechniqueSteps =
                             exTechnique.length > 0 && !isGenericTechnique(exTechnique)
@@ -914,7 +914,7 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
                               dayIndex={dayIndex}
                               dayLabel={dayName}
                               exercises={exercises.map((ex) => ({
-                                name: String(ex.name || "Ejercicio"),
+                                name: getIntakeExerciseName(ex as Record<string, unknown>),
                                 setsRaw: ex.sets,
                                 repsRaw: ex.reps,
                               }))}

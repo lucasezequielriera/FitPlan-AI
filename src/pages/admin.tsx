@@ -6540,7 +6540,13 @@ function collectExerciseNamesFromIntakeTrainingPlan(tp: Record<string, unknown>)
         : [];
       ejercicios.forEach((e: unknown) => {
         if (!e || typeof e !== "object") return;
-        const n = typeof (e as { name?: unknown }).name === "string" ? (e as { name: string }).name.trim() : "";
+        const row = e as Record<string, unknown>;
+        const n =
+          typeof row.name === "string"
+            ? row.name.trim()
+            : typeof row.nombre === "string"
+              ? row.nombre.trim()
+              : "";
         if (n.length >= 2) set.add(n);
       });
     });
