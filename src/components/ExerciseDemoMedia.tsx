@@ -119,17 +119,28 @@ export default function ExerciseDemoMedia({
 
   const summaryLabel = hasOwnVideo ? "Forma del movimiento (vídeo del equipo)" : "Forma del movimiento (ilustración)";
 
+  /** Vista embebida: marco centrado tipo vertical (9:16), legible en móvil y desktop; no ancho completo. */
+  const VideoInlineFrame = ({ children }: { children: React.ReactNode }) => (
+    <div className="flex w-full justify-center px-1">
+      <div className="relative w-full max-w-[min(19rem,88vw)] sm:max-w-[22rem] rounded-2xl border border-emerald-400/25 bg-black/60 shadow-[0_12px_48px_-16px_rgba(0,0,0,0.85)] ring-1 ring-white/5 overflow-hidden">
+        <div className="relative aspect-[9/16] w-full max-h-[min(72vh,34rem)] sm:max-h-[36rem]">
+          <div className="absolute inset-0 p-1 [&>*]:h-full [&>*]:min-h-0 [&>*]:w-full">{children}</div>
+        </div>
+      </div>
+    </div>
+  );
+
   const renderVideoPlayer = (opts: { compact: boolean }) => {
     if (!resolvedVideo) return null;
     if (resolvedVideo.kind === "direct") {
-      return (
+      const videoEl = (
         <video
           src={resolvedVideo.url}
           poster={ownPoster || undefined}
           className={
             opts.compact
-              ? "w-full max-h-52 rounded-md border border-emerald-500/25 bg-black/50 object-contain"
-              : "max-w-full max-h-[85vh] rounded-lg shadow-2xl"
+              ? "h-full w-full object-contain bg-black/50"
+              : "max-h-[min(88vh,920px)] w-full max-w-5xl rounded-xl object-contain shadow-2xl"
           }
           controls
           playsInline
@@ -137,6 +148,10 @@ export default function ExerciseDemoMedia({
           autoPlay={!opts.compact}
         />
       );
+      if (opts.compact) {
+        return <VideoInlineFrame>{videoEl}</VideoInlineFrame>;
+      }
+      return videoEl;
     }
     if (!cloudName) {
       return (
@@ -146,18 +161,30 @@ export default function ExerciseDemoMedia({
         </p>
       );
     }
-    return (
-      <div className={opts.compact ? "w-full max-h-52 overflow-hidden rounded-md border border-emerald-500/25 bg-black/50" : "w-full max-w-3xl"}>
-        <CldVideoPlayer
-          src={resolvedVideo.publicId}
-          width={opts.compact ? 720 : 1080}
-          height={opts.compact ? 1280 : 1920}
-          className={opts.compact ? "w-full max-h-52" : "w-full max-h-[85vh]"}
-          poster={ownPoster || undefined}
-          logo={false}
-        />
-      </div>
+    const player = (
+      <CldVideoPlayer
+        src={resolvedVideo.publicId}
+        width={opts.compact ? 720 : 1080}
+        height={opts.compact ? 1280 : 1920}
+        className={
+          opts.compact
+            ? "h-full w-full min-h-0 [&_video]:h-full [&_video]:w-full [&_video]:object-contain"
+            : "max-h-[min(88vh,920px)] w-full max-w-5xl"
+        }
+        poster={ownPoster || undefined}
+        logo={false}
+      />
     );
+    if (opts.compact) {
+      return (
+        <VideoInlineFrame>
+          <div className="relative overflow-hidden rounded-xl bg-black/50 [&_.cld-video]:h-full [&_.cld-video]:min-h-0 [&_.cld-video]:w-full">
+            {player}
+          </div>
+        </VideoInlineFrame>
+      );
+    }
+    return <div className="flex w-full justify-center">{player}</div>;
   };
 
   return (
