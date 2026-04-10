@@ -77,6 +77,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     return res.status(200).json({
       clientName,
+      checkinRequest: {
+        active: intakeData.wellnessCheckinRequested === true,
+        note:
+          intakeData.wellnessCheckinRequest &&
+          typeof intakeData.wellnessCheckinRequest === "object" &&
+          typeof (intakeData.wellnessCheckinRequest as Record<string, unknown>).note === "string"
+            ? ((intakeData.wellnessCheckinRequest as Record<string, unknown>).note as string)
+            : null,
+      },
+      weightRequest: {
+        active: intakeData.weightCheckRequested === true,
+      },
+      latestWeightKg: typeof intakeData.latestWeightKg === "number" ? intakeData.latestWeightKg : null,
+      latestWeightAt: toISO(intakeData.latestWeightAt),
+      latestWellnessCheckinAt: toISO(intakeData.lastWellnessCheckinAt),
       profile: {
         nombre: nameParts.length ? nameParts[0] : null,
         apellido: nameParts.length > 1 ? nameParts.slice(1).join(" ") : null,

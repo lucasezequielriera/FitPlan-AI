@@ -28,6 +28,19 @@ type IntakeClient = {
   pesoInicialKg?: number | null;
   digestEmailEnabled?: boolean;
   digestFrequency?: "weekly" | "biweekly" | "monthly";
+  weeklyDigestSentAt?: string | null;
+  digestStartDate?: string | null;
+  wellnessAutoEnabled?: boolean;
+  wellnessAutoStartDate?: string | null;
+  wellnessCheckinRequested?: boolean;
+  wellnessCheckinRequestedAt?: string | null;
+  lastWellnessCheckinAt?: string | null;
+  weightRequestAutoEnabled?: boolean;
+  weightRequestFrequency?: "weekly" | "biweekly" | "monthly";
+  weightRequestStartDate?: string | null;
+  weightCheckRequested?: boolean;
+  latestWeightKg?: number | null;
+  latestWeightAt?: string | null;
 };
 
 function parsePesoInicialKg(formData: Record<string, unknown> | null): number | null {
@@ -118,6 +131,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           data.digestFrequency === "biweekly" || data.digestFrequency === "monthly"
             ? (data.digestFrequency as "biweekly" | "monthly")
             : "weekly",
+        weeklyDigestSentAt: toISO(data.weeklyDigestSentAt),
+        digestStartDate: typeof data.digestStartDate === "string" ? data.digestStartDate : null,
+        wellnessAutoEnabled: data.wellnessAutoEnabled === true,
+        wellnessAutoStartDate: typeof data.wellnessAutoStartDate === "string" ? data.wellnessAutoStartDate : null,
+        wellnessCheckinRequested: data.wellnessCheckinRequested === true,
+        wellnessCheckinRequestedAt: toISO(data.wellnessCheckinRequestedAt),
+        lastWellnessCheckinAt: toISO(data.lastWellnessCheckinAt),
+        weightRequestAutoEnabled: data.weightRequestAutoEnabled === true,
+        weightRequestFrequency:
+          data.weightRequestFrequency === "weekly" || data.weightRequestFrequency === "biweekly"
+            ? (data.weightRequestFrequency as "weekly" | "biweekly")
+            : "monthly",
+        weightRequestStartDate: typeof data.weightRequestStartDate === "string" ? data.weightRequestStartDate : null,
+        weightCheckRequested: data.weightCheckRequested === true,
+        latestWeightKg: typeof data.latestWeightKg === "number" ? data.latestWeightKg : null,
+        latestWeightAt: toISO(data.latestWeightAt),
       };
     });
 

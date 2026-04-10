@@ -38,14 +38,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .where("read", "==", false)
       .limit(50)
       .get();
+    const unreadRiskSnap = await db
+      .collection("adminNotifications")
+      .where("type", "==", "adherence_risk_weekly")
+      .where("read", "==", false)
+      .limit(50)
+      .get();
     const recentSnap = await db
       .collection("adminNotifications")
-      .where("type", "in", ["payment_success", "coach_alert", "weekly_digest_sent", "weekly_digest_failed"])
+      .where("type", "in", [
+        "payment_success",
+        "coach_alert",
+        "weekly_digest_sent",
+        "weekly_digest_failed",
+        "adherence_risk_weekly",
+      ])
       .orderBy("createdAt", "desc")
       .limit(12)
       .get();
     return res.status(200).json({
-      unreadCount: unreadPaymentSnap.size + unreadCoachSnap.size + unreadDigestSnap.size + unreadDigestFailedSnap.size,
+      unreadCount:
+        unreadPaymentSnap.size +
+        unreadCoachSnap.size +
+        unreadDigestSnap.size +
+        unreadDigestFailedSnap.size +
+        unreadRiskSnap.size,
       items: recentSnap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Record<string, unknown>) })),
     });
   }
@@ -82,7 +99,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .where("read", "==", false)
       .limit(100)
       .get();
-    const allUnread = [...unreadPaymentSnap.docs, ...unreadCoachSnap.docs, ...unreadDigestSnap.docs, ...unreadDigestFailedSnap.docs];
+    const unreadRiskSnap = await db
+      .collection("adminNotifications")
+      .where("type", "==", "adherence_risk_weekly")
+      .where("read", "==", false)
+      .limit(100)
+      .get();
+    const allUnread = [
+      ...unreadPaymentSnap.docs,
+      ...unreadCoachSnap.docs,
+      ...unreadDigestSnap.docs,
+      ...unreadDigestFailedSnap.docs,
+      ...unreadRiskSnap.docs,
+    ];
     if (allUnread.length > 0) {
       const batch = db.batch();
       allUnread.forEach((doc) => {

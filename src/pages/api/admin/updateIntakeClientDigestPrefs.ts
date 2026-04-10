@@ -7,7 +7,20 @@ type Body = {
   intakeClientId?: string;
   digestEmailEnabled?: boolean;
   digestFrequency?: "weekly" | "biweekly" | "monthly";
+  digestStartDate?: string | null;
+  wellnessAutoEnabled?: boolean;
+  wellnessAutoStartDate?: string | null;
+  weightRequestAutoEnabled?: boolean;
+  weightRequestFrequency?: "weekly" | "biweekly" | "monthly";
+  weightRequestStartDate?: string | null;
 };
+
+function parseYmd(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const t = v.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(t)) return null;
+  return t;
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -22,14 +35,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
   const enabled = body.digestEmailEnabled !== false;
   const frequency = body.digestFrequency === "biweekly" || body.digestFrequency === "monthly" ? body.digestFrequency : "weekly";
+  const digestStartDate = parseYmd(body.digestStartDate) || null;
+  const wellnessAutoEnabled = body.wellnessAutoEnabled === true;
+  const wellnessAutoStartDate = parseYmd(body.wellnessAutoStartDate) || null;
+  const weightRequestAutoEnabled = body.weightRequestAutoEnabled === true;
+  const weightRequestFrequency =
+    body.weightRequestFrequency === "weekly" || body.weightRequestFrequency === "biweekly" || body.weightRequestFrequency === "monthly"
+      ? body.weightRequestFrequency
+      : "monthly";
+  const weightRequestStartDate = parseYmd(body.weightRequestStartDate) || null;
   await db.collection("intakeClients").doc(body.intakeClientId).set(
     {
       digestEmailEnabled: enabled,
       digestFrequency: frequency,
+      digestStartDate,
+      wellnessAutoEnabled,
+      wellnessAutoStartDate,
+      weightRequestAutoEnabled,
+      weightRequestFrequency,
+      weightRequestStartDate,
       updatedAt: FieldValue.serverTimestamp(),
     },
     { merge: true }
   );
-  return res.status(200).json({ ok: true, digestEmailEnabled: enabled, digestFrequency: frequency });
+  return res.status(200).json({
+    ok: true,
+    digestEmailEnabled: enabled,
+    digestFrequency: frequency,
+    digestStartDate,
+    wellnessAutoEnabled,
+    wellnessAutoStartDate,
+    weightRequestAutoEnabled,
+    weightRequestFrequency,
+    weightRequestStartDate,
+  });
 }
 

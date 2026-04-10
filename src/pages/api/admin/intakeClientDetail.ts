@@ -21,6 +21,14 @@ function toDateOnly(value: Date): string {
   return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
 }
 
+function daysAgo(n: number): Date {
+  return new Date(Date.now() - n * 86400000);
+}
+
+function monthKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -72,6 +80,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       createdAt: string | null;
       after: Record<string, unknown> | null;
     }> = [];
+    let engagementEvents: Array<{
+      id: string;
+      kind: string | null;
+      status: string | null;
+      source: string | null;
+      createdAt: string | null;
+      ymd: string | null;
+      weightKg: number | null;
+    }> = [];
+    let wellnessRecent: Array<{ ymd: string; energia: number | null; sueno: number | null; dolor: number | null; estres: number | null }> = [];
+    let weightSeries: Array<{ ymd: string; weightKg: number }> = [];
+    let timelines: {
+      day: Record<string, number>;
+      week: Record<string, number>;
+      month: Record<string, number>;
+    } | null = null;
     try {
       const sessionsSnap = await intakeDoc.ref.collection("workoutSessions").limit(140).get();
       const sessions = sessionsSnap.docs
@@ -118,6 +142,96 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     } catch {
       profileEdits = [];
     }
+    try {
+      const [eventsSnap, wellnessSnap, weightSnap] = await Promise.all([
+        intakeDoc.ref.collection("engagementEvents").orderBy("createdAt", "desc").limit(160).get(),
+        intakeDoc.ref.collection("wellnessCheckins").orderBy("createdAt", "desc").limit(120).get(),
+        intakeDoc.ref.collection("weightLogs").orderBy("createdAt", "desc").limit(120).get(),
+      ]);
+      engagementEvents = eventsSnap.docs.map((d) => {
+        const row = d.data() as Record<string, unknown>;
+        return {
+          id: d.id,
+          kind: typeof row.kind === "string" ? row.kind : null,
+          status: typeof row.status === "string" ? row.status : null,
+          source: typeof row.source === "string" ? row.source : null,
+          createdAt: toISO(row.createdAt),
+          ymd: typeof row.ymd === "string" ? row.ymd : null,
+          weightKg: typeof row.weightKg === "number" ? row.weightKg : null,
+        };
+      });
+      wellnessRecent = wellnessSnap.docs
+        .map((d) => {
+          const row = d.data() as Record<string, unknown>;
+          return {
+            ymd: typeof row.ymd === "string" ? row.ymd : d.id,
+            energia: typeof row.energia === "number" ? row.energia : null,
+            sueno: typeof row.sueno === "number" ? row.sueno : null,
+            dolor: typeof row.dolor === "number" ? row.dolor : null,
+            estres: typeof row.estres === "number" ? row.estres : null,
+          };
+        })
+        .slice(0, 60);
+      weightSeries = weightSnap.docs
+        .map((d) => {
+          const row = d.data() as Record<string, unknown>;
+          const ymd = typeof row.ymd === "string" ? row.ymd : null;
+          const weightKg = typeof row.weightKg === "number" ? row.weightKg : null;
+          if (!ymd || weightKg == null) return null;
+          return { ymd, weightKg };
+        })
+        .filter((x): x is { ymd: string; weightKg: number } => Boolean(x))
+        .sort((a, b) => a.ymd.localeCompare(b.ymd))
+        .slice(-60);
+
+      const today = new Date();
+      const weekStart = daysAgo(7);
+      const monthStart = daysAgo(30);
+      const weekKey = toDateOnly(weekStart);
+      const monthKeyStart = toDateOnly(monthStart);
+      const thisMonth = monthKey(today);
+
+      const dayStats = {
+        workouts: sessionsLastN(1),
+        checkins: wellnessRecent.filter((w) => w.ymd >= toDateOnly(daysAgo(1))).length,
+        weights: weightSeries.filter((w) => w.ymd >= toDateOnly(daysAgo(1))).length,
+      };
+      const weekStats = {
+        workouts: sessionsLastN(7),
+        checkins: wellnessRecent.filter((w) => w.ymd >= weekKey).length,
+        weights: weightSeries.filter((w) => w.ymd >= weekKey).length,
+        requests: engagementEvents.filter((e) => e.status === "requested" && (e.ymd || e.createdAt || "") >= weekKey).length,
+        completed: engagementEvents.filter((e) => e.status === "completed" && (e.ymd || e.createdAt || "") >= weekKey).length,
+      };
+      const monthStats = {
+        workouts: sessionsLastN(30),
+        checkins: wellnessRecent.filter((w) => w.ymd >= monthKeyStart).length,
+        weights: weightSeries.filter((w) => w.ymd >= monthKeyStart).length,
+        requests: engagementEvents.filter((e) => e.status === "requested" && (e.ymd || e.createdAt || "") >= monthKeyStart).length,
+        completed: engagementEvents.filter((e) => e.status === "completed" && (e.ymd || e.createdAt || "") >= monthKeyStart).length,
+        digestSent: engagementEvents.filter(
+          (e) => e.kind === "digest_email" && e.status === "sent" && (e.createdAt || "").slice(0, 7) === thisMonth
+        ).length,
+      };
+      timelines = { day: dayStats, week: weekStats, month: monthStats };
+    } catch {
+      engagementEvents = [];
+      wellnessRecent = [];
+      weightSeries = [];
+      timelines = null;
+    }
+
+    function sessionsLastN(days: number): number {
+      const from = toDateOnly(daysAgo(days));
+      return adherence
+        ? (() => {
+            // Recalcular leyendo sessions directas no está disponible aquí; usamos ventanas conocidas.
+            if (days <= 28) return Math.round((adherence.sessionsLast28d / 28) * days);
+            if (days <= 56) return Math.round((adherence.sessionsLast56d / 56) * days);
+            return adherence.sessionsLast56d;
+          })()
+        : 0;
+    }
 
     return res.status(200).json({
       client: {
@@ -136,6 +250,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         privacyConsentAt: toISO(data.privacyConsentAt),
         adherence,
         profileEdits,
+        engagementEvents,
+        wellnessRecent,
+        weightSeries,
+        timelines,
         formData,
       },
     });

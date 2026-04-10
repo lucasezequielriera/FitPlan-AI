@@ -50,6 +50,12 @@ function minDaysByFrequency(freq: unknown): number {
   return 7;
 }
 
+function parseYmd(value: unknown): Date | null {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const d = new Date(`${value}T00:00:00.000Z`);
+  return isNaN(d.getTime()) ? null : d;
+}
+
 function parseSession(raw: Record<string, unknown>): IntakeWorkoutSession | null {
   if (typeof raw.planId !== "string" || typeof raw.completedOn !== "string") return null;
   return {
@@ -95,6 +101,69 @@ function computeSuggestion(sessions7d: IntakeWorkoutSession[], sessionsPrev7d: I
     return "Semana intensa. Priorizá recuperación (sueño/hidratación) y mantené cargas antes de volver a subir.";
   }
   return "Buen ritmo. Sostené la constancia y buscá una mejora pequeña en 1-2 ejercicios clave la próxima semana.";
+}
+
+type AdherenceRisk = {
+  level: "medium" | "high";
+  score: number;
+  reason: string;
+  sessions7d: number;
+  sessionsPrev7d: number;
+};
+
+function computeAdherenceRisk(
+  sessions7d: IntakeWorkoutSession[],
+  sessionsPrev7d: IntakeWorkoutSession[]
+): AdherenceRisk | null {
+  const currentSessions = sessions7d.length;
+  const prevSessions = sessionsPrev7d.length;
+  const currentLoad = sessions7d.reduce((acc, s) => acc + sessionScore(s), 0);
+  const prevLoad = sessionsPrev7d.reduce((acc, s) => acc + sessionScore(s), 0);
+
+  const sessionsComponent = Math.min(currentSessions / 3, 1) * 60;
+  const loadBaseline = Math.max(prevLoad, 1);
+  const loadRatio = Math.max(0, Math.min(currentLoad / loadBaseline, 1.15));
+  const loadComponent = Math.min(loadRatio / 1.15, 1) * 25;
+  const consistencyComponent = currentSessions >= prevSessions ? 15 : Math.max(0, 15 - (prevSessions - currentSessions) * 7);
+  const score = Math.max(0, Math.min(100, Math.round(sessionsComponent + loadComponent + consistencyComponent)));
+
+  if (currentSessions === 0) {
+    return {
+      level: "high",
+      score,
+      reason: "Sin entrenamientos registrados en los últimos 7 días.",
+      sessions7d: currentSessions,
+      sessionsPrev7d: prevSessions,
+    };
+  }
+  if (prevSessions >= 2 && currentSessions <= 1 && prevSessions - currentSessions >= 2) {
+    return {
+      level: "high",
+      score,
+      reason: `Caída fuerte de adherencia (${prevSessions} → ${currentSessions} sesiones).`,
+      sessions7d: currentSessions,
+      sessionsPrev7d: prevSessions,
+    };
+  }
+  if (score < 45) {
+    return {
+      level: "high",
+      score,
+      reason: "Score de adherencia semanal muy bajo.",
+      sessions7d: currentSessions,
+      sessionsPrev7d: prevSessions,
+    };
+  }
+  if (score < 65) {
+    return {
+      level: "medium",
+      score,
+      reason: "Riesgo moderado de baja adherencia semanal.",
+      sessions7d: currentSessions,
+      sessionsPrev7d: prevSessions,
+    };
+  }
+  return null;
 }
 
 function buildMailHtml(params: {
@@ -182,6 +251,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     const lastSentMs = toMillis(data.weeklyDigestSentAt);
     const minDays = minDaysByFrequency(data.digestFrequency);
+    const digestStartDate = parseYmd(data.digestStartDate);
+    if (digestStartDate && Date.now() < digestStartDate.getTime()) {
+      skipped += 1;
+      continue;
+    }
     if (lastSentMs != null) {
       const elapsedDays = (Date.now() - lastSentMs) / 86400000;
       if (elapsedDays < minDays) {
@@ -200,6 +274,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const sessions7d = sessions.filter((s) => s.completedOn >= lower7);
       const sessionsPrev7d = sessions.filter((s) => s.completedOn < lower7 && s.completedOn >= lower14);
       const suggestion = computeSuggestion(sessions7d, sessionsPrev7d);
+      const adherenceRisk = computeAdherenceRisk(sessions7d, sessionsPrev7d);
       const clientName =
         typeof data.nombreCompleto === "string" && data.nombreCompleto.trim()
           ? data.nombreCompleto.trim().split(" ")[0]
@@ -233,6 +308,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         text: `Hola ${clientName}.\n\nSesiones semana: ${sessions7d.length}\nSesiones acumuladas: ${sessions.length}\n\nRecomendación:\n${suggestion}\n\n${motivational}`,
         createdAt: FieldValue.serverTimestamp(),
       });
+      await doc.ref.collection("engagementEvents").add({
+        kind: "digest_email",
+        status: "sent",
+        source: "auto",
+        weekKey,
+        frequency: typeof data.digestFrequency === "string" ? data.digestFrequency : "weekly",
+        createdAt: FieldValue.serverTimestamp(),
+        actorType: "system",
+        actorId: "cron:intakeWeeklyDigest",
+      });
       await db.collection("adminNotifications").add({
         type: "weekly_digest_sent",
         read: false,
@@ -243,6 +328,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         message: `Resumen semanal enviado (${weekKey})`,
         createdAt: FieldValue.serverTimestamp(),
       });
+      if (adherenceRisk) {
+        const riskDocId = `adherence-risk-${doc.id}-${weekKey}`;
+        await db.collection("adminNotifications").doc(riskDocId).set(
+          {
+            type: "adherence_risk_weekly",
+            read: false,
+            userId: doc.id,
+            userName: typeof data.nombreCompleto === "string" ? data.nombreCompleto : null,
+            userEmail: email,
+            provider: "fitplan-risk",
+            message: `Riesgo ${adherenceRisk.level === "high" ? "alto" : "moderado"} · Score ${adherenceRisk.score}/100 · ${adherenceRisk.reason}`,
+            payload: {
+              weekKey,
+              level: adherenceRisk.level,
+              score: adherenceRisk.score,
+              sessions7d: adherenceRisk.sessions7d,
+              sessionsPrev7d: adherenceRisk.sessionsPrev7d,
+            },
+            createdAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+      }
       await doc.ref.set(
         {
           weeklyDigestSentWeekKey: weekKey,
@@ -263,6 +371,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         subject: `Tu resumen semanal FitPlan · ${weekKey}`,
         error: errMsg,
         createdAt: FieldValue.serverTimestamp(),
+      });
+      await doc.ref.collection("engagementEvents").add({
+        kind: "digest_email",
+        status: "failed",
+        source: "auto",
+        weekKey,
+        frequency: typeof data.digestFrequency === "string" ? data.digestFrequency : "weekly",
+        error: errMsg,
+        createdAt: FieldValue.serverTimestamp(),
+        actorType: "system",
+        actorId: "cron:intakeWeeklyDigest",
       });
       await db.collection("adminNotifications").add({
         type: "weekly_digest_failed",

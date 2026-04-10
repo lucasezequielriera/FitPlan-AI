@@ -95,6 +95,19 @@ interface IntakeClient {
   pesoInicialKg?: number | null;
   digestEmailEnabled?: boolean;
   digestFrequency?: "weekly" | "biweekly" | "monthly";
+  weeklyDigestSentAt?: string | null;
+  digestStartDate?: string | null;
+  wellnessAutoEnabled?: boolean;
+  wellnessAutoStartDate?: string | null;
+  wellnessCheckinRequested?: boolean;
+  wellnessCheckinRequestedAt?: string | null;
+  lastWellnessCheckinAt?: string | null;
+  weightRequestAutoEnabled?: boolean;
+  weightRequestFrequency?: "weekly" | "biweekly" | "monthly";
+  weightRequestStartDate?: string | null;
+  weightCheckRequested?: boolean;
+  latestWeightKg?: number | null;
+  latestWeightAt?: string | null;
 }
 
 /** Heurística para pre-marcar “sin sentadilla” al abrir el modal. */
@@ -136,6 +149,31 @@ interface IntakeClientDetail extends IntakeClient {
     createdAt: string | null;
     after: Record<string, unknown> | null;
   }>;
+  engagementEvents?: Array<{
+    id: string;
+    kind: string | null;
+    status: string | null;
+    source: string | null;
+    createdAt: string | null;
+    ymd?: string | null;
+    weightKg?: number | null;
+  }>;
+  wellnessRecent?: Array<{
+    ymd: string;
+    energia: number | null;
+    sueno: number | null;
+    dolor: number | null;
+    estres: number | null;
+  }>;
+  weightSeries?: Array<{
+    ymd: string;
+    weightKg: number;
+  }>;
+  timelines?: {
+    day: Record<string, number>;
+    week: Record<string, number>;
+    month: Record<string, number>;
+  } | null;
   formData: Record<string, unknown> | null;
 }
 
@@ -464,8 +502,12 @@ export default function Admin() {
   const [paymentLinkPlan, setPaymentLinkPlan] = useState<PaymentLinkPlan>("monthly");
   const [paymentLinkLoading, setPaymentLinkLoading] = useState(false);
   const [paymentNotificationOpen, setPaymentNotificationOpen] = useState(false);
-  const [paymentNotificationFilter, setPaymentNotificationFilter] = useState<"all" | "payments" | "fatigue" | "emails">("all");
+  const [paymentNotificationFilter, setPaymentNotificationFilter] = useState<
+    "all" | "payments" | "fatigue" | "risk" | "emails"
+  >("all");
   const [paymentNotificationUnread, setPaymentNotificationUnread] = useState(0);
+  const [requestingCheckinClientId, setRequestingCheckinClientId] = useState<string | null>(null);
+  const [requestingWeightClientId, setRequestingWeightClientId] = useState<string | null>(null);
   const [paymentNotificationItems, setPaymentNotificationItems] = useState<
     Array<{
       id: string;
@@ -1015,6 +1057,81 @@ export default function Admin() {
     return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
   };
 
+  const formatShortDate = (iso?: string | null): string => {
+    if (!iso) return "N/A";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "N/A";
+    return d.toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "numeric" });
+  };
+
+  const getNextDigestDate = (client: IntakeClient): Date | null => {
+    if (client.digestEmailEnabled === false) return null;
+    const now = new Date();
+    const startBase =
+      client.digestStartDate && !isNaN(new Date(`${client.digestStartDate}T00:00:00`).getTime())
+        ? new Date(`${client.digestStartDate}T00:00:00`)
+        : null;
+    const base =
+      client.weeklyDigestSentAt && !isNaN(new Date(client.weeklyDigestSentAt).getTime())
+        ? new Date(client.weeklyDigestSentAt)
+        : startBase || now;
+    const next = new Date(base);
+    if (client.digestFrequency === "monthly") next.setDate(next.getDate() + 30);
+    else if (client.digestFrequency === "biweekly") next.setDate(next.getDate() + 14);
+    else next.setDate(next.getDate() + 7);
+    return next;
+  };
+
+  const digestScheduleLabel = (client: IntakeClient): string => {
+    if (client.digestEmailEnabled === false) return "Automático desactivado";
+    const next = getNextDigestDate(client);
+    if (!next) return "Sin fecha";
+    return `Próximo envío aprox: ${next.toLocaleDateString("es-ES", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    })}`;
+  };
+
+  const getWellnessStatus = (client: IntakeClient): { label: string; className: string } => {
+    if (client.wellnessCheckinRequested) {
+      return {
+        label: "Pendiente",
+        className: "bg-amber-500/20 text-amber-200 border-amber-400/40",
+      };
+    }
+    if (!client.lastWellnessCheckinAt) {
+      return {
+        label: "Sin check-in",
+        className: "bg-rose-500/20 text-rose-200 border-rose-400/40",
+      };
+    }
+    const last = new Date(client.lastWellnessCheckinAt);
+    if (isNaN(last.getTime())) {
+      return {
+        label: "Sin check-in",
+        className: "bg-rose-500/20 text-rose-200 border-rose-400/40",
+      };
+    }
+    const days = Math.floor((Date.now() - last.getTime()) / 86400000);
+    if (days <= 2) {
+      return {
+        label: "Al día",
+        className: "bg-emerald-500/20 text-emerald-200 border-emerald-400/40",
+      };
+    }
+    if (days <= 7) {
+      return {
+        label: `Hace ${days}d`,
+        className: "bg-yellow-500/20 text-yellow-200 border-yellow-400/40",
+      };
+    }
+    return {
+      label: `Atrasado ${days}d`,
+      className: "bg-rose-500/20 text-rose-200 border-rose-400/40",
+    };
+  };
+
   const fetchPaymentNotifications = async () => {
     try {
       const auth = getAuthSafe();
@@ -1517,7 +1634,19 @@ export default function Admin() {
 
   const handleUpdateIntakeDigestPrefs = async (
     clientId: string,
-    patch: Partial<Pick<IntakeClient, "digestEmailEnabled" | "digestFrequency">>
+    patch: Partial<
+      Pick<
+        IntakeClient,
+        | "digestEmailEnabled"
+        | "digestFrequency"
+        | "digestStartDate"
+        | "wellnessAutoEnabled"
+        | "wellnessAutoStartDate"
+        | "weightRequestAutoEnabled"
+        | "weightRequestFrequency"
+        | "weightRequestStartDate"
+      >
+    >
   ) => {
     try {
       const auth = getAuthSafe();
@@ -1531,8 +1660,44 @@ export default function Admin() {
         patch.digestFrequency === "biweekly" || patch.digestFrequency === "monthly" || patch.digestFrequency === "weekly"
           ? patch.digestFrequency
           : current?.digestFrequency || "weekly";
+      const digestStartDate =
+        typeof patch.digestStartDate === "string"
+          ? patch.digestStartDate
+          : current?.digestStartDate || new Date().toISOString().slice(0, 10);
+      const wellnessAutoEnabled =
+        typeof patch.wellnessAutoEnabled === "boolean" ? patch.wellnessAutoEnabled : current?.wellnessAutoEnabled === true;
+      const wellnessAutoStartDate =
+        typeof patch.wellnessAutoStartDate === "string"
+          ? patch.wellnessAutoStartDate
+          : current?.wellnessAutoStartDate || new Date().toISOString().slice(0, 10);
+      const weightRequestAutoEnabled =
+        typeof patch.weightRequestAutoEnabled === "boolean"
+          ? patch.weightRequestAutoEnabled
+          : current?.weightRequestAutoEnabled === true;
+      const weightRequestFrequency =
+        patch.weightRequestFrequency === "weekly" || patch.weightRequestFrequency === "biweekly" || patch.weightRequestFrequency === "monthly"
+          ? patch.weightRequestFrequency
+          : current?.weightRequestFrequency || "monthly";
+      const weightRequestStartDate =
+        typeof patch.weightRequestStartDate === "string"
+          ? patch.weightRequestStartDate
+          : current?.weightRequestStartDate || new Date().toISOString().slice(0, 10);
       setIntakeClients((prev) =>
-        prev.map((c) => (c.id === clientId ? { ...c, digestEmailEnabled, digestFrequency } : c))
+        prev.map((c) =>
+          c.id === clientId
+            ? {
+                ...c,
+                digestEmailEnabled,
+                digestFrequency,
+                digestStartDate,
+                wellnessAutoEnabled,
+                wellnessAutoStartDate,
+                weightRequestAutoEnabled,
+                weightRequestFrequency,
+                weightRequestStartDate,
+              }
+            : c
+        )
       );
       await fetch("/api/admin/updateIntakeClientDigestPrefs", {
         method: "POST",
@@ -1542,10 +1707,49 @@ export default function Admin() {
           intakeClientId: clientId,
           digestEmailEnabled,
           digestFrequency,
+          digestStartDate,
+          wellnessAutoEnabled,
+          wellnessAutoStartDate,
+          weightRequestAutoEnabled,
+          weightRequestFrequency,
+          weightRequestStartDate,
         }),
       });
     } catch (e) {
       console.error("Error actualizando preferencias de digest:", e);
+    }
+  };
+
+  const handleRequestWeightCheck = async (client: IntakeClient) => {
+    try {
+      const auth = getAuthSafe();
+      if (!auth?.currentUser) return;
+      setRequestingWeightClientId(client.id);
+      const response = await fetch("/api/admin/requestIntakeClientWeight", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          adminUserId: auth.currentUser.uid,
+          intakeClientId: client.id,
+        }),
+      });
+      const json = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(json.error || `Error ${response.status}`);
+      setIntakeClients((prev) =>
+        prev.map((it) =>
+          it.id === client.id
+            ? {
+                ...it,
+                weightCheckRequested: true,
+              }
+            : it
+        )
+      );
+      alert("Solicitud de peso enviada.");
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "No se pudo solicitar el peso");
+    } finally {
+      setRequestingWeightClientId(null);
     }
   };
 
@@ -1875,6 +2079,45 @@ export default function Admin() {
       setIntakeGeneratedPlanError(error instanceof Error ? error.message : "No se pudo cargar el plan.");
     } finally {
       setIntakeGeneratedPlanLoading(false);
+    }
+  };
+
+  const handleRequestWellnessCheckin = async (client: IntakeClient) => {
+    try {
+      const auth = getAuthSafe();
+      if (!auth?.currentUser) return;
+      const ok = window.confirm(
+        `Se va a pedir un check-in de bienestar a ${client.nombreCompleto || "este cliente"}.\n` +
+          "Le aparecerá cuando abra su plan. ¿Continuar?"
+      );
+      if (!ok) return;
+      setRequestingCheckinClientId(client.id);
+      const response = await fetch("/api/admin/requestIntakeClientCheckin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          adminUserId: auth.currentUser.uid,
+          intakeClientId: client.id,
+        }),
+      });
+      const json = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(json.error || `Error ${response.status}`);
+      setIntakeClients((prev) =>
+        prev.map((it) =>
+          it.id === client.id
+            ? {
+                ...it,
+                wellnessCheckinRequested: true,
+                wellnessCheckinRequestedAt: new Date().toISOString(),
+              }
+            : it
+        )
+      );
+      alert("Check-in solicitado. El cliente lo verá la próxima vez que abra su plan.");
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "No se pudo solicitar el check-in");
+    } finally {
+      setRequestingCheckinClientId(null);
     }
   };
 
@@ -2339,16 +2582,18 @@ export default function Admin() {
     if (paymentNotificationFilter === "all") return true;
     if (paymentNotificationFilter === "payments") return item.type === "payment_success";
     if (paymentNotificationFilter === "fatigue") return item.type === "coach_alert";
+    if (paymentNotificationFilter === "risk") return item.type === "adherence_risk_weekly";
     return item.type === "weekly_digest_sent" || item.type === "weekly_digest_failed";
   });
   const notificationCounts = paymentNotificationItems.reduce(
     (acc, item) => {
       if (item.type === "payment_success") acc.payments += 1;
       else if (item.type === "coach_alert") acc.fatigue += 1;
+      else if (item.type === "adherence_risk_weekly") acc.risk += 1;
       else if (item.type === "weekly_digest_sent" || item.type === "weekly_digest_failed") acc.emails += 1;
       return acc;
     },
-    { payments: 0, fatigue: 0, emails: 0 }
+    { payments: 0, fatigue: 0, risk: 0, emails: 0 }
   );
 
   return (
@@ -2408,6 +2653,9 @@ export default function Admin() {
                   <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-400/30 text-amber-100 border border-amber-300/40">
                     F {notificationCounts.fatigue}
                   </span>
+                  <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-rose-400/30 text-rose-100 border border-rose-300/40">
+                    R {notificationCounts.risk}
+                  </span>
                   <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-cyan-400/30 text-cyan-100 border border-cyan-300/40">
                     E {notificationCounts.emails}
                   </span>
@@ -2434,18 +2682,21 @@ export default function Admin() {
           </div>
           {paymentNotificationOpen && (
             <div className="mt-3 rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-3">
-              <p className="text-xs text-emerald-100 mb-2">Cobros y alertas recientes</p>
+              <p className="text-xs text-emerald-100 mb-2">Cobros, alertas y riesgos recientes</p>
               <div className="mb-2 flex flex-wrap gap-2">
                 {[
                   ["all", "Todo"],
                   ["payments", "Cobros"],
                   ["fatigue", "Fatiga"],
+                  ["risk", "Riesgo"],
                   ["emails", "Emails"],
                 ].map(([id, label]) => (
                   <button
                     key={id}
                     type="button"
-                    onClick={() => setPaymentNotificationFilter(id as "all" | "payments" | "fatigue" | "emails")}
+                    onClick={() =>
+                      setPaymentNotificationFilter(id as "all" | "payments" | "fatigue" | "risk" | "emails")
+                    }
                     className={`px-2 py-1 rounded text-[11px] border ${
                       paymentNotificationFilter === id
                         ? "bg-emerald-400/30 border-emerald-300/50 text-emerald-50"
@@ -2458,7 +2709,7 @@ export default function Admin() {
               </div>
               <div className="space-y-1 max-h-40 overflow-y-auto">
                 {visibleNotificationItems.length === 0 ? (
-                  <p className="text-xs text-white/60">Sin cobros recientes.</p>
+                  <p className="text-xs text-white/60">Sin notificaciones recientes.</p>
                 ) : (
                   visibleNotificationItems.map((item) => (
                     <div key={item.id} className="text-xs text-white/85 bg-white/5 border border-white/10 rounded px-2 py-1 flex items-center justify-between gap-2">
@@ -2790,6 +3041,7 @@ export default function Admin() {
                       <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Perfil</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Contacto</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Pago</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Bienestar</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Peso inicial</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Creado</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Acciones</th>
@@ -2863,7 +3115,93 @@ export default function Admin() {
                                   <option value="biweekly">Cada 2 semanas</option>
                                   <option value="monthly">Cada mes</option>
                                 </select>
+                                <p className="mt-1 text-[10px] text-white/55">{digestScheduleLabel(client)}</p>
+                                <label className="mt-2 block text-[10px] text-white/60">
+                                  Iniciar desde
+                                  <input
+                                    type="date"
+                                    value={client.digestStartDate || ""}
+                                    onChange={(e) =>
+                                      void handleUpdateIntakeDigestPrefs(client.id, {
+                                        digestStartDate: e.target.value,
+                                      })
+                                    }
+                                    className="mt-1 w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white"
+                                  />
+                                </label>
                               </div>
+                            </div>
+                            <div className="mt-2 rounded-md border border-cyan-400/20 bg-cyan-500/5 p-2">
+                              <label className="inline-flex items-center gap-2 text-[11px] text-cyan-100/90">
+                                <input
+                                  type="checkbox"
+                                  checked={client.wellnessAutoEnabled === true}
+                                  onChange={(e) =>
+                                    void handleUpdateIntakeDigestPrefs(client.id, {
+                                      wellnessAutoEnabled: e.target.checked,
+                                    })
+                                  }
+                                />
+                                Check-in automático diario
+                              </label>
+                              <label className="mt-1 block text-[10px] text-white/60">
+                                Desde
+                                <input
+                                  type="date"
+                                  value={client.wellnessAutoStartDate || ""}
+                                  onChange={(e) =>
+                                    void handleUpdateIntakeDigestPrefs(client.id, {
+                                      wellnessAutoStartDate: e.target.value,
+                                    })
+                                  }
+                                  className="mt-1 w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white"
+                                />
+                              </label>
+                            </div>
+                            <div className="mt-2 rounded-md border border-violet-400/20 bg-violet-500/5 p-2">
+                              <label className="inline-flex items-center gap-2 text-[11px] text-violet-100/90">
+                                <input
+                                  type="checkbox"
+                                  checked={client.weightRequestAutoEnabled === true}
+                                  onChange={(e) =>
+                                    void handleUpdateIntakeDigestPrefs(client.id, {
+                                      weightRequestAutoEnabled: e.target.checked,
+                                    })
+                                  }
+                                />
+                                Pedido automático de peso
+                              </label>
+                              <div className="mt-1 grid grid-cols-2 gap-2">
+                                <select
+                                  value={client.weightRequestFrequency || "monthly"}
+                                  onChange={(e) =>
+                                    void handleUpdateIntakeDigestPrefs(client.id, {
+                                      weightRequestFrequency: e.target.value as "weekly" | "biweekly" | "monthly",
+                                    })
+                                  }
+                                  className="rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white"
+                                >
+                                  <option value="monthly">Mensual</option>
+                                  <option value="biweekly">Cada 2 semanas</option>
+                                  <option value="weekly">Semanal</option>
+                                </select>
+                                <input
+                                  type="date"
+                                  value={client.weightRequestStartDate || ""}
+                                  onChange={(e) =>
+                                    void handleUpdateIntakeDigestPrefs(client.id, {
+                                      weightRequestStartDate: e.target.value,
+                                    })
+                                  }
+                                  className="rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white"
+                                />
+                              </div>
+                              <p className="mt-1 text-[10px] text-white/55">
+                                Último peso:{" "}
+                                {typeof client.latestWeightKg === "number"
+                                  ? `${client.latestWeightKg} kg (${formatShortDate(client.latestWeightAt || null)})`
+                                  : "sin registro"}
+                              </p>
                             </div>
                           </div>
                         </td>
@@ -2880,6 +3218,21 @@ export default function Admin() {
                             <FaCircle className="h-2.5 w-2.5" />
                             {isIntakeCurrentMonthPaid(client) ? "Pagado" : client.paymentStatus === "pending" ? "Pendiente" : "No pagó"}
                           </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm min-w-[170px]">
+                          {(() => {
+                            const s = getWellnessStatus(client);
+                            return (
+                              <div className="space-y-1">
+                                <span className={`inline-flex items-center px-2 py-1 rounded-full border text-xs ${s.className}`}>
+                                  {s.label}
+                                </span>
+                                <p className="text-[11px] text-white/55">
+                                  Último: {formatShortDate(client.lastWellnessCheckinAt || null)}
+                                </p>
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="px-4 py-3 text-sm text-white/70 min-w-[100px] tabular-nums">
                           {typeof client.pesoInicialKg === "number" && Number.isFinite(client.pesoInicialKg) ? (
@@ -2971,6 +3324,35 @@ export default function Admin() {
                               </>
                             )}
                             <button
+                              type="button"
+                              onClick={() => void handleRequestWellnessCheckin(client)}
+                              disabled={requestingCheckinClientId === client.id}
+                              className={`px-3 py-1.5 rounded-lg border transition-colors inline-flex items-center gap-1.5 ${
+                                client.wellnessCheckinRequested
+                                  ? "bg-amber-500/20 border-amber-400/40 text-amber-200 hover:bg-amber-500/30"
+                                  : "bg-cyan-500/20 border-cyan-400/40 text-cyan-100 hover:bg-cyan-500/30"
+                              } disabled:opacity-60`}
+                              title="Solicitar check-in de bienestar al cliente"
+                            >
+                              <FaBell className="h-3.5 w-3.5" />
+                              <span>
+                                {requestingCheckinClientId === client.id
+                                  ? "Enviando..."
+                                  : client.wellnessCheckinRequested
+                                  ? "Check-in pendiente"
+                                  : "Pedir check-in"}
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleRequestWeightCheck(client)}
+                              disabled={requestingWeightClientId === client.id}
+                              className="px-3 py-1.5 rounded-lg bg-indigo-500/20 border border-indigo-400/40 text-indigo-100 hover:bg-indigo-500/30 transition-colors inline-flex items-center gap-1.5 disabled:opacity-60"
+                            >
+                              <FaChartLine className="h-3.5 w-3.5" />
+                              <span>{requestingWeightClientId === client.id ? "Enviando..." : "Pedir peso"}</span>
+                            </button>
+                            <button
                               onClick={() => openIntakePaymentModal(client)}
                               className="px-3 py-1.5 rounded-lg bg-emerald-600/20 border border-emerald-400/40 text-emerald-200 hover:bg-emerald-600/30 transition-colors inline-flex items-center gap-1.5"
                             >
@@ -3046,6 +3428,15 @@ export default function Admin() {
                       <p className="text-white/80"><span className="text-white/55">Instagram:</span> {client.instagram || "N/A"}</p>
                       <p className="text-white/80"><span className="text-white/55">Servicio:</span> {client.servicioInteres || "N/A"}</p>
                       <p className="text-white/80 sm:col-span-2"><span className="text-white/55">Objetivo:</span> {client.objetivoPrincipal || "N/A"}</p>
+                      <p className="text-white/80">
+                        <span className="text-white/55">Bienestar:</span>{" "}
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[10px] ${getWellnessStatus(client).className}`}>
+                          {getWellnessStatus(client).label}
+                        </span>
+                      </p>
+                      <p className="text-white/70">
+                        <span className="text-white/55">Último check-in:</span> {formatShortDate(client.lastWellnessCheckinAt || null)}
+                      </p>
                       <div className="sm:col-span-2 rounded-md border border-white/10 bg-black/20 p-2">
                         <label className="inline-flex items-center gap-2 text-[11px] text-white/80">
                           <input
@@ -3072,6 +3463,85 @@ export default function Admin() {
                           <option value="biweekly">Cada 2 semanas</option>
                           <option value="monthly">Cada mes</option>
                         </select>
+                        <p className="mt-1 text-[10px] text-white/55">{digestScheduleLabel(client)}</p>
+                        <label className="mt-2 block text-[10px] text-white/60">
+                          Iniciar desde
+                          <input
+                            type="date"
+                            value={client.digestStartDate || ""}
+                            onChange={(e) =>
+                              void handleUpdateIntakeDigestPrefs(client.id, {
+                                digestStartDate: e.target.value,
+                              })
+                            }
+                            className="mt-1 w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white"
+                          />
+                        </label>
+                        <label className="mt-2 inline-flex items-center gap-2 text-[11px] text-cyan-100/90">
+                          <input
+                            type="checkbox"
+                            checked={client.wellnessAutoEnabled === true}
+                            onChange={(e) =>
+                              void handleUpdateIntakeDigestPrefs(client.id, {
+                                wellnessAutoEnabled: e.target.checked,
+                              })
+                            }
+                          />
+                          Check-in automático diario
+                        </label>
+                        <input
+                          type="date"
+                          value={client.wellnessAutoStartDate || ""}
+                          onChange={(e) =>
+                            void handleUpdateIntakeDigestPrefs(client.id, {
+                              wellnessAutoStartDate: e.target.value,
+                            })
+                          }
+                          className="mt-1 w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white"
+                        />
+                        <label className="mt-2 inline-flex items-center gap-2 text-[11px] text-violet-100/90">
+                          <input
+                            type="checkbox"
+                            checked={client.weightRequestAutoEnabled === true}
+                            onChange={(e) =>
+                              void handleUpdateIntakeDigestPrefs(client.id, {
+                                weightRequestAutoEnabled: e.target.checked,
+                              })
+                            }
+                          />
+                          Pedido automático de peso
+                        </label>
+                        <div className="mt-1 grid grid-cols-2 gap-2">
+                          <select
+                            value={client.weightRequestFrequency || "monthly"}
+                            onChange={(e) =>
+                              void handleUpdateIntakeDigestPrefs(client.id, {
+                                weightRequestFrequency: e.target.value as "weekly" | "biweekly" | "monthly",
+                              })
+                            }
+                            className="rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white"
+                          >
+                            <option value="monthly">Mensual</option>
+                            <option value="biweekly">Cada 2 semanas</option>
+                            <option value="weekly">Semanal</option>
+                          </select>
+                          <input
+                            type="date"
+                            value={client.weightRequestStartDate || ""}
+                            onChange={(e) =>
+                              void handleUpdateIntakeDigestPrefs(client.id, {
+                                weightRequestStartDate: e.target.value,
+                              })
+                            }
+                            className="rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white"
+                          />
+                        </div>
+                        <p className="mt-1 text-[10px] text-white/55">
+                          Último peso:{" "}
+                          {typeof client.latestWeightKg === "number"
+                            ? `${client.latestWeightKg} kg (${formatShortDate(client.latestWeightAt || null)})`
+                            : "sin registro"}
+                        </p>
                       </div>
                       <p className="text-white/80">
                         <span className="text-white/55">Peso inicial:</span>{" "}
@@ -3160,6 +3630,34 @@ export default function Admin() {
                           </button>
                         </>
                       )}
+                      <button
+                        type="button"
+                        onClick={() => void handleRequestWellnessCheckin(client)}
+                        disabled={requestingCheckinClientId === client.id}
+                        className={`px-3 py-1.5 rounded-lg border transition-colors inline-flex items-center gap-1.5 text-xs ${
+                          client.wellnessCheckinRequested
+                            ? "bg-amber-500/20 border-amber-400/40 text-amber-200 hover:bg-amber-500/30"
+                            : "bg-cyan-500/20 border-cyan-400/40 text-cyan-100 hover:bg-cyan-500/30"
+                        } disabled:opacity-60`}
+                      >
+                        <FaBell className="h-3.5 w-3.5" />
+                        <span>
+                          {requestingCheckinClientId === client.id
+                            ? "Enviando..."
+                            : client.wellnessCheckinRequested
+                            ? "Check-in pendiente"
+                            : "Pedir check-in"}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleRequestWeightCheck(client)}
+                        disabled={requestingWeightClientId === client.id}
+                        className="px-3 py-1.5 rounded-lg bg-indigo-500/20 border border-indigo-400/40 text-indigo-100 hover:bg-indigo-500/30 transition-colors inline-flex items-center gap-1.5 text-xs disabled:opacity-60"
+                      >
+                        <FaChartLine className="h-3.5 w-3.5" />
+                        <span>{requestingWeightClientId === client.id ? "Enviando..." : "Pedir peso"}</span>
+                      </button>
                       <button
                         onClick={() => openIntakePaymentModal(client)}
                         className="px-3 py-1.5 rounded-lg bg-emerald-600/20 border border-emerald-400/40 text-emerald-200 hover:bg-emerald-600/30 transition-colors inline-flex items-center gap-1.5 text-xs"
@@ -6208,6 +6706,19 @@ function IntakeClientDetailsModal({
     whatsappVerified: false,
     privacyConsentAccepted: false,
   });
+  const weightPts = Array.isArray(detail?.weightSeries) ? detail.weightSeries : [];
+  const minW = weightPts.length ? Math.min(...weightPts.map((p) => p.weightKg)) : 0;
+  const maxW = weightPts.length ? Math.max(...weightPts.map((p) => p.weightKg)) : 0;
+  const rangeW = Math.max(1, maxW - minW);
+  const chartWidth = 520;
+  const chartHeight = 160;
+  const polyline = weightPts
+    .map((p, idx) => {
+      const x = weightPts.length <= 1 ? 0 : (idx / (weightPts.length - 1)) * chartWidth;
+      const y = chartHeight - ((p.weightKg - minW) / rangeW) * chartHeight;
+      return `${x},${y}`;
+    })
+    .join(" ");
   if (!isOpen) return null;
 
   const formData = detail?.formData || null;
@@ -6475,6 +6986,71 @@ function IntakeClientDetailsModal({
                   28d: {detail.adherence.sessionsLast28d} sesiones · 56d: {detail.adherence.sessionsLast56d} sesiones ·
                   Semanas activas (4): {detail.adherence.activeWeeksLast4}/4 · Promedio semanal: {detail.adherence.weeklyAvgLast4}
                 </p>
+              </div>
+            ) : null}
+            {detail.timelines ? (
+              <div className="rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-2">
+                <p className="text-xs text-emerald-100 mb-2">Seguimiento (día / semana / mes)</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                  <div className="rounded border border-white/10 bg-black/20 px-2 py-1.5">
+                    <p className="text-white/60">Día</p>
+                    <p className="text-white/90">
+                      Entrenos: {detail.timelines.day.workouts || 0} · Check-ins: {detail.timelines.day.checkins || 0} · Peso:{" "}
+                      {detail.timelines.day.weights || 0}
+                    </p>
+                  </div>
+                  <div className="rounded border border-white/10 bg-black/20 px-2 py-1.5">
+                    <p className="text-white/60">Semana</p>
+                    <p className="text-white/90">
+                      Entrenos: {detail.timelines.week.workouts || 0} · Check-ins: {detail.timelines.week.checkins || 0}
+                    </p>
+                    <p className="text-white/70">
+                      Solicitudes: {detail.timelines.week.requests || 0} · Completados: {detail.timelines.week.completed || 0}
+                    </p>
+                  </div>
+                  <div className="rounded border border-white/10 bg-black/20 px-2 py-1.5">
+                    <p className="text-white/60">Mes</p>
+                    <p className="text-white/90">
+                      Entrenos: {detail.timelines.month.workouts || 0} · Check-ins: {detail.timelines.month.checkins || 0}
+                    </p>
+                    <p className="text-white/70">
+                      Peso: {detail.timelines.month.weights || 0} · Emails enviados: {detail.timelines.month.digestSent || 0}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+            {weightPts.length > 1 ? (
+              <div className="rounded-lg border border-indigo-400/30 bg-indigo-500/10 px-3 py-2">
+                <p className="text-xs text-indigo-100 mb-2">Evolución de peso</p>
+                <div className="overflow-x-auto">
+                  <svg width={chartWidth} height={chartHeight + 24} className="min-w-[520px]">
+                    <line x1="0" y1={chartHeight} x2={chartWidth} y2={chartHeight} stroke="rgba(255,255,255,0.2)" />
+                    <polyline fill="none" stroke="rgb(99,102,241)" strokeWidth="2.5" points={polyline} />
+                  </svg>
+                </div>
+                <p className="text-[11px] text-white/60">
+                  Inicio: {weightPts[0]?.weightKg} kg ({weightPts[0]?.ymd}) · Actual: {weightPts[weightPts.length - 1]?.weightKg} kg (
+                  {weightPts[weightPts.length - 1]?.ymd})
+                </p>
+              </div>
+            ) : null}
+            {Array.isArray(detail.engagementEvents) && detail.engagementEvents.length > 0 ? (
+              <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2">
+                <p className="text-xs text-amber-100 mb-2">Historial de solicitudes/completados</p>
+                <div className="space-y-1.5 max-h-44 overflow-y-auto">
+                  {detail.engagementEvents.slice(0, 25).map((ev) => (
+                    <div key={ev.id} className="rounded border border-white/10 bg-black/20 px-2 py-1 text-xs text-white/85">
+                      <p>
+                        {(ev.kind || "evento").replaceAll("_", " ")} · {ev.status || "N/A"} · {ev.source || "N/A"}
+                      </p>
+                      <p className="text-white/60">
+                        {(ev.ymd || ev.createdAt || "s/f").toString()}
+                        {typeof ev.weightKg === "number" ? ` · ${ev.weightKg} kg` : ""}
+                      </p>
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : null}
             {Array.isArray(detail.profileEdits) && detail.profileEdits.length > 0 ? (

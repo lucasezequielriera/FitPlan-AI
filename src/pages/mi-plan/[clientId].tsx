@@ -5,6 +5,16 @@ import IntakeClientPlanPublicView, { type PublicIntakePlanDetail } from "@/compo
 
 type ApiPayload = {
   clientName: string | null;
+  checkinRequest?: {
+    active?: boolean;
+    note?: string | null;
+  };
+  weightRequest?: {
+    active?: boolean;
+  };
+  latestWeightKg?: number | null;
+  latestWeightAt?: string | null;
+  latestWellnessCheckinAt?: string | null;
   profile?: {
     nombre?: string | null;
     apellido?: string | null;
@@ -34,6 +44,23 @@ export default function MiPlanIntakePage() {
   const [editOpen, setEditOpen] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [wellnessOpen, setWellnessOpen] = useState(false);
+  const [savingWellness, setSavingWellness] = useState(false);
+  const [wellnessError, setWellnessError] = useState<string | null>(null);
+  const [wellnessDraft, setWellnessDraft] = useState({
+    energia: 3,
+    sueno: 3,
+    hambre: 3,
+    dolor: 2,
+    estres: 3,
+    motivacion: 3,
+    notas: "",
+  });
+  const [weightOpen, setWeightOpen] = useState(false);
+  const [weightKgDraft, setWeightKgDraft] = useState("");
+  const [weightNoteDraft, setWeightNoteDraft] = useState("");
+  const [savingWeight, setSavingWeight] = useState(false);
+  const [weightError, setWeightError] = useState<string | null>(null);
   const [profileDraft, setProfileDraft] = useState({
     nombre: "",
     apellido: "",
@@ -82,6 +109,20 @@ export default function MiPlanIntakePage() {
   }, [router.isReady, clientId, router.query.t]);
 
   const title = data?.clientName ? `Mi plan · ${data.clientName}` : "Mi plan · FitPlan";
+  useEffect(() => {
+    if (data?.checkinRequest?.active) {
+      setWellnessOpen(true);
+      setWellnessError(null);
+    }
+  }, [data?.checkinRequest?.active]);
+  useEffect(() => {
+    if (data?.weightRequest?.active) {
+      setWeightOpen(true);
+      setWeightError(null);
+      setWeightKgDraft(data.latestWeightKg ? String(data.latestWeightKg) : "");
+    }
+  }, [data?.weightRequest?.active, data?.latestWeightKg]);
+
   const openEditData = () => {
     const p = data?.profile;
     setProfileError(null);
@@ -138,6 +179,74 @@ export default function MiPlanIntakePage() {
     }
   };
 
+  const submitWellnessCheckin = async () => {
+    if (!publicClientId || !publicToken) return;
+    setSavingWellness(true);
+    setWellnessError(null);
+    try {
+      const response = await fetch(
+        `/api/public/intake-client-checkin?clientId=${encodeURIComponent(publicClientId)}&t=${encodeURIComponent(publicToken)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(wellnessDraft),
+        }
+      );
+      const json = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(typeof json.error === "string" ? json.error : `Error ${response.status}`);
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              checkinRequest: { ...(prev.checkinRequest || {}), active: false },
+              latestWellnessCheckinAt: new Date().toISOString(),
+            }
+          : prev
+      );
+      setWellnessOpen(false);
+    } catch (e) {
+      setWellnessError(e instanceof Error ? e.message : "No se pudo guardar el check-in");
+    } finally {
+      setSavingWellness(false);
+    }
+  };
+
+  const submitWeight = async () => {
+    if (!publicClientId || !publicToken) return;
+    setSavingWeight(true);
+    setWeightError(null);
+    try {
+      const response = await fetch(
+        `/api/public/intake-client-weight?clientId=${encodeURIComponent(publicClientId)}&t=${encodeURIComponent(publicToken)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            weightKg: Number(weightKgDraft.replace(",", ".")),
+            note: weightNoteDraft,
+          }),
+        }
+      );
+      const json = (await response.json().catch(() => ({}))) as { error?: string; weightKg?: number };
+      if (!response.ok) throw new Error(typeof json.error === "string" ? json.error : `Error ${response.status}`);
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              weightRequest: { ...(prev.weightRequest || {}), active: false },
+              latestWeightKg: typeof json.weightKg === "number" ? json.weightKg : prev.latestWeightKg ?? null,
+              latestWeightAt: new Date().toISOString(),
+            }
+          : prev
+      );
+      setWeightOpen(false);
+    } catch (e) {
+      setWeightError(e instanceof Error ? e.message : "No se pudo guardar el peso");
+    } finally {
+      setSavingWeight(false);
+    }
+  };
+
   return (
     <>
       <Head>
@@ -176,6 +285,37 @@ export default function MiPlanIntakePage() {
                 </button>
               </div>
               <p className="text-sm text-white/60 mb-6">Aquí tienes tu plan actual. Puedes volver a esta página cuando quieras.</p>
+              {data.checkinRequest?.active ? (
+                <div className="mb-4 rounded-xl border border-amber-400/30 bg-amber-500/10 p-3">
+                  <p className="text-sm text-amber-100">
+                    Tu coach te pidió completar un check-in rápido de bienestar para ajustar mejor tu plan.
+                  </p>
+                  {data.checkinRequest.note ? (
+                    <p className="text-xs text-amber-100/80 mt-1">Nota del coach: {data.checkinRequest.note}</p>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setWellnessOpen(true)}
+                    className="mt-2 px-3 py-1.5 rounded-lg border border-amber-300/40 bg-amber-400/20 text-amber-50 text-xs hover:bg-amber-400/30"
+                  >
+                    Completar check-in ahora
+                  </button>
+                </div>
+              ) : null}
+              {data.weightRequest?.active ? (
+                <div className="mb-4 rounded-xl border border-cyan-400/30 bg-cyan-500/10 p-3">
+                  <p className="text-sm text-cyan-100">
+                    Tu coach te pidió registrar tu peso actual para actualizar el seguimiento mensual.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setWeightOpen(true)}
+                    className="mt-2 px-3 py-1.5 rounded-lg border border-cyan-300/40 bg-cyan-400/20 text-cyan-50 text-xs hover:bg-cyan-400/30"
+                  >
+                    Registrar peso ahora
+                  </button>
+                </div>
+              ) : null}
               <IntakeClientPlanPublicView
                 clientName={data.clientName}
                 plan={data.plan}
@@ -247,6 +387,127 @@ export default function MiPlanIntakePage() {
                 className="flex-1 px-4 py-2 rounded-lg bg-cyan-500/25 border border-cyan-300/30 hover:bg-cyan-500/35 text-cyan-100 disabled:opacity-60"
               >
                 {savingProfile ? "Guardando..." : "Guardar datos"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {wellnessOpen && (
+        <div
+          className="fixed inset-0 z-[120] bg-black/70 backdrop-blur-sm p-4 flex items-center justify-center"
+          onClick={(e) => e.target === e.currentTarget && !savingWellness && setWellnessOpen(false)}
+        >
+          <div className="w-full max-w-xl rounded-xl border border-white/10 bg-gray-900 p-5">
+            <h2 className="text-lg font-semibold text-white">Check-in de bienestar</h2>
+            <p className="text-xs text-white/60 mt-1">
+              Te toma menos de 1 minuto. Esto ayuda a tu coach a prevenir fatiga y ajustar cargas.
+            </p>
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {[
+                ["energia", "Energía"],
+                ["sueno", "Sueño"],
+                ["hambre", "Hambre"],
+                ["dolor", "Dolor muscular/articular"],
+                ["estres", "Estrés"],
+                ["motivacion", "Motivación"],
+              ].map(([k, label]) => {
+                const key = k as "energia" | "sueno" | "hambre" | "dolor" | "estres" | "motivacion";
+                return (
+                  <label key={k} className="text-sm text-white/85">
+                    {label} (1-5)
+                    <input
+                      type="range"
+                      min={1}
+                      max={5}
+                      value={wellnessDraft[key]}
+                      onChange={(e) =>
+                        setWellnessDraft((prev) => ({
+                          ...prev,
+                          [key]: Number(e.target.value),
+                        }))
+                      }
+                      className="mt-1 w-full"
+                    />
+                    <span className="text-xs text-white/70">Valor: {wellnessDraft[key]}</span>
+                  </label>
+                );
+              })}
+            </div>
+            <label className="mt-3 block text-sm text-white/85">
+              Nota opcional
+              <textarea
+                rows={3}
+                value={wellnessDraft.notas}
+                onChange={(e) => setWellnessDraft((prev) => ({ ...prev, notas: e.target.value }))}
+                className="mt-1 w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-white placeholder-white/35"
+                placeholder="Ej: dormí poco por trabajo nocturno esta semana."
+              />
+            </label>
+            {wellnessError ? <p className="mt-3 text-sm text-red-300">{wellnessError}</p> : null}
+            <div className="mt-4 flex gap-3">
+              <button
+                onClick={() => setWellnessOpen(false)}
+                disabled={savingWellness}
+                className="flex-1 px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-white disabled:opacity-60"
+              >
+                Más tarde
+              </button>
+              <button
+                onClick={() => void submitWellnessCheckin()}
+                disabled={savingWellness}
+                className="flex-1 px-4 py-2 rounded-lg bg-emerald-500/25 border border-emerald-300/30 hover:bg-emerald-500/35 text-emerald-100 disabled:opacity-60"
+              >
+                {savingWellness ? "Guardando..." : "Enviar check-in"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {weightOpen && (
+        <div
+          className="fixed inset-0 z-[120] bg-black/70 backdrop-blur-sm p-4 flex items-center justify-center"
+          onClick={(e) => e.target === e.currentTarget && !savingWeight && setWeightOpen(false)}
+        >
+          <div className="w-full max-w-md rounded-xl border border-white/10 bg-gray-900 p-5">
+            <h2 className="text-lg font-semibold text-white">Registrar peso</h2>
+            <p className="text-xs text-white/60 mt-1">Este dato se guarda para ver tu evolución en el tiempo.</p>
+            <label className="mt-4 block text-sm text-white/85">
+              Peso actual (kg)
+              <input
+                type="number"
+                step="0.1"
+                min="30"
+                max="350"
+                value={weightKgDraft}
+                onChange={(e) => setWeightKgDraft(e.target.value)}
+                className="mt-1 w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-white"
+              />
+            </label>
+            <label className="mt-3 block text-sm text-white/85">
+              Nota (opcional)
+              <textarea
+                rows={2}
+                value={weightNoteDraft}
+                onChange={(e) => setWeightNoteDraft(e.target.value)}
+                className="mt-1 w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-white"
+                placeholder="Ej: semana con menos sueño, retención de líquidos, etc."
+              />
+            </label>
+            {weightError ? <p className="mt-3 text-sm text-red-300">{weightError}</p> : null}
+            <div className="mt-4 flex gap-3">
+              <button
+                onClick={() => setWeightOpen(false)}
+                disabled={savingWeight}
+                className="flex-1 px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-white disabled:opacity-60"
+              >
+                Más tarde
+              </button>
+              <button
+                onClick={() => void submitWeight()}
+                disabled={savingWeight || !weightKgDraft.trim()}
+                className="flex-1 px-4 py-2 rounded-lg bg-cyan-500/25 border border-cyan-300/30 hover:bg-cyan-500/35 text-cyan-100 disabled:opacity-60"
+              >
+                {savingWeight ? "Guardando..." : "Guardar peso"}
               </button>
             </div>
           </div>

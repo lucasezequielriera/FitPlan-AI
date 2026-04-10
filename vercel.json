@@ -21,6 +21,10 @@
     {
       "path": "/api/cron/intakeWeeklyDigest",
       "schedule": "0 10 * * 1"
+    },
+    {
+      "path": "/api/cron/intakeAutoRequests",
+      "schedule": "0 10 * * *"
     }
   ]
 }
