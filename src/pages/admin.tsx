@@ -6691,6 +6691,7 @@ function IntakeClientDetailsModal({
   error: string | null;
   onClientPatched: (patch: Partial<IntakeClientDetail>) => void;
 }) {
+  const [analyticsRange, setAnalyticsRange] = useState<"7d" | "30d" | "90d" | "12m" | "all">("30d");
   const [editOpen, setEditOpen] = useState(false);
   const [savingBasics, setSavingBasics] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -6706,7 +6707,36 @@ function IntakeClientDetailsModal({
     whatsappVerified: false,
     privacyConsentAccepted: false,
   });
-  const weightPts = Array.isArray(detail?.weightSeries) ? detail.weightSeries : [];
+  const getRangeStartMs = (range: "7d" | "30d" | "90d" | "12m" | "all"): number | null => {
+    if (range === "all") return null;
+    const now = Date.now();
+    if (range === "7d") return now - 7 * 86400000;
+    if (range === "30d") return now - 30 * 86400000;
+    if (range === "90d") return now - 90 * 86400000;
+    return now - 365 * 86400000;
+  };
+  const toMs = (iso?: string | null): number | null => {
+    if (!iso) return null;
+    const n = Date.parse(iso);
+    return Number.isFinite(n) ? n : null;
+  };
+  const rangeStartMs = getRangeStartMs(analyticsRange);
+  const inRangeByIso = (iso?: string | null): boolean => {
+    if (rangeStartMs == null) return true;
+    const ms = toMs(iso);
+    return ms != null && ms >= rangeStartMs;
+  };
+  const inRangeByYmd = (ymd?: string | null): boolean => {
+    if (rangeStartMs == null) return true;
+    if (!ymd) return false;
+    const ms = Date.parse(`${ymd}T00:00:00`);
+    return Number.isFinite(ms) && ms >= rangeStartMs;
+  };
+  const engagementEventsFiltered = (detail?.engagementEvents || []).filter(
+    (ev) => inRangeByYmd(ev.ymd || null) || inRangeByIso(ev.createdAt || null)
+  );
+  const wellnessFiltered = (detail?.wellnessRecent || []).filter((w) => inRangeByYmd(w.ymd));
+  const weightPts = (detail?.weightSeries || []).filter((w) => inRangeByYmd(w.ymd));
   const minW = weightPts.length ? Math.min(...weightPts.map((p) => p.weightKg)) : 0;
   const maxW = weightPts.length ? Math.max(...weightPts.map((p) => p.weightKg)) : 0;
   const rangeW = Math.max(1, maxW - minW);
@@ -6990,31 +7020,65 @@ function IntakeClientDetailsModal({
             ) : null}
             {detail.timelines ? (
               <div className="rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-2">
-                <p className="text-xs text-emerald-100 mb-2">Seguimiento (día / semana / mes)</p>
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs text-emerald-100">Seguimiento (día / semana / mes)</p>
+                  <div className="inline-flex items-center gap-1">
+                    {[
+                      ["7d", "7d"],
+                      ["30d", "30d"],
+                      ["90d", "90d"],
+                      ["12m", "12m"],
+                      ["all", "Todo"],
+                    ].map(([id, label]) => (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => setAnalyticsRange(id as "7d" | "30d" | "90d" | "12m" | "all")}
+                        className={`px-2 py-0.5 rounded text-[10px] border ${
+                          analyticsRange === id
+                            ? "bg-emerald-400/30 border-emerald-300/50 text-emerald-50"
+                            : "bg-white/5 border-white/15 text-white/70 hover:bg-white/10"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
                   <div className="rounded border border-white/10 bg-black/20 px-2 py-1.5">
                     <p className="text-white/60">Día</p>
                     <p className="text-white/90">
-                      Entrenos: {detail.timelines.day.workouts || 0} · Check-ins: {detail.timelines.day.checkins || 0} · Peso:{" "}
-                      {detail.timelines.day.weights || 0}
+                      Entrenos: {detail.timelines.day.workouts || 0} · Check-ins:{" "}
+                      {wellnessFiltered.filter((w) => {
+                        const ms = Date.parse(`${w.ymd}T00:00:00`);
+                        return Number.isFinite(ms) && ms >= Date.now() - 86400000;
+                      }).length}{" "}
+                      · Peso:{" "}
+                      {weightPts.filter((w) => {
+                        const ms = Date.parse(`${w.ymd}T00:00:00`);
+                        return Number.isFinite(ms) && ms >= Date.now() - 86400000;
+                      }).length}
                     </p>
                   </div>
                   <div className="rounded border border-white/10 bg-black/20 px-2 py-1.5">
                     <p className="text-white/60">Semana</p>
                     <p className="text-white/90">
-                      Entrenos: {detail.timelines.week.workouts || 0} · Check-ins: {detail.timelines.week.checkins || 0}
+                      Entrenos: {detail.timelines.week.workouts || 0} · Check-ins: {wellnessFiltered.length}
                     </p>
                     <p className="text-white/70">
-                      Solicitudes: {detail.timelines.week.requests || 0} · Completados: {detail.timelines.week.completed || 0}
+                      Solicitudes: {engagementEventsFiltered.filter((e) => e.status === "requested").length} · Completados:{" "}
+                      {engagementEventsFiltered.filter((e) => e.status === "completed").length}
                     </p>
                   </div>
                   <div className="rounded border border-white/10 bg-black/20 px-2 py-1.5">
                     <p className="text-white/60">Mes</p>
                     <p className="text-white/90">
-                      Entrenos: {detail.timelines.month.workouts || 0} · Check-ins: {detail.timelines.month.checkins || 0}
+                      Entrenos: {detail.timelines.month.workouts || 0} · Check-ins: {wellnessFiltered.length}
                     </p>
                     <p className="text-white/70">
-                      Peso: {detail.timelines.month.weights || 0} · Emails enviados: {detail.timelines.month.digestSent || 0}
+                      Peso: {weightPts.length} · Emails enviados:{" "}
+                      {engagementEventsFiltered.filter((e) => e.kind === "digest_email" && e.status === "sent").length}
                     </p>
                   </div>
                 </div>
@@ -7035,11 +7099,11 @@ function IntakeClientDetailsModal({
                 </p>
               </div>
             ) : null}
-            {Array.isArray(detail.engagementEvents) && detail.engagementEvents.length > 0 ? (
+            {engagementEventsFiltered.length > 0 ? (
               <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2">
                 <p className="text-xs text-amber-100 mb-2">Historial de solicitudes/completados</p>
                 <div className="space-y-1.5 max-h-44 overflow-y-auto">
-                  {detail.engagementEvents.slice(0, 25).map((ev) => (
+                  {engagementEventsFiltered.slice(0, 40).map((ev) => (
                     <div key={ev.id} className="rounded border border-white/10 bg-black/20 px-2 py-1 text-xs text-white/85">
                       <p>
                         {(ev.kind || "evento").replaceAll("_", " ")} · {ev.status || "N/A"} · {ev.source || "N/A"}

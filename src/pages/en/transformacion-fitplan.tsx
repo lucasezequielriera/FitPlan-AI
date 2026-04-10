@@ -3,7 +3,6 @@ import Head from "next/head";
 import { useRouter } from "next/router";
 import { motion } from "framer-motion";
 import { FaCheckCircle, FaBolt, FaBrain, FaDumbbell, FaUtensils, FaWhatsapp } from "react-icons/fa";
-import Navbar from "@/components/Navbar";
 import LoginModal from "@/components/LoginModal";
 import LandingLangToggle from "@/components/LandingLangToggle";
 import { useAuthStore } from "@/store/authStore";
@@ -167,7 +166,6 @@ export default function TransformacionFitPlanLandingEn() {
       </Head>
 
       <LandingLangToggle locale="en" />
-      <Navbar />
 
       <main className="px-4 md:px-6">
         <section className="max-w-6xl mx-auto pt-10 pb-10">

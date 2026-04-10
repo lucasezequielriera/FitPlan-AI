@@ -5,7 +5,6 @@ import { FaAppleAlt, FaRocket } from "react-icons/fa";
 import { useAuthStore } from "@/store/authStore";
 import { getDbSafe, getAuthSafe } from "@/lib/firebase";
 import { collection, query, where, getDocs, limit } from "firebase/firestore";
-import Navbar from "@/components/Navbar";
 import LoginModal from "@/components/LoginModal";
 import Head from "next/head";
 
@@ -233,8 +232,7 @@ export default function Home() {
           }}
         />
       </Head>
-      <Navbar />
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] px-4 py-12">
+      <div className="flex flex-col items-center justify-center min-h-screen px-4 py-12">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
