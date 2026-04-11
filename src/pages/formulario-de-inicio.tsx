@@ -79,8 +79,18 @@ export default function FormularioDeInicioPage() {
     }
   };
 
-  const sectionClass = "rounded-2xl border border-white/10 bg-white/[0.03] p-5 md:p-6 shadow-[0_8px_30px_rgba(0,0,0,0.15)] space-y-4";
-  const detailsClass = "rounded-xl border border-white/10 bg-white/[0.02] p-3";
+  const fieldBase =
+    "w-full rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] px-3 py-2.5 text-sm text-[var(--foreground)] placeholder:text-[var(--landing-muted)] outline-none transition focus:border-[color-mix(in_oklab,var(--landing-accent)_50%,transparent)] focus:ring-2 focus:ring-[var(--landing-accent)]/25";
+  const inputClass = `${fieldBase} min-h-[44px]`;
+  const textareaClass = fieldBase;
+  const sectionClass =
+    "rounded-2xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--landing-surface)_88%,transparent)] p-5 shadow-[0_12px_40px_-18px_rgba(0,0,0,0.35)] space-y-5 md:p-7";
+  const detailsClass =
+    "rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)]/60 p-3 md:p-4";
+  const chipOff = "rounded-full border border-[var(--landing-border)] bg-[var(--landing-surface)] px-3 py-2 text-sm font-medium text-[var(--landing-muted)] transition hover:border-[color-mix(in_oklab,var(--landing-accent)_35%,transparent)] hover:text-[var(--foreground)]";
+  const chipOn = "rounded-full border border-[var(--landing-accent)] bg-[color-mix(in_oklab,var(--landing-accent)_14%,transparent)] px-3 py-2 text-sm font-semibold text-[var(--landing-accent)] shadow-[0_0_20px_-8px_var(--landing-accent)]";
+  const chipFoodGusta = "rounded-full border border-emerald-400/45 bg-emerald-500/15 px-3 py-2 text-sm font-medium text-emerald-100";
+  const chipFoodNo = "rounded-full border border-rose-400/45 bg-rose-500/15 px-3 py-2 text-sm font-medium text-rose-100";
 
   return (
     <div className="min-h-screen">

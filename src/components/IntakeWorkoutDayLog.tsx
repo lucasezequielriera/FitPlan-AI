@@ -706,7 +706,7 @@ export default function IntakeWorkoutDayLog({
 
   const exportMonthlyPdf = async (monthKey: string, monthSessions: IntakeWorkoutSession[]) => {
     try {
-      const { jsPDF } = await import("jspdf");
+      const { default: jsPDF } = await import("jspdf");
       const doc = new jsPDF({ unit: "pt", format: "a4" });
       const pageW = 595;
       const pageH = 842;

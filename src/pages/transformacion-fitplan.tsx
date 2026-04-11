@@ -311,7 +311,7 @@ export default function TransformacionFitPlanLanding() {
         </section>
       </main>
 
-      <LoginModal isOpen={loginOpen} onClose={() => setLoginOpen(false)} />
+      <LoginModal isOpen={loginOpen} onClose={() => setLoginOpen(false)} locale="es" />
     </div>
   );
 }

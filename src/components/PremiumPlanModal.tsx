@@ -1,5 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
+import { FaBolt, FaCheck, FaCrown, FaStar, FaTimes } from "react-icons/fa";
+import type { IconType } from "react-icons";
 import { getPaymentProvider, getStripeCurrency } from "@/lib/paymentUtils";
 import {
   getStripeSubscriptionPlans,
@@ -7,12 +9,15 @@ import {
   PLANS_USD_UI,
 } from "@/lib/stripePlanPrices";
 
-interface PremiumPlanModalProps {
+export interface PremiumPlanModalProps {
   isOpen: boolean;
   onClose: () => void;
-  userId: string;
-  userEmail: string;
+  /** Si faltan, el botón de pago llama a `onRequireAuth` (p. ej. abrir login en la landing). */
+  userId?: string;
+  userEmail?: string;
   returnUrl?: string;
+  locale?: "es" | "en";
+  onRequireAuth?: () => void;
 }
 
 type PlanType = "monthly" | "quarterly" | "annual";
@@ -26,19 +31,17 @@ interface Plan {
   popular?: boolean;
 }
 
-// Planes en ARS (MercadoPago)
-// Referencia actual: 1 EUR = 2000 ARS (ajustar según cotización real)
 const plansARS: Plan[] = [
   {
     type: "monthly",
     name: "Plan Mensual",
-    price: 10000, // 5 EUR/mes
+    price: 10000,
     period: "mes",
   },
   {
     type: "quarterly",
     name: "Plan Trimestral",
-    price: 24000, // 12 EUR total
+    price: 24000,
     period: "3 meses",
     savings: "Ahorrás 20%",
     popular: true,
@@ -46,7 +49,7 @@ const plansARS: Plan[] = [
   {
     type: "annual",
     name: "Plan Anual",
-    price: 50000, // 25 EUR total
+    price: 50000,
     period: "12 meses",
     savings: "Ahorrás 58%",
   },
@@ -70,14 +73,120 @@ function buildStripePlans(currency: "eur" | "usd"): Plan[] {
   });
 }
 
-export default function PremiumPlanModal({ isOpen, onClose, userId, userEmail, returnUrl }: PremiumPlanModalProps) {
+type CompareRow = { label: string; free: boolean; premium: boolean };
+
+function getCompareRows(locale: "es" | "en"): CompareRow[] {
+  if (locale === "en") {
+    return [
+      { label: "Full AI plan (not just templates)", free: false, premium: true },
+      { label: "Quick template-based plan", free: true, premium: false },
+      { label: "Advanced goals & sport modes", free: false, premium: true },
+      { label: "30-day trial window", free: true, premium: false },
+      { label: "Unlimited while subscribed", free: false, premium: true },
+      { label: "Calendar, multi-plan, PDF & meal log", free: false, premium: true },
+    ];
+  }
+  return [
+    { label: "Plan con IA completa (no solo plantillas)", free: false, premium: true },
+    { label: "Plan rápido por plantillas", free: true, premium: false },
+    { label: "Objetivos y modos deporte avanzados", free: false, premium: true },
+    { label: "Ventana de prueba 30 días", free: true, premium: false },
+    { label: "Ilimitado con la suscripción activa", free: false, premium: true },
+    { label: "Calendario, multi-plan, PDF y comidas", free: false, premium: true },
+  ];
+}
+
+type Highlight = { Icon: IconType; text: string };
+function getPremiumHighlights(locale: "es" | "en"): Highlight[] {
+  if (locale === "en") {
+    return [
+      { Icon: FaBolt, text: "AI-built plans" },
+      { Icon: FaStar, text: "Train + eat, one flow" },
+      { Icon: FaCrown, text: "Full app, no day cap" },
+    ];
+  }
+  return [
+    { Icon: FaBolt, text: "Plan con IA de verdad" },
+    { Icon: FaStar, text: "Gym y comidas, mismo flujo" },
+    { Icon: FaCrown, text: "App completa, sin tope de días" },
+  ];
+}
+
+export default function PremiumPlanModal({
+  isOpen,
+  onClose,
+  userId,
+  userEmail,
+  returnUrl,
+  locale = "es",
+  onRequireAuth,
+}: PremiumPlanModalProps) {
   const [selectedPlan, setSelectedPlan] = useState<PlanType | null>(null);
   const [processing, setProcessing] = useState(false);
   const [paymentProvider, setPaymentProvider] = useState<"stripe" | "mercadopago" | null>(null);
   const [stripeCurrency, setStripeCurrency] = useState<"eur" | "usd">("eur");
   const [loadingProvider, setLoadingProvider] = useState(true);
 
-  // Detectar el proveedor de pago al abrir el modal
+  const copy = useMemo(() => {
+    if (locale === "en") {
+      return {
+        title: "Go Premium",
+        subtitle: "Three billing rhythms. One full Premium—pick what fits your wallet.",
+        compareTitle: "Free vs Premium",
+        colFree: "Free",
+        colPremium: "Premium",
+        billingTitle: "Choose billing",
+        sameFeatures: "Same features in every tier—only how often you pay changes.",
+        includedTitle: "Every tier includes",
+        includedBullets: [
+          "Full AI + advanced goals",
+          "Unlimited while your sub is active",
+          "Calendar, PDF, stats & meals",
+        ],
+        planChips: ["Full AI", "Gym + meals", "All-in"],
+        planHook: {
+          monthly: "Pay monthly — stop anytime",
+          quarterly: "Best balance: save without a year upfront",
+          annual: "Lowest per month · max savings",
+        } satisfies Record<PlanType, string>,
+        selectPlan: "Continue",
+        loading: "Loading…",
+        processing: "Processing…",
+        loginHint: "Sign in to complete checkout",
+        close: "Close",
+      };
+    }
+    return {
+      title: "Pasá a Premium",
+      subtitle: "Tres formas de pagar. El mismo Premium completo: elegí la que te cierra.",
+      compareTitle: "Gratis vs Premium",
+      colFree: "Gratis",
+      colPremium: "Premium",
+      billingTitle: "Elegí la cuota",
+      sameFeatures: "Mismas funciones en los tres precios; solo cambia cada cuánto cobramos.",
+      includedTitle: "En los tres tenés",
+      includedBullets: [
+        "IA completa + objetivos avanzados",
+        "Todo desbloqueado mientras siga activa la suscripción",
+        "Calendario, PDF, stats y comidas",
+      ],
+      planChips: ["IA completa", "Gym + comidas", "Todo incluido"],
+      planHook: {
+        monthly: "Mes a mes — salís cuando quieras",
+        quarterly: "El equilibrio: ahorrás sin atarte al año",
+        annual: "Lo más barato al mes · máximo ahorro",
+      } satisfies Record<PlanType, string>,
+      selectPlan: "Continuar",
+      loading: "Cargando…",
+      processing: "Procesando…",
+      loginHint: "Iniciá sesión para completar el pago",
+      close: "Cerrar",
+    };
+  }, [locale]);
+
+  const compareRows = useMemo(() => getCompareRows(locale), [locale]);
+  const premiumHighlights = useMemo(() => getPremiumHighlights(locale), [locale]);
+
   useEffect(() => {
     if (isOpen) {
       const detectProvider = async () => {
@@ -91,35 +200,35 @@ export default function PremiumPlanModal({ isOpen, onClose, userId, userEmail, r
           }
         } catch (error) {
           console.error("Error al detectar proveedor de pago:", error);
-          // Fallback a MercadoPago si hay error
           setPaymentProvider("mercadopago");
         } finally {
           setLoadingProvider(false);
         }
       };
-      detectProvider();
+      void detectProvider();
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
   const plans = paymentProvider === "stripe" ? buildStripePlans(stripeCurrency) : plansARS;
+  const hasAccount = Boolean(userId && userEmail);
 
   const handleSelectPlan = async (planType: PlanType) => {
-    if (!userId || !userEmail) {
-      alert("Debes estar registrado para acceder al plan Premium");
+    if (!hasAccount) {
+      onRequireAuth?.();
       return;
     }
 
     if (!paymentProvider) {
-      alert("Cargando información de pago, por favor espera...");
+      alert(locale === "en" ? "Loading payment info, please wait…" : "Cargando información de pago, por favor espera…");
       return;
     }
 
     setProcessing(true);
     try {
       const endpoint = paymentProvider === "stripe" ? "/api/createStripePayment" : "/api/createPayment";
-      
+
       const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -137,29 +246,37 @@ export default function PremiumPlanModal({ isOpen, onClose, userId, userEmail, r
       }
 
       const data = await response.json();
-      
+
       if (paymentProvider === "stripe" && data.url) {
-        // Redirigir al checkout de Stripe
         window.location.href = data.url;
       } else if (paymentProvider === "mercadopago" && data.init_point) {
-        // Redirigir al checkout de MercadoPago
         window.location.href = data.init_point;
       } else {
         throw new Error("No se recibió el link de pago");
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Error desconocido";
-      alert(`Error al procesar el pago: ${message}`);
+      alert(locale === "en" ? `Payment error: ${message}` : `Error al procesar el pago: ${message}`);
       console.error("Error al crear pago:", error);
     } finally {
       setProcessing(false);
     }
   };
 
+  const priceLabel = (plan: Plan) => {
+    if (paymentProvider === "stripe") {
+      if (stripeCurrency === "usd") {
+        return `$${plan.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      }
+      return `${plan.price.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+    }
+    return `$${plan.price.toLocaleString("es-AR")}`;
+  };
+
   return (
-    <div 
-      className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-2 sm:p-4"
-      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+    <div
+      className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/70 backdrop-blur-sm p-0 sm:items-center sm:p-4"
+      style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0 }}
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onClose();
@@ -167,126 +284,228 @@ export default function PremiumPlanModal({ isOpen, onClose, userId, userEmail, r
       }}
     >
       <motion.div
-        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        initial={{ opacity: 0, scale: 0.98, y: 16 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.9, y: 20 }}
-        className="bg-gray-900 rounded-xl border border-white/10 p-4 sm:p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+        exit={{ opacity: 0, scale: 0.98, y: 16 }}
+        className="relative bg-[color-mix(in_oklab,var(--background)_95%,#0f172a)] sm:rounded-2xl rounded-t-2xl border border-[var(--landing-border)] border-b-0 sm:border-b p-3 pt-12 sm:p-6 sm:pt-6 max-w-5xl w-full max-h-[min(92dvh,100dvh)] sm:max-h-[92vh] overflow-y-auto overscroll-contain shadow-2xl pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-6"
         onClick={(e) => e.stopPropagation()}
+        lang={locale}
       >
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
-            <span className="text-2xl">🌟</span>
-            Elige tu Plan Premium
-          </h2>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
+          <div className="min-w-0 pr-2">
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-[var(--foreground)] flex flex-wrap items-center gap-2">
+              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--landing-accent)]/30 to-cyan-500/20 ring-1 ring-[var(--landing-accent)]/40 text-[var(--landing-accent)]" aria-hidden>
+                ✦
+              </span>
+              <span className="bg-gradient-to-r from-[var(--foreground)] to-[var(--landing-accent)] bg-clip-text text-transparent text-balance">
+                {copy.title}
+              </span>
+            </h2>
+            <p className="text-[var(--landing-muted)] text-sm sm:text-base mt-2 max-w-xl font-medium text-pretty">{copy.subtitle}</p>
+          </div>
           <button
+            type="button"
             onClick={onClose}
-            className="text-white/70 hover:text-white transition-colors flex-shrink-0"
+            className="absolute right-2 top-2 sm:relative sm:right-0 sm:top-0 text-[var(--foreground)]/70 hover:text-[var(--foreground)] transition-colors flex-shrink-0 rounded-lg p-2 sm:p-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)] touch-manipulation self-end sm:self-start"
+            aria-label={copy.close}
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5 sm:h-6 sm:w-6">
-              <path d="M18 6L6 18M6 6l12 12"/>
+              <path d="M18 6L6 18M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        <p className="text-white/60 text-sm sm:text-base mb-6">
-          Desbloquea objetivos avanzados, dietas personalizadas, planes de entrenamiento completos y análisis detallados.
-        </p>
+        <div className="mb-4 sm:mb-5 rounded-2xl border border-[var(--landing-accent)]/35 bg-gradient-to-br from-[color-mix(in_oklab,var(--landing-accent)_14%,transparent)] via-[var(--landing-surface)] to-[color-mix(in_oklab,#6366f1_8%,transparent)] p-3 sm:p-4 shadow-[0_0_40px_-12px_rgba(45,212,191,0.35)]">
+          <p className="text-[10px] sm:text-xs font-bold uppercase tracking-[0.2em] text-[var(--landing-accent)] mb-2.5">Premium</p>
+          <ul className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:gap-3">
+            {premiumHighlights.map(({ Icon, text }) => (
+              <li
+                key={text}
+                className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl bg-black/25 px-3 py-2.5 ring-1 ring-white/10 sm:min-w-[140px] sm:flex-[1_1_30%]"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--landing-accent)]/20 text-[var(--landing-accent)]">
+                  <Icon className="h-4 w-4" aria-hidden />
+                </span>
+                <span className="text-xs sm:text-sm font-semibold leading-snug text-[var(--foreground)] text-pretty">{text}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="mb-4 rounded-xl border border-dashed border-[var(--landing-accent)]/40 bg-[var(--landing-surface)]/80 px-3 py-3 sm:px-4 sm:py-3.5">
+          <p className="text-[11px] sm:text-xs font-bold uppercase tracking-wide text-[var(--landing-accent)] mb-2">{copy.includedTitle}</p>
+          <ul className="space-y-1.5">
+            {copy.includedBullets.map((line) => (
+              <li key={line} className="flex items-start gap-2 text-xs sm:text-sm text-[var(--foreground)]/95">
+                <FaCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--landing-accent)]" aria-hidden />
+                <span className="leading-snug font-medium">{line}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <section className="mb-6 sm:mb-8 rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] overflow-hidden relative">
+          <div className="px-3 sm:px-4 py-2.5 sm:py-3 border-b border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--landing-accent)_12%,transparent)]">
+            <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wide text-[var(--landing-accent)]">{copy.compareTitle}</h3>
+          </div>
+
+          <ul className="md:hidden divide-y divide-[var(--landing-border)]">
+            {compareRows.map((row) => (
+              <li key={row.label} className="px-3 py-3">
+                <p className="text-xs font-medium text-[var(--foreground)] leading-snug text-pretty mb-2.5">{row.label}</p>
+                <div className="flex items-center justify-between gap-3 text-[11px] sm:text-xs">
+                  <span className="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg bg-black/20 px-2 py-2 text-[var(--landing-muted)]">
+                    <span className="truncate font-medium">{copy.colFree}</span>
+                    {row.free ? (
+                      <FaCheck className="h-3.5 w-3.5 shrink-0 text-emerald-400" aria-hidden />
+                    ) : (
+                      <FaTimes className="h-3.5 w-3.5 shrink-0 text-white/25" aria-hidden />
+                    )}
+                  </span>
+                  <span className="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg bg-[color-mix(in_oklab,var(--landing-accent)_10%,transparent)] px-2 py-2 text-[var(--landing-accent)]">
+                    <span className="truncate font-medium">{copy.colPremium}</span>
+                    {row.premium ? (
+                      <FaCheck className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                    ) : (
+                      <FaTimes className="h-3.5 w-3.5 shrink-0 text-white/25" aria-hidden />
+                    )}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-sm text-left min-w-0">
+              <thead>
+                <tr className="border-b border-[var(--landing-border)]">
+                  <th className="px-3 py-3 font-medium text-[var(--foreground)] w-[min(50%,28rem)]"></th>
+                  <th className="px-2 py-3 font-semibold text-center text-[var(--landing-muted)] w-[12%]">{copy.colFree}</th>
+                  <th className="px-2 py-3 font-semibold text-center text-[var(--landing-accent)] w-[12%]">{copy.colPremium}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {compareRows.map((row) => (
+                  <tr key={row.label} className="border-b border-[var(--landing-border)]/80 last:border-0">
+                    <td className="px-3 py-2.5 text-[var(--foreground)]/90 leading-snug text-pretty">{row.label}</td>
+                    <td className="px-2 py-2.5 text-center align-middle">
+                      {row.free ? (
+                        <FaCheck className="inline h-4 w-4 text-emerald-400" aria-label="Yes" />
+                      ) : (
+                        <FaTimes className="inline h-4 w-4 text-white/25" aria-label="No" />
+                      )}
+                    </td>
+                    <td className="px-2 py-2.5 text-center align-middle">
+                      {row.premium ? (
+                        <FaCheck className="inline h-4 w-4 text-[var(--landing-accent)]" aria-label="Yes" />
+                      ) : (
+                        <FaTimes className="inline h-4 w-4 text-white/25" aria-label="No" />
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <div className="mb-3 sm:mb-4">
+          <h3 className="text-base sm:text-lg font-bold text-[var(--foreground)] flex items-center gap-2">
+            <span className="inline-block h-1 w-6 rounded-full bg-[var(--landing-accent)]" aria-hidden />
+            {copy.billingTitle}
+          </h3>
+          <p className="text-[var(--landing-muted)] text-xs sm:text-sm mt-1.5 text-pretty font-medium">{copy.sameFeatures}</p>
+        </div>
+
+        {!hasAccount && (
+          <p className="mb-3 sm:mb-4 text-center text-[11px] sm:text-xs text-amber-200/90 bg-amber-500/10 border border-amber-500/25 rounded-lg px-3 py-2 text-pretty">
+            {copy.loginHint}
+          </p>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-3 sm:mb-4">
           {plans.map((plan) => (
             <div
               key={plan.type}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") setSelectedPlan(plan.type);
+              }}
               onClick={() => setSelectedPlan(plan.type)}
-              className={`relative p-4 sm:p-6 rounded-xl border cursor-pointer transition-all ${
+              className={`relative flex flex-col p-4 sm:pl-5 sm:pr-5 sm:py-5 rounded-xl border cursor-pointer transition-all text-left touch-manipulation min-h-0 border-l-[3px] pl-[1.1rem] sm:pl-6 ${
+                plan.type === "monthly"
+                  ? "border-l-cyan-400/75"
+                  : plan.type === "annual"
+                    ? "border-l-amber-400/70"
+                    : "border-l-[color-mix(in_oklab,var(--landing-accent)_85%,transparent)]"
+              } ${
                 selectedPlan === plan.type
-                  ? "bg-blue-500/20 border-blue-500/50 scale-105"
+                  ? "bg-[color-mix(in_oklab,var(--landing-accent)_18%,transparent)] border-[var(--landing-accent)] ring-1 ring-[var(--landing-accent)]/50"
                   : plan.popular
-                  ? "bg-gradient-to-br from-yellow-500/10 to-orange-500/10 border-yellow-500/30 hover:border-yellow-500/50"
-                  : "bg-white/5 border-white/10 hover:border-white/20 hover:bg-white/10"
+                    ? "bg-[color-mix(in_oklab,var(--landing-accent)_8%,transparent)] border-[var(--landing-accent)]/40 hover:border-[var(--landing-accent)]/70"
+                    : "bg-[var(--landing-surface)] border-[var(--landing-border)] hover:border-[var(--landing-border)] hover:bg-[var(--landing-surface-2)]"
               }`}
             >
               {plan.popular && (
-                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                  <span className="px-3 py-1 text-xs font-semibold rounded-full bg-gradient-to-r from-yellow-500 to-orange-500 text-white">
-                    Más Popular
+                <div className="absolute -top-2.5 left-1/2 -translate-x-1/2">
+                  <span className="px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide rounded-full bg-[var(--landing-accent)] text-[#0a1628]">
+                    {locale === "en" ? "Popular" : "Popular"}
                   </span>
                 </div>
               )}
 
-              <div className="text-center">
-                <h3 className="text-lg sm:text-xl font-bold text-white mb-2">{plan.name}</h3>
-                <div className="mb-4">
-                  <span className="text-3xl sm:text-4xl font-bold text-white">
-                    {paymentProvider === "stripe" 
-                      ? stripeCurrency === "usd"
-                        ? `$${plan.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                        : `${plan.price.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
-                      : `$${plan.price.toLocaleString("es-AR")}`
-                    }
-                  </span>
-                </div>
-                <p className="text-white/60 text-sm mb-4">{plan.period}</p>
-                {plan.savings && (
-                  <p className="text-green-400 text-sm font-medium mb-4">
-                    {plan.savings}
-                  </p>
-                )}
-
-                <div className="space-y-2 text-left mb-6">
-                  <div className="flex items-start gap-2">
-                    <svg className="h-5 w-5 text-green-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span className="text-white/80 text-sm">Objetivos avanzados</span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <svg className="h-5 w-5 text-green-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span className="text-white/80 text-sm">Dietas personalizadas</span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <svg className="h-5 w-5 text-green-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span className="text-white/80 text-sm">Planes de entrenamiento</span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <svg className="h-5 w-5 text-green-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span className="text-white/80 text-sm">Planes ilimitados</span>
-                  </div>
-                </div>
-
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleSelectPlan(plan.type);
-                  }}
-                  disabled={processing || loadingProvider}
-                  className={`w-full px-4 py-2.5 rounded-lg font-medium transition-all ${
-                    selectedPlan === plan.type
-                      ? "bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white"
-                      : plan.popular
-                      ? "bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white"
-                      : "bg-white/10 hover:bg-white/20 text-white border border-white/20"
-                  } disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  {loadingProvider ? "Cargando..." : processing ? "Procesando..." : "Seleccionar Plan"}
-                </button>
+              <h3 className="text-base sm:text-lg font-bold text-[var(--foreground)] mb-1 pt-1 text-balance">{plan.name}</h3>
+              <div className="mb-1 break-words">
+                <span className="text-xl sm:text-2xl md:text-3xl font-bold bg-gradient-to-r from-white to-[var(--landing-accent)]/90 bg-clip-text text-transparent tabular-nums">{priceLabel(plan)}</span>
               </div>
+              <p className="text-[var(--landing-muted)] text-[11px] sm:text-xs mb-2 font-medium">{plan.period}</p>
+              {plan.savings && (
+                <p className="text-emerald-300 text-[10px] sm:text-xs font-bold mb-2 px-2 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-400/30 w-fit">
+                  {plan.savings}
+                </p>
+              )}
+              <p className="mb-2 mt-3 border-t border-white/10 pt-3 text-xs sm:text-sm font-extrabold leading-snug text-pretty bg-gradient-to-r from-[var(--foreground)] via-[var(--landing-accent)] to-cyan-200/90 bg-clip-text text-transparent">
+                {copy.planHook[plan.type]}
+              </p>
+              <div className="mb-3 flex flex-wrap gap-1.5" aria-label={locale === "en" ? "Included in plan" : "Incluido en el plan"}>
+                {copy.planChips.map((chip) => (
+                  <span
+                    key={chip}
+                    className="inline-flex items-center rounded-full border border-[var(--landing-accent)]/35 bg-[color-mix(in_oklab,var(--landing-accent)_12%,transparent)] px-2 py-0.5 text-[9px] sm:text-[10px] font-bold uppercase tracking-wide text-[var(--landing-accent)]"
+                  >
+                    {chip}
+                  </span>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void handleSelectPlan(plan.type);
+                }}
+                disabled={processing || loadingProvider}
+                className={`w-full mt-auto min-h-[44px] px-4 py-2.5 rounded-lg font-medium transition-all text-sm ${
+                  selectedPlan === plan.type
+                    ? "bg-[var(--landing-accent)] text-[#0a1628] hover:brightness-110"
+                    : plan.popular
+                      ? "bg-[color-mix(in_oklab,var(--landing-accent)_35%,#0f172a)] text-[var(--foreground)] border border-[var(--landing-accent)]/50 hover:bg-[color-mix(in_oklab,var(--landing-accent)_45%,#0f172a)]"
+                      : "bg-[var(--landing-surface-2)] text-[var(--foreground)] border border-[var(--landing-border)] hover:bg-[color-mix(in_oklab,var(--foreground)_10%,transparent)]"
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                {loadingProvider ? copy.loading : processing ? copy.processing : copy.selectPlan}
+              </button>
             </div>
           ))}
         </div>
 
-        <div className="text-center">
-          <p className="text-white/40 text-xs">
-            Todos los planes incluyen las mismas funcionalidades premium. Elige el que mejor se adapte a tus necesidades.
-          </p>
-        </div>
+        <p className="text-center text-[var(--landing-muted)] text-[11px] sm:text-xs">
+          {locale === "en"
+            ? "Taxes may apply depending on your country. Subscription renews until cancelled."
+            : "Los impuestos pueden aplicar según tu país. La suscripción se renueva hasta que la canceles."}
+        </p>
       </motion.div>
     </div>
   );
 }
-

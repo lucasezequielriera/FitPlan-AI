@@ -1,17 +1,5 @@
-import type { GetServerSideProps } from "next";
+import HomeLanding from "@/components/landing/HomeLanding";
 
-/**
- * Punto de entrada /en → landing principal en inglés (YouTube / ads US).
- */
-export default function EnIndex() {
-  return null;
+export default function HomeEn() {
+  return <HomeLanding locale="en" />;
 }
-
-export const getServerSideProps: GetServerSideProps = async () => {
-  return {
-    redirect: {
-      destination: "/en/transformacion-fitplan",
-      permanent: false,
-    },
-  };
-};

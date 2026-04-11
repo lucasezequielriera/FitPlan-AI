@@ -1,50 +1,63 @@
 import Link from "next/link";
+import { useRouter } from "next/router";
 
 export default function Footer() {
+  const router = useRouter();
+  const isEn = router.pathname.startsWith("/en");
+
+  const disclaimer = isEn ? (
+    <>
+      <strong>Important:</strong> FitPlan AI provides general information and guidance on nutrition and exercise. It does
+      not replace professional medical advice. Before starting any diet or exercise program, consult a physician or qualified
+      health professional, especially if you have pre-existing medical conditions.
+    </>
+  ) : (
+    <>
+      <strong>Aviso importante:</strong> FitPlan AI proporciona información general y orientación sobre nutrición y
+      ejercicio. No reemplaza el consejo médico profesional. Antes de iniciar cualquier programa de dieta o ejercicio,
+      consulta con un médico o profesional de salud calificado, especialmente si tienes condiciones médicas preexistentes.
+    </>
+  );
+
   return (
     <footer className="w-full bg-black/60 backdrop-blur-sm border-t border-white/10 py-8 mt-auto">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Disclaimer médico */}
         <div className="text-center mb-6">
-          <p className="text-white/50 text-xs max-w-3xl mx-auto">
-            ⚠️ <strong>Aviso importante:</strong> FitPlan AI proporciona información general y orientación sobre nutrición y ejercicio. 
-            No reemplaza el consejo médico profesional. Antes de iniciar cualquier programa de dieta o ejercicio, 
-            consulta con un médico o profesional de salud calificado, especialmente si tienes condiciones médicas preexistentes.
+          <p className="text-white/50 text-xs max-w-3xl mx-auto leading-relaxed" lang={isEn ? "en" : "es"}>
+            ⚠️ {disclaimer}
           </p>
         </div>
 
-        {/* Enlaces legales */}
-        <div className="flex flex-wrap justify-center gap-4 mb-6 text-sm">
+        <div className="flex flex-wrap justify-center gap-4 mb-6 text-sm" lang={isEn ? "en" : "es"}>
           <Link href="/legal/terms" className="text-white/60 hover:text-white transition-colors">
-            Términos y Condiciones
+            {isEn ? "Terms & Conditions" : "Términos y Condiciones"}
           </Link>
           <span className="text-white/30">|</span>
           <Link href="/legal/privacy" className="text-white/60 hover:text-white transition-colors">
-            Política de Privacidad
+            {isEn ? "Privacy Policy" : "Política de Privacidad"}
           </Link>
           <span className="text-white/30">|</span>
           <Link href="/legal/disclaimer" className="text-white/60 hover:text-white transition-colors">
-            Aviso Médico
+            {isEn ? "Medical disclaimer" : "Aviso Médico"}
           </Link>
           <span className="text-white/30">|</span>
           <Link href="/legal/cookies" className="text-white/60 hover:text-white transition-colors">
-            Política de Cookies
+            {isEn ? "Cookie Policy" : "Política de Cookies"}
           </Link>
           <span className="text-white/30">|</span>
           <Link href="/legal/refund" className="text-white/60 hover:text-white transition-colors">
-            Reembolsos
+            {isEn ? "Refunds" : "Reembolsos"}
           </Link>
           <span className="text-white/30">|</span>
           <Link href="/legal/contact" className="text-white/60 hover:text-white transition-colors">
-            Contacto
+            {isEn ? "Contact" : "Contacto"}
           </Link>
         </div>
 
-        {/* Copyright */}
-        <div className="flex flex-col sm:flex-row justify-between items-center text-white/40 text-xs gap-2">
-          <p>© 2024 FitPlan AI. All rights reserved.</p>
+        <div className="flex flex-col sm:flex-row justify-between items-center text-white/40 text-xs gap-2" lang={isEn ? "en" : "es"}>
+          <p>{isEn ? "© 2026 FitPlan AI. All rights reserved." : "© 2026 FitPlan AI. Todos los derechos reservados."}</p>
           <p>
-            Website by{" "}
+            {isEn ? "Website by" : "Sitio web por"}{" "}
             <a
               href="https://www.lucasriera.com"
               target="_blank"
@@ -60,18 +73,3 @@ export default function Footer() {
     </footer>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

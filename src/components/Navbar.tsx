@@ -519,7 +519,11 @@ export default function Navbar() {
           </div>
         </div>
       </div>
-      <LoginModal isOpen={loginModalOpen} onClose={() => setLoginModalOpen(false)} />
+      <LoginModal
+        isOpen={loginModalOpen}
+        onClose={() => setLoginModalOpen(false)}
+        locale={router.pathname.startsWith("/en") ? "en" : "es"}
+      />
     </nav>
     
     {/* Modal para enviar mensaje (usuarios) */}
