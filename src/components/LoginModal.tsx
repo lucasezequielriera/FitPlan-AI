@@ -236,7 +236,7 @@ export default function LoginModal({
     <AnimatePresence>
       {isOpen && (
         <div
-          className="fixed inset-0 z-[10000] flex items-end justify-center sm:items-center sm:p-4"
+          className="fixed inset-0 z-[10000] flex min-h-0 items-center justify-center px-3 py-6 sm:p-4"
           role="dialog"
           aria-modal="true"
           aria-labelledby="login-modal-title"
@@ -257,7 +257,7 @@ export default function LoginModal({
             exit={{ opacity: 0, y: 16, scale: 0.98 }}
             transition={{ type: "spring", damping: 28, stiffness: 320 }}
             onClick={(e) => e.stopPropagation()}
-            className="relative z-10 w-full max-w-md max-h-[min(92dvh,100dvh)] overflow-y-auto overscroll-contain rounded-t-2xl border border-[var(--landing-border)] border-b-0 bg-[color-mix(in_oklab,var(--background)_95%,#0f172a)] shadow-2xl sm:rounded-2xl sm:border-b pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-6"
+            className="relative z-10 w-full max-w-md max-h-[min(90dvh,calc(100dvh-3rem))] overflow-y-auto overscroll-contain rounded-2xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--background)_95%,#0f172a)] shadow-2xl pb-[max(1rem,env(safe-area-inset-bottom))] sm:max-h-[min(92dvh,100dvh)] sm:pb-6"
           >
             <div className="pointer-events-none absolute inset-x-0 top-0 h-24 rounded-t-2xl bg-gradient-to-br from-[color-mix(in_oklab,var(--landing-accent)_18%,transparent)] via-transparent to-[color-mix(in_oklab,#6366f1_10%,transparent)] opacity-90" />
 

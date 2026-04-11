@@ -38,7 +38,14 @@ export default function HomeLanding({ locale }: HomeLandingProps) {
   const router = useRouter();
   const { user: authUser, loading: authLoading } = useAuthStore();
   const [loginModalOpen, setLoginModalOpen] = useState(false);
+  /** "Entrar" abre login; CTAs de alta abren registro. */
+  const [loginModalMode, setLoginModalMode] = useState<"login" | "signup">("login");
   const [premiumModalOpen, setPremiumModalOpen] = useState(false);
+
+  const openLoginModal = (mode: "login" | "signup") => {
+    setLoginModalMode(mode);
+    setLoginModalOpen(true);
+  };
 
   const checkUserPlans = useCallback(async () => {
     try {
@@ -267,7 +274,7 @@ export default function HomeLanding({ locale }: HomeLandingProps) {
             </nav>
             <button
               type="button"
-              onClick={() => setLoginModalOpen(true)}
+              onClick={() => openLoginModal("login")}
               className="inline-flex items-center gap-1.5 sm:gap-2 rounded-xl px-2.5 py-2 sm:px-3 text-xs sm:text-sm font-medium text-[var(--foreground)] ring-1 ring-[var(--landing-border)] bg-[var(--landing-surface)] hover:bg-[var(--landing-surface-2)] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)] touch-manipulation"
             >
               <FaSignInAlt className="h-3.5 w-3.5 opacity-80" aria-hidden />
@@ -301,7 +308,7 @@ export default function HomeLanding({ locale }: HomeLandingProps) {
           >
             <button
               type="button"
-              onClick={() => setLoginModalOpen(true)}
+              onClick={() => openLoginModal("signup")}
               className="inline-flex w-full sm:w-auto min-h-[48px] items-center justify-center gap-2 rounded-2xl bg-[var(--landing-accent)] px-6 py-3.5 sm:px-7 sm:py-4 text-base font-semibold text-[#0a1628] shadow-lg shadow-black/20 hover:brightness-110 active:scale-[0.99] transition outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] touch-manipulation"
             >
               {c.ctaStart}
@@ -426,7 +433,7 @@ export default function HomeLanding({ locale }: HomeLandingProps) {
             <p className="text-[var(--landing-muted)] text-sm sm:text-base">
               {c.intakeQuestion}{" "}
               <Link
-                href="/formulario-de-inicio"
+                href={locale === "en" ? "/en/formulario-de-inicio" : "/formulario-de-inicio"}
                 className="font-semibold text-[var(--landing-accent)] underline underline-offset-2 hover:brightness-110 outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)] rounded"
               >
                 {c.intakeLink}
@@ -441,7 +448,7 @@ export default function HomeLanding({ locale }: HomeLandingProps) {
             <p className="text-sm text-[var(--landing-muted)] max-w-lg mx-auto text-pretty">{c.closingText}</p>
             <button
               type="button"
-              onClick={() => setLoginModalOpen(true)}
+              onClick={() => openLoginModal("signup")}
               className="mt-6 inline-flex w-full sm:w-auto min-h-[48px] items-center justify-center gap-2 rounded-2xl bg-[var(--landing-accent)] px-6 py-3.5 text-sm font-semibold text-[#0a1628] hover:brightness-110 transition outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] touch-manipulation max-w-md mx-auto"
             >
               {c.closingCta}
@@ -454,7 +461,7 @@ export default function HomeLanding({ locale }: HomeLandingProps) {
       <LoginModal
         isOpen={loginModalOpen}
         onClose={() => setLoginModalOpen(false)}
-        defaultMode="signup"
+        defaultMode={loginModalMode}
         locale={locale}
       />
 
@@ -464,7 +471,7 @@ export default function HomeLanding({ locale }: HomeLandingProps) {
         locale={locale}
         onRequireAuth={() => {
           setPremiumModalOpen(false);
-          setLoginModalOpen(true);
+          openLoginModal("signup");
         }}
       />
     </div>

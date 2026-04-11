@@ -1,15 +1,26 @@
 import Head from "next/head";
+import { useRouter } from "next/router";
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import {
+  getFieldLabels,
+  getIntakeFormCopy,
+  getIntakeFoodGroupsForUi,
+  labelEquipamiento,
+  labelPlanLugar,
+  labelServicio,
+  selectOptions,
+  weekdayDisplay,
+} from "@/lib/intakeFormI18n";
 import {
   INTAKE_DIAS_SEMANA,
   INTAKE_EQUIPAMIENTO,
   INTAKE_FOOD_GROUPS,
   INTAKE_INITIAL_STATE,
-  INTAKE_LUGARES_ENTRENO,
   INTAKE_PLAN_LUGAR,
   INTAKE_SERVICIOS,
   type FoodPreference,
+  type IntakeFormLocale,
   type IntakeFormState,
   type ObjetivoPrincipal,
   validateIntakeForm,
@@ -36,6 +47,12 @@ function cycleFoodPreference(
 }
 
 export default function FormularioDeInicioPage() {
+  const router = useRouter();
+  const locale: IntakeFormLocale = router.pathname?.startsWith("/en") ? "en" : "es";
+  const copy = getIntakeFormCopy(locale);
+  const L = getFieldLabels(locale);
+  const opt = selectOptions(locale);
+
   const [form, setForm] = useState<IntakeFormState>(INTAKE_INITIAL_STATE);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +67,7 @@ export default function FormularioDeInicioPage() {
     e.preventDefault();
     setError(null);
     setSuccess(false);
-    const validationErrors = validateIntakeForm(form);
+    const validationErrors = validateIntakeForm(form, locale);
     if (validationErrors.length > 0) {
       setError(validationErrors[0]);
       return;
@@ -61,19 +78,19 @@ export default function FormularioDeInicioPage() {
       const response = await fetch("/api/formulario-de-inicio", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, formLocale: locale }),
       });
 
       const data = await response.json().catch(() => null);
       if (!response.ok) {
-        throw new Error(data?.error || "No se pudo enviar el formulario.");
+        throw new Error(data?.error || copy.submitErrorGeneric);
       }
 
       setSuccess(true);
       setForm(INTAKE_INITIAL_STATE);
       setMotivationalModalOpen(true);
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "No se pudo enviar el formulario.");
+      setError(submitError instanceof Error ? submitError.message : copy.submitErrorGeneric);
     } finally {
       setLoading(false);
     }
@@ -93,13 +110,10 @@ export default function FormularioDeInicioPage() {
   const chipFoodNo = "rounded-full border border-rose-400/45 bg-rose-500/15 px-3 py-2 text-sm font-medium text-rose-100";
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen" lang={locale}>
       <Head>
-        <title>Formulario de Inicio | FitPlan AI</title>
-        <meta
-          name="description"
-          content="Formulario inicial para clientes de entrenamiento y nutrición personalizada con FitPlan."
-        />
+        <title>{copy.metaTitle}</title>
+        <meta name="description" content={copy.metaDescription} />
         <meta name="robots" content="index, follow" />
       </Head>
 
@@ -111,18 +125,19 @@ export default function FormularioDeInicioPage() {
             className="overflow-hidden rounded-2xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--background)_94%,#0f172a)] shadow-[0_24px_60px_-28px_rgba(45,212,191,0.18)]"
           >
             <div className="relative border-b border-[var(--landing-border)]/80 bg-gradient-to-br from-[color-mix(in_oklab,var(--landing-accent)_14%,transparent)] via-[var(--landing-surface)] to-[color-mix(in_oklab,#6366f1_10%,transparent)] px-5 py-6 md:px-8 md:py-8">
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--landing-accent)]">FitPlan · Seguimiento 1:1</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--landing-accent)]">{copy.heroEyebrow}</p>
               <h1 className="mt-2 text-balance bg-gradient-to-r from-[var(--foreground)] via-[var(--foreground)] to-[var(--landing-accent)] bg-clip-text text-2xl font-bold tracking-tight text-transparent md:text-3xl">
-                Formulario de inicio personalizado
+                {copy.heroTitle}
               </h1>
               <p className="mt-3 max-w-2xl text-pretty text-sm font-medium leading-relaxed text-[var(--landing-muted)] md:text-base">
-                Este formulario es para crear tu plan 1:1 de entrenamiento y nutrición. No hace falta saber nada técnico: respondé
-                con calma y con sinceridad.
+                {copy.heroBody}
               </p>
               <p className="mt-4 inline-flex max-w-full flex-wrap items-center gap-2 rounded-xl border border-[var(--landing-border)] bg-black/25 px-3 py-2 text-xs font-medium leading-snug text-[var(--foreground)]/90">
                 <span className="h-2 w-2 shrink-0 rounded-full bg-[var(--landing-accent)] shadow-[0_0_10px_var(--landing-accent)]" aria-hidden />
                 <span>
-                  Tiempo estimado: <strong className="text-[var(--foreground)]">8-12 min</strong> · cuanto más detalle des, mejor se adaptará tu plan
+                  {copy.heroTimePrefix}
+                  <strong className="text-[var(--foreground)]">{copy.heroTimeBold}</strong>
+                  {copy.heroTimeSuffix}
                 </span>
               </p>
             </div>
@@ -134,72 +149,74 @@ export default function FormularioDeInicioPage() {
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[color-mix(in_oklab,var(--landing-accent)_16%,transparent)] text-sm font-bold text-[var(--landing-accent)] ring-1 ring-[var(--landing-accent)]/35">
                     1
                   </span>
-                  <h2 className="pt-0.5 text-lg font-bold tracking-tight text-[var(--foreground)] md:text-xl">Cuéntame sobre ti</h2>
+                  <h2 className="pt-0.5 text-lg font-bold tracking-tight text-[var(--foreground)] md:text-xl">{copy.sections.s1}</h2>
                 </div>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm font-medium text-[var(--landing-muted)]">Nombre completo *</span>
+                    <span className="text-sm font-medium text-[var(--landing-muted)]">{L.nombreCompleto}</span>
                     <input className={inputClass} value={form.nombreCompleto} onChange={(e) => update("nombreCompleto", e.target.value)} />
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm font-medium text-[var(--landing-muted)]">Email *</span>
+                    <span className="text-sm font-medium text-[var(--landing-muted)]">{L.email}</span>
                     <input type="email" className={inputClass} value={form.email} onChange={(e) => update("email", e.target.value)} />
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm font-medium text-[var(--landing-muted)]">WhatsApp *</span>
-                    <input className={inputClass} placeholder="Ej.: +34 6XX XXX XXX" value={form.whatsapp} onChange={(e) => update("whatsapp", e.target.value)} />
+                    <span className="text-sm font-medium text-[var(--landing-muted)]">{L.whatsapp}</span>
+                    <input className={inputClass} placeholder={L.phWhatsapp} value={form.whatsapp} onChange={(e) => update("whatsapp", e.target.value)} />
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm font-medium text-[var(--landing-muted)]">Instagram (opcional)</span>
+                    <span className="text-sm font-medium text-[var(--landing-muted)]">{L.instagram}</span>
                     <input
                       className={inputClass}
-                      placeholder="Ej.: @tuusuario"
+                      placeholder={L.phInstagram}
                       value={form.instagram}
                       onChange={(e) => update("instagram", e.target.value)}
                     />
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm font-medium text-[var(--landing-muted)]">¿De qué ciudad y país eres? *</span>
+                    <span className="text-sm font-medium text-[var(--landing-muted)]">{L.ciudadPais}</span>
                     <input
                       className={inputClass}
-                      placeholder="Ej.: Madrid, España / Córdoba, Argentina"
+                      placeholder={L.phCiudad}
                       value={form.ciudadPais}
                       onChange={(e) => update("ciudadPais", e.target.value)}
                     />
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm font-medium text-[var(--landing-muted)]">¿Qué servicio te interesa?</span>
+                    <span className="text-sm font-medium text-[var(--landing-muted)]">{L.servicio}</span>
                     <select className={inputClass} value={form.servicioInteres} onChange={(e) => update("servicioInteres", e.target.value)}>
-                      <option value="">Seleccionar...</option>
+                      <option value="">{copy.selectPlaceholder}</option>
                       {INTAKE_SERVICIOS.map((service) => (
                         <option key={service} value={service}>
-                          {service}
+                          {labelServicio(service, locale)}
                         </option>
                       ))}
                     </select>
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm font-medium text-[var(--landing-muted)]">Edad *</span>
+                    <span className="text-sm font-medium text-[var(--landing-muted)]">{L.edad}</span>
                     <input type="number" className={inputClass} value={form.edad} onChange={(e) => update("edad", e.target.value)} />
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm font-medium text-[var(--landing-muted)]">Sexo</span>
+                    <span className="text-sm font-medium text-[var(--landing-muted)]">{L.sexo}</span>
                     <select className={inputClass} value={form.sexo} onChange={(e) => update("sexo", e.target.value)}>
-                      <option value="masculino">Masculino</option>
-                      <option value="femenino">Femenino</option>
-                      <option value="prefiero_no_decir">Prefiero no decir</option>
+                      {opt.sexo.map(({ v, l }) => (
+                        <option key={v} value={v}>
+                          {l}
+                        </option>
+                      ))}
                     </select>
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm font-medium text-[var(--landing-muted)]">Altura (cm) *</span>
+                    <span className="text-sm font-medium text-[var(--landing-muted)]">{L.altura}</span>
                     <input type="number" className={inputClass} value={form.alturaCm} onChange={(e) => update("alturaCm", e.target.value)} />
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm font-medium text-[var(--landing-muted)]">Peso actual (kg) *</span>
+                    <span className="text-sm font-medium text-[var(--landing-muted)]">{L.peso}</span>
                     <input type="number" className={inputClass} value={form.pesoKg} onChange={(e) => update("pesoKg", e.target.value)} />
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm font-medium text-[var(--landing-muted)]">Peso objetivo (kg)</span>
+                    <span className="text-sm font-medium text-[var(--landing-muted)]">{L.pesoObj}</span>
                     <input type="number" className={inputClass} value={form.pesoObjetivoKg} onChange={(e) => update("pesoObjetivoKg", e.target.value)} />
                   </label>
                 </div>
@@ -210,29 +227,27 @@ export default function FormularioDeInicioPage() {
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[color-mix(in_oklab,var(--landing-accent)_16%,transparent)] text-sm font-bold text-[var(--landing-accent)] ring-1 ring-[var(--landing-accent)]/35">
                     2
                   </span>
-                  <h2 className="pt-0.5 text-lg font-bold tracking-tight text-[var(--foreground)] md:text-xl">Objetivo y tiempos</h2>
+                  <h2 className="pt-0.5 text-lg font-bold tracking-tight text-[var(--foreground)] md:text-xl">{copy.sections.s2}</h2>
                 </div>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm font-medium text-[var(--landing-muted)]">Objetivo principal *</span>
+                    <span className="text-sm font-medium text-[var(--landing-muted)]">{L.objPrincipal}</span>
                     <select className={inputClass} value={form.objetivoPrincipal} onChange={(e) => update("objetivoPrincipal", e.target.value as ObjetivoPrincipal)}>
-                      <option value="perder_grasa">Perder grasa</option>
-                      <option value="ganar_musculo">Ganar músculo</option>
-                      <option value="recomposicion">Perder grasa y ganar músculo</option>
-                      <option value="rendimiento">Rendir mejor en deporte</option>
-                      <option value="salud_general">Sentirme mejor y estar saludable</option>
-                      <option value="post_parto">Recuperación posparto</option>
-                      <option value="otro">Otro</option>
+                      {opt.objetivo.map(({ v, l }) => (
+                        <option key={v} value={v}>
+                          {l}
+                        </option>
+                      ))}
                     </select>
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm font-medium text-[var(--landing-muted)]">Fecha objetivo (si la tienes)</span>
+                    <span className="text-sm font-medium text-[var(--landing-muted)]">{L.fechaObj}</span>
                     <input type="date" className={inputClass} value={form.fechaObjetivo} onChange={(e) => update("fechaObjetivo", e.target.value)} />
                   </label>
                 </div>
                 <label className="flex flex-col gap-1">
-                  <span className="text-sm font-medium text-[var(--landing-muted)]">Objetivo secundario o detalle</span>
-                  <textarea rows={3} className={textareaClass} placeholder="Ej.: quiero bajar cintura sin perder fuerza, mejorar postura, tener más energía..." value={form.objetivoSecundario} onChange={(e) => update("objetivoSecundario", e.target.value)} />
+                  <span className="text-sm font-medium text-[var(--landing-muted)]">{L.objSec}</span>
+                  <textarea rows={3} className={textareaClass} placeholder={L.phObjSec} value={form.objetivoSecundario} onChange={(e) => update("objetivoSecundario", e.target.value)} />
                 </label>
               </section>
 
@@ -241,43 +256,43 @@ export default function FormularioDeInicioPage() {
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[color-mix(in_oklab,var(--landing-accent)_16%,transparent)] text-sm font-bold text-[var(--landing-accent)] ring-1 ring-[var(--landing-accent)]/35">
                     3
                   </span>
-                  <h2 className="pt-0.5 text-lg font-bold tracking-tight text-[var(--foreground)] md:text-xl">Entrenamiento actual y disponibilidad</h2>
+                  <h2 className="pt-0.5 text-lg font-bold tracking-tight text-[var(--foreground)] md:text-xl">{copy.sections.s3}</h2>
                 </div>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm font-medium text-[var(--landing-muted)]">¿Cuántos días entrenas ahora por semana? *</span>
-                    <input type="number" min={0} max={7} className={inputClass} placeholder="Ej.: 3" value={form.diasEntrenaActualmente} onChange={(e) => update("diasEntrenaActualmente", e.target.value)} />
+                    <span className="text-sm font-medium text-[var(--landing-muted)]">{L.diasEntrenaAhora}</span>
+                    <input type="number" min={0} max={7} className={inputClass} placeholder={L.phDiasN} value={form.diasEntrenaActualmente} onChange={(e) => update("diasEntrenaActualmente", e.target.value)} />
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm font-medium text-[var(--landing-muted)]">¿Cuántos días te comprometes a entrenar? *</span>
-                    <input type="number" min={1} max={7} className={inputClass} placeholder="Ej.: 4" value={form.diasCompromisoEntrenamiento} onChange={(e) => update("diasCompromisoEntrenamiento", e.target.value)} />
+                    <span className="text-sm font-medium text-[var(--landing-muted)]">{L.diasCompromiso}</span>
+                    <input type="number" min={1} max={7} className={inputClass} placeholder={L.phDiasN} value={form.diasCompromisoEntrenamiento} onChange={(e) => update("diasCompromisoEntrenamiento", e.target.value)} />
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm font-medium text-[var(--landing-muted)]">¿Sobre qué hora entrenarías?</span>
-                    <input className={inputClass} placeholder="Ej.: 7:00, 14:30, 20:00" value={form.horaEntrenamiento} onChange={(e) => update("horaEntrenamiento", e.target.value)} />
+                    <span className="text-sm font-medium text-[var(--landing-muted)]">{L.horaEntreno}</span>
+                    <input className={inputClass} placeholder={L.phHora} value={form.horaEntrenamiento} onChange={(e) => update("horaEntrenamiento", e.target.value)} />
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm font-medium text-[var(--landing-muted)]">¿Cuánto dura una sesión?</span>
-                    <input className={inputClass} placeholder="Ej.: 60 minutos" value={form.duracionSesion} onChange={(e) => update("duracionSesion", e.target.value)} />
+                    <span className="text-sm font-medium text-[var(--landing-muted)]">{L.duracion}</span>
+                    <input className={inputClass} placeholder={L.phDuracion} value={form.duracionSesion} onChange={(e) => update("duracionSesion", e.target.value)} />
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm font-medium text-[var(--landing-muted)]">¿El plan lo quieres para casa, gimnasio o ambos?</span>
+                    <span className="text-sm font-medium text-[var(--landing-muted)]">{L.planLugar}</span>
                     <select className={inputClass} value={form.planLugar} onChange={(e) => update("planLugar", e.target.value)}>
                       {INTAKE_PLAN_LUGAR.map((option) => (
                         <option key={option} value={option}>
-                          {option}
+                          {labelPlanLugar(option, locale)}
                         </option>
                       ))}
                     </select>
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm font-medium text-[var(--landing-muted)]">Si entrenas en casa, ¿qué material tienes?</span>
-                    <input className={inputClass} placeholder="Ej.: mancuernas, bandas, banco..." value={form.materialCasa} onChange={(e) => update("materialCasa", e.target.value)} />
+                    <span className="text-sm font-medium text-[var(--landing-muted)]">{L.materialCasa}</span>
+                    <input className={inputClass} placeholder={L.phMaterial} value={form.materialCasa} onChange={(e) => update("materialCasa", e.target.value)} />
                   </label>
                 </div>
 
                 <div>
-                  <p className="mb-2 text-sm font-medium text-[var(--landing-muted)]">Días concretos en los que te comprometes a entrenar (si puedes)</p>
+                  <p className="mb-2 text-sm font-medium text-[var(--landing-muted)]">{copy.trainingDaysQuestion}</p>
                   <div className="flex flex-wrap gap-2">
                     {INTAKE_DIAS_SEMANA.map((dia) => (
                       <button
@@ -286,14 +301,14 @@ export default function FormularioDeInicioPage() {
                         onClick={() => update("diasDisponibles", toggleValue(form.diasDisponibles, dia))}
                         className={form.diasDisponibles.includes(dia) ? chipOn : chipOff}
                       >
-                        {dia}
+                        {weekdayDisplay(dia, locale)}
                       </button>
                     ))}
                   </div>
                 </div>
 
                 <div>
-                  <p className="mb-2 text-sm font-medium text-[var(--landing-muted)]">Equipamiento disponible (si aplica)</p>
+                  <p className="mb-2 text-sm font-medium text-[var(--landing-muted)]">{copy.equipmentQuestion}</p>
                   <div className="flex flex-wrap gap-2">
                     {INTAKE_EQUIPAMIENTO.map((equipo) => (
                       <button
@@ -302,7 +317,7 @@ export default function FormularioDeInicioPage() {
                         onClick={() => update("equipamientoDisponible", toggleValue(form.equipamientoDisponible, equipo))}
                         className={form.equipamientoDisponible.includes(equipo) ? chipOn : chipOff}
                       >
-                        {equipo}
+                        {labelEquipamiento(equipo, locale)}
                       </button>
                     ))}
                   </div>
@@ -310,29 +325,30 @@ export default function FormularioDeInicioPage() {
 
                 <details className={detailsClass}>
                   <summary className="cursor-pointer text-sm font-semibold text-[var(--landing-accent)] hover:underline">
-                    Ver más preguntas opcionales de entrenamiento
+                    {copy.detailsMoreTraining}
                   </summary>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2 mt-4">
                     <label className="flex flex-col gap-1">
-                      <span className="text-sm font-medium text-[var(--landing-muted)]">Experiencia entrenando</span>
+                      <span className="text-sm font-medium text-[var(--landing-muted)]">{L.expEntreno}</span>
                       <select className={inputClass} value={form.experienciaEntrenamiento} onChange={(e) => update("experienciaEntrenamiento", e.target.value)}>
-                        <option value="ninguna">Nunca he entrenado</option>
-                        <option value="principiante">Principiante (menos de 6 meses)</option>
-                        <option value="intermedio">Intermedio (6 meses a 2 años)</option>
-                        <option value="avanzado">Avanzado (más de 2 años)</option>
+                        {opt.experiencia.map(({ v, l }) => (
+                          <option key={v} value={v}>
+                            {l}
+                          </option>
+                        ))}
                       </select>
                     </label>
                     <label className="flex flex-col gap-1">
-                      <span className="text-sm font-medium text-[var(--landing-muted)]">Minutos por sesión que puedes dedicar</span>
-                      <input className={inputClass} placeholder="Ej.: 45, 60 o 75" value={form.minutosPorSesion} onChange={(e) => update("minutosPorSesion", e.target.value)} />
+                      <span className="text-sm font-medium text-[var(--landing-muted)]">{L.minSesion}</span>
+                      <input className={inputClass} placeholder={L.phDiasN} value={form.minutosPorSesion} onChange={(e) => update("minutosPorSesion", e.target.value)} />
                     </label>
                     <label className="flex flex-col gap-1">
-                      <span className="text-sm font-medium text-[var(--landing-muted)]">Horas sentado al día (aprox.)</span>
-                      <input className={inputClass} placeholder="Ej.: 8" value={form.horasSentado} onChange={(e) => update("horasSentado", e.target.value)} />
+                      <span className="text-sm font-medium text-[var(--landing-muted)]">{L.horasSentado}</span>
+                      <input className={inputClass} placeholder="E.g. 8" value={form.horasSentado} onChange={(e) => update("horasSentado", e.target.value)} />
                     </label>
                     <label className="flex flex-col gap-1">
-                      <span className="text-sm font-medium text-[var(--landing-muted)]">Pasos diarios (si lo sabes)</span>
-                      <input className={inputClass} placeholder="Ej.: 6.000" value={form.pasosDiarios} onChange={(e) => update("pasosDiarios", e.target.value)} />
+                      <span className="text-sm font-medium text-[var(--landing-muted)]">{L.pasos}</span>
+                      <input className={inputClass} placeholder="E.g. 6,000" value={form.pasosDiarios} onChange={(e) => update("pasosDiarios", e.target.value)} />
                     </label>
                   </div>
                 </details>
@@ -344,79 +360,88 @@ export default function FormularioDeInicioPage() {
                     4
                   </span>
                   <div>
-                    <h2 className="text-lg font-bold tracking-tight text-[var(--foreground)] md:text-xl">Salud y antecedentes</h2>
-                    <p className="mt-1 text-sm text-[var(--landing-muted)]">Esta parte es clave para adaptar el plan de forma segura.</p>
+                    <h2 className="text-lg font-bold tracking-tight text-[var(--foreground)] md:text-xl">{copy.sections.s4}</h2>
+                    <p className="mt-1 text-sm text-[var(--landing-muted)]">{copy.sections.s4intro}</p>
                   </div>
                 </div>
                 <details className={detailsClass} open>
                   <summary className="cursor-pointer text-sm font-semibold text-[var(--landing-accent)] hover:underline">
-                    Completar preguntas de salud
+                    {copy.detailsHealth}
                   </summary>
                   <div className="space-y-4 mt-4">
                     <label className="flex flex-col gap-1">
-                      <span className="text-sm font-medium text-[var(--landing-muted)]">¿Has tenido alguna enfermedad desde pequeño/a? ¿Cuál?</span>
+                      <span className="text-sm font-medium text-[var(--landing-muted)]">{L.enfInfancia}</span>
                       <textarea rows={2} className={textareaClass} value={form.enfermedadInfancia} onChange={(e) => update("enfermedadInfancia", e.target.value)} />
                     </label>
                     <label className="flex flex-col gap-1">
-                      <span className="text-sm font-medium text-[var(--landing-muted)]">Dolores o lesiones actuales</span>
-                      <textarea rows={2} className={textareaClass} placeholder="Ej.: dolor de rodilla, hombro o zona lumbar..." value={form.lesionesDolores} onChange={(e) => update("lesionesDolores", e.target.value)} />
+                      <span className="text-sm font-medium text-[var(--landing-muted)]">{L.lesiones}</span>
+                      <textarea rows={2} className={textareaClass} placeholder={L.phLesiones} value={form.lesionesDolores} onChange={(e) => update("lesionesDolores", e.target.value)} />
                     </label>
                     <label className="flex flex-col gap-1">
-                      <span className="text-sm font-medium text-[var(--landing-muted)]">Cirugías previas relevantes</span>
+                      <span className="text-sm font-medium text-[var(--landing-muted)]">{L.cirugias}</span>
                       <textarea rows={2} className={textareaClass} value={form.cirugiasPrevias} onChange={(e) => update("cirugiasPrevias", e.target.value)} />
                     </label>
                     <label className="flex flex-col gap-1">
-                      <span className="text-sm font-medium text-[var(--landing-muted)]">Medicación y suplementos actuales</span>
+                      <span className="text-sm font-medium text-[var(--landing-muted)]">{L.medicacion}</span>
                       <textarea rows={2} className={textareaClass} value={form.medicacionSuplementos} onChange={(e) => update("medicacionSuplementos", e.target.value)} />
                     </label>
                     <label className="flex flex-col gap-1">
-                      <span className="text-sm font-medium text-[var(--landing-muted)]">Patologías o diagnósticos médicos</span>
-                      <textarea rows={2} className={textareaClass} placeholder="Ej.: hipertensión, diabetes, hipotiroidismo..." value={form.patologias} onChange={(e) => update("patologias", e.target.value)} />
+                      <span className="text-sm font-medium text-[var(--landing-muted)]">{L.patologias}</span>
+                      <textarea rows={2} className={textareaClass} placeholder={L.phPat} value={form.patologias} onChange={(e) => update("patologias", e.target.value)} />
                     </label>
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                       <label className="flex flex-col gap-1">
-                        <span className="text-sm font-medium text-[var(--landing-muted)]">¿Tienes diabetes?</span>
+                        <span className="text-sm font-medium text-[var(--landing-muted)]">{L.diabetes}</span>
                         <select className={inputClass} value={form.diabetesTipo} onChange={(e) => update("diabetesTipo", e.target.value)}>
-                          <option value="no">No</option>
-                          <option value="tipo_i">Diabetes tipo I</option>
-                          <option value="tipo_ii">Diabetes tipo II</option>
+                          {opt.diabetes.map(({ v, l }) => (
+                            <option key={v} value={v}>
+                              {l}
+                            </option>
+                          ))}
                         </select>
                       </label>
                       <label className="flex flex-col gap-1">
-                        <span className="text-sm font-medium text-[var(--landing-muted)]">¿Tienes hipertensión arterial?</span>
+                        <span className="text-sm font-medium text-[var(--landing-muted)]">{L.hipertension}</span>
                         <select className={inputClass} value={form.hipertensionArterial} onChange={(e) => update("hipertensionArterial", e.target.value)}>
-                          <option value="no">No</option>
-                          <option value="si">Sí</option>
+                          {opt.siNo.map(({ v, l }) => (
+                            <option key={v} value={v}>
+                              {l}
+                            </option>
+                          ))}
                         </select>
                       </label>
                       <label className="flex flex-col gap-1">
-                        <span className="text-sm font-medium text-[var(--landing-muted)]">¿Tienes alguna enfermedad del corazón? ¿Cuál?</span>
+                        <span className="text-sm font-medium text-[var(--landing-muted)]">{L.corazon}</span>
                         <input className={inputClass} value={form.enfermedadCorazon} onChange={(e) => update("enfermedadCorazon", e.target.value)} />
                       </label>
                       <label className="flex flex-col gap-1">
-                        <span className="text-sm font-medium text-[var(--landing-muted)]">¿Tienes hipotiroidismo?</span>
+                        <span className="text-sm font-medium text-[var(--landing-muted)]">{L.hipotiroidismo}</span>
                         <select className={inputClass} value={form.hipotiroidismo} onChange={(e) => update("hipotiroidismo", e.target.value)}>
-                          <option value="no">No</option>
-                          <option value="si">Sí</option>
+                          {opt.siNo.map(({ v, l }) => (
+                            <option key={v} value={v}>
+                              {l}
+                            </option>
+                          ))}
                         </select>
                       </label>
                       <label className="flex flex-col gap-1">
-                        <span className="text-sm font-medium text-[var(--landing-muted)]">¿Colesterol alto y/o triglicéridos?</span>
+                        <span className="text-sm font-medium text-[var(--landing-muted)]">{L.colesterol}</span>
                         <select className={inputClass} value={form.colesterolTrigliceridos} onChange={(e) => update("colesterolTrigliceridos", e.target.value)}>
-                          <option value="no">No</option>
-                          <option value="colesterol_alto">Colesterol alto</option>
-                          <option value="trigliceridos_altos">Triglicéridos altos</option>
-                          <option value="ambos">Ambos</option>
+                          {opt.colesterol.map(({ v, l }) => (
+                            <option key={v} value={v}>
+                              {l}
+                            </option>
+                          ))}
                         </select>
                       </label>
                       <label className="flex flex-col gap-1">
-                        <span className="text-sm font-medium text-[var(--landing-muted)]">¿Tienes estreñimiento, colon irritable o dolores digestivos?</span>
+                        <span className="text-sm font-medium text-[var(--landing-muted)]">{L.digestivo}</span>
                         <select className={inputClass} value={form.molestiasDigestivasTipo} onChange={(e) => update("molestiasDigestivasTipo", e.target.value)}>
-                          <option value="no">No</option>
-                          <option value="estrenimiento">Estreñimiento</option>
-                          <option value="colon_irritable">Colon irritable</option>
-                          <option value="dolores_digestivos">Dolores digestivos</option>
-                          <option value="varios">Varios de estos</option>
+                          {opt.digestivo.map(({ v, l }) => (
+                            <option key={v} value={v}>
+                              {l}
+                            </option>
+                          ))}
                         </select>
                       </label>
                     </div>
@@ -429,45 +454,51 @@ export default function FormularioDeInicioPage() {
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[color-mix(in_oklab,var(--landing-accent)_16%,transparent)] text-sm font-bold text-[var(--landing-accent)] ring-1 ring-[var(--landing-accent)]/35">
                     5
                   </span>
-                  <h2 className="pt-0.5 text-lg font-bold tracking-tight text-[var(--foreground)] md:text-xl">Hábitos de vida</h2>
+                  <h2 className="pt-0.5 text-lg font-bold tracking-tight text-[var(--foreground)] md:text-xl">{copy.sections.s5}</h2>
                 </div>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm font-medium text-[var(--landing-muted)]">¿Descansas bien?</span>
+                    <span className="text-sm font-medium text-[var(--landing-muted)]">{L.descansa}</span>
                     <select className={inputClass} value={form.descansaBien} onChange={(e) => update("descansaBien", e.target.value)}>
-                      <option value="si">Sí</option>
-                      <option value="regular">Regular</option>
-                      <option value="no">No</option>
+                      {opt.descansa.map(({ v, l }) => (
+                        <option key={v} value={v}>
+                          {l}
+                        </option>
+                      ))}
                     </select>
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm font-medium text-[var(--landing-muted)]">Nivel de estrés</span>
+                    <span className="text-sm font-medium text-[var(--landing-muted)]">{L.estres}</span>
                     <select className={inputClass} value={form.nivelEstres} onChange={(e) => update("nivelEstres", e.target.value)}>
-                      <option value="bajo">Bajo</option>
-                      <option value="medio">Medio</option>
-                      <option value="alto">Alto</option>
+                      {opt.estres.map(({ v, l }) => (
+                        <option key={v} value={v}>
+                          {l}
+                        </option>
+                      ))}
                     </select>
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm font-medium text-[var(--landing-muted)]">Calidad del sueño</span>
+                    <span className="text-sm font-medium text-[var(--landing-muted)]">{L.suenoCalidad}</span>
                     <select className={inputClass} value={form.calidadSueno} onChange={(e) => update("calidadSueno", e.target.value)}>
-                      <option value="mala">Mala</option>
-                      <option value="regular">Regular</option>
-                      <option value="buena">Buena</option>
+                      {opt.calidadSueno.map(({ v, l }) => (
+                        <option key={v} value={v}>
+                          {l}
+                        </option>
+                      ))}
                     </select>
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm font-medium text-[var(--landing-muted)]">Horas de sueño por noche</span>
-                    <input className={inputClass} placeholder="Ej.: 6,5" value={form.horasSueno} onChange={(e) => update("horasSueno", e.target.value)} />
+                    <span className="text-sm font-medium text-[var(--landing-muted)]">{L.horasSueno}</span>
+                    <input className={inputClass} placeholder={L.phHs} value={form.horasSueno} onChange={(e) => update("horasSueno", e.target.value)} />
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm font-medium text-[var(--landing-muted)]">¿Cuántas horas por día trabajas? *</span>
-                    <input className={inputClass} placeholder="Ej.: 8 horas, 10 horas, media jornada..." value={form.trabajoTurnos} onChange={(e) => update("trabajoTurnos", e.target.value)} />
+                    <span className="text-sm font-medium text-[var(--landing-muted)]">{L.trabajoHoras}</span>
+                    <input className={inputClass} placeholder={L.phTrabajo} value={form.trabajoTurnos} onChange={(e) => update("trabajoTurnos", e.target.value)} />
                   </label>
                 </div>
 
                 <div>
-                  <p className="mb-2 text-sm font-medium text-[var(--landing-muted)]">¿Qué días de la semana trabaja?</p>
+                  <p className="mb-2 text-sm font-medium text-[var(--landing-muted)]">{copy.workDaysQuestion}</p>
                   <div className="flex flex-wrap gap-2">
                     {INTAKE_DIAS_SEMANA.map((dia) => (
                       <button
@@ -476,7 +507,7 @@ export default function FormularioDeInicioPage() {
                         onClick={() => update("diasTrabajo", toggleValue(form.diasTrabajo, dia))}
                         className={form.diasTrabajo.includes(dia) ? chipOn : chipOff}
                       >
-                        {dia}
+                        {weekdayDisplay(dia, locale)}
                       </button>
                     ))}
                   </div>
@@ -489,48 +520,45 @@ export default function FormularioDeInicioPage() {
                     6
                   </span>
                   <div>
-                    <h2 className="text-lg font-bold tracking-tight text-[var(--foreground)] md:text-xl">Alimentación actual</h2>
-                    <p className="mt-1 text-sm text-[var(--landing-muted)]">
-                      No busques responder “perfecto”: contanos cómo comés hoy normalmente.
-                    </p>
+                    <h2 className="text-lg font-bold tracking-tight text-[var(--foreground)] md:text-xl">{copy.sections.s6}</h2>
+                    <p className="mt-1 text-sm text-[var(--landing-muted)]">{copy.sections.s6intro}</p>
                   </div>
                 </div>
                 <label className="flex flex-col gap-1">
-                  <span className="text-sm font-medium text-[var(--landing-muted)]">¿Cuántas comidas haces al día y en qué horarios? *</span>
-                  <textarea rows={2} className={textareaClass} placeholder="Ej.: 4 comidas - 8:00, 12:30, 17:00, 21:00" value={form.comidasPorDiaHorarios} onChange={(e) => update("comidasPorDiaHorarios", e.target.value)} />
+                  <span className="text-sm font-medium text-[var(--landing-muted)]">{L.comidasHorarios}</span>
+                  <textarea rows={2} className={textareaClass} placeholder={L.phComidas} value={form.comidasPorDiaHorarios} onChange={(e) => update("comidasPorDiaHorarios", e.target.value)} />
                 </label>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm font-medium text-[var(--landing-muted)]">¿Cómo describirías tu apetito?</span>
+                    <span className="text-sm font-medium text-[var(--landing-muted)]">{L.apetito}</span>
                     <select className={inputClass} value={form.apetito} onChange={(e) => update("apetito", e.target.value)}>
-                      <option value="bueno">Bueno</option>
-                      <option value="regular">Regular</option>
-                      <option value="malo">Malo</option>
+                      {opt.apetito.map(({ v, l }) => (
+                        <option key={v} value={v}>
+                          {l}
+                        </option>
+                      ))}
                     </select>
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm font-medium text-[var(--landing-muted)]">¿En qué momento del día tienes más hambre?</span>
+                    <span className="text-sm font-medium text-[var(--landing-muted)]">{L.masHambre}</span>
                     <input className={inputClass} value={form.momentoMasHambre} onChange={(e) => update("momentoMasHambre", e.target.value)} />
                   </label>
                 </div>
                 <label className="flex flex-col gap-1">
-                  <span className="text-sm font-medium text-[var(--landing-muted)]">Snacks y bebidas frecuentes</span>
+                  <span className="text-sm font-medium text-[var(--landing-muted)]">{L.snacks}</span>
                   <textarea rows={2} className={textareaClass} value={form.snacksBebidas} onChange={(e) => update("snacksBebidas", e.target.value)} />
                 </label>
 
                 <div className="space-y-4 rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)]/50 p-4 md:p-5">
-                  <p className="text-sm font-semibold text-[var(--foreground)]">Tus preferencias de alimentos</p>
-                  <p className="text-xs leading-relaxed text-[var(--landing-muted)]">
-                    Pulsa una vez = me gusta, pulsa otra vez = no me gusta, y una tercera = sin marcar.
-                    Los no marcados se tomarán como neutros.
-                  </p>
-                  {INTAKE_FOOD_GROUPS.map((group) => (
-                    <div key={group.group} className="space-y-2">
+                  <p className="text-sm font-semibold text-[var(--foreground)]">{copy.foodHelpTitle}</p>
+                  <p className="text-xs leading-relaxed text-[var(--landing-muted)]">{copy.foodHelpBody}</p>
+                  {getIntakeFoodGroupsForUi(locale).map((group, gi) => (
+                    <div key={INTAKE_FOOD_GROUPS[gi].group} className="space-y-2">
                       <p className="text-sm font-medium text-[var(--foreground)]/95">
                         {group.emoji} {group.group}
                       </p>
                       <div className="flex flex-wrap gap-2">
-                        {group.foods.map((food) => {
+                        {group.foods.map(({ key: food, label: foodLabelUi }) => {
                           const value = form.preferenciasAlimentos[food];
                           const className =
                             value === "gusta" ? chipFoodGusta : value === "no_gusta" ? chipFoodNo : chipOff;
@@ -546,7 +574,7 @@ export default function FormularioDeInicioPage() {
                               }
                               className={className}
                             >
-                              {food}
+                              {foodLabelUi}
                             </button>
                           );
                         })}
@@ -557,90 +585,96 @@ export default function FormularioDeInicioPage() {
 
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm font-medium text-[var(--landing-muted)]">Alergias/restricciones alimentarias</span>
+                    <span className="text-sm font-medium text-[var(--landing-muted)]">{L.alergias}</span>
                     <textarea rows={2} className={textareaClass} value={form.restriccionesAlergias} onChange={(e) => update("restriccionesAlergias", e.target.value)} />
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm font-medium text-[var(--landing-muted)]">Agua al día (aprox.)</span>
-                    <input className={inputClass} placeholder="Ej.: 2 litros" value={form.aguaPorDia} onChange={(e) => update("aguaPorDia", e.target.value)} />
+                    <span className="text-sm font-medium text-[var(--landing-muted)]">{L.agua}</span>
+                    <input className={inputClass} placeholder={L.phAgua} value={form.aguaPorDia} onChange={(e) => update("aguaPorDia", e.target.value)} />
                   </label>
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm font-medium text-[var(--landing-muted)]">Alcohol</span>
+                    <span className="text-sm font-medium text-[var(--landing-muted)]">{L.alcohol}</span>
                     <select className={inputClass} value={form.alcoholFrecuencia} onChange={(e) => update("alcoholFrecuencia", e.target.value)}>
-                      <option value="nunca">Nunca</option>
-                      <option value="ocasional">Ocasional</option>
-                      <option value="semanal">Semanal</option>
-                      <option value="frecuente">Frecuente</option>
+                      {opt.alcohol.map(({ v, l }) => (
+                        <option key={v} value={v}>
+                          {l}
+                        </option>
+                      ))}
                     </select>
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm font-medium text-[var(--landing-muted)]">Fuma</span>
+                    <span className="text-sm font-medium text-[var(--landing-muted)]">{L.fuma}</span>
                     <select className={inputClass} value={form.fuma} onChange={(e) => update("fuma", e.target.value)}>
-                      <option value="no">No</option>
-                      <option value="si">Sí</option>
-                      <option value="ocasional">Ocasional</option>
+                      {opt.fuma.map(({ v, l }) => (
+                        <option key={v} value={v}>
+                          {l}
+                        </option>
+                      ))}
                     </select>
                   </label>
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm font-medium text-[var(--landing-muted)]">Digestión/molestias (hinchazón, acidez, etc.)</span>
+                    <span className="text-sm font-medium text-[var(--landing-muted)]">{L.digestion}</span>
                     <textarea rows={2} className={textareaClass} value={form.digestion} onChange={(e) => update("digestion", e.target.value)} />
                   </label>
                   <label className="flex flex-col gap-1">
-                    <span className="text-sm font-medium text-[var(--landing-muted)]">Presupuesto para comida (aprox.)</span>
-                    <input className={inputClass} placeholder="Ej.: bajo / medio / alto" value={form.presupuestoComida} onChange={(e) => update("presupuestoComida", e.target.value)} />
+                    <span className="text-sm font-medium text-[var(--landing-muted)]">{L.presupuesto}</span>
+                    <input className={inputClass} placeholder={L.phPres} value={form.presupuestoComida} onChange={(e) => update("presupuestoComida", e.target.value)} />
                   </label>
                 </div>
 
                 <label className="flex flex-col gap-1">
-                  <span className="text-sm font-medium text-[var(--landing-muted)]">Tiempo real para cocinar al día</span>
-                  <input className={inputClass} placeholder="Ej.: 20 minutos, 1 hora, solo preparación el domingo..." value={form.tiempoParaCocinar} onChange={(e) => update("tiempoParaCocinar", e.target.value)} />
+                  <span className="text-sm font-medium text-[var(--landing-muted)]">{L.tiempoCocinar}</span>
+                  <input className={inputClass} placeholder={L.phCocinar} value={form.tiempoParaCocinar} onChange={(e) => update("tiempoParaCocinar", e.target.value)} />
                 </label>
 
                 <label className="flex flex-col gap-1">
-                  <span className="text-sm font-medium text-[var(--landing-muted)]">Cuéntame un día tipo: ¿qué comes desde que te levantas hasta que te acuestas? *</span>
+                  <span className="text-sm font-medium text-[var(--landing-muted)]">{L.diaTipo}</span>
                   <textarea rows={3} className={textareaClass} value={form.diaTipoComidas} onChange={(e) => update("diaTipoComidas", e.target.value)} />
                 </label>
 
                 <label className="flex flex-col gap-1">
-                  <span className="text-sm font-medium text-[var(--landing-muted)]">¿Tomas suplementos? ¿Cuáles y de qué marca? (si quieres, luego puedes enviar foto por WhatsApp)</span>
+                  <span className="text-sm font-medium text-[var(--landing-muted)]">{L.suplementos}</span>
                   <textarea rows={2} className={textareaClass} value={form.suplementosActualesDetalle} onChange={(e) => update("suplementosActualesDetalle", e.target.value)} />
                 </label>
 
                 <label className="flex flex-col gap-1">
-                  <span className="text-sm font-medium text-[var(--landing-muted)]">Si no tomas suplementos, ¿te gustaría empezar con alguno?</span>
+                  <span className="text-sm font-medium text-[var(--landing-muted)]">{L.quiereSup}</span>
                   <input className={inputClass} value={form.quiereSuplementos} onChange={(e) => update("quiereSuplementos", e.target.value)} />
                 </label>
 
                 <label className="flex flex-col gap-1">
-                  <span className="text-sm font-medium text-[var(--landing-muted)]">¿Has hecho alguna dieta antes?</span>
+                  <span className="text-sm font-medium text-[var(--landing-muted)]">{L.dietaAntes}</span>
                   <select className={inputClass} value={form.haHechoDietaAntes} onChange={(e) => update("haHechoDietaAntes", e.target.value)}>
-                    <option value="no">No</option>
-                    <option value="si">Sí</option>
+                    {opt.dietaAntes.map(({ v, l }) => (
+                      <option key={v} value={v}>
+                        {l}
+                      </option>
+                    ))}
                   </select>
                 </label>
 
                 {form.haHechoDietaAntes === "si" && (
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <label className="flex flex-col gap-1">
-                      <span className="text-sm font-medium text-[var(--landing-muted)]">¿En qué se basaba?</span>
+                      <span className="text-sm font-medium text-[var(--landing-muted)]">{L.dietaBase}</span>
                       <textarea rows={2} className={textareaClass} value={form.dietaEnQueConsistia} onChange={(e) => update("dietaEnQueConsistia", e.target.value)} />
                     </label>
                     <label className="flex flex-col gap-1">
-                      <span className="text-sm font-medium text-[var(--landing-muted)]">¿Hace cuánto la hiciste?</span>
+                      <span className="text-sm font-medium text-[var(--landing-muted)]">{L.dietaCuando}</span>
                       <input className={inputClass} value={form.dietaHaceCuanto} onChange={(e) => update("dietaHaceCuanto", e.target.value)} />
                     </label>
                     <label className="flex flex-col gap-1">
-                      <span className="text-sm font-medium text-[var(--landing-muted)]">¿Durante cuánto tiempo?</span>
+                      <span className="text-sm font-medium text-[var(--landing-muted)]">{L.dietaCuanto}</span>
                       <input className={inputClass} value={form.dietaCuantoTiempo} onChange={(e) => update("dietaCuantoTiempo", e.target.value)} />
                     </label>
                     <label className="flex flex-col gap-1">
-                      <span className="text-sm font-medium text-[var(--landing-muted)]">¿Qué tal te fue?</span>
+                      <span className="text-sm font-medium text-[var(--landing-muted)]">{L.dietaTal}</span>
                       <textarea rows={2} className={textareaClass} value={form.dietaQueTal} onChange={(e) => update("dietaQueTal", e.target.value)} />
                     </label>
                   </div>
@@ -652,30 +686,30 @@ export default function FormularioDeInicioPage() {
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[color-mix(in_oklab,var(--landing-accent)_16%,transparent)] text-sm font-bold text-[var(--landing-accent)] ring-1 ring-[var(--landing-accent)]/35">
                     7
                   </span>
-                  <h2 className="pt-0.5 text-lg font-bold tracking-tight text-[var(--foreground)] md:text-xl">Motivación y seguimiento</h2>
+                  <h2 className="pt-0.5 text-lg font-bold tracking-tight text-[var(--foreground)] md:text-xl">{copy.sections.s7}</h2>
                 </div>
                 <label className="flex flex-col gap-1">
-                  <span className="text-sm font-medium text-[var(--landing-muted)]">A nivel de rendimiento físico, ¿qué te gustaría mejorar? *</span>
+                  <span className="text-sm font-medium text-[var(--landing-muted)]">{L.objRend}</span>
                   <textarea rows={3} className={textareaClass} value={form.objetivoRendimiento} onChange={(e) => update("objetivoRendimiento", e.target.value)} />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-sm font-medium text-[var(--landing-muted)]">A nivel estético, ¿qué te gustaría cambiar? *</span>
+                  <span className="text-sm font-medium text-[var(--landing-muted)]">{L.objEst}</span>
                   <textarea rows={3} className={textareaClass} value={form.objetivoEstetico} onChange={(e) => update("objetivoEstetico", e.target.value)} />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-sm font-medium text-[var(--landing-muted)]">¿Por qué quieres empezar ahora?</span>
+                  <span className="text-sm font-medium text-[var(--landing-muted)]">{L.motivacion}</span>
                   <textarea rows={3} className={textareaClass} value={form.motivacionPrincipal} onChange={(e) => update("motivacionPrincipal", e.target.value)} />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-sm font-medium text-[var(--landing-muted)]">¿Qué te está costando hoy para lograrlo?</span>
+                  <span className="text-sm font-medium text-[var(--landing-muted)]">{L.dificultad}</span>
                   <textarea rows={3} className={textareaClass} value={form.dificultadActual} onChange={(e) => update("dificultadActual", e.target.value)} />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-sm font-medium text-[var(--landing-muted)]">Comentarios extra</span>
+                  <span className="text-sm font-medium text-[var(--landing-muted)]">{L.comentarios}</span>
                   <textarea rows={3} className={textareaClass} value={form.comentariosExtra} onChange={(e) => update("comentariosExtra", e.target.value)} />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-sm font-medium text-[var(--landing-muted)]">¿Algo más que quieras contarme? (opcional)</span>
+                  <span className="text-sm font-medium text-[var(--landing-muted)]">{L.textoLibre}</span>
                   <textarea rows={3} className={textareaClass} value={form.textoLibreFinal} onChange={(e) => update("textoLibreFinal", e.target.value)} />
                 </label>
               </section>
@@ -685,7 +719,7 @@ export default function FormularioDeInicioPage() {
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[color-mix(in_oklab,var(--landing-accent)_16%,transparent)] text-sm font-bold text-[var(--landing-accent)] ring-1 ring-[var(--landing-accent)]/35">
                     8
                   </span>
-                  <h2 className="pt-0.5 text-lg font-bold tracking-tight text-[var(--foreground)] md:text-xl">Confirmación y envío</h2>
+                  <h2 className="pt-0.5 text-lg font-bold tracking-tight text-[var(--foreground)] md:text-xl">{copy.sections.s8}</h2>
                 </div>
                 <label className="flex items-start gap-3 text-sm">
                   <input
@@ -694,9 +728,7 @@ export default function FormularioDeInicioPage() {
                     checked={form.consentimiento}
                     onChange={(e) => update("consentimiento", e.target.checked)}
                   />
-                  <span className="text-[var(--landing-muted)] leading-relaxed">
-                    Confirmo que los datos son reales y autorizo su uso para que Lucas cree mi plan personalizado de entrenamiento y nutrición.
-                  </span>
+                  <span className="text-[var(--landing-muted)] leading-relaxed">{copy.consentText}</span>
                 </label>
 
                 {error && (
@@ -704,7 +736,7 @@ export default function FormularioDeInicioPage() {
                 )}
                 {success && (
                   <div className="rounded-xl border border-emerald-400/35 bg-emerald-500/10 px-3 py-2.5 text-sm text-emerald-100">
-                    ¡Perfecto, ya enviaste el formulario! Te hablaré por WhatsApp para iniciar el proceso.
+                    {copy.successMsg}
                   </div>
                 )}
 
@@ -713,7 +745,7 @@ export default function FormularioDeInicioPage() {
                   disabled={loading || !form.consentimiento}
                   className="w-full min-h-[48px] rounded-xl bg-[var(--landing-accent)] px-6 py-3 text-sm font-semibold text-[#0a1628] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] sm:w-auto sm:min-w-[12rem]"
                 >
-                  {loading ? "Enviando..." : "Enviar formulario"}
+                  {loading ? copy.submitSending : copy.submitCta}
                 </button>
               </section>
             </form>
@@ -741,15 +773,11 @@ export default function FormularioDeInicioPage() {
             >
               <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--landing-accent)]">FitPlan</p>
               <h3 className="mt-2 text-balance bg-gradient-to-r from-[var(--foreground)] to-[var(--landing-accent)] bg-clip-text text-xl font-bold text-transparent">
-                ¡Buenísimo, este es tu punto de inicio!
+                {copy.modalTitle}
               </h3>
-              <p className="mt-3 text-sm leading-relaxed text-[var(--landing-muted)]">
-                Voy a leer tu formulario personalmente y, a partir de ahí, empezamos con tu cambio. Lo más importante es que ya diste el primer paso.
-              </p>
-              <p className="mt-3 text-sm leading-relaxed text-[var(--landing-muted)]">
-                Si aplicas lo que te vaya proponiendo con constancia, vas a notar cambios rápido y, sobre todo, te vas a sentir mucho mejor física y mentalmente.
-              </p>
-              <p className="mt-4 text-sm font-semibold text-[var(--landing-accent)]">Vamos a por ello. Estoy contigo en este proceso.</p>
+              <p className="mt-3 text-sm leading-relaxed text-[var(--landing-muted)]">{copy.modalLine1}</p>
+              <p className="mt-3 text-sm leading-relaxed text-[var(--landing-muted)]">{copy.modalLine2}</p>
+              <p className="mt-4 text-sm font-semibold text-[var(--landing-accent)]">{copy.modalLine3}</p>
 
               <div className="mt-6 flex justify-end">
                 <button
@@ -757,7 +785,7 @@ export default function FormularioDeInicioPage() {
                   onClick={() => setMotivationalModalOpen(false)}
                   className="min-h-[44px] rounded-xl bg-[var(--landing-accent)] px-5 py-2.5 text-sm font-semibold text-[#0a1628] transition hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
                 >
-                  Cerrar
+                  {copy.modalClose}
                 </button>
               </div>
             </motion.div>

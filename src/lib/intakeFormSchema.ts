@@ -1,3 +1,5 @@
+export type IntakeFormLocale = "es" | "en";
+
 export type ObjetivoPrincipal =
   | "perder_grasa"
   | "ganar_musculo"
@@ -256,7 +258,11 @@ function isSubset(values: string[], allowed: readonly string[]): boolean {
   return values.every((value) => allowed.includes(value));
 }
 
-export function validateIntakeForm(payload: LoosePayload): string[] {
+function msg(locale: IntakeFormLocale, es: string, en: string): string {
+  return locale === "en" ? en : es;
+}
+
+export function validateIntakeForm(payload: LoosePayload, locale: IntakeFormLocale = "es"): string[] {
   const errors: string[] = [];
 
   const nombreCompleto = stringOf(payload.nombreCompleto);
@@ -282,83 +288,121 @@ export function validateIntakeForm(payload: LoosePayload): string[] {
       : {};
   const consentimiento = payload.consentimiento === true;
 
-  if (!nombreCompleto) errors.push("Por favor, introduce tu nombre completo.");
+  if (!nombreCompleto) errors.push(msg(locale, "Por favor, introduce tu nombre completo.", "Please enter your full name."));
   if (!email) {
-    errors.push("Por favor, introduce tu email.");
+    errors.push(msg(locale, "Por favor, introduce tu email.", "Please enter your email."));
   } else if (!EMAIL_REGEX.test(email)) {
-    errors.push("Introduce un email válido.");
+    errors.push(msg(locale, "Introduce un email válido.", "Enter a valid email address."));
   }
 
   if (!whatsapp) {
-    errors.push("Por favor, introduce tu WhatsApp.");
+    errors.push(msg(locale, "Por favor, introduce tu WhatsApp.", "Please enter your WhatsApp number."));
   } else if (!PHONE_REGEX.test(whatsapp)) {
-    errors.push("Introduce un WhatsApp válido (con prefijo internacional si es posible).");
+    errors.push(
+      msg(
+        locale,
+        "Introduce un WhatsApp válido (con prefijo internacional si es posible).",
+        "Enter a valid WhatsApp number (international prefix if possible).",
+      ),
+    );
   }
 
   if (instagram && !INSTAGRAM_REGEX.test(instagram)) {
-    errors.push("El usuario de Instagram no es válido.");
+    errors.push(msg(locale, "El usuario de Instagram no es válido.", "That Instagram handle doesn’t look valid."));
   }
 
   if (!ciudadPais) {
-    errors.push("Indica tu ciudad y país (por ejemplo: Madrid, España o Córdoba, Argentina).");
+    errors.push(
+      msg(
+        locale,
+        "Indica tu ciudad y país (por ejemplo: Madrid, España o Córdoba, Argentina).",
+        "Enter your city and country (e.g. London, UK).",
+      ),
+    );
   }
 
   if (edad === null) {
-    errors.push("Por favor, introduce una edad válida.");
+    errors.push(msg(locale, "Por favor, introduce una edad válida.", "Please enter a valid age."));
   } else if (edad < 14 || edad > 100) {
-    errors.push("La edad debe estar entre 14 y 100 años.");
+    errors.push(msg(locale, "La edad debe estar entre 14 y 100 años.", "Age must be between 14 and 100."));
   }
 
   if (alturaCm === null) {
-    errors.push("Por favor, introduce una altura válida.");
+    errors.push(msg(locale, "Por favor, introduce una altura válida.", "Please enter a valid height."));
   } else if (alturaCm < 120 || alturaCm > 230) {
-    errors.push("La altura debe estar entre 120 y 230 cm.");
+    errors.push(msg(locale, "La altura debe estar entre 120 y 230 cm.", "Height must be between 120 and 230 cm."));
   }
 
   if (pesoKg === null) {
-    errors.push("Por favor, introduce un peso válido.");
+    errors.push(msg(locale, "Por favor, introduce un peso válido.", "Please enter a valid weight."));
   } else if (pesoKg < 35 || pesoKg > 300) {
-    errors.push("El peso debe estar entre 35 y 300 kg.");
+    errors.push(msg(locale, "El peso debe estar entre 35 y 300 kg.", "Weight must be between 35 and 300 kg."));
   }
 
   if (!comidasPorDiaHorarios) {
-    errors.push("Indica cuántas comidas haces al día y en qué horarios.");
+    errors.push(
+      msg(locale, "Indica cuántas comidas haces al día y en qué horarios.", "Please state how many meals you eat and at what times."),
+    );
   }
 
   if (diasEntrenaActualmente === null) {
-    errors.push("Indica cuántos días entrenas actualmente por semana.");
+    errors.push(
+      msg(locale, "Indica cuántos días entrenas actualmente por semana.", "Please enter how many days per week you currently train."),
+    );
   } else if (diasEntrenaActualmente < 0 || diasEntrenaActualmente > 7) {
-    errors.push("Los días que entrenas actualmente deben estar entre 0 y 7.");
+    errors.push(
+      msg(
+        locale,
+        "Los días que entrenas actualmente deben estar entre 0 y 7.",
+        "Days you currently train must be between 0 and 7.",
+      ),
+    );
   }
 
   if (diasCompromisoEntrenamiento === null) {
-    errors.push("Indica cuántos días te comprometes a entrenar.");
+    errors.push(
+      msg(locale, "Indica cuántos días te comprometes a entrenar.", "Please enter how many days per week you commit to training."),
+    );
   } else if (diasCompromisoEntrenamiento < 1 || diasCompromisoEntrenamiento > 7) {
-    errors.push("Los días de compromiso de entrenamiento deben estar entre 1 y 7.");
+    errors.push(
+      msg(
+        locale,
+        "Los días de compromiso de entrenamiento deben estar entre 1 y 7.",
+        "Committed training days must be between 1 and 7.",
+      ),
+    );
   }
 
   if (!objetivoRendimiento) {
-    errors.push("Indica qué te gustaría mejorar a nivel de rendimiento físico.");
+    errors.push(
+      msg(
+        locale,
+        "Indica qué te gustaría mejorar a nivel de rendimiento físico.",
+        "Please describe what you want to improve physically.",
+      ),
+    );
   }
 
   if (!objetivoEstetico) {
-    errors.push("Indica qué te gustaría cambiar a nivel estético.");
+    errors.push(
+      msg(locale, "Indica qué te gustaría cambiar a nivel estético.", "Please describe what you want to change aesthetically."),
+    );
   }
 
   if (diasDisponibles.length > 0 && !isSubset(diasDisponibles, INTAKE_DIAS_SEMANA)) {
-    errors.push("Los días seleccionados no son válidos.");
+    errors.push(msg(locale, "Los días seleccionados no son válidos.", "The selected days are not valid."));
   }
 
   if (dondeEntrena.length > 0 && !isSubset(dondeEntrena, INTAKE_LUGARES_ENTRENO)) {
-    errors.push("Los lugares de entrenamiento seleccionados no son válidos.");
+    errors.push(msg(locale, "Los lugares de entrenamiento seleccionados no son válidos.", "The selected training locations are not valid."));
   }
 
   if (equipamiento.length > 0 && !isSubset(equipamiento, INTAKE_EQUIPAMIENTO)) {
-    errors.push("El equipamiento seleccionado no es válido.");
+    errors.push(msg(locale, "El equipamiento seleccionado no es válido.", "The selected equipment is not valid."));
   }
 
   if (diasTrabajo.length > 0 && !isSubset(diasTrabajo, INTAKE_DIAS_SEMANA)) {
-    errors.push("Los días de trabajo seleccionados no son válidos.");
+    errors.push(msg(locale, "Los días de trabajo seleccionados no son válidos.", "The selected work days are not valid."));
   }
 
   const invalidFoodPreference = Object.entries(preferenciasAlimentos).find(([food, pref]) => {
@@ -366,11 +410,15 @@ export function validateIntakeForm(payload: LoosePayload): string[] {
     return !ALL_FOOD_NAMES.has(food) || !validPreference;
   });
   if (invalidFoodPreference) {
-    errors.push("Las preferencias de alimentos contienen valores no válidos.");
+    errors.push(
+      msg(locale, "Las preferencias de alimentos contienen valores no válidos.", "Food preferences contain invalid values."),
+    );
   }
 
   if (!consentimiento) {
-    errors.push("Debes aceptar el consentimiento para enviar el formulario.");
+    errors.push(
+      msg(locale, "Debes aceptar el consentimiento para enviar el formulario.", "You must accept the consent to submit the form."),
+    );
   }
 
   const textFields: Array<keyof IntakeFormState> = [
@@ -395,7 +443,13 @@ export function validateIntakeForm(payload: LoosePayload): string[] {
   for (const field of textFields) {
     const value = stringOf(payload[field]);
     if (value.length > TEXT_FIELDS_MAX) {
-      errors.push(`El campo "${field}" supera el máximo de ${TEXT_FIELDS_MAX} caracteres.`);
+      errors.push(
+        msg(
+          locale,
+          `El campo "${field}" supera el máximo de ${TEXT_FIELDS_MAX} caracteres.`,
+          `The field "${field}" exceeds the maximum of ${TEXT_FIELDS_MAX} characters.`,
+        ),
+      );
     }
   }
 

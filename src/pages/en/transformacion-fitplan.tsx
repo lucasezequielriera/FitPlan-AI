@@ -196,7 +196,7 @@ export default function TransformacionFitPlanLandingEn() {
               </button>
               <button
                 type="button"
-                onClick={() => router.push("/formulario-de-inicio")}
+                onClick={() => router.push("/en/formulario-de-inicio")}
                 className="px-7 py-3 rounded-xl border border-white/25 bg-white/5 hover:bg-white/10 font-semibold text-lg"
               >
                 Request 1:1 human coaching
@@ -276,7 +276,7 @@ export default function TransformacionFitPlanLandingEn() {
             </div>
             <button
               type="button"
-              onClick={() => router.push("/formulario-de-inicio")}
+              onClick={() => router.push("/en/formulario-de-inicio")}
               className="mt-6 px-7 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold hover:from-emerald-400 hover:to-teal-400 shadow-lg shadow-emerald-500/30"
             >
               Start 1:1 coaching intake

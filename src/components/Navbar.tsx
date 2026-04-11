@@ -522,6 +522,7 @@ export default function Navbar() {
       <LoginModal
         isOpen={loginModalOpen}
         onClose={() => setLoginModalOpen(false)}
+        defaultMode="login"
         locale={router.pathname.startsWith("/en") ? "en" : "es"}
       />
     </nav>

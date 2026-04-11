@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import nodemailer from "nodemailer";
 import { buildIntakeEmail } from "@/lib/intakeEmail";
-import { validateIntakeForm, type IntakeFormState } from "@/lib/intakeFormSchema";
+import { validateIntakeForm, type IntakeFormLocale, type IntakeFormState } from "@/lib/intakeFormSchema";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 
@@ -31,8 +31,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const body = (req.body || {}) as Partial<IntakeFormState> & Record<string, unknown>;
-  const validationErrors = validateIntakeForm(body);
+  const rawBody = (req.body || {}) as Record<string, unknown>;
+  const formLocale: IntakeFormLocale = rawBody.formLocale === "en" ? "en" : "es";
+  const { formLocale: _omitLocale, ...restPayload } = rawBody;
+  const body = restPayload as Partial<IntakeFormState>;
+  const validationErrors = validateIntakeForm(body, formLocale);
   if (validationErrors.length > 0) {
     return res.status(400).json({
       error: validationErrors[0],
