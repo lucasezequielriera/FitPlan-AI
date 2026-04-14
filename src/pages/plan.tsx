@@ -2165,10 +2165,11 @@ export default function PlanPage() {
   const bmiCat = bmiCategory(bmi);
   
   // Calcular TDEE y déficit/superávit
-  const tdee = user ? (() => {
+  const tdee = useMemo(() => {
+    if (!user) return 0;
     const bmr = calculateBMR(user.pesoKg, user.alturaCm, user.edad, user.sexo);
     return calculateTDEE(bmr, user.actividad);
-  })() : 0;
+  }, [user]);
   const deficitSuperavit = user && plan ? plan.calorias_diarias - tdee : 0;
   
   // Calcular sugerencias de entrenamiento inteligentes
@@ -2246,16 +2247,19 @@ export default function PlanPage() {
         tiempoEstimado: string;
       }
     : null;
-  const proyeccionesLocales = user ? calcularProyeccionesMotivacionales(
-    user.objetivo,
-    user.intensidad,
-    user.edad,
-    user.sexo,
-    bmi,
-    user.atletico,
-    diasGymActual,
-    locale
-  ) : null;
+  const proyeccionesLocales = useMemo(() => {
+    if (!user) return null;
+    return calcularProyeccionesMotivacionales(
+      user.objetivo,
+      user.intensidad,
+      user.edad,
+      user.sexo,
+      bmi,
+      user.atletico,
+      diasGymActual,
+      locale
+    );
+  }, [user, bmi, diasGymActual, locale]);
   const proyecciones = isPremium ? (proyeccionesIA ?? proyeccionesLocales) : proyeccionesLocales;
   const extraerPromedioMensual = (texto?: string): number | null => {
     if (!texto) return null;
@@ -2264,45 +2268,46 @@ export default function PlanPage() {
     const avg = nums.reduce((a, b) => a + b, 0) / nums.length;
     return Number.isFinite(avg) ? avg : null;
   };
-  const mesesCambiosVisibles = (() => {
-    if (!isPremium) {
-      const absDiff = Math.abs(deficitSuperavit);
-      return absDiff >= 400 ? 2 : 3;
-    }
-    const match = proyecciones?.tiempoEstimado?.match(/\d+/);
-    const n = match ? Number(match[0]) : 2;
-    return Number.isFinite(n) && n > 0 ? n : 2;
-  })();
-  const mesesProyeccionPeso = Math.max(2, Math.min(mesesCambiosVisibles, 3));
-  const deltaMensualGrasa = extraerPromedioMensual(proyecciones?.grasaPerdidaMensual);
-  const deltaMensualMusculo = extraerPromedioMensual(proyecciones?.musculoGananciaMensual);
-  const deltaMensualPorCalorias = (() => {
-    // Aproximación fisiológica estándar: 7700 kcal ~ 1 kg de peso corporal.
+  const { mesesCambiosVisibles, deltaPesoProyectado } = useMemo(() => {
+    const mesesBase = (() => {
+      if (!isPremium) {
+        const absDiff = Math.abs(deficitSuperavit);
+        return absDiff >= 400 ? 2 : 3;
+      }
+      const match = proyecciones?.tiempoEstimado?.match(/\d+/);
+      const n = match ? Number(match[0]) : 2;
+      return Number.isFinite(n) && n > 0 ? n : 2;
+    })();
+
+    const mesesProyeccionPeso = Math.max(2, Math.min(mesesBase, 3));
+    const deltaMensualGrasa = extraerPromedioMensual(proyecciones?.grasaPerdidaMensual);
+    const deltaMensualMusculo = extraerPromedioMensual(proyecciones?.musculoGananciaMensual);
     const kgPorMes = (deficitSuperavit * 30) / 7700;
-    if (!Number.isFinite(kgPorMes)) return 0;
-    return kgPorMes;
-  })();
-  const deltaPesoProyectado = (() => {
+    const deltaMensualPorCalorias = Number.isFinite(kgPorMes) ? kgPorMes : 0;
+
     const obj = user?.objetivo;
-    if (!obj) return 0;
+    if (!obj) return { mesesCambiosVisibles: mesesBase, deltaPesoProyectado: 0 };
     if (!isPremium) {
       const deltaLocal = deltaMensualPorCalorias * mesesProyeccionPeso;
-      // Limites conservadores para evitar promesas irreales en modo gratuito.
       const min = -1.2 * mesesProyeccionPeso;
       const max = 1.2 * mesesProyeccionPeso;
-      return Math.max(min, Math.min(deltaLocal, max));
+      return {
+        mesesCambiosVisibles: mesesBase,
+        deltaPesoProyectado: Math.max(min, Math.min(deltaLocal, max)),
+      };
     }
     if (obj === "perder_grasa" || obj === "definicion" || obj === "corte") {
-      return -((deltaMensualGrasa ?? 0.6) * mesesProyeccionPeso);
+      return { mesesCambiosVisibles: mesesBase, deltaPesoProyectado: -((deltaMensualGrasa ?? 0.6) * mesesProyeccionPeso) };
     }
     if (obj === "ganar_masa" || obj === "volumen" || obj === "bulk_cut" || obj === "lean_bulk") {
-      return (deltaMensualMusculo ?? 0.7) * mesesProyeccionPeso;
+      return { mesesCambiosVisibles: mesesBase, deltaPesoProyectado: (deltaMensualMusculo ?? 0.7) * mesesProyeccionPeso };
     }
     if (obj === "recomposicion") {
-      return (deltaMensualMusculo ?? 0.4) * mesesProyeccionPeso;
+      return { mesesCambiosVisibles: mesesBase, deltaPesoProyectado: (deltaMensualMusculo ?? 0.4) * mesesProyeccionPeso };
     }
-    return 0;
-  })();
+    return { mesesCambiosVisibles: mesesBase, deltaPesoProyectado: 0 };
+  }, [isPremium, deficitSuperavit, proyecciones, user]);
+  const mesesProyeccionPeso = Math.max(2, Math.min(mesesCambiosVisibles, 3));
   const pesoProyectado = Math.max(35, Number((pesoActual + deltaPesoProyectado).toFixed(1)));
   const deltaTextoPeso = `${deltaPesoProyectado >= 0 ? "+" : ""}${deltaPesoProyectado.toFixed(1)} kg`;
   

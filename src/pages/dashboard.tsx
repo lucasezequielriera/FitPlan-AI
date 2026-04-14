@@ -31,7 +31,7 @@ export default function Dashboard() {
   const [mounted, setMounted] = useState(false);
   const [progressModalOpen, setProgressModalOpen] = useState(false);
   const [planForProgress, setPlanForProgress] = useState<SavedPlan | null>(null);
-  const [processingPayment, setProcessingPayment] = useState(false);
+  const [processingPayment] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
   const [premiumModalOpen, setPremiumModalOpen] = useState(false);
   const [freeExpiredModalOpen, setFreeExpiredModalOpen] = useState(false);
@@ -59,43 +59,9 @@ export default function Dashboard() {
 
     if (authUser) {
       loadPlans();
-      checkPremiumStatus();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authUser, authLoading, router]);
-
-  const checkPremiumStatus = async () => {
-    if (!authUser) return;
-    
-    try {
-      const db = getDbSafe();
-      const auth = getAuthSafe();
-      if (!db || !auth?.currentUser) return;
-
-      try {
-        const token = await auth.currentUser.getIdToken();
-        await fetch("/api/premium/checkExpiration", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-      } catch (expireCheckError) {
-        console.warn("No se pudo verificar expiración premium desde dashboard:", expireCheckError);
-      }
-
-      const userRef = doc(db, "usuarios", auth.currentUser.uid);
-      const userDoc = await getDoc(userRef);
-      
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        setIsPremium(userData.premium === true);
-        setPersonalTrainerAssigned(userData.personalTrainerAssigned === true);
-      }
-    } catch (error) {
-      console.error("Error al verificar estado premium:", error);
-    }
-  };
 
   const handleRequestPersonalTrainer = async () => {
     try {
@@ -165,6 +131,19 @@ export default function Dashboard() {
         }
         setLoading(false);
         return;
+      }
+
+      // Cargar estado premium/trainer en la misma rutina para evitar lecturas duplicadas.
+      try {
+        const userRef = doc(db, "usuarios", auth.currentUser.uid);
+        const userDoc = await getDoc(userRef);
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          setIsPremium(userData.premium === true);
+          setPersonalTrainerAssigned(userData.personalTrainerAssigned === true);
+        }
+      } catch (userStatusErr) {
+        console.warn("No se pudo leer estado premium/trainer en dashboard:", userStatusErr);
       }
 
       // Primero obtener todos los planes del usuario sin ordenar
