@@ -228,11 +228,14 @@ export default function PremiumPlanModal({
 
     setProcessing(true);
     try {
+      const selected = plans.find((p) => p.type === planType);
+      const normalizedCurrency = paymentProvider === "stripe" ? stripeCurrency.toUpperCase() : "ARS";
       trackEvent("begin_checkout", {
         source: "premium-modal",
         plan_type: planType,
         provider: paymentProvider,
-        currency: paymentProvider === "stripe" ? stripeCurrency.toUpperCase() : "ARS",
+        currency: normalizedCurrency,
+        value: selected?.price,
       }, { sendServer: true, user: { email: userEmail } });
 
       const endpoint = paymentProvider === "stripe" ? "/api/createStripePayment" : "/api/createPayment";
@@ -272,12 +275,15 @@ export default function PremiumPlanModal({
   };
 
   const handlePlanSelection = (planType: PlanType) => {
+    const selected = plans.find((p) => p.type === planType);
+    const normalizedCurrency = paymentProvider === "stripe" ? stripeCurrency.toUpperCase() : "ARS";
     setSelectedPlan(planType);
     trackEvent("add_to_cart", {
       source: "premium-modal",
       content_type: "subscription_plan",
       plan_type: planType,
-      currency: paymentProvider === "stripe" ? stripeCurrency.toUpperCase() : "ARS",
+      currency: normalizedCurrency,
+      value: selected?.price,
     });
   };
 
