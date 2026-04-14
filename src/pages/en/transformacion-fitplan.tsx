@@ -6,6 +6,7 @@ import { FaCheckCircle, FaBolt, FaBrain, FaDumbbell, FaUtensils, FaWhatsapp } fr
 import LoginModal from "@/components/LoginModal";
 import LandingLangToggle from "@/components/LandingLangToggle";
 import { useAuthStore } from "@/store/authStore";
+import { trackEvent } from "@/lib/analytics";
 
 const SITE = "https://www.fitplan-ai.com";
 const CANONICAL = `${SITE}/en/transformacion-fitplan`;
@@ -19,9 +20,19 @@ export default function TransformacionFitPlanLandingEn() {
 
   useEffect(() => {
     setIsMounted(true);
+    trackEvent("view_content", {
+      content_name: "transformacion-fitplan",
+      content_language: "en",
+      content_category: "landing",
+    });
   }, []);
 
   const handlePrimaryCta = () => {
+    trackEvent("begin_checkout", {
+      source: "transformacion-fitplan-en",
+      plan_type: "premium",
+      currency: "USD",
+    });
     if (isMounted && authUser) {
       router.push("/dashboard?openPremium=1");
       return;
@@ -168,63 +179,73 @@ export default function TransformacionFitPlanLandingEn() {
       <LandingLangToggle locale="en" />
 
       <main className="px-4 md:px-6">
-        <section className="max-w-6xl mx-auto pt-10 pb-10">
+        <section className="max-w-6xl mx-auto pt-14 pb-8">
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="rounded-3xl border border-cyan-400/25 bg-gradient-to-br from-cyan-500/10 via-blue-500/10 to-purple-500/10 p-7 md:p-12 text-center"
+            className="rounded-3xl border border-cyan-400/25 bg-gradient-to-br from-cyan-500/12 via-blue-500/10 to-purple-500/12 p-7 md:p-12"
           >
-            <p className="text-cyan-200 text-sm md:text-base mb-3">HIGH-IMPACT PREMIUM SYSTEM</p>
-            <h1 className="text-3xl md:text-5xl font-extrabold leading-tight">
-              Stop guessing: get a <span className="text-cyan-300">plan you can actually stick to</span>
-            </h1>
-            <p className="text-white/80 mt-5 max-w-3xl mx-auto text-base md:text-lg">
-              FitPlan combines AI + professional training logic to build your exact weekly nutrition and training strategy.
-              Want maximum personalization? Add optional <strong>human 1:1 coaching</strong> for real follow-up.
-            </p>
-            <p className="text-white/65 mt-3 max-w-2xl mx-auto text-sm">
-              <strong>Web-first:</strong> use it on iPhone or Android from your browser—no App Store download required.
-            </p>
-            <div className="mt-8 flex flex-col sm:flex-row justify-center gap-3">
-              <button
-                type="button"
-                onClick={handlePrimaryCta}
-                className="px-7 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 font-bold text-lg shadow-xl shadow-cyan-500/30"
-              >
-                Get Premium results
-              </button>
-              <button
-                type="button"
-                onClick={() => router.push("/en/formulario-de-inicio")}
-                className="px-7 py-3 rounded-xl border border-white/25 bg-white/5 hover:bg-white/10 font-semibold text-lg"
-              >
-                Request 1:1 human coaching
-              </button>
+            <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-8 items-center">
+              <div>
+                <p className="text-cyan-200 text-xs md:text-sm mb-3 tracking-wide">PREMIUM SYSTEM FOR REAL TRANSFORMATION</p>
+                <h1 className="text-3xl md:text-5xl font-extrabold leading-tight">
+                  With <span className="text-cyan-300">FitPlan</span>, your nutrition + training roadmap so you stop restarting every Monday
+                </h1>
+                <p className="text-white/80 mt-5 max-w-3xl text-base md:text-lg">
+                  FitPlan gives you a clear strategy tailored to your goal, schedule, injuries, and current level.
+                  Need higher precision? Add optional 1:1 human coaching.
+                </p>
+                <div className="mt-7 flex flex-col sm:flex-row gap-3">
+                  <button
+                    type="button"
+                    onClick={handlePrimaryCta}
+                    className="px-7 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 font-bold text-lg shadow-xl shadow-cyan-500/30"
+                  >
+                    Activate FitPlan Premium
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => router.push("/en/formulario-de-inicio")}
+                    className="px-7 py-3 rounded-xl border border-white/25 bg-white/5 hover:bg-white/10 font-semibold text-lg"
+                  >
+                    Request 1:1 coaching
+                  </button>
+                </div>
+                <p className="text-xs text-white/65 mt-4">
+                  From <strong>$5.99/mo USD</strong> · No long-term contract · Built for real adherence
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-white/15 bg-black/25 p-5">
+                <p className="text-sm font-semibold text-white/90">What changes when you stop improvising?</p>
+                <div className="mt-4 space-y-3 text-sm text-white/80">
+                  <div className="flex items-start gap-2">
+                    <FaCheckCircle className="text-emerald-300 mt-0.5" />
+                    <span>You know exactly what to eat and train each day.</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <FaCheckCircle className="text-emerald-300 mt-0.5" />
+                    <span>You avoid losing weeks to indecision and inconsistent execution.</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <FaCheckCircle className="text-emerald-300 mt-0.5" />
+                    <span>Your plan adapts when your real life changes.</span>
+                  </div>
+                </div>
+                <div className="mt-5 rounded-xl border border-cyan-400/25 bg-cyan-500/10 p-3 text-xs text-cyan-100">
+                  In about 10 minutes, your next week can already be mapped out.
+                </div>
+              </div>
             </div>
-            <p className="text-xs text-white/65 mt-4">
-              Plans from <strong>$5.99/mo USD</strong> · Goal-first strategy · Optional human support
-            </p>
           </motion.div>
         </section>
 
         <section className="max-w-6xl mx-auto py-4 grid grid-cols-1 md:grid-cols-3 gap-4">
           {[
-            {
-              icon: <FaBrain />,
-              title: "Smart intake",
-              text: "Uses goal, pain points, experience, schedule, and adherence—before generating your week.",
-            },
-            {
-              icon: <FaDumbbell />,
-              title: "Actionable training",
-              text: "Each session states muscle focus, progression, and cardio guidance (walk/run) when relevant.",
-            },
-            {
-              icon: <FaUtensils />,
-              title: "Realistic nutrition",
-              text: "Meals with macro guidance and practical swaps—built for consistency, not perfectionism.",
-            },
+            { icon: <FaBrain />, title: "Context-first intake", text: "Goal, injuries, schedule, and adherence level before planning anything." },
+            { icon: <FaDumbbell />, title: "Actionable training", text: "Clear sessions, muscle focus, progression, and cardio guidance." },
+            { icon: <FaUtensils />, title: "Practical nutrition", text: "Macro-guided structure you can follow in real life, not just on paper." },
           ].map((item) => (
             <div key={item.title} className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
               <div className="text-cyan-300 text-xl">{item.icon}</div>
@@ -235,15 +256,15 @@ export default function TransformacionFitPlanLandingEn() {
         </section>
 
         <section className="max-w-6xl mx-auto py-10">
-          <h2 className="text-2xl md:text-3xl font-bold text-center">What you get with Premium</h2>
+          <h2 className="text-2xl md:text-3xl font-bold text-center">What you are actually buying: clarity + execution + support</h2>
           <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
             {[
-              "Weekly meal structure with macro guidance per meal.",
-              "Structured training days with muscle focus per exercise.",
-              "Cardio recommendations (walk/run) with weekly volume guidance.",
-              "Adjustments for pain, injuries, and relevant limitations.",
-              "Supplement suggestions when appropriate.",
-              "Export-friendly formats (PDF, Word, Excel) for your records.",
+              "Weekly nutrition structure with macro targets per meal.",
+              "Structured training days with muscle focus by exercise.",
+              "Cardio recommendations and weekly volume guidance.",
+              "Adjustments for injuries, pain, and real constraints.",
+              "History and continuity so you do not restart from zero.",
+              "Clear mobile-friendly format for daily use.",
             ].map((text) => (
               <div key={text} className="rounded-xl border border-white/10 bg-white/[0.03] p-4 flex gap-3 items-start">
                 <FaCheckCircle className="text-emerald-300 mt-0.5 flex-shrink-0" />
@@ -255,23 +276,23 @@ export default function TransformacionFitPlanLandingEn() {
 
         <section className="max-w-6xl mx-auto py-4">
           <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-6 md:p-8">
-            <h2 className="text-2xl md:text-3xl font-bold">Want a human in your corner?</h2>
+            <h2 className="text-2xl md:text-3xl font-bold">Need more precision? Add 1:1 human coaching</h2>
             <p className="text-white/85 mt-2">
-              Complete the intake form for <strong>1:1 human coaching</strong>. The form is in Spanish today, but you can write in
-              English—our team can respond in English.
+              Best for demanding goals, plateaus, injury history, or when you want direct human follow-up.
+              Your case gets reviewed in depth and adjusted with professional criteria.
             </p>
             <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="rounded-xl border border-white/15 bg-black/20 p-4">
                 <p className="font-semibold">Individual assessment</p>
-                <p className="text-sm text-white/75 mt-1">Context, health background, habits, and your real goal.</p>
+                <p className="text-sm text-white/75 mt-1">Context, health background, habits, and real goal.</p>
               </div>
               <div className="rounded-xl border border-white/15 bg-black/20 p-4">
                 <p className="font-semibold">Applied strategy</p>
-                <p className="text-sm text-white/75 mt-1">Concrete steps—not generic advice.</p>
+                <p className="text-sm text-white/75 mt-1">Concrete steps for nutrition, training, and adherence.</p>
               </div>
               <div className="rounded-xl border border-white/15 bg-black/20 p-4">
-                <p className="font-semibold">Ongoing support</p>
-                <p className="text-sm text-white/75 mt-1">Adjustments based on adherence and feedback.</p>
+                <p className="font-semibold">Follow-up & adjustment</p>
+                <p className="text-sm text-white/75 mt-1">Changes based on your real progress, not assumptions.</p>
               </div>
             </div>
             <button
@@ -279,61 +300,94 @@ export default function TransformacionFitPlanLandingEn() {
               onClick={() => router.push("/en/formulario-de-inicio")}
               className="mt-6 px-7 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold hover:from-emerald-400 hover:to-teal-400 shadow-lg shadow-emerald-500/30"
             >
-              Start 1:1 coaching intake
+              Request 1:1 coaching
             </button>
           </div>
         </section>
 
         <section className="max-w-6xl mx-auto py-8">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 md:p-8 mb-6">
+            <h2 className="text-2xl md:text-3xl font-bold text-center">FitPlan Premium vs 1:1 Coaching</h2>
+            <p className="text-center text-white/75 mt-2 text-sm">
+              Choose your support level based on your current situation and desired speed.
+            </p>
+            <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="rounded-xl border border-cyan-400/25 bg-cyan-500/10 p-4">
+                <p className="text-sm font-semibold text-cyan-200">FitPlan Premium</p>
+                <ul className="mt-2 space-y-1 text-sm text-white/85">
+                  <li>- Full nutrition + training system, ready to execute.</li>
+                  <li>- Best for self-driven users who need structure and clarity.</li>
+                  <li>- Strongest price-to-value option for most users.</li>
+                </ul>
+              </div>
+              <div className="rounded-xl border border-emerald-400/25 bg-emerald-500/10 p-4">
+                <p className="text-sm font-semibold text-emerald-200">1:1 Human Coaching</p>
+                <ul className="mt-2 space-y-1 text-sm text-white/85">
+                  <li>- Personalized case review by a real coach.</li>
+                  <li>- Best for plateaus, injuries, or high-demand goals.</li>
+                  <li>- Closer follow-up and tighter adjustments.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
           <div className="rounded-2xl border border-amber-400/30 bg-gradient-to-r from-amber-500/15 to-orange-500/15 p-6 md:p-8">
             <h2 className="text-2xl md:text-3xl font-bold">FitPlan Premium (USD)</h2>
-            <p className="text-white/85 mt-2">Pick a plan and start today with a system—not motivation spikes.</p>
+            <p className="text-white/85 mt-2">Choose your plan and start today with a system you can sustain.</p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-5">
               <div className="rounded-xl bg-black/25 border border-white/15 p-4">
                 <p className="text-sm text-white/70">Monthly</p>
                 <p className="text-2xl font-extrabold mt-1">$5.99</p>
-                <p className="text-xs text-white/50 mt-1">per month</p>
               </div>
               <div className="rounded-xl bg-black/25 border border-white/15 p-4 ring-1 ring-amber-400/40">
                 <p className="text-sm text-white/70">Quarterly</p>
                 <p className="text-2xl font-extrabold mt-1">$13.99</p>
-                <p className="text-xs text-white/50 mt-1">billed every 3 months</p>
+                <p className="text-xs text-white/55 mt-1">Best value for consistency</p>
               </div>
               <div className="rounded-xl bg-black/25 border border-white/15 p-4">
                 <p className="text-sm text-white/70">Annual</p>
                 <p className="text-2xl font-extrabold mt-1">$26.99</p>
-                <p className="text-xs text-white/50 mt-1">billed yearly</p>
               </div>
             </div>
+            <div className="mt-6 flex flex-col sm:flex-row gap-3">
+              <button
+                type="button"
+                onClick={handlePrimaryCta}
+                className="px-7 py-3 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-bold hover:from-amber-300 hover:to-orange-400 inline-flex items-center justify-center gap-2 shadow-lg shadow-orange-500/30"
+              >
+                <FaBolt />
+                Activate FitPlan Premium
+              </button>
+              <a
+                href="https://wa.me/34627043397"
+                target="_blank"
+                rel="noreferrer"
+                className="px-7 py-3 rounded-xl border border-white/25 bg-white/5 hover:bg-white/10 font-semibold inline-flex items-center justify-center gap-2"
+              >
+                <FaWhatsapp />
+                Ask on WhatsApp
+              </a>
+            </div>
             <p className="text-xs text-white/55 mt-4">
-              Prices shown for United States / Stripe USD checkout. European visitors may see EUR pricing based on location.
+              US visitors usually see USD checkout. Some regions may show localized currency.
             </p>
-            <button
-              type="button"
-              onClick={handlePrimaryCta}
-              className="mt-6 px-7 py-3 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-bold hover:from-amber-300 hover:to-orange-400 inline-flex items-center gap-2 shadow-lg shadow-orange-500/30"
-            >
-              <FaBolt />
-              Activate Premium
-            </button>
           </div>
         </section>
 
         <section className="max-w-6xl mx-auto py-10">
-          <h2 className="text-2xl md:text-3xl font-bold text-center">FAQ</h2>
+          <h2 className="text-2xl md:text-3xl font-bold text-center">FAQ before you buy</h2>
           <div className="mt-6 space-y-3">
             {[
               {
-                q: "Is this for beginners?",
-                a: "Yes. The plan is written to be understandable and progressive—even if you’re starting from zero.",
+                q: "Can this work if I am a complete beginner?",
+                a: "Yes. It is structured to be clear, progressive, and realistic from day one.",
               },
               {
-                q: "What if I train at home?",
-                a: "Your plan adapts to your equipment and environment (home vs gym) based on what you tell us.",
+                q: "What if I train at home with limited equipment?",
+                a: "Your plan adapts to your setup. You do not need a perfect gym to make progress.",
               },
               {
-                q: "Premium vs 1:1 coaching—what’s the difference?",
-                a: "Premium gives you a complete system to execute. 1:1 coaching adds human review, accountability, and tailored adjustments.",
+                q: "Premium vs 1:1 coaching: what is the difference?",
+                a: "Premium gives you a complete execution system. 1:1 adds human review and tighter adjustments.",
               },
             ].map((item) => (
               <details key={item.q} className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
@@ -346,9 +400,9 @@ export default function TransformacionFitPlanLandingEn() {
 
         <section className="max-w-6xl mx-auto pb-14 text-center">
           <div className="rounded-2xl border border-cyan-400/25 bg-cyan-500/10 p-6">
-            <h2 className="text-2xl md:text-3xl font-extrabold">Ready to make this easy?</h2>
+            <h2 className="text-2xl md:text-3xl font-extrabold">Start today with FitPlan</h2>
             <p className="text-white/80 mt-2">
-              If you want a clear weekly plan instead of random workouts and random meals, FitPlan is built for you.
+              Less chaos, more direction. If you want measurable results, you need a system you can execute.
             </p>
             <div className="mt-5 flex flex-col sm:flex-row gap-3 justify-center">
               <button
@@ -356,23 +410,21 @@ export default function TransformacionFitPlanLandingEn() {
                 onClick={handlePrimaryCta}
                 className="px-7 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 font-bold"
               >
-                Start today
+                Start now
               </button>
-              <a
-                href="https://wa.me/34627043397"
-                target="_blank"
-                rel="noreferrer"
-                className="px-7 py-3 rounded-xl border border-white/25 bg-white/5 hover:bg-white/10 font-semibold inline-flex items-center justify-center gap-2"
+              <button
+                type="button"
+                onClick={() => router.push("/en/formulario-de-inicio")}
+                className="px-7 py-3 rounded-xl border border-white/25 bg-white/5 hover:bg-white/10 font-semibold"
               >
-                <FaWhatsapp />
-                WhatsApp
-              </a>
+                Go to 1:1 intake
+              </button>
             </div>
           </div>
         </section>
       </main>
 
-      <LoginModal isOpen={loginOpen} onClose={() => setLoginOpen(false)} locale="en" />
+      <LoginModal isOpen={loginOpen} onClose={() => setLoginOpen(false)} defaultMode="signup" locale="en" />
     </div>
   );
 }

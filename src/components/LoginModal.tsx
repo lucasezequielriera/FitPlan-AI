@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { FaKey, FaLock, FaEnvelope } from "react-icons/fa";
 import { useAuthStore } from "@/store/authStore";
 import { getDbSafe, getAuthSafe } from "@/lib/firebase";
+import { trackEvent } from "@/lib/analytics";
 import { collection, query, where, getDocs, limit } from "firebase/firestore";
 import { sendPasswordResetEmail } from "firebase/auth";
 
@@ -176,6 +177,11 @@ export default function LoginModal({
     try {
       if (isSignUp) {
         await signUp(email, password);
+        trackEvent("lead", {
+          source: "login-modal",
+          method: "email_signup",
+          locale,
+        }, { sendServer: true, user: { email } });
       } else {
         await signIn(email, password);
       }

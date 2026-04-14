@@ -1,16 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { motion } from "framer-motion";
 import { useAuthStore } from "@/store/authStore";
 import { getAuthSafe, getDbSafe } from "@/lib/firebase";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import Navbar from "@/components/Navbar";
+import { trackEvent } from "@/lib/analytics";
 
 export default function PaymentSuccess() {
   const router = useRouter();
   const { user: authUser } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [premium, setPremium] = useState(false);
+  const purchaseTrackedRef = useRef(false);
 
   useEffect(() => {
     if (!authUser) {
@@ -152,6 +154,14 @@ export default function PaymentSuccess() {
 
   useEffect(() => {
     if (!premium) return;
+    if (!purchaseTrackedRef.current) {
+      purchaseTrackedRef.current = true;
+      const provider = router.query.provider === "stripe" ? "stripe" : "mercadopago";
+      trackEvent("purchase", {
+        source: "payment-success-page",
+        provider,
+      }, { sendServer: true, user: { email: authUser?.email || undefined } });
+    }
     const timeout = setTimeout(() => {
       router.push("/dashboard");
     }, 2000);

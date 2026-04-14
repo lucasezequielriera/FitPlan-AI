@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import Head from "next/head";
+import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
 import { createPortal } from "react-dom";
 import { useAuthStore } from "@/store/authStore";
@@ -8,14 +9,15 @@ import { usePlanStore } from "@/store/planStore";
 import { getDbSafe, getAuthSafe } from "@/lib/firebase";
 import { collection, query, where, getDocs, limit, Timestamp, doc, deleteDoc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore";
 import Navbar from "@/components/Navbar";
-import PremiumPlanModal from "@/components/PremiumPlanModal";
-import PlanContinuityModal from "@/components/PlanContinuityModal";
 import { useAppLocale, type AppLocale } from "@/contexts/AppLocaleContext";
 import { dash, dashFmt, goalLabel } from "@/lib/i18n/appUi";
 import type { RegistroPeso, SavedPlan } from "@/types/savedPlan";
 import { DashboardPlanCard } from "@/components/dashboard/DashboardPlanCard";
 import { loadCachedDashboardPlans, saveCachedDashboardPlans } from "@/lib/planLocalCache";
 import { applyPendingWeightOps, clearPendingWeightOps, enqueueWeightOp, loadPendingWeightOps } from "@/lib/weightSyncQueue";
+
+const PremiumPlanModal = dynamic(() => import("@/components/PremiumPlanModal"), { ssr: false });
+const PlanContinuityModal = dynamic(() => import("@/components/PlanContinuityModal"), { ssr: false });
 
 export default function Dashboard() {
   const router = useRouter();
@@ -813,8 +815,8 @@ export default function Dashboard() {
               }}
               planData={{
                 id: planForContinuity.id,
-                plan: planForContinuity.plan.plan as unknown as Parameters<typeof PlanContinuityModal>[0]['planData']['plan'],
-                user: planForContinuity.plan.user as unknown as Parameters<typeof PlanContinuityModal>[0]['planData']['user'],
+                plan: planForContinuity.plan.plan as never,
+                user: planForContinuity.plan.user as never,
                 createdAt: planForContinuity.createdAt.toDate?.() || new Date(planForContinuity.createdAt.seconds * 1000),
               }}
               registrosPeso={planForContinuity.registrosPeso || []}

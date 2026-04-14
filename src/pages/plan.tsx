@@ -1,5 +1,6 @@
 import { useRouter } from "next/router";
 import Head from "next/head";
+import dynamic from "next/dynamic";
 import React, { useEffect, useState, useRef, useMemo, type ReactNode, type ReactElement } from "react";
 import { usePlanStore } from "@/store/planStore";
 import { motion, AnimatePresence } from "framer-motion";
@@ -7,12 +8,6 @@ import type { Goal, TipoDieta, Intensidad, UserInput, PlanMultiFase } from "@/ty
 import { obtenerInfoFaseActual, calcularProgresoTotal } from "@/types/plan";
 import { calculateBMI, bmiCategory, calculateBodyFatUSNavy, bodyFatCategory, waistToHeightRatio, whtrCategory, calculateBMR, calculateTDEE, sugerirEntrenamiento, calcularProyeccionesMotivacionales, analizarCambiosEntrenamiento } from "@/utils/calculations";
 import Navbar from "@/components/Navbar";
-import PremiumPlanModal from "@/components/PremiumPlanModal";
-import FoodTrackingModal from "@/components/FoodTrackingModal";
-import WeeklyStatsModal from "@/components/WeeklyStatsModal";
-import IMCInfoModal from "@/components/IMCInfoModal";
-import PlanContinuityModal from "@/components/PlanContinuityModal";
-import MonthChangesModal from "@/components/MonthChangesModal";
 // ExerciseSetTracker removido temporalmente
 import type { TrainingDayPlan, TrainingWeekPlan } from "@/types/plan";
 import { getAuthSafe, getDbSafe } from "@/lib/firebase";
@@ -25,6 +20,13 @@ import { p, pFmt, exerciseCountLabel, dietTypeLabel, intensityLabel } from "@/li
 import { goalLabel, difficultyLabel } from "@/lib/i18n/appUi";
 import { translatePlanDayLabel, translateMealSlotName, translateMuscleGroup } from "@/lib/i18n/planContentLocale";
 import { loadCachedPlanSnapshot, saveCachedPlanSnapshot } from "@/lib/planLocalCache";
+
+const PremiumPlanModal = dynamic(() => import("@/components/PremiumPlanModal"), { ssr: false });
+const FoodTrackingModal = dynamic(() => import("@/components/FoodTrackingModal"), { ssr: false });
+const WeeklyStatsModal = dynamic(() => import("@/components/WeeklyStatsModal"), { ssr: false });
+const IMCInfoModal = dynamic(() => import("@/components/IMCInfoModal"), { ssr: false });
+const PlanContinuityModal = dynamic(() => import("@/components/PlanContinuityModal"), { ssr: false });
+const MonthChangesModal = dynamic(() => import("@/components/MonthChangesModal"), { ssr: false });
 
 interface TrainingWeek {
   week: number;

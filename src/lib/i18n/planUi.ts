@@ -72,7 +72,7 @@ export const planUi = {
   painInjuries: { es: "Dolores / Lesiones", en: "Pain / Injuries" },
   protein: { es: "Proteínas", en: "Protein" },
   fats: { es: "Grasas", en: "Fats" },
-  carbs: { es: "Carbohidratos", en: "Carbs" },
+  carbs: { es: "Carbs", en: "Carbs" },
   macrosSectionTitle: { es: "Distribución de macronutrientes", en: "Macronutrient distribution" },
   macrosWhatAria: { es: "¿Qué son los macronutrientes?", en: "What are macronutrients?" },
   optionalComposition: { es: "Composición estimada (opcional)", en: "Estimated composition (optional)" },

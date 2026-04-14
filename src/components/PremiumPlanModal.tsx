@@ -8,6 +8,7 @@ import {
   PLANS_EUR_UI,
   PLANS_USD_UI,
 } from "@/lib/stripePlanPrices";
+import { trackEvent } from "@/lib/analytics";
 
 export interface PremiumPlanModalProps {
   isOpen: boolean;
@@ -227,6 +228,13 @@ export default function PremiumPlanModal({
 
     setProcessing(true);
     try {
+      trackEvent("begin_checkout", {
+        source: "premium-modal",
+        plan_type: planType,
+        provider: paymentProvider,
+        currency: paymentProvider === "stripe" ? stripeCurrency.toUpperCase() : "ARS",
+      }, { sendServer: true, user: { email: userEmail } });
+
       const endpoint = paymentProvider === "stripe" ? "/api/createStripePayment" : "/api/createPayment";
 
       const response = await fetch(endpoint, {

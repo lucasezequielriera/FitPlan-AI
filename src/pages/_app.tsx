@@ -1,19 +1,30 @@
 import "@/styles/globals.css";
 import type { AppProps } from "next/app";
 import Head from "next/head";
+import Script from "next/script";
+import { useRouter } from "next/router";
 import { Poppins } from "next/font/google";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { AppLocaleProvider } from "@/contexts/AppLocaleContext";
 import { useAuthStore } from "@/store/authStore";
 import Footer from "@/components/Footer";
 import ContactButton from "@/components/ContactButton";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { trackEvent } from "@/lib/analytics";
+import { CONSENT_CHANGED_EVENT, readConsent } from "@/lib/consent";
+import { persistAttributionFromUrl } from "@/lib/attribution";
+import CookieConsentBanner from "@/components/CookieConsentBanner";
 
 const poppins = Poppins({ subsets: ["latin"], weight: ["300","400","500","600","700"], variable: "--font-sans" });
 
 export default function App({ Component, pageProps }: AppProps) {
+  const router = useRouter();
   const initializeAuth = useAuthStore((state) => state.initializeAuth);
+  const ga4Id = process.env.NEXT_PUBLIC_GA4_ID;
+  const metaPixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID;
+  const tikTokPixelId = process.env.NEXT_PUBLIC_TIKTOK_PIXEL_ID;
+  const [consent, setConsent] = useState(readConsent);
 
   useEffect(() => {
     initializeAuth();
@@ -46,6 +57,33 @@ export default function App({ Component, pageProps }: AppProps) {
     }
   }, []);
 
+  useEffect(() => {
+    const handleConsentChange = () => {
+      setConsent(readConsent());
+    };
+    window.addEventListener(CONSENT_CHANGED_EVENT, handleConsentChange);
+    window.addEventListener("storage", handleConsentChange);
+    return () => {
+      window.removeEventListener(CONSENT_CHANGED_EVENT, handleConsentChange);
+      window.removeEventListener("storage", handleConsentChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleRouteChange = (url: string) => {
+      persistAttributionFromUrl(url, document.referrer);
+      trackEvent("page_view", { page_location: url });
+      if (typeof window !== "undefined" && window.ttq?.page) {
+        window.ttq.page();
+      }
+    };
+    handleRouteChange(window.location.href);
+    router.events.on("routeChangeComplete", handleRouteChange);
+    return () => {
+      router.events.off("routeChangeComplete", handleRouteChange);
+    };
+  }, [router.events]);
+
   return (
     <>
       <Head>
@@ -77,11 +115,91 @@ export default function App({ Component, pageProps }: AppProps) {
 
         <link rel="manifest" href="/site.webmanifest" />
       </Head>
+      {ga4Id ? (
+        <>
+          <Script src={`https://www.googletagmanager.com/gtag/js?id=${ga4Id}`} strategy="afterInteractive" />
+          <Script id="ga4-init" strategy="afterInteractive">
+            {`
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              window.gtag = gtag;
+              gtag('js', new Date());
+              gtag('consent', 'default', {
+                analytics_storage: 'denied',
+                ad_storage: 'denied',
+                ad_user_data: 'denied',
+                ad_personalization: 'denied'
+              });
+              gtag('config', '${ga4Id}', { send_page_view: false, anonymize_ip: true });
+            `}
+          </Script>
+        </>
+      ) : null}
+      {ga4Id ? (
+        <Script id="ga4-consent-update" strategy="afterInteractive">
+          {`
+            if (window.gtag) {
+              window.gtag('consent', 'update', {
+                analytics_storage: '${consent.analytics ? "granted" : "denied"}',
+                ad_storage: '${consent.ads ? "granted" : "denied"}',
+                ad_user_data: '${consent.ads ? "granted" : "denied"}',
+                ad_personalization: '${consent.ads ? "granted" : "denied"}'
+              });
+            }
+          `}
+        </Script>
+      ) : null}
+      {metaPixelId && consent.ads ? (
+        <>
+          <Script id="meta-pixel-init" strategy="afterInteractive">
+            {`
+              !function(f,b,e,v,n,t,s)
+              {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+              n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+              if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+              n.queue=[];t=b.createElement(e);t.async=!0;
+              t.src=v;s=b.getElementsByTagName(e)[0];
+              s.parentNode.insertBefore(t,s)}(window, document,'script',
+              'https://connect.facebook.net/en_US/fbevents.js');
+              fbq('init', '${metaPixelId}');
+            `}
+          </Script>
+          <noscript>
+            <img
+              height="1"
+              width="1"
+              style={{ display: "none" }}
+              src={`https://www.facebook.com/tr?id=${metaPixelId}&ev=PageView&noscript=1`}
+              alt=""
+            />
+          </noscript>
+        </>
+      ) : null}
+      {tikTokPixelId && consent.ads ? (
+        <Script id="tiktok-pixel-init" strategy="afterInteractive">
+          {`
+            !function (w, d, t) {
+              w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];
+              ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie"];
+              ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};
+              for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);
+              ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e};
+              ttq.load=function(e,n){var r="https://analytics.tiktok.com/i18n/pixel/events.js";
+              ttq._i=ttq._i||{};ttq._i[e]=[];ttq._i[e]._u=r;ttq._t=ttq._t||{};ttq._t[e]=+new Date;
+              ttq._o=ttq._o||{};ttq._o[e]=n||{};var o=document.createElement("script");
+              o.type="text/javascript";o.async=!0;o.src=r+"?sdkid="+e+"&lib="+t;
+              var a=document.getElementsByTagName("script")[0];a.parentNode.insertBefore(o,a)};
+              ttq.load('${tikTokPixelId}');
+            }(window, document, 'ttq');
+          `}
+        </Script>
+      ) : null}
       <div className={`${poppins.className} min-h-screen flex flex-col`}>
         <AppLocaleProvider>
           <Component {...pageProps} />
           <Footer />
           <ContactButton />
+          <CookieConsentBanner />
         </AppLocaleProvider>
       </div>
       <Analytics />
