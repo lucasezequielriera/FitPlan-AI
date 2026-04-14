@@ -4,7 +4,11 @@ import { getAdminDb } from "@/lib/firebase-admin";
 interface WeeklyStatsRequest {
   planId: string;
   userId?: string;
+  /** Client UI locale — degradado / errores legibles en EN o ES */
+  locale?: string;
 }
+
+type UiLang = "es" | "en";
 
 interface DayStats {
   date: string;
@@ -20,41 +24,101 @@ interface DayStats {
   }>;
 }
 
+const dayNames = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+
+function buildEmptyWeeklyStats() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - 6);
+  weekStart.setHours(0, 0, 0, 0);
+
+  const weekStats: DayStats[] = [];
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(weekStart);
+    date.setDate(weekStart.getDate() + i);
+    weekStats.push({
+      date: date.toISOString().split("T")[0],
+      dayName: dayNames[date.getDay()] || "Día",
+      calories: 0,
+      foodsCount: 0,
+      foods: [],
+    });
+  }
+
+  return {
+    weekStats,
+    summary: {
+      totalCalories: 0,
+      totalFoods: 0,
+      averageCalories: 0,
+      daysWithFoods: 0,
+      daysWithoutFoods: 7,
+      maxDay: null,
+      planCalories: 2000,
+      totalExtras: 0,
+      averageExtras: 0,
+    },
+  };
+}
+
+function isQuotaOrTransientFirestoreError(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error || "");
+  const normalized = msg.toUpperCase();
+  return (
+    normalized.includes("RESOURCE_EXHAUSTED") ||
+    normalized.includes("QUOTA EXCEEDED") ||
+    normalized.includes("DEADLINE_EXCEEDED") ||
+    normalized.includes("UNAVAILABLE")
+  );
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { planId, userId }: WeeklyStatsRequest = req.body;
+  const { planId, userId, locale: localeRaw }: WeeklyStatsRequest = req.body;
+  const lang: UiLang = localeRaw === "en" ? "en" : "es";
 
   if (!planId) {
-    return res.status(400).json({ error: "planId es requerido" });
+    return res.status(400).json({
+      error: lang === "en" ? "planId is required" : "planId es requerido",
+    });
   }
 
   try {
     // Usar Firebase Admin SDK para leer sin restricciones de permisos
     const db = getAdminDb();
     if (!db) {
-      return res.status(501).json({ error: "Firebase Admin SDK no configurado" });
+      return res.status(501).json({
+        error: lang === "en" ? "Firebase Admin SDK is not configured" : "Firebase Admin SDK no configurado",
+      });
     }
 
     const planRef = db.collection("planes").doc(planId);
     const planDoc = await planRef.get();
 
     if (!planDoc.exists) {
-      return res.status(404).json({ error: "Plan no encontrado" });
+      return res.status(404).json({
+        error: lang === "en" ? "Plan not found" : "Plan no encontrado",
+      });
     }
 
     const planData = planDoc.data();
     
     if (!planData) {
-      return res.status(404).json({ error: "Plan sin datos" });
+      return res.status(404).json({
+        error: lang === "en" ? "Plan has no data" : "Plan sin datos",
+      });
     }
     
     // Verificar que el usuario es el dueño del plan (si se proporciona userId)
     // Si no hay userId, asumimos que es admin (se valida en el componente)
     if (userId && planData.userId !== userId) {
-      return res.status(403).json({ error: "No tienes permiso para ver este plan" });
+      return res.status(403).json({
+        error: lang === "en" ? "You don't have permission to view this plan" : "No tienes permiso para ver este plan",
+      });
     }
 
     const trackedFoods = planData.trackedFoods || [];
@@ -85,7 +149,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const daysStats: Record<string, DayStats> = {};
     
     // Nombres de días (para evitar problemas con toLocaleDateString en servidor)
-    const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
     for (let i = 0; i < 7; i++) {
       const date = new Date(weekStart);
       date.setDate(weekStart.getDate() + i);
@@ -256,10 +319,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
     });
   } catch (error) {
+    const isTransient = isQuotaOrTransientFirestoreError(error);
+    if (isTransient) {
+      console.warn("⚠️ getWeeklyStats en modo degradado por cuota/latencia de Firestore");
+      const fallback = buildEmptyWeeklyStats();
+      return res.status(200).json({
+        ...fallback,
+        degraded: true,
+        warning:
+          lang === "en"
+            ? "We couldn't load stats right now (quota/latency). Showing a temporary view."
+            : "No pudimos leer estadísticas en este momento (cuota/latencia). Mostramos una vista temporal.",
+      });
+    }
+
     console.error("❌ Error al obtener estadísticas semanales:", error);
     console.error("Stack trace:", error instanceof Error ? error.stack : "No stack trace");
     return res.status(500).json({
-      error: "Error al obtener estadísticas",
+      error: lang === "en" ? "Could not load weekly statistics" : "Error al obtener estadísticas",
       detail: error instanceof Error ? error.message : String(error),
       stack: process.env.NODE_ENV === 'development' && error instanceof Error ? error.stack : undefined,
     });

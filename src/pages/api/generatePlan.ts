@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { UserInput } from "@/types/plan";
-import { generateTemplateBasedPlan } from "@/lib/templatePlans";
+import { generateTemplateBasedPlan, type PlanGenerationLocale } from "@/lib/templatePlans";
 import { ensureMealMacrosAprox } from "@/lib/mealMacros";
 import { getAdminDb } from "@/lib/firebase-admin";
 
@@ -16,8 +16,12 @@ interface ContextoMultiFase {
   cambiaFase: boolean;
 }
 
-function improveAlternativeForExercise(exerciseNameRaw: unknown, alternativeRaw: unknown): string {
-  const exerciseName = typeof exerciseNameRaw === "string" ? exerciseNameRaw.trim() : "Ejercicio";
+function improveAlternativeForExercise(
+  exerciseNameRaw: unknown,
+  alternativeRaw: unknown,
+  locale: PlanGenerationLocale = "es"
+): string {
+  const exerciseName = typeof exerciseNameRaw === "string" ? exerciseNameRaw.trim() : locale === "en" ? "Exercise" : "Ejercicio";
   const alt = typeof alternativeRaw === "string" ? alternativeRaw.trim() : "";
   const ex = exerciseName.toLowerCase();
   const altLower = alt.toLowerCase();
@@ -29,24 +33,30 @@ function improveAlternativeForExercise(exerciseNameRaw: unknown, alternativeRaw:
     altLower === "n/a" ||
     altLower === "-" ||
     altLower.includes("opcional") ||
+    altLower.includes("optional") ||
     altLower.includes("según disponibilidad");
   if (!isGeneric && !isWeakBandOnly) return alt;
 
-  if (/sentadilla|squat/.test(ex)) return "Prensa 45° o sentadilla goblet con mancuerna.";
-  if (/peso muerto|deadlift|rumano/.test(ex)) return "Hip thrust o bisagra con mancuerna ligera, priorizando columna neutra.";
-  if (/press banca|bench|press pecho/.test(ex)) return "Press con mancuernas en banco o flexiones inclinadas.";
-  if (/press militar|overhead|hombro/.test(ex)) return "Press con mancuernas sentado o landmine press.";
-  if (/remo|row/.test(ex)) return "Remo en máquina con apoyo de pecho o jalón en polea.";
-  if (/dominada|pull[- ]?up|jalon|jalón/.test(ex)) return "Jalón al pecho en polea con agarre neutro.";
-  if (/zancada|lunge/.test(ex)) return "Split squat asistido o prensa unilateral.";
-  if (/curl/.test(ex)) return "Curl en polea baja o curl alternado con mancuernas.";
-  if (/triceps|tríceps|fondos/.test(ex)) return "Extensión de tríceps en polea con cuerda.";
-  if (/abdominal|core|plancha/.test(ex)) return "Dead bug o plancha con apoyo de rodillas.";
-  return "Versión en máquina o mancuerna estable del mismo patrón, con menor carga y control técnico.";
+  const en = locale === "en";
+  if (/sentadilla|squat/.test(ex)) return en ? "Leg press 45° or goblet squat with dumbbell." : "Prensa 45° o sentadilla goblet con mancuerna.";
+  if (/peso muerto|deadlift|rumano/.test(ex)) return en ? "Hip hinge with light dumbbell or hip thrust, neutral spine." : "Hip thrust o bisagra con mancuerna ligera, priorizando columna neutra.";
+  if (/press banca|bench|press pecho/.test(ex)) return en ? "Dumbbell bench press or incline push-ups." : "Press con mancuernas en banco o flexiones inclinadas.";
+  if (/press militar|overhead|hombro/.test(ex)) return en ? "Seated dumbbell press or landmine press." : "Press con mancuernas sentado o landmine press.";
+  if (/remo|row/.test(ex)) return en ? "Chest-supported machine row or lat pulldown." : "Remo en máquina con apoyo de pecho o jalón en polea.";
+  if (/dominada|pull[- ]?up|jalon|jalón/.test(ex)) return en ? "Lat pulldown with neutral grip." : "Jalón al pecho en polea con agarre neutro.";
+  if (/zancada|lunge/.test(ex)) return en ? "Assisted split squat or single-leg press." : "Split squat asistido o prensa unilateral.";
+  if (/curl/.test(ex)) return en ? "Low-cable curl or alternating dumbbell curls." : "Curl en polea baja o curl alternado con mancuernas.";
+  if (/triceps|tríceps|fondos/.test(ex)) return en ? "Triceps rope pushdown." : "Extensión de tríceps en polea con cuerda.";
+  if (/abdominal|core|plancha/.test(ex)) return en ? "Dead bug or knee-supported plank." : "Dead bug o plancha con apoyo de rodillas.";
+  return en
+    ? "Stable machine or dumbbell version of the same pattern, lighter load, strict technique."
+    : "Versión en máquina o mancuerna estable del mismo patrón, con menor carga y control técnico.";
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+
+  const locale: PlanGenerationLocale = (req.body as { locale?: string }).locale === "en" ? "en" : "es";
 
   const input = req.body as UserInput & { 
     _contextoMultiFase?: ContextoMultiFase;
@@ -160,7 +170,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         input,
         tdeeDelFrontend || 2000,
         caloriasObjetivoDelFrontend || 2000,
-        macrosDelFrontend || { proteinas: "150g", grasas: "70g", carbohidratos: "240g" }
+        macrosDelFrontend || { proteinas: "150g", grasas: "70g", carbohidratos: "240g" },
+        locale
       );
       console.log("✅ [TEMPLATES] Plan generado con éxito sin IA");
       console.log("📋 [TEMPLATES] Training plan generado:", !!plan.training_plan, "- Semanas:", plan.training_plan?.weeks?.length || 0);
@@ -191,7 +202,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         input,
         tdeeDelFrontend || 2000,
         caloriasObjetivoDelFrontend || 2000,
-        macrosDelFrontend || { proteinas: "150g", grasas: "70g", carbohidratos: "240g" }
+        macrosDelFrontend || { proteinas: "150g", grasas: "70g", carbohidratos: "240g" },
+        locale
       );
       console.log("✅ Fallback a templates exitoso");
       return res.status(200).json({
@@ -208,11 +220,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     // Prompt mejorado: estructura clara y específica
-    const prompt = `⚠️ PRIORIDAD MÁXIMA: El campo "plan_semanal" es OBLIGATORIO y DEBE generarse primero y completo.
+    const localePromptPrefix =
+      locale === "en"
+        ? `🔴 OUTPUT LANGUAGE: ENGLISH ONLY. The entire JSON response must be in English. Use weekday names: Monday through Sunday. Each day must have exactly 4 meals named: Breakfast, Lunch, Snack, Dinner (in that order). All exercise names, descriptions, shopping list, motivational message, projections, weekly notes, and training_plan fields must be English.\n\n`
+        : "";
+
+    const prompt = `${localePromptPrefix}⚠️ PRIORIDAD MÁXIMA: El campo "plan_semanal" es OBLIGATORIO y DEBE generarse primero y completo.
 
 Genera un plan de alimentación semanal completo en JSON válido (sin texto extra, solo JSON).
 
-IMPORTANTE: El campo "plan_semanal" es el más crítico. DEBES generar EXACTAMENTE 7 días (Lunes, Martes, Miércoles, Jueves, Viernes, Sábado, Domingo), cada uno con 4 comidas (Desayuno, Almuerzo, Snack, Cena), y cada comida con 3 opciones descriptivas y reales. Si no puedes generar "plan_semanal" completo, el JSON será rechazado.
+IMPORTANTE: El campo "plan_semanal" es el más crítico. DEBES generar EXACTAMENTE 7 días (${locale === "en" ? "Monday through Sunday (English names)" : "Lunes, Martes, Miércoles, Jueves, Viernes, Sábado, Domingo"}), cada uno con 4 comidas (${locale === "en" ? "Breakfast, Lunch, Snack, Dinner" : "Desayuno, Almuerzo, Snack, Cena"}), y cada comida con 3 opciones descriptivas y reales. Si no puedes generar "plan_semanal" completo, el JSON será rechazado.
 
 ${input.restricciones && input.restricciones.length > 0 
   ? `🚫 CRÍTICO - RESTRICCIONES DEL USUARIO: El usuario tiene estas restricciones que DEBEN ser ABSOLUTAMENTE EXCLUIDAS:
@@ -2660,7 +2677,7 @@ Ejemplo de estructura:
                   rest_seconds: typeof e.rest_seconds === "number" ? e.rest_seconds : undefined,
                   technique: typeof e.technique === "string" ? e.technique : undefined,
                   progression: typeof e.progression === "string" ? e.progression : undefined,
-                  alternative: improveAlternativeForExercise(e.name, e.alternative),
+                  alternative: improveAlternativeForExercise(e.name, e.alternative, locale),
                   cues: Array.isArray(e.cues) ? (e.cues as unknown[]).filter((c): c is string => typeof c === "string").slice(0, 4) : undefined,
                 })) : [];
                 // FILTRAR EJERCICIOS PELIGROSOS (VALIDACIÓN CRÍTICA DE SEGURIDAD)

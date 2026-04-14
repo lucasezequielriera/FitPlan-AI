@@ -7,6 +7,10 @@
 
 import type { UserInput, PlanAIResponse, TrainingPlan, Comida, DiaPlan, TrainingExercise, TrainingDayPlan } from "@/types/plan";
 import { ensureMealMacrosAprox } from "@/lib/mealMacros";
+import { templateComidasEn } from "@/lib/templateComidasEn";
+
+/** Locale for template-based plan generation (API + templates). */
+export type PlanGenerationLocale = "es" | "en";
 
 // ============================================================================
 // TEMPLATES DE COMIDAS POR TIPO DE DIETA
@@ -286,15 +290,40 @@ export async function generateTemplateBasedPlan(
   user: UserInput,
   tdeeCalculado: number,
   caloriasObjetivo: number,
-  macrosObjetivo: { proteinas: string; grasas: string; carbohidratos: string }
+  macrosObjetivo: { proteinas: string; grasas: string; carbohidratos: string },
+  locale: PlanGenerationLocale = "es"
 ): Promise<PlanAIResponse> {
   const tipoDieta = user.tipoDieta || "estandar";
   const objetivo = user.objetivo;
   const intensidad = user.intensidad || "moderada";
-  const dias = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+  const dias =
+    locale === "en"
+      ? ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+      : ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
 
   // 1. Seleccionar templates de comidas
-  const comidasTemplate = (templateComidas as any)[tipoDieta] || templateComidas.estandar;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- diet templates share shape; keys differ by language
+  const comidasTemplate =
+    locale === "en"
+      ? ((templateComidasEn as any)[tipoDieta] || templateComidasEn.estandar)
+      : ((templateComidas as any)[tipoDieta] || templateComidas.estandar);
+
+  const mealSlots =
+    locale === "en"
+      ? [
+          { hora: "07:00", nombre: "Breakfast" },
+          { hora: "10:00", nombre: "Snack 1" },
+          { hora: "13:00", nombre: "Lunch" },
+          { hora: "16:00", nombre: "Snack 2" },
+          { hora: "19:30", nombre: "Dinner" },
+        ]
+      : [
+          { hora: "07:00", nombre: "Desayuno" },
+          { hora: "10:00", nombre: "Merienda 1" },
+          { hora: "13:00", nombre: "Almuerzo" },
+          { hora: "16:00", nombre: "Merienda 2" },
+          { hora: "19:30", nombre: "Cena" },
+        ];
 
   // 2. Generar plan semanal con comidas variadas
   const planSemanal: DiaPlan[] = dias.map((dia, index) => {
@@ -306,11 +335,11 @@ export async function generateTemplateBasedPlan(
     return {
       dia,
       comidas: [
-        { hora: "07:00", nombre: "Desayuno", opciones: desayunoOpc.opciones },
-        { hora: "10:00", nombre: "Merienda 1", opciones: meriendasOpc.opciones },
-        { hora: "13:00", nombre: "Almuerzo", opciones: almuerzoOpc.opciones },
-        { hora: "16:00", nombre: "Merienda 2", opciones: [meriendasOpc.opciones[0]] },
-        { hora: "19:30", nombre: "Cena", opciones: cenaOpc.opciones },
+        { hora: mealSlots[0].hora, nombre: mealSlots[0].nombre, opciones: desayunoOpc.opciones },
+        { hora: mealSlots[1].hora, nombre: mealSlots[1].nombre, opciones: meriendasOpc.opciones },
+        { hora: mealSlots[2].hora, nombre: mealSlots[2].nombre, opciones: almuerzoOpc.opciones },
+        { hora: mealSlots[3].hora, nombre: mealSlots[3].nombre, opciones: [meriendasOpc.opciones[0]] },
+        { hora: mealSlots[4].hora, nombre: mealSlots[4].nombre, opciones: cenaOpc.opciones },
       ],
     };
   });
@@ -327,10 +356,10 @@ export async function generateTemplateBasedPlan(
   const equip = user.equipamiento || "gimnasio";
   let trainingPlan = generarPlanEntrenamiento(objetivo, intensidad, nivel, equip);
   console.log(`📐 [TEMPLATES] Plan seleccionado tiene ${trainingPlan.weeks?.[0]?.days?.length || 0} días; usuario pide ${diasGym} días/semana (nivel=${nivel}, equipo=${equip})`);
-  trainingPlan = ajustarDiasEntrenamiento(trainingPlan, diasGym);
+  trainingPlan = ajustarDiasEntrenamiento(trainingPlan, diasGym, locale);
 
   // reorganizar según distribución muscular ideal para el número de días
-  trainingPlan = distribuirGruposMusculares(trainingPlan, diasGym, objetivo, intensidad, equip);
+  trainingPlan = distribuirGruposMusculares(trainingPlan, diasGym, objetivo, intensidad, equip, locale);
 
   // después de la distribución y regeneración, aplicar variación para mezclar
   trainingPlan = aplicarVariacionEjercicios(trainingPlan);
@@ -344,10 +373,10 @@ export async function generateTemplateBasedPlan(
   (trainingPlan as any)._debug = true;
 
   // 4. Generar proyecciones motivacionales
-  const proyecciones = generarProyecciones(user, objetivo, caloriasObjetivo);
+  const proyecciones = generarProyecciones(user, objetivo, caloriasObjetivo, locale);
 
   // 5. Mensaje motivacional
-  const mensajeMotivacional = generarMensajMotivacional(user, objetivo);
+  const mensajeMotivacional = generarMensajMotivacional(user, objetivo, locale);
 
   // 6. Minutos de sesión gym
   const minutosSesion = calcularMinutosSesion(intensidad);
@@ -360,11 +389,12 @@ export async function generateTemplateBasedPlan(
     mensaje_motivacional: mensajeMotivacional,
     minutos_sesion_gym: minutosSesion,
     dificultad: getDificultad(intensidad),
-    dificultad_detalle: getDificultadDetalle(intensidad),
+    dificultad_detalle: getDificultadDetalle(intensidad, locale),
     training_plan: trainingPlan,
     // include debug copy so frontend can log full structure
     _debug_training_plan: trainingPlan,
-    lista_compras: generarListaCompras(tipoDieta),
+    lista_compras: generarListaCompras(tipoDieta, locale),
+    proyecciones,
     distribucion_diaria_pct: {
       desayuno: 25,
       almuerzo: 35,
@@ -457,12 +487,13 @@ function generarPlanEntrenamiento(objetivo: string, intensidad: string, nivel: s
 // se rellenan con copias de los ejercicios existentes pero se distribuyen en otros
 // días de la semana evitando nombres duplicados para que el calendario pueda
 // mapearlos correctamente.
-function ajustarDiasEntrenamiento(plan: TrainingPlan, diasGym: number): TrainingPlan {
+function ajustarDiasEntrenamiento(plan: TrainingPlan, diasGym: number, locale: PlanGenerationLocale = "es"): TrainingPlan {
   if (!plan.weeks) return plan;
 
   const weekdays = [
     "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo",
   ];
+  const dayPrefix = locale === "en" ? "Day" : "Día";
 
 const nuevasWeeks = plan.weeks.map((week, weekIdx) => {
     const originalDays = week.days || [];
@@ -500,7 +531,7 @@ const nuevasWeeks = plan.weeks.map((week, weekIdx) => {
     }
 
     while (resultDays.length < diasGym) {
-      const last = resultDays[resultDays.length - 1] || { day: weekdays[resultDays.length] || "Día", ejercicios: [] };
+      const last = resultDays[resultDays.length - 1] || { day: weekdays[resultDays.length] || dayPrefix, ejercicios: [] };
       const wd = weekdays[resultDays.length % weekdays.length];
       resultDays.push({ ...last, day: wd });
     }
@@ -511,7 +542,7 @@ const nuevasWeeks = plan.weeks.map((week, weekIdx) => {
       // calcular día de la semana básico (lunes=1 por defecto)
       const spacing = Math.floor(7 / diasGym) || 1;
       const weekday = (1 + idx * spacing) % 7; // 0=domingo
-      return { ...d, day: `Día ${idx + 1}`, weekday } as any;
+      return { ...d, day: `${dayPrefix} ${idx + 1}`, weekday } as any;
     });
 
     return { ...week, days: renombrados };
@@ -558,56 +589,84 @@ function aplicarFiltroSinEquipo(plan: TrainingPlan): TrainingPlan {
 function generarProyecciones(
   user: UserInput,
   objetivo: string,
-  caloriasDiarias: number
+  caloriasDiarias: number,
+  locale: PlanGenerationLocale = "es"
 ): { musculoGananciaMensual?: string; grasaPerdidaMensual?: string; proyecciones: string[], tiempoEstimado: string } {
   const proyecciones: string[] = [];
   const tdee = 2000; // Aproximado, el cálculo real viene del frontend
+  const en = locale === "en";
 
   if (objetivo.includes("ganar_masa") || objetivo.includes("volumen") || objetivo.includes("bulk")) {
     const superavit = caloriasDiarias - tdee;
     const gananciaMensual = Math.round((superavit * 30) / 7700);
-    proyecciones.push(`Ganancia esperada: ${gananciaMensual}kg de peso (mayormente músculo + algo de grasa)`);
-    proyecciones.push("Mantén consistencia en el entrenamiento de fuerza");
-    proyecciones.push("Come en superávit de 300-500 kcal/día");
+    proyecciones.push(
+      en
+        ? `Expected gain: ${gananciaMensual} kg/month (mostly muscle + some fat)`
+        : `Ganancia esperada: ${gananciaMensual}kg de peso (mayormente músculo + algo de grasa)`
+    );
+    proyecciones.push(en ? "Stay consistent with strength training" : "Mantén consistencia en el entrenamiento de fuerza");
+    proyecciones.push(en ? "Eat in a 300–500 kcal/day surplus" : "Come en superávit de 300-500 kcal/día");
     return {
       musculoGananciaMensual: `${Math.max(0.5, gananciaMensual * 0.7)}-${gananciaMensual}kg`,
       proyecciones,
-      tiempoEstimado: "3-4 meses para cambios visibles",
+      tiempoEstimado: en ? "3–4 months for visible changes" : "3-4 meses para cambios visibles",
     };
   } else if (objetivo.includes("perder_grasa") || objetivo.includes("definicion") || objetivo.includes("corte")) {
     const deficit = tdee - caloriasDiarias;
     const perdidaMensual = Math.round((deficit * 30) / 7700);
-    proyecciones.push(`Pérdida esperada: ${perdidaMensual}kg de grasa por mes`);
-    proyecciones.push("Mantén proteína alta para preservar músculo");
-    proyecciones.push("Camina 30-60 min diarios si es posible");
+    proyecciones.push(
+      en
+        ? `Expected fat loss: ~${perdidaMensual} kg/month`
+        : `Pérdida esperada: ${perdidaMensual}kg de grasa por mes`
+    );
+    proyecciones.push(en ? "Keep protein high to preserve muscle" : "Mantén proteína alta para preservar músculo");
+    proyecciones.push(en ? "Walk 30–60 minutes daily if possible" : "Camina 30-60 min diarios si es posible");
     return {
       grasaPerdidaMensual: `${Math.max(0.5, perdidaMensual * 0.8)}-${perdidaMensual}kg`,
       proyecciones,
-      tiempoEstimado: "2-3 meses para ver definición clara",
+      tiempoEstimado: en ? "2–3 months for clear definition" : "2-3 meses para ver definición clara",
     };
   } else {
-    proyecciones.push("Mantén la consistencia con tu plan");
-    proyecciones.push("Registra tu progreso semanalmente");
-    proyecciones.push("Ajusta según cómo te sientas");
-    return { proyecciones, tiempoEstimado: "Resultados visibles en 4-6 semanas" };
+    proyecciones.push(en ? "Stay consistent with your plan" : "Mantén la consistencia con tu plan");
+    proyecciones.push(en ? "Log your progress weekly" : "Registra tu progreso semanalmente");
+    proyecciones.push(en ? "Adjust based on how you feel" : "Ajusta según cómo te sientas");
+    return { proyecciones, tiempoEstimado: en ? "Visible results in 4–6 weeks" : "Resultados visibles en 4-6 semanas" };
   }
 }
 
-function generarMensajMotivacional(user: UserInput, objetivo: string): string {
+function generarMensajMotivacional(user: UserInput, objetivo: string, locale: PlanGenerationLocale = "es"): string {
+  const n = user.nombre || "";
+  if (locale === "en") {
+    const mensajesEn: Record<string, string> = {
+      perder_grasa: `Hi ${n}! Your plan is built for sustainable fat loss. Consistency is key—every small step counts.`,
+      ganar_masa: `Hi ${n}! This plan is tuned for muscle gain. Eat with intent, train hard, and recover well.`,
+      mantener: `Hi ${n}! This plan helps you maintain weight and body composition. Keep enjoying a healthy lifestyle.`,
+      recomposicion: `Hi ${n}! Your plan supports gradual body recomposition. Patience and consistency win.`,
+      definicion: `Hi ${n}! This is your definition phase—you’ll work hard to show the muscle you’ve built.`,
+      volumen: `Hi ${n}! Your goal is maximum hypertrophy. Fuel well, train hard, sleep enough.`,
+      lean_bulk: `Hi ${n}! Lean bulk: gain muscle while limiting fat gain—a smart path.`,
+      bulk_cut: `Hi ${n}! We start with a volume phase. Get ready to train hard and eat with purpose.`,
+    };
+    return (
+      mensajesEn[objetivo] ||
+      `Hi ${n}! Your personalized plan is ready—let’s go.`
+    );
+  }
+
   const mensajes = {
-    perder_grasa: `¡Hola ${user.nombre}! Tu plan está diseñado para ayudarte a perder grasa de forma sostenible. Recuerda que la consistencia es clave. Cada pequeño paso te acerca a tu objetivo.`,
-    ganar_masa: `¡Hola ${user.nombre}! Este plan está optimizado para ayudarte a ganar masa muscular. Come con propósito, entrena con intensidad y descansa adecuadamente.`,
-    mantener: `¡Hola ${user.nombre}! Este es tu plan para mantener tu peso y composición corporal. ¡Sigue disfrutando de una vida saludable!`,
-    recomposicion: `¡Hola ${user.nombre}! Tu plan te ayudará a transformar tu cuerpo gradualmente. Paciencia y consistencia serán tus mejores aliados.`,
-    definicion: `¡Hola ${user.nombre}! Este es tu plan de definición. Estarás trabajando duro para mostrar la musculatura que has construido. ¡Vamos!`,
-    volumen: `¡Hola ${user.nombre}! Tu objetivo es maximizar la ganancia muscular. Come bien, entrena duro y duerme suficiente.`,
-    lean_bulk: `¡Hola ${user.nombre}! Este plan te permitirá ganar músculo minimizando grasa. Es el camino más inteligente para transformarte.`,
-    bulk_cut: `¡Hola ${user.nombre}! Comenzamos con la fase de volumen. Prepárate para trabajar duro y comer con propósito.`,
+    perder_grasa: `¡Hola ${n}! Tu plan está diseñado para ayudarte a perder grasa de forma sostenible. Recuerda que la consistencia es clave. Cada pequeño paso te acerca a tu objetivo.`,
+    ganar_masa: `¡Hola ${n}! Este plan está optimizado para ayudarte a ganar masa muscular. Come con propósito, entrena con intensidad y descansa adecuadamente.`,
+    mantener: `¡Hola ${n}! Este es tu plan para mantener tu peso y composición corporal. ¡Sigue disfrutando de una vida saludable!`,
+    recomposicion: `¡Hola ${n}! Tu plan te ayudará a transformar tu cuerpo gradualmente. Paciencia y consistencia serán tus mejores aliados.`,
+    definicion: `¡Hola ${n}! Este es tu plan de definición. Estarás trabajando duro para mostrar la musculatura que has construido. ¡Vamos!`,
+    volumen: `¡Hola ${n}! Tu objetivo es maximizar la ganancia muscular. Come bien, entrena duro y duerme suficiente.`,
+    lean_bulk: `¡Hola ${n}! Este plan te permitirá ganar músculo minimizando grasa. Es el camino más inteligente para transformarte.`,
+    bulk_cut: `¡Hola ${n}! Comenzamos con la fase de volumen. Prepárate para trabajar duro y comer con propósito.`,
   };
 
   return (
     mensajes[objetivo as keyof typeof mensajes] ||
-    `¡Hola ${user.nombre}! Tu plan personalizado está listo. ¡Vamos a lograrlo juntos!`
+    `¡Hola ${n}! Tu plan personalizado está listo. ¡Vamos a lograrlo juntos!`
   );
 }
 
@@ -782,26 +841,62 @@ function getDayAssignments(diasGym: number): string[][] {
   }
 }
 
-function getDaySplitLabel(diasGym: number, dayIndex: number): string {
+function getDaySplitLabel(diasGym: number, dayIndex: number, locale: PlanGenerationLocale = "es"): string {
+  const dayWord = locale === "en" ? "Day" : "Día";
   if (diasGym >= 1 && diasGym <= 3) return "Full Body";
   if (diasGym === 4) {
-    const labels = ["Piernas", "Pecho y tríceps", "Espalda y bíceps", "Hombros y abdomen (+ cardio)"];
-    return labels[dayIndex] ?? `Día ${dayIndex + 1}`;
+    const labels =
+      locale === "en"
+        ? ["Legs", "Chest & triceps", "Back & biceps", "Shoulders & abs (+ cardio)"]
+        : ["Piernas", "Pecho y tríceps", "Espalda y bíceps", "Hombros y abdomen (+ cardio)"];
+    return labels[dayIndex] ?? `${dayWord} ${dayIndex + 1}`;
   }
   if (diasGym === 5) {
-    const labels = [
-      "Piernas",
-      "Pecho y tríceps",
-      "Espalda y bíceps",
-      "Hombros y abdomen (+ cardio)",
-      "Brazos, gemelos y core (+ HIIT opcional)",
-    ];
-    return labels[dayIndex] ?? `Día ${dayIndex + 1}`;
+    const labels =
+      locale === "en"
+        ? [
+            "Legs",
+            "Chest & triceps",
+            "Back & biceps",
+            "Shoulders & abs (+ cardio)",
+            "Arms, calves & core (+ optional HIIT)",
+          ]
+        : [
+            "Piernas",
+            "Pecho y tríceps",
+            "Espalda y bíceps",
+            "Hombros y abdomen (+ cardio)",
+            "Brazos, gemelos y core (+ HIIT opcional)",
+          ];
+    return labels[dayIndex] ?? `${dayWord} ${dayIndex + 1}`;
   }
-  return `Día ${dayIndex + 1}`;
+  return `${dayWord} ${dayIndex + 1}`;
 }
 
-function getWeekOrderRationale(diasGym: number): string {
+function getWeekOrderRationale(diasGym: number, locale: PlanGenerationLocale = "es"): string {
+  if (locale === "en") {
+    if (diasGym >= 1 && diasGym <= 3) {
+      return [
+        "With 1–3 sessions/week, Full Body hits the whole body each session.",
+        "Compounds first (legs/back/chest) when energy is highest; core last.",
+        "Lower frequency means more volume per session; light cardio at the end for adherence without excess neural fatigue.",
+      ].join(" ");
+    }
+    if (diasGym === 4) {
+      return [
+        "Order: legs → chest/triceps → back/biceps → shoulders/abs.",
+        "Legs early in the microcycle for freshness on heavy loads; push and pull split for recovery.",
+        "Shoulders + abs last to avoid interfering with chest press; LISS cardio after shoulders day when heavy volume is lower.",
+      ].join(" ");
+    }
+    if (diasGym === 5) {
+      return [
+        "Same logic as 4 days plus a fifth accessories day (arms, calves, core) or short HIIT by level.",
+        "Adds volume without over-duplicating big-muscle work on consecutive days.",
+      ].join(" ");
+    }
+    return "Weekly layout adapted to frequency and goal.";
+  }
   if (diasGym >= 1 && diasGym <= 3) {
     return [
       "Con 1–3 sesiones semanales se usa Full Body para estimular todo el cuerpo en cada entreno.",
@@ -823,6 +918,27 @@ function getWeekOrderRationale(diasGym: number): string {
     ].join(" ");
   }
   return "Distribución semanal adaptada a la frecuencia y al objetivo.";
+}
+
+function muscleGroupDisplay(mus: string, locale: PlanGenerationLocale): string {
+  if (locale === "es") return mus;
+  const m: Record<string, string> = {
+    Piernas: "Legs",
+    Pecho: "Chest",
+    Espalda: "Back",
+    Hombros: "Shoulders",
+    Bíceps: "Biceps",
+    Tríceps: "Triceps",
+    Abdominales: "Abs",
+    Cardio: "Cardio",
+    Gemelos: "Calves",
+    Cuádriceps: "Quads",
+    Isquiotibiales: "Hamstrings",
+    Glúteos: "Glutes",
+    Trapecio: "Traps",
+    General: "General",
+  };
+  return m[mus] || mus;
 }
 
 // Construye un pool de ejercicios por músculo basado en la plantilla actual
@@ -854,11 +970,14 @@ function distribuirGruposMusculares(
   diasGym: number,
   objetivo: string,
   intensidad: string,
-  equipamiento: string
+  equipamiento: string,
+  locale: PlanGenerationLocale = "es"
 ): TrainingPlan {
   const assignments = getDayAssignments(diasGym);
   const pool = buildExercisePool(objetivo, intensidad);
   const maxExPerMuscle = diasGym <= 3 ? 1 : 2;
+  const en = locale === "en";
+  const dayLabel = (idx: number) => (en ? `Day ${idx + 1}` : `Día ${idx + 1}`);
   // aplicar filtro de equipo si corresponde
   if (equipamiento === "sin_equipo") {
     // quitar ejercicios que mencionen "Press" o barras etc.
@@ -867,8 +986,15 @@ function distribuirGruposMusculares(
     });
   }
 
-  const splitTitle =
-    diasGym <= 3
+  const splitTitle = en
+    ? diasGym <= 3
+      ? `Full Body (${diasGym}x/week)`
+      : diasGym === 4
+        ? "Bro split 4 days (legs / push / pull / shoulders+abs)"
+        : diasGym === 5
+          ? "Bro split 5 days (+ arms/calves/core)"
+          : plan.split || "Custom"
+    : diasGym <= 3
       ? `Full Body (${diasGym}x/semana)`
       : diasGym === 4
         ? "Bro split 4 días (piernas / pecho-trí / espalda-bí / hombros-abd)"
@@ -890,22 +1016,32 @@ function distribuirGruposMusculares(
           }
         }
         if (!used.size) {
-          ejercicios.push({ name: `${mus} básico`, sets: 3, reps: "10-12", muscle_group: mus, rpe: 6 });
+          ejercicios.push({
+            name: en ? `${muscleGroupDisplay(mus, locale)} basics` : `${mus} básico`,
+            sets: 3,
+            reps: "10-12",
+            muscle_group: mus,
+            rpe: 6,
+          });
         }
       });
 
       if (diasGym <= 3) {
         ejercicios.push({
-          name: "Cardio suave (bici, elíptica o caminata inclinada)",
+          name: en
+            ? "Easy cardio (bike, elliptical, or incline walk)"
+            : "Cardio suave (bici, elíptica o caminata inclinada)",
           sets: 1,
           reps: "10-15 min",
           muscle_group: "Cardio",
           rest_seconds: 0,
-          technique: "Intensidad moderada; debes poder hablar con algo de esfuerzo",
+          technique: en
+            ? "Moderate intensity—you should be able to talk with mild effort"
+            : "Intensidad moderada; debes poder hablar con algo de esfuerzo",
         });
       } else if (diasGym === 4 && idx === 3) {
         ejercicios.push({
-          name: "Cardio LISS (bici o caminata inclinada)",
+          name: en ? "LISS cardio (bike or incline walk)" : "Cardio LISS (bici o caminata inclinada)",
           sets: 1,
           reps: "10-15 min",
           muscle_group: "Cardio",
@@ -913,7 +1049,7 @@ function distribuirGruposMusculares(
         });
       } else if (diasGym === 5 && idx === 3) {
         ejercicios.push({
-          name: "Cardio LISS moderado",
+          name: en ? "Moderate LISS cardio" : "Cardio LISS moderado",
           sets: 1,
           reps: "8-14 min",
           muscle_group: "Cardio",
@@ -921,18 +1057,20 @@ function distribuirGruposMusculares(
         });
       } else if (diasGym === 5 && idx === 4) {
         ejercicios.push({
-          name: "HIIT opcional (cuerda o bicicleta)",
+          name: en ? "Optional HIIT (rope or bike)" : "HIIT opcional (cuerda o bicicleta)",
           sets: 1,
           reps: "10-12 min",
           muscle_group: "Cardio",
           rest_seconds: 0,
-          technique: "Alterna 30s fuerte / 60s suave solo si tu nivel y articulaciones lo permiten",
+          technique: en
+            ? "Alternate 30s hard / 60s easy only if your joints and level allow it"
+            : "Alterna 30s fuerte / 60s suave solo si tu nivel y articulaciones lo permiten",
         });
       }
 
       return {
-        day: `Día ${idx + 1}`,
-        split: getDaySplitLabel(diasGym, idx),
+        day: dayLabel(idx),
+        split: getDaySplitLabel(diasGym, idx, locale),
         warmup: undefined,
         ejercicios,
       } as TrainingDayPlan;
@@ -942,13 +1080,22 @@ function distribuirGruposMusculares(
   return {
     ...plan,
     split: splitTitle,
-    week_order_rationale: getWeekOrderRationale(diasGym),
+    week_order_rationale: getWeekOrderRationale(diasGym, locale),
     weeks: newWeeks,
   };
 }
 
 
-function getDificultadDetalle(intensidad: string): string {
+function getDificultadDetalle(intensidad: string, locale: PlanGenerationLocale = "es"): string {
+  if (locale === "en") {
+    const detalles: Record<string, string> = {
+      leve: "Gentle, sustainable plan—great to start or for gradual change.",
+      moderada: "Balanced plan—solid mix of results and sustainability.",
+      intensa: "Aggressive plan—requires discipline and delivers faster results.",
+      ultra: "Extreme plan—for committed athletes with prior experience.",
+    };
+    return detalles[intensidad] || "Balanced plan";
+  }
   const detalles: Record<string, string> = {
     leve: "Plan suave y sostenible. Ideal para comenzar o si buscas cambios graduales.",
     moderada: "Plan equilibrado. Balance perfecto entre resultados y sostenibilidad.",
@@ -958,7 +1105,98 @@ function getDificultadDetalle(intensidad: string): string {
   return detalles[intensidad] || "Plan balanceado";
 }
 
-function generarListaCompras(tipoDieta: string): string[] {
+function generarListaCompras(tipoDieta: string, locale: PlanGenerationLocale = "es"): string[] {
+  const listasEn: Record<string, string[]> = {
+    estandar: [
+      "Eggs (2 dozen)",
+      "Chicken breast (1kg)",
+      "Lean beef (500g)",
+      "Salmon (400g)",
+      "White rice (2kg)",
+      "Brown rice (1kg)",
+      "Potatoes (2kg)",
+      "Sweet potato (1kg)",
+      "Broccoli (2 heads)",
+      "Spinach (500g)",
+      "Tomatoes (1kg)",
+      "Onion (500g)",
+      "Garlic (100g)",
+      "Olive oil (1L)",
+      "Cheese (500g)",
+      "Yogurt (1L)",
+      "Whole-wheat bread (1 loaf)",
+      "Oats (500g)",
+      "Almonds (200g)",
+      "Mixed nuts (300g)",
+    ],
+    vegana: [
+      "Firm tofu (2 blocks)",
+      "Dry lentils (500g)",
+      "Chickpeas (500g)",
+      "Brown rice (2kg)",
+      "Quinoa (500g)",
+      "Potatoes (2kg)",
+      "Sweet potato (1kg)",
+      "Broccoli (2 heads)",
+      "Spinach (500g)",
+      "Mushrooms (500g)",
+      "Onion (500g)",
+      "Garlic (100g)",
+      "Olive oil (1L)",
+      "Whole-wheat bread (1 loaf)",
+      "Soy milk (1L)",
+      "Almond milk (1L)",
+      "Almonds (300g)",
+      "Sunflower seeds (200g)",
+      "Flax seeds (100g)",
+      "Mixed fruit (2kg)",
+    ],
+    keto: [
+      "Eggs (3 dozen)",
+      "Beef (1.5kg)",
+      "Pork ribs (1kg)",
+      "Salmon (500g)",
+      "Assorted cheese (800g)",
+      "Butter (500g)",
+      "Avocado (6)",
+      "Spinach (500g)",
+      "Broccoli (1 kg)",
+      "Cauliflower (1kg)",
+      "Mushrooms (500g)",
+      "Bacon (300g)",
+      "Serrano ham (200g)",
+      "Olive oil (1L)",
+      "Coconut oil (200ml)",
+      "Mayonnaise (200g)",
+      "Heavy cream (500ml)",
+      "Zero-calorie drinks",
+      "Mixed nuts (300g)",
+      "Olives (200g)",
+    ],
+    mediterranea: [
+      "Swordfish (400g)",
+      "Salmon (400g)",
+      "Mussels (500g)",
+      "Chicken (800g)",
+      "Whole-wheat pasta (500g)",
+      "Brown rice (1kg)",
+      "Potatoes (1kg)",
+      "Tomatoes (2kg)",
+      "Onion (500g)",
+      "Garlic (150g)",
+      "Olive oil (1L)",
+      "Feta cheese (200g)",
+      "Parmesan (300g)",
+      "Greek yogurt (800g)",
+      "Whole-wheat bread (2 loaves)",
+      "Olives (300g)",
+      "Herbs (oregano, rosemary, basil)",
+      "Lemons (6)",
+      "Spinach (500g)",
+      "Eggplants (500g)",
+    ],
+  };
+
   const listas: Record<string, string[]> = {
     estandar: [
       "Huevos (2 docenas)",
@@ -1050,5 +1288,6 @@ function generarListaCompras(tipoDieta: string): string[] {
     ],
   };
 
-  return listas[tipoDieta] || listas.estandar;
+  const picked = locale === "en" ? listasEn : listas;
+  return picked[tipoDieta] || picked.estandar;
 }

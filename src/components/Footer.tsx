@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { useRouter } from "next/router";
+import { useAppLocale } from "@/contexts/AppLocaleContext";
 
 export default function Footer() {
-  const router = useRouter();
-  const isEn = router.pathname.startsWith("/en");
+  const { locale } = useAppLocale();
+  const isEn = locale === "en";
 
   const disclaimer = isEn ? (
     <>

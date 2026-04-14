@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { FaTimes, FaUtensils, FaFire, FaDumbbell, FaCheckCircle, FaHistory } from "react-icons/fa";
 import { getDbSafe } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
+import { useAppLocale } from "@/contexts/AppLocaleContext";
+import { p, pFmt } from "@/lib/i18n/planUi";
 
 interface FoodTrackingModalProps {
   isOpen: boolean;
@@ -24,6 +26,7 @@ interface TrackedFood {
 }
 
 export default function FoodTrackingModal({ isOpen, onClose, planCalories, userObjective, planId, userId }: FoodTrackingModalProps) {
+  const { locale } = useAppLocale();
   const [foodDescription, setFoodDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -89,7 +92,7 @@ export default function FoodTrackingModal({ isOpen, onClose, planCalories, userO
 
   const handleSubmit = async () => {
     if (!foodDescription.trim()) {
-      alert("Por favor, describe qué comiste");
+      alert(p(locale, "foodAlertEmpty"));
       return;
     }
 
@@ -120,18 +123,19 @@ export default function FoodTrackingModal({ isOpen, onClose, planCalories, userO
           userId,
           currentHour,
           userTimezone,
+          locale,
         }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Error desconocido" }));
-        throw new Error(errorData.error || errorData.detail || "Error al analizar la comida");
+        const errorData = await response.json().catch(() => ({ error: p(locale, "foodErrUnknown") }));
+        throw new Error(errorData.error || errorData.detail || p(locale, "foodErrAnalyze"));
       }
 
       const data = await response.json();
       
       if (!data || !data.calories) {
-        throw new Error("Respuesta inválida del servidor");
+        throw new Error(p(locale, "foodErrInvalidResponse"));
       }
       
       setResult(data);
@@ -141,7 +145,7 @@ export default function FoodTrackingModal({ isOpen, onClose, planCalories, userO
       }
     } catch (error) {
       console.error("Error al analizar comida:", error);
-      const errorMessage = error instanceof Error ? error.message : "Error al analizar la comida. Intenta nuevamente.";
+      const errorMessage = error instanceof Error ? error.message : p(locale, "foodErrAnalyzeRetry");
       alert(errorMessage);
     } finally {
       setLoading(false);
@@ -168,192 +172,175 @@ export default function FoodTrackingModal({ isOpen, onClose, planCalories, userO
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={handleClose}
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm"
+          className="fixed inset-0 bg-black/65 backdrop-blur-md"
         />
 
         {/* Modal */}
         <motion.div
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.9, opacity: 0 }}
+          initial={{ opacity: 0, scale: 0.97, y: 10 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.97, y: 10 }}
+          transition={{ type: "spring", damping: 26, stiffness: 320 }}
           onClick={(e) => e.stopPropagation()}
-          className="relative w-full max-w-2xl max-h-[95vh] md:max-h-[90vh] overflow-y-auto rounded-lg md:rounded-xl border border-white/10 bg-black/95 p-4 md:p-6 shadow-2xl"
+          className="relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--background)_94%,#0f172a)] shadow-[0_24px_60px_-30px_rgba(0,0,0,0.75)]"
         >
-          <button
-            onClick={handleClose}
-            className="absolute top-3 right-3 md:top-4 md:right-4 text-white/60 hover:text-white transition-colors z-10"
-          >
-            <FaTimes className="h-5 w-5 md:h-6 md:w-6" />
-          </button>
-
-          {!result ? (
-            <>
-              <div className="mb-4 md:mb-6">
-                <div className="flex items-center gap-2 md:gap-3 mb-2">
-                  <FaUtensils className="h-5 w-5 md:h-6 md:w-6 text-blue-400" />
-                  <h2 className="text-xl md:text-2xl font-bold">Registrar comida fuera del plan</h2>
-                </div>
-                <p className="text-white/70 text-xs md:text-sm">
-                  Describe qué comiste y te ayudaremos a entender el impacto y cómo retomar tu plan
-                </p>
+          <div className="flex items-start justify-between gap-3 border-b border-[var(--landing-border)] bg-[var(--landing-surface)]/55 px-4 py-3 sm:px-5">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <FaUtensils className="h-4 w-4 text-[var(--brand-end)]" />
+                <h2 className="text-base font-semibold text-[var(--foreground)] sm:text-lg">{p(locale, "foodModalTitle")}</h2>
               </div>
+              <p className="mt-1 text-xs text-[var(--landing-muted)]">{p(locale, "foodModalSubtitle")}</p>
+            </div>
+            <button
+              onClick={handleClose}
+              className="rounded-lg p-1.5 text-[var(--landing-muted)] transition hover:bg-[var(--landing-surface-2)] hover:text-[var(--foreground)]"
+            >
+              <FaTimes className="h-4 w-4" />
+            </button>
+          </div>
 
-              {/* Historial del día */}
-              {previousFoodsToday.length > 0 && (
-                <div className="mb-4 md:mb-6 p-3 md:p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
-                  <div className="flex items-center gap-2 mb-2 md:mb-3">
-                    <FaHistory className="h-4 w-4 md:h-5 md:w-5 text-yellow-400" />
-                    <h3 className="font-semibold text-yellow-300 text-sm md:text-base">Comidas registradas hoy</h3>
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5">
+            {!result ? (
+              <>
+                {loadingHistory ? (
+                  <div className="rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)]/50 px-3 py-2 text-xs text-[var(--landing-muted)]">
+                    {p(locale, "foodLoadingHistory")}
                   </div>
-                  <div className="space-y-2 mb-2 md:mb-3">
-                    {previousFoodsToday.map((food, index) => (
-                      <div key={index} className="flex items-center justify-between text-xs md:text-sm">
-                        <span className="text-white/80 truncate pr-2">• {food.description}</span>
-                        <span className="text-yellow-400 font-medium flex-shrink-0">{food.calories} kcal</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="pt-2 md:pt-3 border-t border-yellow-500/20">
-                    <div className="flex items-center justify-between">
-                      <span className="text-white/90 font-medium text-xs md:text-sm">Total acumulado hoy:</span>
-                      <span className="text-yellow-300 font-bold text-base md:text-lg">{totalCaloriesToday} kcal</span>
+                ) : null}
+
+                {previousFoodsToday.length > 0 && (
+                  <div className="rounded-xl border border-amber-400/25 bg-amber-500/10 p-3">
+                    <div className="mb-2 flex items-center gap-2">
+                      <FaHistory className="h-3.5 w-3.5 text-amber-300" />
+                      <h3 className="text-sm font-semibold text-[var(--foreground)]">{p(locale, "foodHistoryTodayTitle")}</h3>
                     </div>
-                    <p className="text-xs text-white/60 mt-1">
-                      Plan diario: {planCalories} kcal | Extras: +{totalCaloriesToday} kcal
+                    <div className="space-y-1">
+                      {previousFoodsToday.map((food, index) => (
+                        <div key={index} className="flex items-center justify-between gap-2 rounded-md border border-amber-300/15 bg-black/10 px-2 py-1.5">
+                          <span className="truncate text-xs text-[var(--foreground)]/90">{food.description}</span>
+                          <span className="shrink-0 text-xs font-semibold text-amber-300">{food.calories} kcal</span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-2 text-[11px] text-[var(--landing-muted)]">
+                      {pFmt(locale, "foodTotalToday", { total: totalCaloriesToday, plan: planCalories })}
                     </p>
                   </div>
+                )}
+
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-[var(--foreground)]">¿Qué comiste?</label>
+                  <textarea
+                    value={foodDescription}
+                    onChange={(e) => setFoodDescription(e.target.value)}
+                    placeholder="Ej: Una porción de pizza + helado."
+                    className="w-full resize-none rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] px-3 py-2.5 text-sm text-[var(--foreground)] placeholder:text-[var(--landing-muted)]/70 focus:border-[color-mix(in_oklab,var(--brand-end)_45%,transparent)] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_oklab,var(--brand-end)_25%,transparent)]"
+                    rows={4}
+                  />
                 </div>
-              )}
+              </>
+            ) : (
+              <>
+                <div className="rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)]/55 p-3">
+                  <div className="mb-1 flex items-center gap-2 text-xs text-[var(--landing-muted)]">
+                    <FaFire className="h-3.5 w-3.5 text-orange-300" />
+                    {p(locale, "foodCalEstimated")}
+                  </div>
+                  <p className="text-xl font-semibold text-[var(--foreground)]">{result.calories} kcal</p>
+                  <p className="mt-1 text-xs text-[var(--landing-muted)]">{pFmt(locale, "foodPlanDaily", { n: planCalories })}</p>
+                  {result.totalCaloriesToday !== undefined && result.totalCaloriesToday > result.calories && (
+                    <p className="mt-1 text-xs text-[var(--landing-muted)]">
+                      {p(locale, "foodAccumulatedToday")}{" "}
+                      <span className="font-semibold text-[var(--foreground)]">{result.totalCaloriesToday} kcal</span>
+                    </p>
+                  )}
+                </div>
 
-              <div className="mb-4 md:mb-6">
-                <label className="block text-xs md:text-sm font-medium mb-2">
-                  ¿Qué comiste? <span className="text-white/50 hidden md:inline">(ej: "Un chocolate", "Una porción de pizza", "Un helado")</span>
-                </label>
-                <textarea
-                  value={foodDescription}
-                  onChange={(e) => setFoodDescription(e.target.value)}
-                  placeholder="Ej: Un chocolate mediano, una porción de pizza mediana, un helado de 2 bochas..."
-                  className="w-full px-3 md:px-4 py-2 md:py-3 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-sm md:text-base"
-                  rows={4}
-                />
-              </div>
+                <div className="rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)]/45 p-3">
+                  <p className="mb-1 text-xs font-semibold text-[var(--foreground)]">{p(locale, "foodImpact")}</p>
+                  <p className="text-sm text-[var(--foreground)]/90">{result.impact}</p>
+                </div>
 
-              <div className="flex flex-col sm:flex-row gap-2 md:gap-3">
+                <div className="rounded-xl border border-[color-mix(in_oklab,var(--brand-end)_28%,transparent)] bg-[color-mix(in_oklab,var(--brand-end)_10%,transparent)] p-3">
+                  <p className="mb-2 flex items-center gap-2 text-xs font-semibold text-[var(--foreground)]">
+                    <FaCheckCircle className="h-3.5 w-3.5 text-[var(--brand-end)]" />
+                    Cómo retomar tu plan
+                  </p>
+                  <ul className="space-y-1">
+                    {result.recommendations.map((rec, index) => (
+                      <li key={index} className="text-xs text-[var(--foreground)]/90">- {rec}</li>
+                    ))}
+                  </ul>
+                </div>
+
+                {result.exerciseCompensation && (
+                  <div className="rounded-xl border border-cyan-400/25 bg-cyan-500/10 p-3">
+                    <p className="mb-1 flex items-center gap-2 text-xs font-semibold text-[var(--foreground)]">
+                      <FaDumbbell className="h-3.5 w-3.5 text-cyan-300" />
+                      {p(locale, "foodExerciseComp")}
+                    </p>
+                    <p className="text-xs text-[var(--foreground)]/90">{result.exerciseCompensation}</p>
+                  </div>
+                )}
+
+                <div className="rounded-xl border border-emerald-400/25 bg-emerald-500/10 p-3">
+                  <p className="text-xs italic text-[var(--foreground)]/90">{result.motivation}</p>
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="border-t border-[var(--landing-border)] bg-[var(--landing-surface)]/45 px-4 py-3 sm:px-5">
+            {!result ? (
+              <div className="flex flex-col gap-2 sm:flex-row">
                 <button
                   onClick={handleClose}
-                  className="flex-1 px-4 py-2 md:py-3 rounded-lg bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-colors text-sm md:text-base"
+                  className="flex-1 rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] px-4 py-2 text-sm text-[var(--foreground)] transition hover:bg-[var(--landing-surface-2)]"
                 >
-                  Cancelar
+                  {p(locale, "cancel")}
                 </button>
                 <button
                   onClick={handleSubmit}
                   disabled={loading || !foodDescription.trim()}
-                  className="flex-1 px-4 py-2 md:py-3 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm md:text-base"
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-[color-mix(in_oklab,var(--brand-end)_45%,transparent)] bg-[color-mix(in_oklab,var(--brand-end)_16%,transparent)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] transition hover:bg-[color-mix(in_oklab,var(--brand-end)_24%,transparent)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {loading ? (
                     <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      Analizando...
+                      <div className="h-3.5 w-3.5 animate-spin rounded-full border border-[var(--foreground)]/55 border-t-transparent" />
+                      {p(locale, "foodAnalyzing")}
                     </>
                   ) : (
                     <>
-                      <FaCheckCircle className="h-4 w-4" />
-                      Analizar
+                      <FaCheckCircle className="h-3.5 w-3.5" />
+                      {p(locale, "foodAnalyzeBtn")}
                     </>
                   )}
                 </button>
               </div>
-            </>
-          ) : (
-            <>
-              <div className="mb-4 md:mb-6">
-                <h2 className="text-xl md:text-2xl font-bold mb-2">Análisis de tu comida</h2>
-                <p className="text-white/70 text-xs md:text-sm">Aquí está el impacto y cómo retomar tu plan</p>
-              </div>
-
-              {/* Calorías */}
-              <div className="mb-4 md:mb-6 p-3 md:p-4 rounded-lg bg-white/5 border border-white/10">
-                <div className="flex items-center gap-2 md:gap-3 mb-2">
-                  <FaFire className="h-4 w-4 md:h-5 md:w-5 text-orange-400" />
-                  <h3 className="font-semibold text-sm md:text-base">Calorías estimadas</h3>
-                </div>
-                <p className="text-2xl md:text-3xl font-bold text-orange-400">{result.calories} kcal</p>
-                <p className="text-xs md:text-sm text-white/60 mt-1">
-                  Tu plan diario: {planCalories} kcal
-                </p>
-                {result.totalCaloriesToday !== undefined && result.totalCaloriesToday > result.calories && (
-                  <div className="mt-2 md:mt-3 pt-2 md:pt-3 border-t border-white/10">
-                    <p className="text-xs md:text-sm text-white/70">
-                      Total acumulado hoy: <span className="text-yellow-400 font-bold">{result.totalCaloriesToday} kcal</span>
-                    </p>
-                    <p className="text-xs text-white/50 mt-1">
-                      {result.previousFoodsCount || 0} comida(s) previa(s) + esta comida
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Impacto */}
-              <div className="mb-4 md:mb-6 p-3 md:p-4 rounded-lg bg-white/5 border border-white/10">
-                <h3 className="font-semibold mb-2 text-sm md:text-base">📊 Impacto en tu plan</h3>
-                <p className="text-white/80 text-xs md:text-sm">{result.impact}</p>
-              </div>
-
-              {/* Recomendaciones */}
-              <div className="mb-4 md:mb-6 p-3 md:p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                <h3 className="font-semibold mb-2 md:mb-3 flex items-center gap-2 text-sm md:text-base">
-                  <FaCheckCircle className="h-4 w-4 md:h-5 md:w-5 text-blue-400" />
-                  Cómo retomar tu plan
-                </h3>
-                <ul className="space-y-2">
-                  {result.recommendations.map((rec, index) => (
-                    <li key={index} className="flex items-start gap-2 text-xs md:text-sm text-white/80">
-                      <span className="text-blue-400 mt-1">•</span>
-                      <span>{rec}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              {/* Compensación con ejercicio */}
-              {result.exerciseCompensation && (
-                <div className="mb-4 md:mb-6 p-3 md:p-4 rounded-lg bg-purple-500/10 border border-purple-500/20">
-                  <h3 className="font-semibold mb-2 flex items-center gap-2 text-sm md:text-base">
-                    <FaDumbbell className="h-4 w-4 md:h-5 md:w-5 text-purple-400" />
-                    Compensación con ejercicio
-                  </h3>
-                  <p className="text-xs md:text-sm text-white/80">{result.exerciseCompensation}</p>
-                </div>
-              )}
-
-              {/* Motivación */}
-              <div className="mb-4 md:mb-6 p-3 md:p-4 rounded-lg bg-green-500/10 border border-green-500/20">
-                <p className="text-xs md:text-sm text-white/90 italic">💪 {result.motivation}</p>
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-2 md:gap-3">
+            ) : (
+              <div className="flex flex-col gap-2 sm:flex-row">
                 <button
                   onClick={async () => {
                     setResult(null);
                     setFoodDescription("");
-                    // Recargar historial para mostrar la comida recién agregada
                     if (planId) {
                       await loadTodayFoods();
                     }
                   }}
-                  className="flex-1 px-4 py-2 md:py-3 rounded-lg bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-colors text-sm md:text-base"
+                  className="flex-1 rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] px-4 py-2 text-sm text-[var(--foreground)] transition hover:bg-[var(--landing-surface-2)]"
                 >
-                  Agregar otra comida
+                  {p(locale, "foodAddAnother")}
                 </button>
                 <button
                   onClick={handleClose}
-                  className="flex-1 px-4 py-2 md:py-3 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-medium transition-all text-sm md:text-base"
+                  className="flex-1 rounded-xl border border-[color-mix(in_oklab,var(--brand-end)_45%,transparent)] bg-[color-mix(in_oklab,var(--brand-end)_16%,transparent)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] transition hover:bg-[color-mix(in_oklab,var(--brand-end)_24%,transparent)]"
                 >
-                  Entendido, gracias
+                  {p(locale, "foodGotIt")}
                 </button>
               </div>
-            </>
-          )}
+            )}
+          </div>
         </motion.div>
       </div>
     </AnimatePresence>

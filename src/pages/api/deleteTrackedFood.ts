@@ -2,10 +2,13 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 
+type UiLang = "es" | "en";
+
 interface DeleteTrackedFoodRequest {
   planId: string;
   userId?: string;
-  foodIndex: number; // Índice de la comida en el array trackedFoods
+  foodIndex: number;
+  locale?: string;
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -13,40 +16,49 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { planId, userId, foodIndex }: DeleteTrackedFoodRequest = req.body;
+  const { planId, userId, foodIndex, locale: localeRaw }: DeleteTrackedFoodRequest = req.body;
+  const lang: UiLang = localeRaw === "en" ? "en" : "es";
 
   if (!planId || foodIndex === undefined) {
-    return res.status(400).json({ error: "planId y foodIndex son requeridos" });
+    return res.status(400).json({
+      error: lang === "en" ? "planId and foodIndex are required" : "planId y foodIndex son requeridos",
+    });
   }
 
   try {
     const db = getAdminDb();
     if (!db) {
-      return res.status(501).json({ error: "Firebase Admin SDK no configurado" });
+      return res.status(501).json({
+        error: lang === "en" ? "Firebase Admin SDK is not configured" : "Firebase Admin SDK no configurado",
+      });
     }
 
     const planRef = db.collection("planes").doc(planId);
     const planDoc = await planRef.get();
 
     if (!planDoc.exists) {
-      return res.status(404).json({ error: "Plan no encontrado" });
+      return res.status(404).json({
+        error: lang === "en" ? "Plan not found" : "Plan no encontrado",
+      });
     }
 
     const planData = planDoc.data();
-    
-    // Verificar que el usuario es el dueño del plan (si se proporciona userId)
+
     if (userId && planData?.userId !== userId) {
-      return res.status(403).json({ error: "No tienes permiso para modificar este plan" });
+      return res.status(403).json({
+        error: lang === "en" ? "You don't have permission to modify this plan" : "No tienes permiso para modificar este plan",
+      });
     }
 
     const trackedFoods = planData?.trackedFoods || [];
-    
+
     if (foodIndex < 0 || foodIndex >= trackedFoods.length) {
-      return res.status(400).json({ error: "Índice de comida inválido" });
+      return res.status(400).json({
+        error: lang === "en" ? "Invalid meal index" : "Índice de comida inválido",
+      });
     }
 
-    // Eliminar la comida del array
-    const updatedFoods = trackedFoods.filter((_: any, index: number) => index !== foodIndex);
+    const updatedFoods = trackedFoods.filter((_: unknown, index: number) => index !== foodIndex);
 
     await planRef.update({
       trackedFoods: updatedFoods,
@@ -55,17 +67,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     console.log("✅ Comida eliminada correctamente del plan:", planId, "- Índice:", foodIndex);
 
-    return res.status(200).json({ 
+    return res.status(200).json({
       success: true,
-      message: "Comida eliminada correctamente",
+      message: lang === "en" ? "Meal removed successfully" : "Comida eliminada correctamente",
       remainingFoods: updatedFoods.length,
     });
   } catch (error) {
     console.error("❌ Error al eliminar comida:", error);
     return res.status(500).json({
-      error: "Error al eliminar la comida",
+      error: lang === "en" ? "Could not delete the meal" : "Error al eliminar la comida",
       detail: error instanceof Error ? error.message : String(error),
     });
   }
 }
-

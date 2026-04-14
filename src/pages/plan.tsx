@@ -6,7 +6,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import type { Goal, TipoDieta, Intensidad, UserInput, PlanMultiFase } from "@/types/plan";
 import { obtenerInfoFaseActual, calcularProgresoTotal } from "@/types/plan";
 import { calculateBMI, bmiCategory, calculateBodyFatUSNavy, bodyFatCategory, waistToHeightRatio, whtrCategory, calculateBMR, calculateTDEE, sugerirEntrenamiento, calcularProyeccionesMotivacionales, analizarCambiosEntrenamiento } from "@/utils/calculations";
-import jsPDF from "jspdf";
 import Navbar from "@/components/Navbar";
 import PremiumPlanModal from "@/components/PremiumPlanModal";
 import FoodTrackingModal from "@/components/FoodTrackingModal";
@@ -15,13 +14,17 @@ import IMCInfoModal from "@/components/IMCInfoModal";
 import PlanContinuityModal from "@/components/PlanContinuityModal";
 import MonthChangesModal from "@/components/MonthChangesModal";
 // ExerciseSetTracker removido temporalmente
-import TrainingCalendar from "@/components/TrainingCalendar";
 import type { TrainingDayPlan, TrainingWeekPlan } from "@/types/plan";
 import { getAuthSafe, getDbSafe } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { useAuthStore } from "@/store/authStore";
 import { FaUtensils, FaChartLine } from "react-icons/fa";
 import ExerciseDemoMedia from "@/components/ExerciseDemoMedia";
+import { useAppLocale } from "@/contexts/AppLocaleContext";
+import { p, pFmt, exerciseCountLabel, dietTypeLabel, intensityLabel } from "@/lib/i18n/planUi";
+import { goalLabel, difficultyLabel } from "@/lib/i18n/appUi";
+import { translatePlanDayLabel, translateMealSlotName, translateMuscleGroup } from "@/lib/i18n/planContentLocale";
+import { loadCachedPlanSnapshot, saveCachedPlanSnapshot } from "@/lib/planLocalCache";
 
 interface TrainingWeek {
   week: number;
@@ -81,14 +84,131 @@ export default function PlanPage() {
   const router = useRouter();
   const { plan, user, planId, planMultiFase, planCreatedAt, setUser, setPlan, setPlanId, setPlanMultiFase, setPlanCreatedAt } = usePlanStore();
   const { user: authUser } = useAuthStore();
+  const { locale } = useAppLocale();
+  const [recoveringPlan, setRecoveringPlan] = useState(false);
+  const [cacheNotice, setCacheNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    // Si no hay plan ni user en el store, redirigir
-    if (!plan || !user) {
-      router.push("/");
-      return;
-    }
-  }, [plan, user, router]);
+    // Al refrescar, el store se limpia. Intentamos rehidratar el último plan del usuario
+    // para evitar redirigirlo fuera de /plan si ya tenía un plan guardado.
+    if (plan && user) return;
+
+    let cancelled = false;
+
+    const recoverPlanFromFirestore = async () => {
+      if (typeof window === "undefined") return;
+      const uid = authUser?.uid || getAuthSafe()?.currentUser?.uid;
+      if (!uid) {
+        router.replace("/");
+        return;
+      }
+
+      setRecoveringPlan(true);
+      const recoverFromCache = () => {
+        const cached = loadCachedPlanSnapshot(uid);
+        if (!cached) return false;
+        setUser(cached.user);
+        setPlan(cached.plan);
+        setPlanId(cached.planId);
+        setPlanMultiFase(cached.planMultiFase);
+        setPlanCreatedAt(cached.planCreatedAt);
+        setCacheNotice(
+          locale === "en"
+            ? "Showing your latest saved plan due to temporary connectivity issues."
+            : "Mostrando tu ultimo plan guardado por un problema temporal de conectividad."
+        );
+        return true;
+      };
+      try {
+        const db = getDbSafe();
+        if (!db) {
+          if (!recoverFromCache()) router.replace("/");
+          return;
+        }
+
+        const { collection, query, where, limit, getDocs } = await import("firebase/firestore");
+        const q = query(collection(db, "planes"), where("userId", "==", uid), limit(20));
+        const snapshot = await getDocs(q);
+
+        if (cancelled) return;
+        if (snapshot.empty) {
+          if (!recoverFromCache()) router.replace("/dashboard");
+          return;
+        }
+
+        const docs = snapshot.docs;
+        const parseDate = (value: unknown): Date | null => {
+          if (!value) return null;
+          if (typeof value === "object" && value && "toDate" in (value as Record<string, unknown>)) {
+            return (value as { toDate: () => Date }).toDate();
+          }
+          if (typeof value === "object" && value && "seconds" in (value as Record<string, unknown>)) {
+            const ts = value as { seconds: number; nanoseconds?: number };
+            return new Date(ts.seconds * 1000 + (ts.nanoseconds || 0) / 1000000);
+          }
+          if (typeof value === "string" || typeof value === "number") {
+            const d = new Date(value);
+            return isNaN(d.getTime()) ? null : d;
+          }
+          return null;
+        };
+
+        const bestDoc = docs
+          .map((d) => {
+            const data = d.data() as Record<string, unknown>;
+            const updatedAt = parseDate(data.updatedAt);
+            const createdAt = parseDate(data.createdAt);
+            const score = (updatedAt || createdAt)?.getTime() || 0;
+            return { d, score };
+          })
+          .sort((a, b) => b.score - a.score)[0]?.d;
+
+        if (!bestDoc) {
+          if (!recoverFromCache()) router.replace("/dashboard");
+          return;
+        }
+
+        const data = bestDoc.data() as Record<string, unknown>;
+        const nested = data.plan as { user?: UserInput; plan?: import("@/types/plan").PlanAIResponse } | undefined;
+
+        if (!nested?.user || !nested?.plan) {
+          if (!recoverFromCache()) router.replace("/dashboard");
+          return;
+        }
+
+        setUser(nested.user);
+        setPlan(nested.plan);
+        setPlanId(bestDoc.id);
+
+        const mpf = (data.planMultiFase || (nested.plan as unknown as Record<string, unknown>)?.planMultiFase) as PlanMultiFase | undefined;
+        setPlanMultiFase(mpf);
+
+        const createdAt = parseDate(data.createdAt);
+        if (createdAt) {
+          setPlanCreatedAt(createdAt.toISOString());
+        }
+        saveCachedPlanSnapshot(uid, {
+          planId: bestDoc.id,
+          user: nested.user,
+          plan: nested.plan,
+          planMultiFase: mpf,
+          planCreatedAt: createdAt ? createdAt.toISOString() : undefined,
+        });
+        setCacheNotice(null);
+      } catch (error) {
+        console.error("Error rehidratando plan al refrescar:", error);
+        if (!cancelled && !recoverFromCache()) router.replace("/");
+      } finally {
+        if (!cancelled) setRecoveringPlan(false);
+      }
+    };
+
+    void recoverPlanFromFirestore();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [plan, user, authUser?.uid, router, setPlan, setPlanCreatedAt, setPlanId, setPlanMultiFase, setUser]);
 
   // Estado local para la fecha de inicio del plan (se carga desde store o Firestore)
   const [fechaInicioPlan, setFechaInicioPlan] = useState<Date | null>(null);
@@ -190,6 +310,19 @@ export default function PlanPage() {
       console.error('Error al limpiar localStorage:', error);
     }
   }, [plan, user, planId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !plan || !user || !planId) return;
+    const uid = authUser?.uid || getAuthSafe()?.currentUser?.uid;
+    if (!uid) return;
+    saveCachedPlanSnapshot(uid, {
+      planId,
+      user,
+      plan,
+      planMultiFase,
+      planCreatedAt,
+    });
+  }, [authUser?.uid, plan, user, planId, planMultiFase, planCreatedAt]);
   
   // Valores editables de entrenamiento
   const [diasGymEditado, setDiasGymEditado] = useState<number | null>(null);
@@ -211,7 +344,6 @@ export default function PlanPage() {
   const [restriccionesTexto, setRestriccionesTexto] = useState("");
   const [patologiasTexto, setPatologiasTexto] = useState("");
   const [doloresLesionesTexto, setDoloresLesionesTexto] = useState("");
-  const [guardandoPDF, setGuardandoPDF] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
   const [premiumModalOpen, setPremiumModalOpen] = useState(false);
   
@@ -227,8 +359,6 @@ export default function PlanPage() {
   const [selectedDayData, setSelectedDayData] = useState<{ day: TrainingDayPlan; week: number; dayIndex: number } | null>(null);
   // Estado separado para el progreso del día seleccionado (evita loops)
   const [selectedDayProgress, setSelectedDayProgress] = useState<Record<string, { completed: number; total: number }>>({});
-  const [modalAlimentosAbierto, setModalAlimentosAbierto] = useState<null | { diaIdx: number }>(null);
-  const [foodDetails, setFoodDetails] = useState<Record<string, { ingredientes?: string[]; pasos_preparacion?: string[]; loading?: boolean; error?: string }>>({});
   const [foodTrackingModalOpen, setFoodTrackingModalOpen] = useState(false);
   const [weeklyStatsModalOpen, setWeeklyStatsModalOpen] = useState(false);
   const [imcModalOpen, setImcModalOpen] = useState(false);
@@ -1256,7 +1386,7 @@ export default function PlanPage() {
                           <span className="text-sm opacity-70">· {ejercicio.sets}x{String(ejercicio.reps)}</span>
                           {ejercicio.muscle_group && (
                             <span className="text-xs px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-                              {ejercicio.muscle_group}
+                              {translateMuscleGroup(ejercicio.muscle_group, locale)}
                             </span>
                           )}
                         </div>
@@ -1567,7 +1697,7 @@ export default function PlanPage() {
   }, [user, planId]);
 
   // Resumen de split de entrenamiento para el título
-  const splitResumen = (() => {
+  const splitResumen = useMemo(() => {
     const tp = (plan as unknown as Record<string, unknown>)?.training_plan as TrainingPlan | undefined;
     const days = (tp?.weeks || []).flatMap((w: TrainingWeek) => w?.days || []);
     
@@ -1639,7 +1769,10 @@ export default function PlanPage() {
     if (hasUpper && hasLower && splits.size <= 2) return 'Upper/Lower';
     if (hasPush && hasPull && hasLegs && splits.size <= 3) return 'Push/Pull/Legs';
     return splits.size > 0 ? 'Mixto' : 'Plan';
-  })();
+  }, [plan]);
+
+  const hasTrainingPlan = Boolean((plan as unknown as Record<string, unknown>)?.training_plan);
+  const hasFoodPlan = Boolean(plan?.plan_semanal && plan.plan_semanal.length > 0);
   
   // Verificar estado premium del usuario
   useEffect(() => {
@@ -1792,61 +1925,6 @@ export default function PlanPage() {
     (user.tipoDieta || undefined) !== (valoresOriginales.tipoDieta || undefined)
   ) : false;
   
-  // Helper para obtener texto del objetivo (versión corta para badge)
-  const getObjetivoTexto = (objetivo: Goal) => {
-    const textos: Record<Goal, string> = {
-      perder_grasa: "Perder peso",
-      mantener: "Mantener",
-      ganar_masa: "Aumentar peso",
-      recomposicion: "Transformación Total",
-      definicion: "Definición Extrema",
-      volumen: "Hipertrofia Máxima",
-      corte: "Corte Avanzado",
-      mantenimiento_avanzado: "Mantenimiento Elite",
-      rendimiento_deportivo: "Rendimiento Deportivo",
-      powerlifting: "Powerlifting/Fuerza",
-      resistencia: "Resistencia/Endurance",
-      atleta_elite: "Atleta Elite",
-      bulk_cut: "Bulk + Cut",
-      lean_bulk: "Lean Bulk",
-    };
-    return textos[objetivo] || objetivo;
-  };
-  
-  // Helper para obtener texto de intensidad
-  const getIntensidadTexto = (intensidad: Intensidad) => {
-    return intensidad.charAt(0).toUpperCase() + intensidad.slice(1);
-  };
-  
-  // Helper para obtener texto de dieta
-  const getDietaTexto = (dieta?: TipoDieta) => {
-    if (!dieta || dieta === "estandar") return "Estándar";
-    const textos: Record<TipoDieta, string> = {
-      estandar: "Estándar",
-      antiinflamatoria: "Antiinflamatoria",
-      atkins: "Atkins",
-      clinica_mayo: "Clínica Mayo",
-      dash: "DASH",
-      flexitariana: "Flexitariana",
-      keto: "Keto",
-      low_carb: "Low Carb",
-      mind: "MIND",
-      mediterranea: "Mediterránea",
-      menopausia: "Menopausia",
-      paleo: "Paleo",
-      pescatariana: "Pescatariana",
-      sin_gluten: "Sin Gluten",
-      tlc: "TLC",
-      vegana: "Vegana",
-      vegetariana: "Vegetariana",
-    };
-    return textos[dieta] || dieta;
-  };
-
-  useEffect(() => {
-    if (!plan) router.replace("/");
-  }, [plan, router]);
-
   useEffect(() => {
     // Esta función ya no se usa, pero se mantiene por compatibilidad
   }, [plan]);
@@ -1868,7 +1946,8 @@ export default function PlanPage() {
         intensidadFinal,
         user.edad,
         bmi,
-        user.atletico
+        user.atletico,
+        locale
       );
       
       // Actualizar valores de entrenamiento si no están editados manualmente
@@ -1884,7 +1963,7 @@ export default function PlanPage() {
       const resp = await fetch("/api/generatePlan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(userActualizado),
+        body: JSON.stringify({ ...userActualizado, userId: authUser?.uid, locale }),
       });
       
       if (!resp.ok) {
@@ -1936,6 +2015,7 @@ export default function PlanPage() {
               objetivo: userActualizado.objetivo, // Guardar objetivo
               atletico: Boolean(userActualizado.atletico), // Guardar perfil atlético
               doloresLesiones: Array.isArray(userActualizado.doloresLesiones) ? userActualizado.doloresLesiones : [],
+              appLocale: locale,
               updatedAt: serverTimestamp(),
             };
             
@@ -2050,7 +2130,8 @@ export default function PlanPage() {
         user.intensidad,
         user.edad,
         bmiOriginal,
-        user.atletico
+        user.atletico,
+        locale
       );
       
       valoresOriginalesPlan.current = {
@@ -2061,12 +2142,22 @@ export default function PlanPage() {
         minutosCaminata: recomendacionesOriginales.minutosCaminata
       };
     }
-  }, [user, plan]);
+  }, [user, plan, locale]);
 
   // NO actualizar automáticamente las recomendaciones cuando solo cambia el select
   // Solo se actualizan cuando el usuario regenera el plan explícitamente
 
-  if (!plan) return null;
+  if (!plan || !user) {
+    if (!recoveringPlan) return null;
+    return (
+      <div className="min-h-screen">
+        <Navbar />
+        <div className="flex min-h-[50vh] items-center justify-center px-4">
+          <div className="text-sm text-[var(--landing-muted)]">{p(locale, "loadingPlan")}</div>
+        </div>
+      </div>
+    );
+  }
 
 
 
@@ -2086,7 +2177,8 @@ export default function PlanPage() {
     user.intensidad,
     user.edad,
     bmi,
-    user.atletico
+    user.atletico,
+    locale
   ) : null;
 
   // Ajustar días de gym según lesiones reportadas
@@ -2118,18 +2210,12 @@ export default function PlanPage() {
     }
   };
 
-  // Priorizar valores originales del plan guardado, luego valores editados, luego valores del user actual, luego sugerencias ajustadas por lesiones, luego defaults
-  const diasGymOriginal = valoresOriginalesPlan.current?.diasGym;
+  // En recomendaciones mostramos como base el valor sugerido ajustado por lesiones.
+  // Si el usuario modifica manualmente el campo, se respeta su edición local.
   const diasGymSugeridoAjustado = sugerenciaEntrenamiento 
     ? ajustarDiasGymPorLesiones(sugerenciaEntrenamiento.diasGym)
     : 3;
-  const diasGymActual = diasGymEditado !== null 
-    ? diasGymEditado 
-    : (diasGymOriginal !== undefined && diasGymOriginal !== null
-      ? diasGymOriginal
-      : (user?.diasGym !== undefined && user.diasGym !== null 
-        ? ajustarDiasGymPorLesiones(user.diasGym)
-        : diasGymSugeridoAjustado));
+  const diasGymActual = diasGymEditado !== null ? diasGymEditado : diasGymSugeridoAjustado;
   
   // Para minutos de caminata, usar valores originales del plan primero
   const minutosCaminataOriginal = valoresOriginalesPlan.current?.minutosCaminata;
@@ -2151,23 +2237,74 @@ export default function PlanPage() {
       ? valoresOriginalesPlan.current.horasSueno
       : (sugerenciaEntrenamiento?.horasSueno || 7));
   
-  // Usar proyecciones de OpenAI si están disponibles, sino calcular localmente como fallback
-  const proyecciones = (plan as unknown as Record<string, unknown>)?.proyecciones 
+  // Premium: prioriza proyecciones IA si existen. Gratis: cálculo local sin IA.
+  const proyeccionesIA = (plan as unknown as Record<string, unknown>)?.proyecciones
     ? (plan as unknown as Record<string, unknown>).proyecciones as {
         musculoGananciaMensual?: string;
         grasaPerdidaMensual?: string;
         proyecciones: string[];
         tiempoEstimado: string;
       }
-    : (user ? calcularProyeccionesMotivacionales(
-        user.objetivo,
-        user.intensidad,
-        user.edad,
-        user.sexo,
-        bmi,
-        user.atletico,
-        diasGymActual
-      ) : null);
+    : null;
+  const proyeccionesLocales = user ? calcularProyeccionesMotivacionales(
+    user.objetivo,
+    user.intensidad,
+    user.edad,
+    user.sexo,
+    bmi,
+    user.atletico,
+    diasGymActual,
+    locale
+  ) : null;
+  const proyecciones = isPremium ? (proyeccionesIA ?? proyeccionesLocales) : proyeccionesLocales;
+  const extraerPromedioMensual = (texto?: string): number | null => {
+    if (!texto) return null;
+    const nums = (texto.match(/\d+(?:[.,]\d+)?/g) || []).map((n) => Number(n.replace(",", "."))).filter((n) => Number.isFinite(n));
+    if (nums.length === 0) return null;
+    const avg = nums.reduce((a, b) => a + b, 0) / nums.length;
+    return Number.isFinite(avg) ? avg : null;
+  };
+  const mesesCambiosVisibles = (() => {
+    if (!isPremium) {
+      const absDiff = Math.abs(deficitSuperavit);
+      return absDiff >= 400 ? 2 : 3;
+    }
+    const match = proyecciones?.tiempoEstimado?.match(/\d+/);
+    const n = match ? Number(match[0]) : 2;
+    return Number.isFinite(n) && n > 0 ? n : 2;
+  })();
+  const mesesProyeccionPeso = Math.max(2, Math.min(mesesCambiosVisibles, 3));
+  const deltaMensualGrasa = extraerPromedioMensual(proyecciones?.grasaPerdidaMensual);
+  const deltaMensualMusculo = extraerPromedioMensual(proyecciones?.musculoGananciaMensual);
+  const deltaMensualPorCalorias = (() => {
+    // Aproximación fisiológica estándar: 7700 kcal ~ 1 kg de peso corporal.
+    const kgPorMes = (deficitSuperavit * 30) / 7700;
+    if (!Number.isFinite(kgPorMes)) return 0;
+    return kgPorMes;
+  })();
+  const deltaPesoProyectado = (() => {
+    const obj = user?.objetivo;
+    if (!obj) return 0;
+    if (!isPremium) {
+      const deltaLocal = deltaMensualPorCalorias * mesesProyeccionPeso;
+      // Limites conservadores para evitar promesas irreales en modo gratuito.
+      const min = -1.2 * mesesProyeccionPeso;
+      const max = 1.2 * mesesProyeccionPeso;
+      return Math.max(min, Math.min(deltaLocal, max));
+    }
+    if (obj === "perder_grasa" || obj === "definicion" || obj === "corte") {
+      return -((deltaMensualGrasa ?? 0.6) * mesesProyeccionPeso);
+    }
+    if (obj === "ganar_masa" || obj === "volumen" || obj === "bulk_cut" || obj === "lean_bulk") {
+      return (deltaMensualMusculo ?? 0.7) * mesesProyeccionPeso;
+    }
+    if (obj === "recomposicion") {
+      return (deltaMensualMusculo ?? 0.4) * mesesProyeccionPeso;
+    }
+    return 0;
+  })();
+  const pesoProyectado = Math.max(35, Number((pesoActual + deltaPesoProyectado).toFixed(1)));
+  const deltaTextoPeso = `${deltaPesoProyectado >= 0 ? "+" : ""}${deltaPesoProyectado.toFixed(1)} kg`;
   
   // Ajustar sugerencias de entrenamiento según lesiones para comparación
   const sugerenciaEntrenamientoAjustada = (sugerenciaEntrenamiento ? {
@@ -2194,16 +2331,17 @@ export default function PlanPage() {
     sugerenciaEntrenamientoAjustada.horasSueno,
     horasSuenoActual,
     Number((plan as unknown as Record<string, unknown>)?.minutos_sesion_gym) || 75,
-    minutosGymEditado !== null ? minutosGymEditado : (Number((plan as unknown as Record<string, unknown>)?.minutos_sesion_gym) || 75)
+    minutosGymEditado !== null ? minutosGymEditado : (Number((plan as unknown as Record<string, unknown>)?.minutos_sesion_gym) || 75),
+    locale
   ) : null;
   const bmiText =
     bmiCat === "bajo_peso"
-      ? "Bajo peso"
+      ? p(locale, "underweight")
       : bmiCat === "saludable"
-      ? "Saludable"
-      : bmiCat === "sobrepeso"
-      ? "Sobrepeso"
-      : "Obesidad";
+        ? p(locale, "bmiHealthy")
+        : bmiCat === "sobrepeso"
+          ? p(locale, "bmiOverweight")
+          : p(locale, "obesity");
 
   const distrib = plan.distribucion_diaria_pct;
   // Normalizar snack/snacks para manejar ambos casos (compatibilidad con respuestas que usen "snack" o "snacks")
@@ -2214,6 +2352,8 @@ export default function PlanPage() {
   const snackCalculado = distribTyped && !distribTyped.snacks && !distribTyped.snack && distribTyped.desayuno && distribTyped.almuerzo && distribTyped.cena
     ? Math.max(0, 100 - (distribTyped.desayuno + distribTyped.almuerzo + distribTyped.cena))
     : snackPct;
+
+  const dateLocale = locale === "en" ? "en-US" : "es-AR";
 
   function bmiPercent(b: number): number {
     // Mapea IMC al rango 15-35 -> 0-100
@@ -2349,6 +2489,8 @@ export default function PlanPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...userInput,
+          userId: authUser?.uid,
+          locale,
           // Contexto adicional para el siguiente mes
           _contextoMultiFase: {
             mesActual: siguienteMes,
@@ -2622,27 +2764,30 @@ export default function PlanPage() {
     const rec = sugerenciaEntrenamientoAjustada as ReturnType<typeof sugerirEntrenamiento> | null;
     if (!rec) return null;
     return (
-    <div key="sugerencias-entrenamiento" className="mt-6 rounded-xl border border-white/10 p-4 bg-gradient-to-r from-white/5 to-white/10">
-      <h2 className="text-lg font-semibold mb-3">💪 Recomendaciones de entrenamiento y recuperación</h2>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div>
+    <div
+      key="sugerencias-entrenamiento"
+      className="mt-6 rounded-2xl border border-[var(--landing-border)] bg-[var(--landing-surface)] p-4"
+    >
+      <h2 className="mb-3 text-lg font-semibold text-[var(--foreground)]">💪 {p(locale, "trainingRecoveryHeading")}</h2>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className="rounded-xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--foreground)_3%,transparent)] p-3">
           <div className="flex items-center justify-between mb-1">
-            <p className="text-sm font-medium opacity-90">
-              Días de gym:
-              <span className="ml-2 text-xs opacity-70">
+            <p className="text-sm font-medium text-[var(--foreground)]">
+              {p(locale, "gymDaysLabel")}
+              <span className="ml-2 text-xs text-[var(--landing-muted)]">
                 (≈ {(() => {
                   const min = minutosGymEditado !== null ? minutosGymEditado : (Number((plan as unknown as Record<string, unknown>)?.minutos_sesion_gym) || 75);
                   const total = Math.max(0, Math.round(min));
                   const h = Math.floor(total / 60);
                   const m = total % 60;
                   const hStr = h > 0 ? `${h} h` : "0 h";
-                  const mStr = m > 0 ? ` ${m} min` : "";
-                  return `${hStr}${mStr} por día`;
+                  const mStr = m > 0 ? ` ${m} ${p(locale, "minAbbr")}` : "";
+                  return locale === "en" ? `${hStr}${mStr} per day` : `${hStr}${mStr} por día`;
                 })()})
               </span>
             </p>
             {rec.diasGym !== diasGymActual && (
-                      <span className="text-xs opacity-70">(sugerido: {rec.diasGym})</span>
+                      <span className="text-xs text-[var(--landing-muted)]">{pFmt(locale, "suggestedShort", { n: rec.diasGym })}</span>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -2652,12 +2797,12 @@ export default function PlanPage() {
               max="7"
               value={diasGymActual}
               onChange={(e) => setDiasGymEditado(Number(e.target.value))}
-              className="text-2xl font-bold bg-transparent border-b-2 border-white/20 focus:border-white/50 outline-none w-16"
+              className="w-16 border-b-2 border-[var(--landing-border)] bg-transparent text-2xl font-bold text-[var(--foreground)] outline-none focus:border-[color-mix(in_oklab,var(--landing-accent)_45%,transparent)]"
             />
-            <span className="text-2xl font-bold">días por semana</span>
+            <span className="text-2xl font-bold text-[var(--foreground)]">{p(locale, "dayPerWeek")}</span>
           </div>
           <div className="flex items-center gap-2 mt-2">
-            <span className="text-sm opacity-80 min-w-[130px]">Duración por sesión:</span>
+            <span className="min-w-[130px] text-sm text-[var(--landing-muted)]">{p(locale, "sessionDuration")}</span>
             <input
               type="number"
               min="30"
@@ -2665,17 +2810,17 @@ export default function PlanPage() {
               step="5"
               value={minutosGymEditado !== null ? minutosGymEditado : (Number((plan as unknown as Record<string, unknown>)?.minutos_sesion_gym) || 75)}
               onChange={(e) => setMinutosGymEditado(Number(e.target.value))}
-              className="text-lg font-semibold bg-transparent border-b-2 border-white/20 focus:border-white/50 outline-none w-24"
+              className="w-24 border-b-2 border-[var(--landing-border)] bg-transparent text-lg font-semibold text-[var(--foreground)] outline-none focus:border-[color-mix(in_oklab,var(--landing-accent)_45%,transparent)]"
             />
-            <span className="text-sm font-medium">min</span>
+            <span className="text-sm font-medium text-[var(--foreground)]">{p(locale, "minAbbr")}</span>
           </div>
-          <p className="text-xs opacity-75 mt-1">Entrenamiento de fuerza con pesas</p>
+          <p className="mt-1 text-xs text-[var(--landing-muted)]">{p(locale, "strengthTraining")}</p>
         </div>
-        <div>
+        <div className="rounded-xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--foreground)_3%,transparent)] p-3">
           <div className="flex items-center justify-between mb-1">
-            <p className="text-sm font-medium opacity-90">Caminata diaria:</p>
+            <p className="text-sm font-medium text-[var(--foreground)]">{p(locale, "dailyWalk")}</p>
             {rec.minutosCaminata !== minutosCaminataActual && (
-              <span className="text-xs opacity-70">(sugerido: {rec.minutosCaminata})</span>
+              <span className="text-xs text-[var(--landing-muted)]">{pFmt(locale, "suggestedShort", { n: rec.minutosCaminata })}</span>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -2686,21 +2831,21 @@ export default function PlanPage() {
               step="5"
               value={minutosCaminataActual}
               onChange={(e) => setMinutosCaminataEditado(Number(e.target.value))}
-              className="text-2xl font-bold bg-transparent border-b-2 border-white/20 focus:border-white/50 outline-none w-16"
+              className="w-16 border-b-2 border-[var(--landing-border)] bg-transparent text-2xl font-bold text-[var(--foreground)] outline-none focus:border-[color-mix(in_oklab,var(--landing-accent)_45%,transparent)]"
             />
-            <span className="text-2xl font-bold">minutos</span>
+            <span className="text-2xl font-bold text-[var(--foreground)]">{p(locale, "minutes")}</span>
           </div>
-          <p className="text-xs opacity-75 mt-1">Caminata moderada todos los días</p>
+          <p className="mt-1 text-xs text-[var(--landing-muted)]">{p(locale, "moderateWalkDaily")}</p>
         </div>
-        <div>
+        <div className="rounded-xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--foreground)_3%,transparent)] p-3">
           <div className="flex items-center justify-between mb-1">
-            <p className="text-sm font-medium opacity-90 flex items-center gap-2">
-              Horas de sueño:
+            <p className="flex items-center gap-2 text-sm font-medium text-[var(--foreground)]">
+              {p(locale, "sleepHoursHeading")}
               <button
                 type="button"
                 onClick={() => setModalInfoAbierto('sueno')}
                 className="inline-flex items-center cursor-pointer hover:opacity-100 transition-opacity"
-                aria-label="Info sueño y siesta"
+                aria-label={p(locale, "sleepHelpAria")}
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -2713,7 +2858,7 @@ export default function PlanPage() {
               </button>
             </p>
             {rec.horasSueno !== horasSuenoActual && (
-              <span className="text-xs opacity-70">(sugerido: {rec.horasSueno})</span>
+              <span className="text-xs text-[var(--landing-muted)]">{pFmt(locale, "suggestedShort", { n: rec.horasSueno })}</span>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -2724,27 +2869,27 @@ export default function PlanPage() {
               step="0.5"
               value={horasSuenoActual}
               onChange={(e) => setHorasSuenoEditado(Number(e.target.value))}
-              className="text-2xl font-bold bg-transparent border-b-2 border-white/20 focus:border-white/50 outline-none w-20"
+              className="w-20 border-b-2 border-[var(--landing-border)] bg-transparent text-2xl font-bold text-[var(--foreground)] outline-none focus:border-[color-mix(in_oklab,var(--landing-accent)_45%,transparent)]"
             />
-            <span className="text-2xl font-bold">horas</span>
+            <span className="text-2xl font-bold text-[var(--foreground)]">{p(locale, "hours")}</span>
           </div>
-          <p className="text-xs opacity-75 mt-1">Para óptima recuperación diaria</p>
+          <p className="mt-1 text-xs text-[var(--landing-muted)]">{p(locale, "sleepRecovery")}</p>
         </div>
       </div>
-      <p className="mt-3 text-sm opacity-80 leading-relaxed">
+      <p className="mt-3 text-sm leading-relaxed text-[var(--foreground)]">
         {rec.descripcion}
       </p>
       {analisisCambios && (analisisCambios.pros.length > 0 || analisisCambios.contras.length > 0) && (
-        <div className="mt-4 pt-4 border-t border-white/10">
-          <h3 className="text-sm font-semibold mb-3">📊 Impacto de tus cambios:</h3>
+        <div className="mt-4 border-t border-[var(--landing-border)] pt-4">
+          <h3 className="mb-3 text-sm font-semibold text-[var(--foreground)]">📊 {p(locale, "impactChangesHeading")}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {analisisCambios.pros.length > 0 && (
               <div>
-                <p className="text-sm font-medium text-emerald-400 mb-2">✅ Pros:</p>
+                <p className="mb-2 text-sm font-medium text-[var(--brand-end)]">✅ {p(locale, "prosHeading")}</p>
                 <ul className="space-y-1">
                   {analisisCambios.pros.map((pro, idx) => (
                     <li key={`pro-${idx}-${pro}`} className="text-xs opacity-90 flex items-start gap-2">
-                      <span className="text-emerald-400 mt-1">•</span>
+                      <span className="mt-1 text-[var(--brand-end)]">•</span>
                       <span>{pro}</span>
                     </li>
                   ))}
@@ -2753,11 +2898,11 @@ export default function PlanPage() {
             )}
             {analisisCambios.contras.length > 0 && (
               <div>
-                <p className="text-sm font-medium text-orange-400 mb-2">⚠️ Contras:</p>
+                <p className="mb-2 text-sm font-medium text-[var(--brand-start)]">⚠️ {p(locale, "consHeading")}</p>
                 <ul className="space-y-1">
                   {analisisCambios.contras.map((contra, idx) => (
                     <li key={`contra-${idx}-${contra}`} className="text-xs opacity-90 flex items-start gap-2">
-                      <span className="text-orange-400 mt-1">•</span>
+                      <span className="mt-1 text-[var(--brand-start)]">•</span>
                       <span>{contra}</span>
                     </li>
                   ))}
@@ -2768,8 +2913,8 @@ export default function PlanPage() {
         </div>
       )}
       {user?.doloresLesiones && user.doloresLesiones.filter((s: string) => typeof s === "string" && s.trim().length > 0).length > 0 && (
-        <div className="mt-4 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-100">
-          <p className="font-medium text-cyan-100 flex items-center gap-2">
+        <div className="mt-4 rounded-lg border border-[color-mix(in_oklab,var(--landing-accent)_35%,transparent)] bg-[color-mix(in_oklab,var(--landing-accent)_14%,transparent)] px-3 py-2 text-xs text-[var(--foreground)]">
+          <p className="flex items-center gap-2 font-medium text-[var(--foreground)]">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 24 24"
@@ -2778,13 +2923,13 @@ export default function PlanPage() {
             >
               <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm1.971-6.279-.675.693A3.375 3.375 0 0 0 12.75 14.25h-1.5a4.875 4.875 0 0 1 1.425-3.45l.93-.936a1.875 1.875 0 1 0-3.195-1.326h-1.5a3.375 3.375 0 1 1 6.03 1.283Z" />
             </svg>
-            Entrenamiento adaptado para proteger:
+            {p(locale, "recInjuriesTitle")}
           </p>
-          <p className="mt-1 text-cyan-100/80">
+          <p className="mt-1 text-[var(--foreground)]/80">
             {user.doloresLesiones.filter((s: string) => typeof s === "string" && s.trim().length > 0).join(", ")}
           </p>
           <p className="mt-1 opacity-80">
-            Incluye calentamientos dirigidos, variaciones seguras y recordatorios de técnica para evitar agravar estas zonas.
+            {p(locale, "recInjuriesFoot")}
           </p>
         </div>
       )}
@@ -2796,7 +2941,7 @@ export default function PlanPage() {
   return (
     <div className="min-h-screen">
       <Head>
-        <title>Mi Plan de Alimentación y Entrenamiento | FitPlan AI</title>
+        <title>{p(locale, "headTitle")}</title>
         <meta name="description" content="Tu plan de alimentación y entrenamiento personalizado con IA. Menú semanal detallado, rutinas de gym y seguimiento de progreso." />
         <meta name="robots" content="noindex, nofollow" />
         <meta property="og:title" content="Mi Plan | FitPlan AI" />
@@ -2804,11 +2949,16 @@ export default function PlanPage() {
       </Head>
       <Navbar />
       <div className="px-4 py-8 md:px-8">
-      <div className="mx-auto max-w-5xl">
+      <div className="mx-auto max-w-6xl">
+        {cacheNotice ? (
+          <div className="mb-4 rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+            {cacheNotice}
+          </div>
+        ) : null}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          className="glass rounded-2xl p-6 md:p-8"
+          className="space-y-6"
         >
           <div className="flex flex-col gap-2">
             {/* Banner de Plan Multi-Fase */}
@@ -3198,15 +3348,15 @@ export default function PlanPage() {
               return <MultiPhaseContinuityBanner />;
             })()}
             
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-            <h1 className="text-2xl md:text-3xl font-semibold">Tu plan inteligente</h1>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+            <h1 className="text-3xl font-bold tracking-tight text-[var(--foreground)] md:text-4xl">{p(locale, "smartPlanHeading")}</h1>
               <div className="flex gap-3">
                 <div className="relative group">
                   <button
                     className={`rounded-xl px-4 py-2 text-sm font-medium border transition-colors ${
                       !isPremium 
-                        ? 'bg-blue-500/10 border-blue-500/20 text-blue-300/50 cursor-not-allowed opacity-50' 
-                        : 'bg-blue-500/20 border-blue-500/30 hover:bg-blue-500/30'
+                        ? 'bg-[var(--landing-surface)] border-[var(--landing-border)] text-[var(--landing-muted)] cursor-not-allowed opacity-50' 
+                        : 'bg-[var(--landing-surface)] border-[var(--landing-border)] text-[var(--foreground)] hover:border-[color-mix(in_oklab,var(--landing-accent)_45%,transparent)]'
                     }`}
                     onClick={() => {
                       if (!isPremium) return;
@@ -3221,309 +3371,17 @@ export default function PlanPage() {
                     }}
                     disabled={!isPremium}
                   >
-                    ✏️ Editar
+                    {p(locale, "edit")}
                   </button>
                   {!isPremium && (
-                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gradient-to-r from-yellow-500/95 to-orange-500/95 text-white text-xs font-medium rounded-lg shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 border border-yellow-400/50">
-                      💳 Requiere Premium para editar el plan
+                    <div className="absolute bottom-full left-1/2 z-50 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg border border-yellow-400/50 bg-gradient-to-r from-yellow-500/95 to-orange-500/95 px-3 py-2 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-200 pointer-events-none group-hover:opacity-100">
+                      💳 {p(locale, "requiresPremiumEdit")}
                       <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
                         <div className="w-2 h-2 bg-gradient-to-r from-yellow-500 to-orange-500 rotate-45 border-r border-b border-yellow-400/50"></div>
                       </div>
                     </div>
                   )}
                 </div>
-                <div className="relative group">
-                  <button
-                    className={`rounded-xl px-4 py-2 text-sm font-medium border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                      !isPremium 
-                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300/50 cursor-not-allowed opacity-50' 
-                        : 'bg-emerald-500/20 border-emerald-500/30 hover:bg-emerald-500/30'
-                    }`}
-                    onClick={async () => {
-                      if (!isPremium) return;
-                    if (!plan || !user) return;
-                    setGuardandoPDF(true);
-                    try {
-                      const pdf = new jsPDF('p', 'mm', 'a4');
-                      const pageWidth = pdf.internal.pageSize.getWidth();
-                      const pageHeight = pdf.internal.pageSize.getHeight();
-                      let yPos = 20;
-                      const margin = 20;
-                      const maxWidth = pageWidth - (margin * 2);
-                      
-                      // Colores de marca (coinciden con la web)
-                      const colorAzul: [number, number, number] = [59, 130, 246]; // blue-500 #3b82f6
-                      const colorVerde: [number, number, number] = [16, 185, 129]; // emerald-500 #10b981
-                      const colorCyan: [number, number, number] = [6, 182, 212]; // cyan-500 #06b6d4
-                      const colorFondo: [number, number, number] = [11, 16, 32]; // background #0b1020
-                      const colorTexto: [number, number, number] = [230, 246, 255]; // foreground #e6f6ff
-                      const colorSubtitulo: [number, number, number] = [203, 213, 225]; // slate-300
-                      const colorFondoOscuro: [number, number, number] = [30, 41, 59]; // slate-800 para cajas
-                      
-                      // Helper para dibujar fondo oscuro en una página
-                      const drawDarkBackground = () => {
-                        pdf.setFillColor(colorFondo[0], colorFondo[1], colorFondo[2]);
-                        pdf.rect(0, 0, pageWidth, pageHeight, 'F');
-                      };
-                      
-                      // Helper para verificar si necesita nueva página
-                      const checkNewPage = (neededSpace: number) => {
-                        if (yPos + neededSpace > pageHeight - 30) {
-                          pdf.addPage();
-                          // Dibujar fondo oscuro en la nueva página
-                          drawDarkBackground();
-                          yPos = 20;
-                          return true;
-                        }
-                        return false;
-                      };
-                      
-                      // Helper para dibujar caja con fondo
-                      const drawBox = (x: number, y: number, w: number, h: number, fillColor?: [number, number, number], strokeColor?: [number, number, number]) => {
-                        if (fillColor) {
-                          pdf.setFillColor(fillColor[0], fillColor[1], fillColor[2]);
-                        }
-                        if (strokeColor) {
-                          pdf.setDrawColor(strokeColor[0], strokeColor[1], strokeColor[2]);
-                          pdf.setLineWidth(0.5);
-                        }
-                        pdf.rect(x, y, w, h, fillColor ? 'FD' : (strokeColor ? 'D' : 'S'));
-                      };
-                      
-                      // Helper para dibujar línea decorativa
-                      const drawLine = (x: number, y: number, w: number, color: [number, number, number], width = 0.5) => {
-                        pdf.setDrawColor(color[0], color[1], color[2]);
-                        pdf.setLineWidth(width);
-                        pdf.line(x, y, x + w, y);
-                      };
-                      
-                      // Fondo oscuro (simulado con rectángulo)
-                      pdf.setFillColor(colorFondo[0], colorFondo[1], colorFondo[2]);
-                      pdf.rect(0, 0, pageWidth, pageHeight, 'F');
-                      
-                      // Header con gradiente simulado
-                      const azulClaro: [number, number, number] = [96, 165, 250]; // blue-400 para fondo más claro
-                      drawBox(margin, yPos - 5, maxWidth, 35, azulClaro, colorAzul);
-                      pdf.setTextColor(colorAzul[0], colorAzul[1], colorAzul[2]);
-                      pdf.setFontSize(28);
-                      pdf.setFont('helvetica', 'bold');
-                      pdf.text('Tu Plan Inteligente', margin + 10, yPos + 12);
-                      
-                      if (user.nombre) {
-                        pdf.setTextColor(colorSubtitulo[0], colorSubtitulo[1], colorSubtitulo[2]);
-                        pdf.setFontSize(11);
-                        pdf.setFont('helvetica', 'normal');
-                        pdf.text(`Generado para ${user.nombre}`, margin + 10, yPos + 22);
-                      }
-                      
-                      pdf.setTextColor(colorCyan[0], colorCyan[1], colorCyan[2]);
-                      pdf.setFontSize(9);
-                      pdf.text(`Fecha: ${new Date().toLocaleDateString('es-AR', { year: 'numeric', month: 'long', day: 'numeric' })}`, margin + 10, yPos + 28);
-                      
-                      yPos += 45;
-                      checkNewPage(5);
-                      
-                      // Información General en caja destacada
-                      const infoBoxY = yPos;
-                      drawBox(margin, yPos, maxWidth, 70, colorFondoOscuro, colorAzul);
-                      
-                      pdf.setTextColor(colorVerde[0], colorVerde[1], colorVerde[2]);
-                      pdf.setFontSize(16);
-                      pdf.setFont('helvetica', 'bold');
-                      pdf.text('Información General', margin + 8, yPos + 10);
-                      drawLine(margin + 8, yPos + 12, maxWidth - 16, colorVerde, 1);
-                      
-                      yPos += 18;
-                      pdf.setTextColor(colorTexto[0], colorTexto[1], colorTexto[2]);
-                      pdf.setFontSize(10);
-                      pdf.setFont('helvetica', 'normal');
-                      
-                      const infoItems = [
-                        { label: 'Calorías diarias', value: `${plan.calorias_diarias} kcal` },
-                        { label: 'Proteínas', value: plan.macros.proteinas },
-                        { label: 'Grasas', value: plan.macros.grasas },
-                        { label: 'Carbohidratos', value: plan.macros.carbohidratos },
-                      ];
-                      
-                      if (user.objetivo) {
-                        infoItems.push({ label: 'Objetivo', value: getObjetivoTexto(user.objetivo) });
-                      }
-                      if (user.intensidad) {
-                        infoItems.push({ label: 'Intensidad', value: getIntensidadTexto(user.intensidad) });
-                      }
-                      if (user.tipoDieta) {
-                        infoItems.push({ label: 'Dieta', value: getDietaTexto(user.tipoDieta) });
-                      }
-                      
-                      // Layout de dos columnas para información
-                      const colWidth = maxWidth / 2 - 5;
-                      infoItems.forEach((item, idx) => {
-                        const col = idx % 2;
-                        const x = margin + 8 + (col * (colWidth + 10));
-                        const lineY = yPos + (Math.floor(idx / 2) * 8);
-                        
-                        pdf.setTextColor(colorSubtitulo[0], colorSubtitulo[1], colorSubtitulo[2]);
-                        pdf.text(`${item.label}:`, x, lineY);
-                        pdf.setTextColor(colorTexto[0], colorTexto[1], colorTexto[2]);
-                        pdf.setFont('helvetica', 'bold');
-                        pdf.text(item.value, x + 35, lineY);
-                        pdf.setFont('helvetica', 'normal');
-                      });
-                      
-                      yPos = infoBoxY + 75;
-                      checkNewPage(10);
-                      
-                      // Plan Semanal
-                      pdf.setTextColor(colorVerde[0], colorVerde[1], colorVerde[2]);
-                      pdf.setFontSize(18);
-                      pdf.setFont('helvetica', 'bold');
-                      pdf.text('Plan Semanal', margin, yPos);
-                      drawLine(margin, yPos + 3, maxWidth, colorVerde, 1.5);
-                      yPos += 12;
-                      
-                      plan.plan_semanal.forEach((dia) => {
-                        checkNewPage(30);
-                        
-                        // Caja para cada día
-                        const azulMuyClaro: [number, number, number] = [147, 197, 253]; // blue-300 para fondo
-                        drawBox(margin, yPos, maxWidth, 25, azulMuyClaro, colorAzul);
-                        
-                        pdf.setTextColor(colorAzul[0], colorAzul[1], colorAzul[2]);
-                        pdf.setFontSize(14);
-                        pdf.setFont('helvetica', 'bold');
-                        pdf.text(dia.dia, margin + 8, yPos + 8);
-                        
-                        yPos += 30;
-                        
-                        // Ordenar comidas
-                        const ordenComidas = ['Desayuno', 'Almuerzo', 'Snack', 'Merienda', 'Cena'];
-                        const comidasOrdenadas = [...dia.comidas].sort((a, b) => {
-                          const nombreA = (a.nombre || '').trim();
-                          const nombreB = (b.nombre || '').trim();
-                          const indexA = ordenComidas.findIndex(o => nombreA === o);
-                          const indexB = ordenComidas.findIndex(o => nombreB === o);
-                          if (indexA === -1 && indexB === -1) {
-                            return (a.hora || '00:00').localeCompare(b.hora || '00:00');
-                          }
-                          if (indexA === -1) return 999;
-                          if (indexB === -1) return -999;
-                          return indexA - indexB;
-                        });
-                        
-                        comidasOrdenadas.forEach((comida) => {
-                          checkNewPage(25);
-                          
-                          // Caja pequeña para cada comida
-                          drawBox(margin + 5, yPos, maxWidth - 10, 20, colorFondoOscuro, colorCyan);
-                          
-                          // Hora y nombre
-                          pdf.setTextColor(colorCyan[0], colorCyan[1], colorCyan[2]);
-                          pdf.setFontSize(10);
-                          pdf.setFont('helvetica', 'bold');
-                          pdf.text(`${comida.hora}`, margin + 10, yPos + 7);
-                          
-                          pdf.setTextColor(colorTexto[0], colorTexto[1], colorTexto[2]);
-                          pdf.text(comida.nombre, margin + 30, yPos + 7);
-                          
-                          // Opciones principales
-                          yPos += 12;
-                          pdf.setFontSize(9);
-                          pdf.setFont('helvetica', 'normal');
-                          pdf.setTextColor(colorSubtitulo[0], colorSubtitulo[1], colorSubtitulo[2]);
-                          const opcionesTexto = comida.opciones.slice(0, 2).join(' • ');
-                          const opcionesLines = pdf.splitTextToSize(opcionesTexto, maxWidth - 25);
-                          pdf.text(opcionesLines, margin + 10, yPos);
-                          yPos += opcionesLines.length * 4 + 2;
-                          
-                          // Info nutricional si está disponible
-                          if (comida.calorias_kcal || comida.cantidad_gramos) {
-                            const info = [];
-                            if (comida.calorias_kcal) info.push(`${comida.calorias_kcal} kcal`);
-                            if (comida.cantidad_gramos) info.push(`${comida.cantidad_gramos} g`);
-                            pdf.setTextColor(colorVerde[0], colorVerde[1], colorVerde[2]);
-                            pdf.setFontSize(8);
-                            pdf.text(info.join(' • '), margin + 10, yPos);
-                            yPos += 4;
-                          }
-                          
-                          yPos += 3;
-                        });
-                        
-                        yPos += 5;
-                      });
-                      
-                      // Lista de compras
-                      if (plan.lista_compras && plan.lista_compras.length > 0) {
-                        checkNewPage(40);
-                        
-                        pdf.setTextColor(colorVerde[0], colorVerde[1], colorVerde[2]);
-                        pdf.setFontSize(18);
-                        pdf.setFont('helvetica', 'bold');
-                        pdf.text('Lista de Compras', margin, yPos);
-                        drawLine(margin, yPos + 3, maxWidth, colorVerde, 1.5);
-                        yPos += 12;
-                        
-                        // Caja para lista
-                        const listaLength = plan.lista_compras?.length || 0;
-                        const listaHeight = Math.min(listaLength * 6 + 10, pageHeight - yPos - 30);
-                        drawBox(margin, yPos, maxWidth, listaHeight, colorFondoOscuro, colorVerde);
-                        
-                        yPos += 8;
-                        plan.lista_compras.forEach((item, idx) => {
-                          if (yPos > pageHeight - 30) {
-                            pdf.addPage();
-                            drawDarkBackground();
-                            yPos = 30;
-                            const remainingHeight = Math.min((listaLength - idx) * 6 + 10, pageHeight - yPos - 20);
-                            drawBox(margin, yPos - 8, maxWidth, remainingHeight, colorFondoOscuro, colorVerde);
-                            yPos += 8;
-                          }
-                          pdf.setTextColor(colorTexto[0], colorTexto[1], colorTexto[2]);
-                          pdf.setFontSize(10);
-                          pdf.setFont('helvetica', 'normal');
-                          pdf.text(`• ${item}`, margin + 8, yPos);
-                          yPos += 6;
-                        });
-                        yPos += 5;
-                      }
-                      
-                      // Mensaje motivacional
-                      if (plan.mensaje_motivacional) {
-                        checkNewPage(40);
-                        
-                        // Caja destacada para mensaje
-                        const verdeClaro: [number, number, number] = [110, 231, 183]; // emerald-300 para fondo
-                        drawBox(margin, yPos, maxWidth, 30, verdeClaro, colorVerde);
-                        
-                        pdf.setTextColor(colorVerde[0], colorVerde[1], colorVerde[2]);
-                        pdf.setFontSize(11);
-                        pdf.setFont('helvetica', 'italic');
-                        const mensajeLines = pdf.splitTextToSize(plan.mensaje_motivacional, maxWidth - 16);
-                        pdf.text(mensajeLines, margin + 8, yPos + 10);
-                        yPos += mensajeLines.length * 5 + 15;
-                      }
-                      
-                      // Footer
-                      const footerY = pageHeight - 15;
-                      pdf.setTextColor(colorSubtitulo[0], colorSubtitulo[1], colorSubtitulo[2]);
-                      pdf.setFontSize(8);
-                      pdf.setFont('helvetica', 'normal');
-                      pdf.text('Generado con FitPlan AI', pageWidth / 2, footerY, { align: 'center' });
-                      
-                      const nombreArchivo = user?.nombre ? `Plan_${user.nombre}_${new Date().toISOString().split('T')[0]}.pdf` : `Plan_${new Date().toISOString().split('T')[0]}.pdf`;
-                      pdf.save(nombreArchivo);
-                    } catch (error) {
-                      console.error('Error al generar PDF:', error);
-                      alert('Error al generar el PDF. Por favor, intenta de nuevo.');
-                    } finally {
-                      setGuardandoPDF(false);
-                    }
-                  }}
-                  disabled={guardandoPDF}
-                >
-                  {guardandoPDF ? '⏳ Guardando...' : '💾 Guardar PDF'}
-                </button>
-                
                 </div>
                 
                 {/* Botón Generar Siguiente Mes - Solo para planes multi-fase */}
@@ -3531,44 +3389,43 @@ export default function PlanPage() {
                 
                 {!isPremium && (
                   <button
-                    className="rounded-xl px-4 py-2 text-sm font-medium bg-blue-500/20 border border-blue-500/30 hover:bg-blue-500/30 transition-colors"
+                    className="rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] px-4 py-2 text-sm font-medium text-[var(--foreground)] transition-colors hover:border-[color-mix(in_oklab,var(--landing-accent)_45%,transparent)]"
                     onClick={() => {
                       if (!authUser) {
-                        alert("Debes estar registrado para acceder al plan Premium");
+                        alert(p(locale, "registerForPremium"));
                         return;
                       }
                       setPremiumModalOpen(true);
                     }}
                   >
-                    🌟 Ser premium
+                    🌟 {p(locale, "premiumCta")}
                   </button>
                 )}
-              </div>
             </div>
             {user?.nombre ? (
-              <p className="text-sm opacity-80">Hola {user.nombre}, este es tu plan personalizado.</p>
+              <p className="text-sm text-[var(--landing-muted)]">{p(locale, "greeting")} {user.nombre}, {p(locale, "planIntro")}</p>
             ) : null}
             {user && (
               <div className="flex flex-wrap items-center gap-3 mt-2">
                 {/* Objetivo - Solo lectura */}
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
-                  <span className="text-xs opacity-70 whitespace-nowrap flex-shrink-0">Objetivo:</span>
-                  <span className="text-sm font-medium text-white whitespace-nowrap max-w-[150px] md:max-w-none truncate">
-                    {getObjetivoTexto(user.objetivo)}
+                <div className="inline-flex items-center gap-2 rounded-lg border border-[var(--landing-border)] bg-[var(--landing-surface)] px-3 py-1.5">
+                  <span className="text-xs text-[var(--landing-muted)] whitespace-nowrap flex-shrink-0">{p(locale, "goal")}</span>
+                  <span className="text-sm font-medium text-[var(--foreground)] whitespace-nowrap max-w-[150px] md:max-w-none truncate">
+                    {goalLabel(locale, user.objetivo)}
                   </span>
                       </div>
                 {/* Intensidad - Solo lectura */}
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
-                  <span className="text-xs opacity-70 whitespace-nowrap">Intensidad:</span>
-                  <span className="text-sm font-medium text-white capitalize">
-                    {getIntensidadTexto(user.intensidad)}
+                <div className="inline-flex items-center gap-2 rounded-lg border border-[var(--landing-border)] bg-[var(--landing-surface)] px-3 py-1.5">
+                  <span className="text-xs text-[var(--landing-muted)] whitespace-nowrap">{p(locale, "intensity")}</span>
+                  <span className="text-sm font-medium text-[var(--foreground)] capitalize">
+                    {intensityLabel(locale, user.intensidad)}
                     </span>
                         </div>
                 {/* Dieta - Solo lectura */}
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
-                    <span className="text-xs opacity-70 whitespace-nowrap">Dieta:</span>
-                  <span className="text-sm font-medium text-white">
-                    {getDietaTexto(user.tipoDieta)}
+                <div className="inline-flex items-center gap-2 rounded-lg border border-[var(--landing-border)] bg-[var(--landing-surface)] px-3 py-1.5">
+                    <span className="text-xs text-[var(--landing-muted)] whitespace-nowrap">{p(locale, "diet")}</span>
+                  <span className="text-sm font-medium text-[var(--foreground)]">
+                    {dietTypeLabel(locale, user.tipoDieta)}
                   </span>
                 </div>
                 {plan?.dificultad && (
@@ -3578,13 +3435,13 @@ export default function PlanPage() {
                       borderColor: plan.dificultad === 'dificil' ? 'rgba(248,113,113,0.4)' : plan.dificultad === 'media' ? 'rgba(250,204,21,0.4)' : 'rgba(52,211,153,0.4)'
                     }}
                   >
-                    <span className="text-xs opacity-70 whitespace-nowrap">Dificultad:</span>
+                    <span className="text-xs opacity-70 whitespace-nowrap">{p(locale, "difficulty")}</span>
                     <span className="text-sm font-medium capitalize"
                       style={{
                         color: plan.dificultad === 'dificil' ? '#fecaca' : plan.dificultad === 'media' ? '#fde68a' : '#a7f3d0'
                       }}
                     >
-                      {plan.dificultad}
+                      {difficultyLabel(locale, plan.dificultad)}
                     </span>
                   </div>
                 )}
@@ -3592,9 +3449,9 @@ export default function PlanPage() {
                   <button
                     onClick={regenerarPlan}
                     disabled={regenerandoPlan}
-                    className="inline-flex px-4 py-1.5 rounded-lg bg-blue-500/20 border border-blue-500/30 hover:bg-blue-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium whitespace-nowrap"
+                    className="inline-flex rounded-lg border border-[var(--landing-border)] bg-[var(--landing-surface)] px-4 py-1.5 text-sm font-medium text-[var(--foreground)] transition-colors hover:border-[color-mix(in_oklab,var(--landing-accent)_45%,transparent)] disabled:cursor-not-allowed disabled:opacity-50 whitespace-nowrap"
                   >
-                    {regenerandoPlan ? "Regenerando..." : "🔄 Regenerar plan"}
+                    {regenerandoPlan ? p(locale, "regenerating") : `🔄 ${p(locale, "regeneratePlan")}`}
                   </button>
                 )}
                 {errorRegeneracion && (
@@ -3604,458 +3461,529 @@ export default function PlanPage() {
             )}
           </div>
 
-          {/* Primera fila: Peso - Calorías - IMC */}
-          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-            <div className="rounded-xl border border-white/10 bg-black/30 p-4">
-              <p className="text-sm opacity-70">Peso actual</p>
-              <p className="text-2xl font-bold">{pesoActual} kg</p>
-              {user?.alturaCm ? (
-                <div className="mt-2 space-y-1">
-                  <p className="text-xs opacity-75">Altura: {user.alturaCm} cm</p>
+          {/* Resumen corporal y energético */}
+          <section className="mt-2">
+            <div className="mb-2">
+              <h2 className="text-base font-semibold text-[var(--foreground)]">{p(locale, "todaySummary")}</h2>
+              <p className="text-xs text-[var(--landing-muted)]">{p(locale, "todaySummarySub")}</p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="rounded-2xl border border-[var(--landing-border)] bg-[var(--landing-surface)] p-4">
+                <p className="text-xs uppercase tracking-wide text-[var(--landing-muted)]">{p(locale, "currentWeight")}</p>
+                <p className="mt-1 text-3xl font-bold text-[var(--foreground)]">{pesoActual} kg</p>
+                <p className="mt-2 text-xs text-[var(--landing-muted)]">
+                  {pFmt(locale, "weightProjectedLine", { months: mesesProyeccionPeso })}{" "}
+                  <span className="font-semibold text-emerald-300">{pesoProyectado} kg</span>
+                </p>
+                <div className="mt-3 rounded-lg bg-[color-mix(in_oklab,var(--foreground)_4%,transparent)] px-3 py-2 text-xs text-[var(--landing-muted)]">
+                  {pFmt(locale, "weightDeltaBlurb", { delta: deltaTextoPeso })}
                 </div>
-              ) : null}
-            </div>
-            <div className="rounded-xl border border-white/10 bg-black/30 p-4">
-              <p className="text-sm opacity-70">Calorías diarias</p>
-              <p className="text-2xl font-bold">{plan.calorias_diarias} kcal</p>
-              {tdee > 0 ? (
-                <div className="mt-2 space-y-1">
-                  <p className="text-xs opacity-75">Mantenimiento: {tdee} kcal</p>
-                  {Math.abs(deficitSuperavit) > 50 ? (
-                    <p className={`text-xs font-medium ${deficitSuperavit < 0 ? "text-green-400" : "text-orange-400"}`}>
-                      {deficitSuperavit < 0 ? `Déficit: ${Math.abs(deficitSuperavit)} kcal/día` : `Superávit: +${deficitSuperavit} kcal/día`}
-                    </p>
-                  ) : (
-                    <p className="text-xs opacity-75">Equilibrio calórico</p>
-                  )}
-            </div>
-              ) : null}
-            </div>
-            <div className="rounded-xl border border-white/10 bg-black/30 p-4 relative overflow-visible">
-              <p className="flex items-center gap-2 text-sm opacity-70">
-                IMC estimado
-                <button
-                  type="button"
-                  onClick={() => setModalInfoAbierto('imc')}
-                  className="inline-flex items-center cursor-pointer hover:opacity-100 transition-opacity"
-                  aria-label="¿Qué es el IMC?"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                    className="h-4 w-4 opacity-90"
-                  >
-                    <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm1.971-6.279-.675.693A3.375 3.375 0 0 0 12.75 14.25h-1.5a4.875 4.875 0 0 1 1.425-3.45l.93-.936a1.875 1.875 0 1 0-3.195-1.326h-1.5a3.375 3.375 0 1 1 6.03 1.283Z" />
-                  </svg>
-                </button>
-              </p>
-              <p className="text-2xl font-bold">{bmi.toFixed(1) || "-"}</p>
-              <p className="text-sm opacity-80">Según tu altura y peso: {bmi ? bmiText : "completa tus datos"}</p>
-              {/* Indicador visual Mal → Excelente */}
-              <div className="mt-3">
-                <div className="flex items-center justify-between text-[10px] uppercase tracking-wide opacity-70">
-                  <span>Bajo peso</span>
-                  <span>Obesidad</span>
-            </div>
-                <div className="relative mt-2 h-2 w-full rounded-full"
-                  style={{
-                    background: bmiGradient,
-                  }}
-                >
-                  {/* Resaltado del rango de tu categoría */}
-                  <div
-                    className="absolute top-0 h-2 rounded-full"
-                    style={{
-                      left: `${activeRangeStart}%`,
-                      width: `${Math.max(activeRangeEnd - activeRangeStart, 2)}%`,
-                      background: activeRangeColor + '66',
-                    }}
-                    aria-hidden
-                  />
-                  {/* Marcador */}
-                  <div
-                    className="absolute -top-1.5 h-2.5 w-2.5 rounded-full border-2 border-white shadow-md"
-                    style={{ left: `${bmiPct}%`, transform: "translateX(-50%)", background: activeRangeColor }}
-                    aria-label="Indicador de estado IMC"
-                  />
-                  {/* Marcas */}
-                  <div className="absolute -bottom-1 left-0 right-0">
-                    <div className="relative h-2 w-full">
-                      <span className="absolute h-2 w-px bg-white/50" style={{ left: `${p18}%` }} />
-                      <span className="absolute h-2 w-px bg-white/50" style={{ left: `${p25}%` }} />
-                      <span className="absolute h-2 w-px bg-white/50" style={{ left: `${p30}%` }} />
               </div>
-            </div>
-          </div>
-                {bmi ? (
-                  <div className="mt-2 flex items-center justify-between text-xs">
-                    <span className="opacity-75">Tu estado actual:</span>
-                    <span
-                      className="rounded-full px-3 py-1 text-white"
-                      style={{ background: bmiBadgeColor() }}
-                    >
+
+              <div className="rounded-2xl border border-[var(--landing-border)] bg-[var(--landing-surface)] p-4">
+                <p className="text-xs uppercase tracking-wide text-[var(--landing-muted)]">{p(locale, "dailyCalories")}</p>
+                <p className="mt-1 text-3xl font-bold text-[var(--foreground)]">{plan.calorias_diarias} kcal</p>
+                {tdee > 0 ? (
+                  <div className="mt-3 space-y-1 text-xs">
+                    <p className="text-[var(--landing-muted)]">{p(locale, "maintenance")} {tdee} kcal</p>
+                    {Math.abs(deficitSuperavit) > 50 ? (
+                      <p className={`font-semibold ${deficitSuperavit < 0 ? "text-emerald-300" : "text-[var(--brand-start)]"}`}>
+                        {deficitSuperavit < 0
+                          ? pFmt(locale, "deficitKcalDay", { n: Math.abs(deficitSuperavit) })
+                          : pFmt(locale, "surplusKcalDay", { n: deficitSuperavit })}
+                      </p>
+                    ) : (
+                      <p className="text-[var(--landing-muted)]">{p(locale, "kcalBalance")}</p>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="relative overflow-visible rounded-2xl border border-[var(--landing-border)] bg-[var(--landing-surface)] p-4">
+                <p className="flex items-center gap-2 text-xs uppercase tracking-wide text-[var(--landing-muted)]">
+                  {p(locale, "estimatedBmi")}
+                  <button
+                    type="button"
+                    onClick={() => setModalInfoAbierto('imc')}
+                    className="inline-flex items-center cursor-pointer transition-opacity hover:opacity-100"
+                    aria-label={p(locale, "bmiWhatIsAria")}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4 opacity-90">
+                      <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm1.971-6.279-.675.693A3.375 3.375 0 0 0 12.75 14.25h-1.5a4.875 4.875 0 0 1 1.425-3.45l.93-.936a1.875 1.875 0 1 0-3.195-1.326h-1.5a3.375 3.375 0 1 1 6.03 1.283Z" />
+                    </svg>
+                  </button>
+                </p>
+                <div className="mt-1 flex items-end gap-2">
+                  <p className="text-3xl font-bold text-[var(--foreground)]">{bmi.toFixed(1) || "-"}</p>
+                  {bmi ? (
+                    <span className="mb-1 rounded-full px-2 py-0.5 text-[10px] font-semibold text-white" style={{ background: bmiBadgeColor() }}>
                       {bmiText}
                     </span>
+                  ) : null}
+                </div>
+                <p className="mt-1 text-xs text-[var(--landing-muted)]">{p(locale, "bmiHint")}</p>
+
+                <div className="mt-3">
+                  <div className="flex items-center justify-between text-[10px] uppercase tracking-wide text-[var(--landing-muted)]">
+                    <span>{p(locale, "underweight")}</span>
+                    <span>{p(locale, "obesity")}</span>
+                  </div>
+                  <div className="relative mt-2 h-2 w-full rounded-full" style={{ background: bmiGradient }}>
+                    <div
+                      className="absolute top-0 h-2 rounded-full"
+                      style={{
+                        left: `${activeRangeStart}%`,
+                        width: `${Math.max(activeRangeEnd - activeRangeStart, 2)}%`,
+                        background: activeRangeColor + "66",
+                      }}
+                      aria-hidden
+                    />
+                    <div
+                      className="absolute -top-1.5 h-2.5 w-2.5 rounded-full border-2 border-white shadow-md"
+                      style={{ left: `${bmiPct}%`, transform: "translateX(-50%)", background: activeRangeColor }}
+                      aria-label={p(locale, "bmiGaugeAria")}
+                    />
+                    <div className="absolute -bottom-1 left-0 right-0">
+                      <div className="relative h-2 w-full">
+                        <span className="absolute h-2 w-px bg-white/50" style={{ left: `${p18}%` }} />
+                        <span className="absolute h-2 w-px bg-white/50" style={{ left: `${p25}%` }} />
+                        <span className="absolute h-2 w-px bg-white/50" style={{ left: `${p30}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Contexto del plan */}
+          <section className="mt-6">
+            <div className="mb-2">
+              <h2 className="text-base font-semibold text-[var(--foreground)]">{p(locale, "planContext")}</h2>
+              <p className="text-xs text-[var(--landing-muted)]">{p(locale, "planContextSub")}</p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+              <div className="rounded-2xl border border-[var(--landing-border)] bg-[var(--landing-surface)] p-4 lg:col-span-3">
+                <p className="mb-3 text-sm font-medium text-[var(--landing-muted)]">{p(locale, "planProgress")}</p>
+                <div className="space-y-3">
+                  <div>
+                    <p className="mb-1 text-xs text-[var(--landing-muted)]">
+                      {planMultiFase ? p(locale, "planStartCurrentPhase") : p(locale, "planStartDate")}
+                    </p>
+                    <p className="text-sm font-medium text-[var(--foreground)]">
+                      {(planMultiFase ? fechaInicioEtapaActual : fechaInicioPlan)
+                        ? (planMultiFase ? fechaInicioEtapaActual : fechaInicioPlan)!.toLocaleDateString(dateLocale, {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })
+                        : p(locale, "loadingShort")}
+                    </p>
+                  </div>
+
+                  {plan?.dificultad && (
+                    <div>
+                      <p className="mb-1 flex items-center gap-2 text-xs text-[var(--landing-muted)]">
+                        {p(locale, "planDifficultyLabel")}
+                        <button
+                          type="button"
+                          onClick={() => setModalInfoAbierto("dificultad")}
+                          className="inline-flex items-center cursor-pointer transition-opacity hover:opacity-100"
+                          aria-label={p(locale, "planDifficultyHelpAria")}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4 opacity-90">
+                            <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm1.971-6.279-.675.693A3.375 3.375 0 0 0 12.75 14.25h-1.5a4.875 4.875 0 0 1 1.425-3.45l.93-.936a1.875 1.875 0 1 0-3.195-1.326h-1.5a3.375 3.375 0 1 1 6.03 1.283Z" />
+                          </svg>
+                        </button>
+                      </p>
+                      <div
+                        className="inline-flex items-center gap-2 rounded-md border px-2.5 py-1"
+                        style={{
+                          backgroundColor: "rgba(255,255,255,0.05)",
+                          borderColor:
+                            plan.dificultad === "dificil"
+                              ? "rgba(248,113,113,0.4)"
+                              : plan.dificultad === "media"
+                                ? "rgba(250,204,21,0.4)"
+                                : "rgba(52,211,153,0.4)",
+                        }}
+                      >
+                        <span
+                          className="text-xs font-medium capitalize"
+                          style={{
+                            color:
+                              plan.dificultad === "dificil"
+                                ? "#fecaca"
+                                : plan.dificultad === "media"
+                                  ? "#fde68a"
+                                  : "#a7f3d0",
+                          }}
+                        >
+                          {difficultyLabel(locale, plan.dificultad)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <p className="mb-1 text-xs text-[var(--landing-muted)]">{p(locale, "progressLabel")}</p>
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/10">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-[var(--brand-start)] to-[var(--brand-end)] transition-all duration-300"
+                          style={{ width: `${progresoPlan.porcentaje}%` }}
+                        />
+                      </div>
+                      <span className="text-xs font-semibold text-[var(--foreground)]">{Math.round(progresoPlan.porcentaje)}%</span>
+                    </div>
+                    <p className="mt-1 text-xs text-[var(--landing-muted)]">
+                      {pFmt(locale, "daysProgress", {
+                        current: progresoPlan.diasTranscurridos,
+                        total: plan?.duracion_plan_dias || 30,
+                      })}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-[var(--landing-border)] bg-[var(--landing-surface)] p-4 lg:col-span-3">
+                <p className="mb-3 text-sm font-medium text-[var(--landing-muted)]">{p(locale, "personalProfile")}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-lg bg-[color-mix(in_oklab,var(--foreground)_4%,transparent)] px-2.5 py-2">
+                    <p className="text-[10px] uppercase tracking-wide text-[var(--landing-muted)]">{p(locale, "sex")}</p>
+                    <p className="mt-1 text-sm font-semibold text-[var(--foreground)] capitalize">
+                      {user?.sexo
+                        ? user.sexo === "masculino"
+                          ? p(locale, "sexMale")
+                          : user.sexo === "femenino"
+                            ? p(locale, "sexFemale")
+                            : user.sexo
+                        : "—"}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-[color-mix(in_oklab,var(--foreground)_4%,transparent)] px-2.5 py-2">
+                    <p className="text-[10px] uppercase tracking-wide text-[var(--landing-muted)]">{p(locale, "age")}</p>
+                    <p className="mt-1 text-sm font-semibold text-[var(--foreground)]">
+                      {user?.edad ? `${user.edad} ${p(locale, "yearsOld")}` : "—"}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-[color-mix(in_oklab,var(--foreground)_4%,transparent)] px-2.5 py-2">
+                    <p className="text-[10px] uppercase tracking-wide text-[var(--landing-muted)]">{p(locale, "height")}</p>
+                    <p className="mt-1 text-sm font-semibold text-[var(--foreground)]">
+                      {user?.alturaCm ? `${user.alturaCm} cm` : "—"}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-[color-mix(in_oklab,var(--foreground)_4%,transparent)] px-2.5 py-2">
+                    <p className="text-[10px] uppercase tracking-wide text-[var(--landing-muted)]">{p(locale, "baseWeight")}</p>
+                    <p className="mt-1 text-sm font-semibold text-[var(--foreground)]">
+                      {user?.pesoKg ? `${user.pesoKg} kg` : "—"}
+                    </p>
+                  </div>
+                </div>
+
+                {(user?.pesoObjetivoKg || user?.atletico || user?.preferirRutina) && (
+                  <div className="mt-2.5 space-y-1.5">
+                    {user?.pesoObjetivoKg && (
+                      <p className="text-xs text-[var(--landing-muted)]">
+                        {p(locale, "targetWeightLine")}{" "}
+                        <span className="font-semibold text-[var(--foreground)]">{user.pesoObjetivoKg} kg</span>
+                      </p>
+                    )}
+                    {user?.atletico && (
+                      <p className="text-xs text-[var(--landing-muted)]">
+                        {p(locale, "athleticProfileYes")}{" "}
+                        <span className="font-semibold text-[var(--foreground)]">{p(locale, "yes")}</span>
+                      </p>
+                    )}
+                    {user?.preferirRutina && (
+                      <p className="text-xs text-[var(--landing-muted)]">
+                        {p(locale, "routineMealsActivated")}{" "}
+                        <span className="font-semibold text-[var(--foreground)]">{p(locale, "activated")}</span>
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-[var(--landing-border)] bg-[var(--landing-surface)] p-4 lg:col-span-3">
+                <p className="mb-3 flex items-center gap-2 text-sm font-medium text-[var(--landing-muted)]">
+                  {p(locale, "preferencesRestrictionsTitle")}
+                  {user?.doloresLesiones && user.doloresLesiones.filter((s: string) => typeof s === "string" && s.trim().length > 0).length > 0 && (
+                    <div className="group relative">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4 text-[var(--landing-accent)] opacity-80">
+                        <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm1.971-6.279-.675.693A3.375 3.375 0 0 0 12.75 14.25h-1.5a4.875 4.875 0 0 1 1.425-3.45l.93-.936a1.875 1.875 0 1 0-3.195-1.326h-1.5a3.375 3.375 0 1 1 6.03 1.283Z" />
+                      </svg>
+                      <div className="pointer-events-none absolute left-1/2 top-full z-40 mt-2 w-56 -translate-x-1/2 rounded-lg border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--background)_94%,#0b1020)] px-3 py-2 text-xs text-[var(--foreground)] opacity-0 shadow-lg transition-opacity duration-200 group-hover:opacity-100">
+                        {p(locale, "injuriesTooltipModerate")}{" "}
+                        <span className="font-medium">
+                          {user.doloresLesiones.filter((s: string) => typeof s === "string" && s.trim().length > 0).join(", ")}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </p>
+                <div className="space-y-2.5">
+                  {user?.preferencias && user.preferencias.filter((s: string) => typeof s === "string" && s.trim().length > 0).length > 0 && (
+                    <div>
+                      <p className="mb-1 text-xs font-medium text-[var(--landing-muted)]">{p(locale, "preferences")}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {user.preferencias.filter((s: string) => typeof s === "string" && s.trim().length > 0).map((pref: string, idx: number) => (
+                          <span key={`pref-${idx}-${pref}`} className="inline-flex items-center rounded-full border border-[color-mix(in_oklab,var(--brand-end)_35%,transparent)] bg-[color-mix(in_oklab,var(--brand-end)_20%,transparent)] px-2 py-0.5 text-xs text-[var(--foreground)]">
+                            {pref}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {user?.restricciones && user.restricciones.filter((s: string) => typeof s === "string" && s.trim().length > 0).length > 0 && (
+                    <div>
+                      <p className="mb-1 text-xs font-medium text-[var(--landing-muted)]">{p(locale, "restrictions")}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {user.restricciones.filter((s: string) => typeof s === "string" && s.trim().length > 0).map((restr: string, idx: number) => (
+                          <span key={`restr-${idx}-${restr}`} className="inline-flex items-center rounded-full border border-[color-mix(in_oklab,var(--brand-start)_35%,transparent)] bg-[color-mix(in_oklab,var(--brand-start)_20%,transparent)] px-2 py-0.5 text-xs text-[var(--foreground)]">
+                            {restr}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {user?.patologias && user.patologias.filter((s: string) => typeof s === "string" && s.trim().length > 0).length > 0 && (
+                    <div>
+                      <p className="mb-1 text-xs font-medium text-[var(--landing-muted)]">{p(locale, "conditions")}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {user.patologias.filter((s: string) => typeof s === "string" && s.trim().length > 0).map((pat: string, idx: number) => (
+                          <span key={`pat-${idx}-${pat}`} className="inline-flex items-center rounded-full border border-[color-mix(in_oklab,var(--landing-accent)_35%,transparent)] bg-[color-mix(in_oklab,var(--landing-accent)_20%,transparent)] px-2 py-0.5 text-xs text-[var(--foreground)]">
+                            {pat}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {user?.doloresLesiones && user.doloresLesiones.filter((s: string) => typeof s === "string" && s.trim().length > 0).length > 0 && (
+                    <div>
+                      <p className="mb-1 text-xs font-medium text-[var(--landing-muted)]">{p(locale, "painInjuries")}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {user.doloresLesiones.filter((s: string) => typeof s === "string" && s.trim().length > 0).map((dolor: string, idx: number) => (
+                          <span key={`dolor-${idx}-${dolor}`} className="inline-flex items-center rounded-full border border-[color-mix(in_oklab,var(--brand-mid)_35%,transparent)] bg-[color-mix(in_oklab,var(--brand-mid)_20%,transparent)] px-2 py-0.5 text-xs text-[var(--foreground)]">
+                            {dolor}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {(!user?.preferencias || user.preferencias.length === 0) &&
+                    (!user?.restricciones || user.restricciones.length === 0) &&
+                    (!user?.patologias || user.patologias.length === 0) &&
+                    (!user?.doloresLesiones || user.doloresLesiones.length === 0) && (
+                      <p className="text-xs text-[var(--landing-muted)]">{p(locale, "noPrefsRegistered")}</p>
+                    )}
+                </div>
+              </div>
+
+              <div className="relative overflow-visible rounded-2xl border border-[var(--landing-border)] bg-[var(--landing-surface)] p-4 lg:col-span-3">
+                <p className="flex items-center gap-2 text-sm font-medium text-[var(--landing-muted)]">
+                  {p(locale, "macrosSectionTitle")}
+                  <button
+                    type="button"
+                    onClick={() => setModalInfoAbierto("macros")}
+                    className="inline-flex items-center cursor-pointer transition-opacity hover:opacity-100"
+                    aria-label={p(locale, "macrosWhatAria")}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4 opacity-90">
+                      <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm1.971-6.279-.675.693A3.375 3.375 0 0 0 12.75 14.25h-1.5a4.875 4.875 0 0 1 1.425-3.45l.93-.936a1.875 1.875 0 1 0-3.195-1.326h-1.5a3.375 3.375 0 1 1 6.03 1.283Z" />
+                    </svg>
+                  </button>
+                </p>
+
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  <div className="rounded-lg bg-[color-mix(in_oklab,var(--foreground)_4%,transparent)] p-2 text-center">
+                    <p className="text-[10px] uppercase tracking-wide text-[var(--landing-muted)]">{p(locale, "protein")}</p>
+                    <p className="mt-1 text-sm font-semibold text-[var(--foreground)]">{plan.macros.proteinas}</p>
+                  </div>
+                  <div className="rounded-lg bg-[color-mix(in_oklab,var(--foreground)_4%,transparent)] p-2 text-center">
+                    <p className="text-[10px] uppercase tracking-wide text-[var(--landing-muted)]">{p(locale, "fats")}</p>
+                    <p className="mt-1 text-sm font-semibold text-[var(--foreground)]">{plan.macros.grasas}</p>
+                  </div>
+                  <div className="rounded-lg bg-[color-mix(in_oklab,var(--foreground)_4%,transparent)] p-2 text-center">
+                    <p className="text-[10px] uppercase tracking-wide text-[var(--landing-muted)]">{p(locale, "carbs")}</p>
+                    <p className="mt-1 text-sm font-semibold text-[var(--foreground)]">{plan.macros.carbohidratos}</p>
+                  </div>
+                </div>
+
+                {distrib ? (
+                  <div className="mt-3 rounded-lg bg-[color-mix(in_oklab,var(--foreground)_3%,transparent)] px-3 py-2 text-xs text-[var(--landing-muted)]">
+                    {pFmt(locale, "dailyDistribMeals", {
+                      b: distrib.desayuno || 0,
+                      l: distrib.almuerzo || 0,
+                      s: snackCalculado,
+                      c: distrib.cena || 0,
+                    })}
                   </div>
                 ) : null}
               </div>
             </div>
+
             {/* Composición opcional */}
             {(user?.cinturaCm && user?.cuelloCm) ? (
-              <div className="rounded-xl border border-white/10 p-4 md:col-span-2">
-                <p className="text-sm opacity-70">Composición estimada (opcional)</p>
+              <div className="mt-4 rounded-2xl border border-[var(--landing-border)] bg-[var(--landing-surface)] p-4">
+                <p className="text-sm font-medium text-[var(--landing-muted)]">{p(locale, "optionalComposition")}</p>
                 {(() => {
                   const bf = calculateBodyFatUSNavy(user!.sexo, user!.alturaCm, user!.cuelloCm, user!.cinturaCm, user!.caderaCm);
                   const bfCat = bodyFatCategory(user!.sexo, bf, user!.atletico);
                   const whtr = waistToHeightRatio(user!.cinturaCm, user!.alturaCm);
                   const whtrCat = whtrCategory(whtr ?? undefined);
                   return (
-                    <div className="mt-1 text-sm">
+                    <div className="mt-2 grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
                       {bf != null ? (
-                        <p className="opacity-90">Grasa corporal estimada: {bf}% {bfCat ? `· ${bfCat}` : ""}</p>
+                        <p className="text-[var(--foreground)]">
+                          {p(locale, "bodyFatEstimated")} {bf}% {bfCat ? `· ${bfCat}` : ""}
+                        </p>
                       ) : (
-                        <p className="opacity-70">Completá medidas para estimar % de grasa.</p>
+                        <p className="text-[var(--landing-muted)]">{p(locale, "addMeasuresHint")}</p>
                       )}
                       {whtr != null ? (
-                        <p className="opacity-90">Relación cintura/altura: {whtr} {whtrCat ? `· ${whtrCat}` : ""}</p>
+                        <p className="text-[var(--foreground)]">
+                          {p(locale, "waistHeightLabel")} {whtr} {whtrCat ? `· ${whtrCat}` : ""}
+                        </p>
                       ) : null}
-                      <p className="mt-1 text-xs opacity-70">Estas estimaciones son orientativas y no reemplazan evaluación clínica.</p>
+                      <p className="md:col-span-2 text-xs text-[var(--landing-muted)]">{p(locale, "bodyCompDisclaimerShort")}</p>
                     </div>
                   );
                 })()}
               </div>
             ) : null}
-          </div>
+          </section>
 
-          {/* Segunda fila: Progreso del plan - Información personal - Distribución de macros */}
-          <div className="mt-6 flex flex-col gap-4 md:flex-row">
-            {/* Cuadro de progreso del plan */}
-            <div className="rounded-xl border border-white/10 bg-black/30 p-4 md:w-1/4">
-              <p className="text-sm font-medium opacity-70 mb-3">Progreso del plan</p>
-                  <div className="space-y-3">
-                <div>
-                  <p className="text-xs opacity-70 mb-1">
-                    {planMultiFase ? "Inicio de la etapa actual:" : "Fecha de inicio del plan:"}
-                  </p>
-                  <p className="text-sm font-medium">
-                    {(planMultiFase ? fechaInicioEtapaActual : fechaInicioPlan)
-                      ? (planMultiFase ? fechaInicioEtapaActual : fechaInicioPlan)!.toLocaleDateString(
-                          'es-ES',
-                          { day: 'numeric', month: 'short', year: 'numeric' }
-                        )
-                      : 'Cargando...'}
-                  </p>
-                </div>
-                {plan?.dificultad && (
-                  <div>
-                    <p className="text-xs opacity-70 mb-1 flex items-center gap-2">
-                      Dificultad del plan
-                      <button
-                        type="button"
-                        onClick={() => setModalInfoAbierto('dificultad')}
-                        className="inline-flex items-center cursor-pointer hover:opacity-100 transition-opacity"
-                        aria-label="¿Qué implica esta dificultad?"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 24 24"
-                          fill="currentColor"
-                          className="h-4 w-4 opacity-90"
-                        >
-                          <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm1.971-6.279-.675.693A3.375 3.375 0 0 0 12.75 14.25h-1.5a4.875 4.875 0 0 1 1.425-3.45l.93-.936a1.875 1.875 0 1 0-3.195-1.326h-1.5a3.375 3.375 0 1 1 6.03 1.283Z" />
-                        </svg>
-                      </button>
-                    </p>
-                    <div
-                      className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md border"
-                      style={{
-                        backgroundColor: 'rgba(255,255,255,0.05)',
-                        borderColor: plan.dificultad === 'dificil' ? 'rgba(248,113,113,0.4)' : plan.dificultad === 'media' ? 'rgba(250,204,21,0.4)' : 'rgba(52,211,153,0.4)'
-                      }}
-                    >
-                      <span
-                        className="text-xs font-medium capitalize"
-                        style={{
-                          color: plan.dificultad === 'dificil' ? '#fecaca' : plan.dificultad === 'media' ? '#fde68a' : '#a7f3d0'
-                        }}
-                      >
-                        {plan.dificultad}
-                      </span>
-                      </div>
-                  </div>
-                )}
-                <div>
-                  <p className="text-xs opacity-70 mb-1">Progreso:</p>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full transition-all duration-300"
-                        style={{ width: `${progresoPlan.porcentaje}%` }}
-                      />
-                    </div>
-                    <span className="text-xs font-medium">
-                      {Math.round(progresoPlan.porcentaje)}%
-                    </span>
-                  </div>
-                  <p className="text-xs opacity-60 mt-1">
-                    {progresoPlan.diasTranscurridos} / {plan?.duracion_plan_dias || 30} días
-                  </p>
-                </div>
-              </div>
-            </div>
-            {/* Información personal */}
-            <div className="rounded-xl border border-white/10 bg-black/30 p-4 md:w-1/4">
-              <p className="text-sm font-medium opacity-70 mb-3 flex items-center gap-2">
-                Información personal
-                {user?.doloresLesiones && user.doloresLesiones.filter((s: string) => typeof s === "string" && s.trim().length > 0).length > 0 && (
-                  <div className="relative group">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                      className="h-4 w-4 opacity-80 text-cyan-200"
-                    >
-                      <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm1.971-6.279-.675.693A3.375 3.375 0 0 0 12.75 14.25h-1.5a4.875 4.875 0 0 1 1.425-3.45l.93-.936a1.875 1.875 0 1 0-3.195-1.326h-1.5a3.375 3.375 0 1 1 6.03 1.283Z" />
-                    </svg>
-                    <div className="pointer-events-none absolute left-1/2 top-full z-40 mt-2 w-56 -translate-x-1/2 rounded-lg border border-cyan-500/40 bg-black/90 px-3 py-2 text-xs text-cyan-50 opacity-0 shadow-lg transition-opacity duration-200 group-hover:opacity-100">
-                      Entrenamiento y recuperación moderados para:{" "}
-                      <span className="font-medium">
-                        {user.doloresLesiones.filter((s: string) => typeof s === "string" && s.trim().length > 0).join(", ")}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </p>
-                  <div className="space-y-3">
-                {user?.preferencias && user.preferencias.filter((s: string) => typeof s === 'string' && s.trim().length > 0).length > 0 && (
-                  <div>
-                    <p className="text-xs font-medium opacity-70 mb-1">Preferencias:</p>
-                    <div className="flex flex-wrap gap-1">
-                      {user.preferencias.filter((s: string) => typeof s === 'string' && s.trim().length > 0).map((pref: string, idx: number) => (
-                        <span key={`pref-${idx}-${pref}`} className="inline-flex items-center rounded-full px-2 py-0.5 text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                          {pref}
-                        </span>
-                    ))}
-                  </div>
-                      </div>
-                )}
-                {user?.restricciones && user.restricciones.filter((s: string) => typeof s === 'string' && s.trim().length > 0).length > 0 && (
-                  <div>
-                    <p className="text-xs font-medium opacity-70 mb-1">Restricciones:</p>
-                    <div className="flex flex-wrap gap-1">
-                      {user.restricciones.filter((s: string) => typeof s === 'string' && s.trim().length > 0).map((restr: string, idx: number) => (
-                        <span key={`restr-${idx}-${restr}`} className="inline-flex items-center rounded-full px-2 py-0.5 text-xs bg-orange-500/20 text-orange-300 border border-orange-500/30">
-                          {restr}
-                        </span>
-                    ))}
-                  </div>
-                  </div>
-                )}
-                {user?.patologias && user.patologias.filter((s: string) => typeof s === 'string' && s.trim().length > 0).length > 0 && (
-                  <div>
-                    <p className="text-xs font-medium opacity-70 mb-1">Patologías:</p>
-                    <div className="flex flex-wrap gap-1">
-                      {user.patologias.filter((s: string) => typeof s === 'string' && s.trim().length > 0).map((pat: string, idx: number) => (
-                        <span key={`pat-${idx}-${pat}`} className="inline-flex items-center rounded-full px-2 py-0.5 text-xs bg-red-500/20 text-red-300 border border-red-500/30">
-                          {pat}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {user?.doloresLesiones && user.doloresLesiones.filter((s: string) => typeof s === 'string' && s.trim().length > 0).length > 0 && (
-                  <div>
-                    <p className="text-xs font-medium opacity-70 mb-1">Dolores / Lesiones:</p>
-                    <div className="flex flex-wrap gap-1">
-                      {user.doloresLesiones.filter((s: string) => typeof s === 'string' && s.trim().length > 0).map((dolor: string, idx: number) => (
-                        <span key={`dolor-${idx}-${dolor}`} className="inline-flex items-center rounded-full px-2 py-0.5 text-xs bg-cyan-500/20 text-cyan-200 border border-cyan-500/30">
-                          {dolor}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {(!user?.preferencias || user.preferencias.length === 0) && 
-                 (!user?.restricciones || user.restricciones.length === 0) && 
-                 (!user?.patologias || user.patologias.length === 0) &&
-                 (!user?.doloresLesiones || user.doloresLesiones.length === 0) && (
-                  <p className="text-xs opacity-60">No hay preferencias, restricciones, patologías ni lesiones registradas</p>
-                )}
-              </div>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-black/30 p-4 md:w-1/2 self-start relative overflow-visible">
-              <p className="flex items-center gap-2 text-sm opacity-70">
-                Distribución de macronutrientes
-                <button
-                  type="button"
-                  onClick={() => setModalInfoAbierto('macros')}
-                  className="inline-flex items-center cursor-pointer hover:opacity-100 transition-opacity"
-                  aria-label="¿Qué son los macronutrientes?"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                    className="h-4 w-4 opacity-90"
-                  >
-                    <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm1.971-6.279-.675.693A3.375 3.375 0 0 0 12.75 14.25h-1.5a4.875 4.875 0 0 1 1.425-3.45l.93-.936a1.875 1.875 0 1 0-3.195-1.326h-1.5a3.375 3.375 0 1 1 6.03 1.283Z" />
-                  </svg>
-                </button>
-              </p>
-              <p className="mt-1 text-sm">Proteínas: {plan.macros.proteinas}</p>
-              <p className="text-sm">Grasas: {plan.macros.grasas}</p>
-              <p className="text-sm">Carbohidratos: {plan.macros.carbohidratos}</p>
-              {distrib ? (
-                <div className="mt-2 text-xs opacity-75">
-                  <p>
-                    Distribución diaria: Desayuno {distrib.desayuno || 0}% · Almuerzo {distrib.almuerzo || 0}% · Snacks {snackCalculado}% · Cena {distrib.cena || 0}%
-                  </p>
-                </div>
-              ) : null}
-            </div>
-          </div>
-
-          <p className="mt-4 text-sm opacity-80">{String((plan as unknown as Record<string, unknown>)?.mensaje_motivacional || '')}</p>
           {(() => {
             const content = _renderRecomendaciones();
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             return content as any;
           })()}
 
-          {/* Selector de vista (Entrenamiento/Alimentación) - Centrado */}
-          <div className="mt-6 flex items-center justify-center gap-3">
-            <div className="relative group">
-            <button
-                type="button"
-              onClick={() => {
-                  // Desbloqueado temporalmente para probar entrenamiento con templates
-                  setVistaPlan('entrenamiento');
-                  setCalendarResetKey(prev => prev + 1); // Forzar reset del calendario
-                }}
-                className={`px-4 py-2.5 text-sm font-medium rounded-lg border transition-colors relative ${
-                  vistaPlan === 'entrenamiento' 
-                    ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300' 
-                    : 'bg-white/5 border-white/10 text-white/80 hover:bg-white/10'
-                }`}
-              >
-                🏋️ Ver entrenamiento
-            </button>
-            </div>
+          {/* Selector de vista (Entrenamiento/Alimentación) */}
+          <div className="mt-6 grid grid-cols-1 gap-2 sm:grid-cols-2">
             <button
               type="button"
-              onClick={() => setVistaPlan('alimentacion')}
-              className={`px-4 py-2.5 text-sm font-medium rounded-lg border transition-colors ${vistaPlan === 'alimentacion' ? 'bg-cyan-500/20 border-cyan-500/30 text-cyan-300' : 'bg-white/5 border-white/10 text-white/80 hover:bg-white/10'}`}
+              onClick={() => {
+                setVistaPlan("entrenamiento");
+                setCalendarResetKey((prev) => prev + 1);
+              }}
+              className={`rounded-xl border px-4 py-3 text-left transition-colors ${
+                vistaPlan === "entrenamiento"
+                  ? "border-[color-mix(in_oklab,var(--brand-end)_45%,var(--landing-border))] bg-[color-mix(in_oklab,var(--brand-end)_14%,transparent)]"
+                  : "border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--foreground)_3%,transparent)] hover:bg-[color-mix(in_oklab,var(--foreground)_6%,transparent)]"
+              }`}
             >
-              🍽️ Ver alimentación
+              <p className="text-sm font-semibold text-[var(--foreground)]">🏋️ {p(locale, "viewTraining")}</p>
+              <p className="mt-1 text-xs text-[var(--landing-muted)]">
+                {hasTrainingPlan ? p(locale, "viewTrainingSub") : p(locale, "viewTrainingSubEmpty")}
+              </p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setVistaPlan("alimentacion")}
+              className={`rounded-xl border px-4 py-3 text-left transition-colors ${
+                vistaPlan === "alimentacion"
+                  ? "border-emerald-500/40 bg-emerald-500/15"
+                  : "border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--foreground)_3%,transparent)] hover:bg-[color-mix(in_oklab,var(--foreground)_6%,transparent)]"
+              }`}
+            >
+              <p className="text-sm font-semibold text-[var(--foreground)]">🍽️ {p(locale, "viewFood")}</p>
+              <p className="mt-1 text-xs text-[var(--landing-muted)]">
+                {hasFoodPlan ? p(locale, "viewFoodSub") : p(locale, "viewFoodSubEmpty")}
+              </p>
             </button>
           </div>
 
           {/* Calendario de entrenamiento */}
-          {vistaPlan === 'entrenamiento' && (plan as unknown as Record<string, unknown>)?.training_plan && (
-            <div className="mt-6">
-              {isPremium ? (
-                <TrainingCalendar
-                  key={`training-calendar-${vistaPlan}-${calendarResetKey}`}
-                  trainingPlan={(plan as unknown as Record<string, unknown>)?.training_plan as unknown as import("@/types/plan").TrainingPlan}
-                  // Para planes multi-fase, usar como inicio la fecha de la etapa/mes actual (30 días)
-                  // Para planes simples, usar la fecha de inicio completa del plan y su duración
-                  planStartDate={
-                    planMultiFase
-                      ? (fechaInicioEtapaActual || fechaInicioPlan || new Date())
-                      : (fechaInicioPlan || new Date())
-                  }
-                  planDurationDays={
-                    planMultiFase
-                      ? 30
-                      : (plan?.duracion_plan_dias || 30)
-                  }
-                  resetToCurrentMonth={true}
-                  onDaySelect={(date, dayData, week, dayIndex) => {
-                    // Prevenir procesamiento duplicado
-                    if (processingSelectionRef.current) {
-                      return;
-                    }
-
-                    // Marcar que estamos procesando
-                    processingSelectionRef.current = true;
-
-                    // CRITICO: Establecer selectedDayData PRIMERO antes de abrir el modal
-                    // Esto previene que el useEffect se ejecute y haga llamadas al backend
-                    if (dayData && dayData.ejercicios && dayData.ejercicios.length > 0) {
-                      // IMPORTANTE: Solo mostrar los datos del plan que ya estan en memoria
-                      // NO hacer NINGUNA llamada al backend
-                      // Los ejercicios, series, repeticiones, etc. ya estan en dayData (vienen de OpenAI)
-
-                      // Establecer selectedDayData PRIMERO (esto previene que el useEffect se ejecute)
-                      setSelectedDayData({ day: dayData, week, dayIndex });
-
-                      // Establecer la fecha seleccionada
-                      setSelectedTrainingDate(date);
-
-                      // Inicializar progreso vacio (solo para la UI, sin datos del backend)
-                      setSelectedDayProgress({});
-
-                      // Abrir el modal DESPUES de establecer selectedDayData
-                      // Usar setTimeout para asegurar que selectedDayData se establezca primero
-                      setTimeout(() => {
-                        setModalEntrenamientoAbierto(true);
-                        processingSelectionRef.current = false;
-                      }, 0);
-                    } else {
-                      // Dia sin entrenamiento
-                      setSelectedDayData(null);
-                      setSelectedTrainingDate(date);
-                      setSelectedDayProgress({});
-                      setTimeout(() => {
-                        setModalEntrenamientoAbierto(true);
-                        processingSelectionRef.current = false;
-                      }, 0);
-                    }
-                  }}
-                  selectedDate={selectedTrainingDate}
-                />
-              ) : (
-                <div className="bg-white/5 border border-white/10 rounded-lg p-6 mb-6">
-                  <h3 className="text-lg font-semibold text-white mb-4">📋 Tu Plan de Entrenamientos</h3>
-                  {((plan as unknown as Record<string, unknown>)?.training_plan as any)?.weeks?.[0]?.days && (
-                    <p className="text-sm text-white/70 mb-3">
-                      Frecuencia estimada: <strong>{((plan as unknown as Record<string, unknown>)?.training_plan as any).weeks[0].days.length}</strong> dia(s) por semana
-                    </p>
-                  )}
-                  {(plan as unknown as Record<string, unknown>)?.training_plan &&
-                    ((plan as unknown as Record<string, unknown>)?.training_plan as any)?.weeks?.length > 0 ? (
+          {vistaPlan === "entrenamiento" && (
+            <div className="mt-4 rounded-2xl border border-[var(--landing-border)] bg-[var(--landing-surface)] p-4 md:p-5">
+              {!hasTrainingPlan ? (
+                <div className="rounded-xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--foreground)_2%,transparent)] px-4 py-6 text-center">
+                  <p className="text-sm font-medium text-[var(--foreground)]">{p(locale, "noRoutineYet")}</p>
+                  <p className="mt-1 text-xs text-[var(--landing-muted)]">{p(locale, "noRoutineHint")}</p>
+                  <button
+                    type="button"
+                    onClick={() => setVistaPlan("alimentacion")}
+                    className="mt-3 rounded-lg border border-emerald-500/35 bg-emerald-500/15 px-3 py-1.5 text-xs font-medium text-[var(--foreground)] transition-colors hover:bg-emerald-500/25"
+                  >
+                    {p(locale, "goToFood")}
+                  </button>
+                </div>
+              ) : hasTrainingPlan ? (
+                <div>
+                  {(() => {
+                    const trainingPlanView = ((plan as unknown as Record<string, unknown>)?.training_plan as TrainingPlan | undefined);
+                    const weekList = trainingPlanView?.weeks ?? [];
+                    return (
+                      <>
+                  <div className="mb-3">
+                    <h3 className="text-base font-semibold text-[var(--foreground)]">{p(locale, "trainingPlanHeading")}</h3>
+                  </div>
+                  {weekList.length > 0 ? (
                     <div className="space-y-4">
-                      {((plan as unknown as Record<string, unknown>)?.training_plan as any).weeks.map((week: any, weekIdx: number) => (
-                        <div key={weekIdx} className="border border-white/10 rounded-lg overflow-hidden">
-                          <div className="bg-white/5 px-4 py-3 font-medium text-white/80">
-                            Mes {week.week || weekIdx + 1}
-                          </div>
-                          <div className="divide-y divide-white/10">
-                            {week.days?.map((day: any, dayIdx: number) => (
+                      {weekList.map((week, weekIdx) => (
+                        <div key={weekIdx} className="overflow-hidden rounded-lg border border-[var(--landing-border)]">
+                          <div className="divide-y divide-[var(--landing-border)]">
+                            {(week.days ?? []).map((day, dayIdx) => (
                               <details key={dayIdx} className="group">
-                                <summary className="cursor-pointer px-4 py-3 hover:bg-white/5 transition-colors flex items-center gap-2">
-                                  <span className="text-emerald-400">▶</span>
-                                  <span className="font-medium text-white/80">{day.day || `Día ${dayIdx + 1}`}</span>
-                                  <span className="text-white/50 text-sm ml-auto">
-                                    {day.ejercicios?.length || 0} ejercicio{day.ejercicios?.length !== 1 ? 's' : ''}
+                                <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 transition-colors hover:bg-[color-mix(in_oklab,var(--foreground)_4%,transparent)]">
+                                  {(() => {
+                                    const grupos = Array.from(
+                                      new Set(
+                                        (day.ejercicios ?? [])
+                                          .map((ex) => (typeof ex.muscle_group === "string" ? ex.muscle_group.trim() : ""))
+                                          .filter((g) => g.length > 0)
+                                      )
+                                    );
+                                    return (
+                                      <span className="text-sm font-semibold text-[var(--foreground)]">
+                                        {translatePlanDayLabel(day.day || `Día ${dayIdx + 1}`, locale)}
+                                        {grupos.length > 0 ? ` (${grupos.join(", ")})` : ""}
+                                      </span>
+                                    );
+                                  })()}
+                                  <span className="ml-auto text-sm text-[var(--landing-muted)]">
+                                    {exerciseCountLabel(locale, day.ejercicios?.length || 0)}
                                   </span>
                                 </summary>
-                                <div className="bg-white/5 px-4 py-4 space-y-3">
+                                <div className="space-y-3 bg-[color-mix(in_oklab,var(--foreground)_3%,transparent)] px-4 py-4">
                                   {day.ejercicios && day.ejercicios.length > 0 ? (
-                                    day.ejercicios.map((ex: any, exIdx: number) => (
-                                      <div key={exIdx} className="bg-white/5 border border-white/10 rounded p-3 text-sm">
-                                        <div className="font-medium text-emerald-300">{ex.name}</div>
-                                        <div className="text-white/70 mt-1 space-y-0.5">
-                                          <div>💪 {ex.sets} series x {ex.reps} reps</div>
-                                          {ex.rpe && <div>📊 RPE: {ex.rpe}/10</div>}
-                                          {ex.rest_seconds && <div>⏱️ Descanso: {ex.rest_seconds}s</div>}
-                                          {ex.muscle_group && <div>🎯 Musculatura: {ex.muscle_group}</div>}
+                                    day.ejercicios.map((ex, exIdx) => (
+                                      <div key={exIdx} className="rounded border border-[var(--landing-border)] bg-[var(--landing-surface)] p-3 text-sm">
+                                        <div className="font-medium text-[var(--brand-end)]">{ex.name}</div>
+                                        <div className="mt-1 space-y-0.5 text-[var(--landing-muted)]">
+                                          <div>
+                                            💪{" "}
+                                            {pFmt(locale, "seriesRepsLine", {
+                                              sets: ex.sets,
+                                              reps: ex.reps,
+                                            })}
+                                          </div>
+                                          {ex.rpe && (
+                                            <div>
+                                              📊 {p(locale, "rpeLine")} {ex.rpe}/10
+                                            </div>
+                                          )}
+                                          {ex.rest_seconds && (
+                                            <div>
+                                              ⏱️ {p(locale, "restSeconds")} {ex.rest_seconds}s
+                                            </div>
+                                          )}
+                                          {ex.muscle_group && (
+                                            <div>
+                                              🎯 {p(locale, "musculatura")} {translateMuscleGroup(ex.muscle_group, locale)}
+                                            </div>
+                                          )}
                                         </div>
                                       </div>
                                     ))
                                   ) : (
-                                    <div className="text-white/50 text-sm italic">Descanso / OFF</div>
+                                    <div className="text-sm italic text-[var(--landing-muted)]">{p(locale, "restOff")}</div>
                                   )}
                                 </div>
                               </details>
@@ -4065,20 +3993,30 @@ export default function PlanPage() {
                       ))}
                     </div>
                   ) : (
-                    <div className="text-white/50 text-center py-4">No hay entrenamiento disponible</div>
+                    <div className="py-4 text-center text-[var(--landing-muted)]">{p(locale, "noTrainingAvailable")}</div>
                   )}
+                      </>
+                    );
+                  })()}
                 </div>
-              )}
+              ) : null}
             </div>
           )}
 
           {/* Vista: Alimentación (resumen semanal) */}
-          {vistaPlan === 'alimentacion' && plan?.plan_semanal && (
-            <div className="mt-6 rounded-xl border border-white/10 p-4 bg-black/30">
-              <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
-                <h2 className="text-lg font-semibold">🍽️ Plan de Alimentación (vista rápida)</h2>
+          {vistaPlan === "alimentacion" && (
+            <div className="mt-4 rounded-2xl border border-[var(--landing-border)] bg-[var(--landing-surface)] p-4 md:p-5">
+              {!hasFoodPlan ? (
+                <div className="rounded-xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--foreground)_2%,transparent)] px-4 py-6 text-center">
+                  <p className="text-sm font-medium text-[var(--foreground)]">{p(locale, "noMealPlan")}</p>
+                  <p className="mt-1 text-xs text-[var(--landing-muted)]">{p(locale, "genMealPlanHint")}</p>
+                </div>
+              ) : (
+                <>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <h3 className="text-base font-semibold text-[var(--foreground)]">{p(locale, "mealPlanHeading")}</h3>
                 {/* Botones de seguimiento - Alineados a la derecha del título */}
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex flex-wrap items-center gap-2">
                   <div className="relative group">
                     <button
               onClick={() => {
@@ -4087,21 +4025,21 @@ export default function PlanPage() {
                         }
                       }}
                       disabled={!isPremium}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all text-xs font-medium ${
+                      className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
                         !isPremium
-                          ? 'bg-white/5 border-white/10 text-white/40 cursor-not-allowed opacity-50'
-                          : 'bg-gradient-to-r from-blue-500/20 to-cyan-500/20 border-blue-500/30 text-blue-300 hover:from-blue-500/30 hover:to-cyan-500/30'
+                          ? 'cursor-not-allowed border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--foreground)_4%,transparent)] text-[var(--landing-muted)] opacity-50'
+                          : 'border-emerald-500/40 bg-emerald-500/15 text-[var(--foreground)] hover:bg-emerald-500/25'
                       }`}
                     >
                       <FaChartLine className="h-3.5 w-3.5" />
-                      Ver estadísticas semanales
+                      {p(locale, "weeklyOverageStats")}
                       {!isPremium && (
                         <span className="ml-1 text-xs">🌟</span>
                       )}
             </button>
                     {!isPremium && (
                       <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gradient-to-r from-yellow-500/95 to-orange-500/95 text-white text-xs font-medium rounded-lg shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 border border-yellow-400/50">
-                        💳 Requiere Premium
+                        💳 {p(locale, "requiresPremium")}
                         <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
                           <div className="w-2 h-2 bg-gradient-to-r from-yellow-500 to-orange-500 rotate-45 border-r border-b border-yellow-400/50"></div>
                         </div>
@@ -4116,21 +4054,21 @@ export default function PlanPage() {
                         }
                       }}
                       disabled={!isPremium}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all text-xs font-medium ${
+                      className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
                         !isPremium
-                          ? 'bg-white/5 border-white/10 text-white/40 cursor-not-allowed opacity-50'
-                          : 'bg-gradient-to-r from-orange-500/20 to-pink-500/20 border-orange-500/30 text-orange-300 hover:from-orange-500/30 hover:to-pink-500/30'
+                          ? 'cursor-not-allowed border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--foreground)_4%,transparent)] text-[var(--landing-muted)] opacity-50'
+                          : 'border-[color-mix(in_oklab,var(--brand-end)_50%,var(--landing-border))] bg-[color-mix(in_oklab,var(--brand-end)_16%,transparent)] text-[var(--foreground)] hover:bg-[color-mix(in_oklab,var(--brand-end)_24%,transparent)]'
                       }`}
                     >
                       <FaUtensils className="h-3.5 w-3.5" />
-                      Registrar comida fuera del plan
+                      {p(locale, "ateTooMuch")}
                       {!isPremium && (
                         <span className="ml-1 text-xs">🌟</span>
                       )}
             </button>
                     {!isPremium && (
                       <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gradient-to-r from-yellow-500/95 to-orange-500/95 text-white text-xs font-medium rounded-lg shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 border border-yellow-400/50">
-                        💳 Requiere Premium
+                        💳 {p(locale, "requiresPremium")}
                         <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
                           <div className="w-2 h-2 bg-gradient-to-r from-yellow-500 to-orange-500 rotate-45 border-r border-b border-yellow-400/50"></div>
           </div>
@@ -4139,70 +4077,54 @@ export default function PlanPage() {
                   </div>
                 </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-3">
                 {plan.plan_semanal.map((dia, idx) => (
-                  <div
+                  <details
                     key={`food-day-${idx}-${dia.dia}`}
-                    className="relative rounded-lg border border-white/10 bg-white/5 p-3 group cursor-pointer"
-                    onClick={() => setModalAlimentosAbierto({ diaIdx: idx })}
+                    className="group overflow-hidden rounded-xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--foreground)_3%,transparent)]"
                   >
-                    <p className="text-sm font-semibold mb-2">{dia.dia}</p>
-                    <div className="space-y-1.5 text-sm">
+                    <summary className="flex cursor-pointer items-center justify-between gap-2 px-3 py-2.5 transition-colors hover:bg-[color-mix(in_oklab,var(--foreground)_4%,transparent)]">
+                      <span className="text-sm font-semibold text-[var(--foreground)]">{translatePlanDayLabel(dia.dia, locale)}</span>
+                      <span className="text-xs text-[var(--landing-muted)]">{dia.comidas.length} {p(locale, "mealsCount")}</span>
+                    </summary>
+                    <div className="space-y-2 border-t border-[var(--landing-border)] px-3 py-3">
                       {dia.comidas.map((c, ci) => (
-                        <div key={`food-${idx}-${ci}`} className="flex items-start justify-between gap-2">
-                          <span className="opacity-80 min-w-[84px]">{c.nombre}</span>
-                          <span className="flex-1 text-right opacity-90">{Array.isArray(c.opciones) && c.opciones.length > 0 && c.opciones[0] ? c.opciones[0] : 'Cargando opciones...'}</span>
+                        <div key={`food-${idx}-${ci}`} className="rounded-lg border border-[var(--landing-border)] bg-[var(--landing-surface)] p-2.5">
+                          <div className="mb-1.5 flex items-center justify-between gap-2">
+                            <span className="text-sm font-medium text-[var(--foreground)]">{translateMealSlotName(c.nombre, locale)}</span>
+                            {c.hora ? (
+                              <span className="rounded-md bg-[color-mix(in_oklab,var(--foreground)_6%,transparent)] px-2 py-0.5 text-[11px] text-[var(--landing-muted)]">
+                                {c.hora}
+                              </span>
+                            ) : null}
+                          </div>
+                          {(() => {
+                            const opciones = (Array.isArray(c.opciones) && c.opciones.length > 0)
+                              ? c.opciones.filter((o: string) => o && typeof o === "string" && o.trim().length > 0 && !o.toLowerCase().includes("opción disponible") && !o.toLowerCase().includes("opcion disponible"))
+                              : [];
+                            const principal = opciones[0] || c.nombre;
+                            const variantes = opciones.slice(1);
+                            return (
+                              <div>
+                                <p className="text-sm text-[var(--foreground)]">{principal}</p>
+                                {variantes.length > 0 ? (
+                                  <ul className="mt-1 space-y-0.5 pl-4 text-xs text-[var(--landing-muted)]">
+                                    {variantes.map((v, vi) => (
+                                      <li key={`food-var-${idx}-${ci}-${vi}`} className="list-disc">{v}</li>
+                                    ))}
+                                  </ul>
+                                ) : null}
+                              </div>
+                            );
+                          })()}
                         </div>
                       ))}
                     </div>
-                    <div className="pointer-events-none absolute inset-0 rounded-lg border border-transparent group-hover:border-cyan-400/40 transition-colors" />
-                    <div className="pointer-events-none absolute bottom-2 right-2 text-[11px] px-2 py-1 rounded-md bg-cyan-500/20 text-cyan-200 border border-cyan-500/30 opacity-0 group-hover:opacity-100 transition-opacity">
-                      Ver variantes
-                    </div>
-                  </div>
+                  </details>
                 ))}
               </div>
-            </div>
-          )}
-
-          {/* Proyecciones motivacionales */}
-          {proyecciones && (
-            <div className="mt-6 rounded-xl border border-white/10 p-4 bg-gradient-to-br from-emerald-500/10 via-cyan-500/10 to-blue-500/10">
-              <h2 className="text-lg font-semibold mb-3">🚀 Proyecciones y resultados esperados</h2>
-              
-              {(user?.objetivo === "ganar_masa" || user?.objetivo === "volumen" || user?.objetivo === "recomposicion") && proyecciones.musculoGananciaMensual && (
-                <div className="mb-4 p-3 rounded-lg bg-white/5 border border-white/10">
-                  <p className="text-sm font-medium opacity-90 mb-1">Ganancia de músculo por mes:</p>
-                  <p className="text-3xl font-bold text-emerald-400">{proyecciones.musculoGananciaMensual}</p>
-                  <p className="text-xs opacity-75 mt-1">Crecimiento muscular estimado con entrenamiento constante</p>
-                </div>
+                </>
               )}
-              
-              {(user?.objetivo === "perder_grasa" || user?.objetivo === "corte" || user?.objetivo === "definicion") && proyecciones.grasaPerdidaMensual && (
-                <div className="mb-4 p-3 rounded-lg bg-white/5 border border-white/10">
-                  <p className="text-sm font-medium opacity-90 mb-1">Pérdida de grasa por mes:</p>
-                  <p className="text-3xl font-bold text-red-400">{proyecciones.grasaPerdidaMensual}</p>
-                  <p className="text-xs opacity-75 mt-1">Reducción de grasa corporal estimada con dieta y entrenamiento constante</p>
-                </div>
-              )}
-              
-              <div className="space-y-2 mb-4">
-                {proyecciones.proyecciones.map((proyeccion, idx) => (
-                  <div key={`proj-${idx}-${proyeccion}`} className="flex items-start gap-2 text-sm opacity-90">
-                    <span className="text-emerald-400 mt-0.5">✓</span>
-                    <span className="leading-relaxed">{proyeccion}</span>
-                  </div>
-                ))}
-              </div>
-              
-              <div className="mt-4 pt-4 border-t border-white/10">
-                <p className="text-sm font-medium opacity-90">
-                  <span className="text-emerald-400">⏱️ Tiempo estimado:</span> {proyecciones.tiempoEstimado}
-                </p>
-                <p className="text-xs opacity-75 mt-2">
-                  * Estas proyecciones son estimaciones basadas en factores promedio. Los resultados individuales pueden variar según genética, adherencia al plan y consistencia.
-                </p>
-              </div>
             </div>
           )}
 
@@ -4282,16 +4204,30 @@ export default function PlanPage() {
           )}
 
           {plan.lista_compras?.length ? (
-            <div className="mt-8">
-              <h2 className="text-xl font-semibold mb-3">Lista de compras</h2>
-              <div className="rounded-xl border border-white/10 p-4">
-                <ul className="list-disc pl-5 text-sm opacity-90 columns-1 md:columns-2">
-                  {plan.lista_compras.map((item, i) => (
-                    <li key={`compras-${i}-${item}`}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-            </div>
+            <section className="mt-8">
+              <details className="group overflow-hidden rounded-2xl border border-[var(--landing-border)] bg-[var(--landing-surface)]">
+                <summary className="flex cursor-pointer items-center justify-between gap-2 px-4 py-3 transition-colors hover:bg-[color-mix(in_oklab,var(--foreground)_3%,transparent)]">
+                  <h2 className="text-base font-semibold text-[var(--foreground)]">{p(locale, "shoppingList")}</h2>
+                  <span className="rounded-full border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--foreground)_3%,transparent)] px-2.5 py-1 text-xs text-[var(--landing-muted)]">
+                    {plan.lista_compras.length} items
+                  </span>
+                </summary>
+                <div className="border-t border-[var(--landing-border)] p-4">
+                  <p className="mb-3 text-xs text-[var(--landing-muted)]">{p(locale, "shoppingListSub")}</p>
+                  <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                    {plan.lista_compras.map((item, i) => (
+                      <div
+                        key={`compras-${i}-${item}`}
+                        className="flex items-start gap-2 rounded-lg border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--foreground)_3%,transparent)] px-3 py-2"
+                      >
+                        <span className="mt-0.5 text-emerald-400">✓</span>
+                        <span className="text-sm text-[var(--foreground)]">{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </details>
+            </section>
           ) : null}
 
           {plan.progresion_semanal?.length ? (
@@ -4545,132 +4481,66 @@ export default function PlanPage() {
               </div>
             </div>
           )}
+
+          {/* Proyecciones y resultados esperados */}
+          {proyecciones && (
+            <section className="mt-8">
+              <div className="mb-2">
+                <h2 className="text-base font-semibold text-[var(--foreground)]">{p(locale, "projectionsHeading")}</h2>
+                <p className="text-xs text-[var(--landing-muted)]">{p(locale, "projectionsSub")}</p>
+              </div>
+
+              <div className="rounded-2xl border border-[var(--landing-border)] bg-[var(--landing-surface)] p-4">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div className="rounded-xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--foreground)_3%,transparent)] p-3">
+                    <p className="text-xs uppercase tracking-wide text-[var(--landing-muted)]">{p(locale, "changeHorizon")}</p>
+                    <p className="mt-1 text-lg font-semibold text-[var(--foreground)]">{proyecciones.tiempoEstimado}</p>
+                    <p className="mt-1 text-xs text-[var(--landing-muted)]">
+                      {pFmt(locale, "resultsVisibleFrom", { n: mesesCambiosVisibles })}
+                    </p>
+                  </div>
+
+                  {(user?.objetivo === "ganar_masa" || user?.objetivo === "volumen" || user?.objetivo === "recomposicion") && proyecciones.musculoGananciaMensual ? (
+                    <div className="rounded-xl border border-emerald-500/35 bg-emerald-500/10 p-3">
+                      <p className="text-xs uppercase tracking-wide text-[var(--landing-muted)]">{p(locale, "monthlyGainEst")}</p>
+                      <p className="mt-1 text-lg font-semibold text-emerald-300">{proyecciones.musculoGananciaMensual}</p>
+                    </div>
+                  ) : null}
+
+                  {(user?.objetivo === "perder_grasa" || user?.objetivo === "corte" || user?.objetivo === "definicion") && proyecciones.grasaPerdidaMensual ? (
+                    <div className="rounded-xl border border-emerald-500/35 bg-emerald-500/10 p-3">
+                      <p className="text-xs uppercase tracking-wide text-[var(--landing-muted)]">{p(locale, "monthlyLossEst")}</p>
+                      <p className="mt-1 text-lg font-semibold text-emerald-300">{proyecciones.grasaPerdidaMensual}</p>
+                    </div>
+                  ) : null}
+                </div>
+
+                {proyecciones.proyecciones.length > 0 ? (
+                  <div className="mt-3 space-y-2">
+                    {proyecciones.proyecciones.map((proyeccion, idx) => (
+                      <div key={`proj-last-${idx}-${proyeccion}`} className="flex items-start gap-2 text-sm text-[var(--foreground)]">
+                        <span className="mt-0.5 text-[var(--brand-end)]">•</span>
+                        <span className="leading-relaxed">{proyeccion}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
+                <p className="mt-3 border-t border-[var(--landing-border)] pt-3 text-xs text-[var(--landing-muted)]">{p(locale, "projectionsFootnote")}</p>
+              </div>
+            </section>
+          )}
         </motion.div>
       </div>
       
       {/* Modal de Edición */}
-      {/* Modal de Variantes de Alimentación */}
-      <AnimatePresence>
-        {modalAlimentosAbierto && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"
-            onClick={(e) => {
-              if (e.target === e.currentTarget) setModalAlimentosAbierto(null);
-            }}
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="glass rounded-2xl p-6 md:p-8 max-w-3xl w-full max-h-[90vh] overflow-y-auto"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xl font-semibold">Variantes y preparación</h3>
-                <button onClick={() => setModalAlimentosAbierto(null)} className="text-white/70 hover:text-white">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5"><path d="M18 6L6 18M6 6l12 12"/></svg>
-            </button>
-          </div>
-              {(() => {
-                const idx = modalAlimentosAbierto.diaIdx;
-                const dia = plan?.plan_semanal?.[idx];
-                if (!dia) return null;
-                return (
-                  <div className="space-y-4">
-                    {dia.comidas.map((c, ci) => {
-                      const key = `modal-${idx}-${ci}`;
-                      const opciones = (Array.isArray(c.opciones) && c.opciones.length > 0) ? c.opciones.filter((o: string) => o && typeof o === 'string' && o.trim().length > 0 && !o.toLowerCase().includes('opción disponible') && !o.toLowerCase().includes('opcion disponible')) : [];
-                      const selected = opciones[0] || c.nombre;
-                      const detailKey = `${key}-${selected}`;
-                      const det = foodDetails[detailKey] || {};
-                      // Para usuarios gratuitos NO usamos IA: mostramos la opción principal y una cantidad sugerida basada en macros/peso
-                      const userWeight = (user as any)?.pesoFinal || (user as any)?.pesoKg || (user as any)?.peso || 70;
-                      const macrosObj = (plan as any)?._macrosObjetivo || (plan as any)?.macros || null;
-                      let proteinPerDay = null as number | null;
-                      if (macrosObj && typeof (macrosObj as any).proteinas === 'string') {
-                        const parsed = parseInt(((macrosObj as any).proteinas || '').toString().replace(/\D/g, ''), 10);
-                        if (!isNaN(parsed) && parsed > 0) proteinPerDay = parsed;
-                      }
-                      if (!proteinPerDay) proteinPerDay = Math.round(Number(userWeight) * 1.6);
-                      const mealsCount = (dia.comidas && dia.comidas.length) || 4;
-                      const proteinPerMeal = Math.max(10, Math.round((proteinPerDay || 0) / mealsCount));
-                      const cantidadSugeridaTexto = `${proteinPerMeal} g de proteína aprox. (porción principal)`;
-                      return (
-                        <div key={`modal-comida-${idx}-${ci}`} className="rounded-lg border border-white/10 bg-white/5 p-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <p className="text-sm font-medium">{c.nombre}</p>
-                            <span className="text-xs opacity-70">{c.hora || ''}</span>
-                          </div>
-                          <div className="text-sm opacity-90">
-                            <p className="font-medium">Opción principal:</p>
-                            <p className="opacity-90 mb-2">{selected}</p>
-                            {opciones.length > 1 && (
-                              <>
-                                <p className="font-medium">Variantes:</p>
-                                <ul className="list-disc pl-5 space-y-1">
-                                  {opciones.slice(1).map((o, oi) => (
-                                    <li key={`opt-${oi}-${o}`}>{o}</li>
-                                  ))}
-                                </ul>
-                              </>
-                            )}
-                          </div>
-                          {/* Carga de detalles de la opción seleccionada si no están */}
-                          {!det.ingredientes && !det.pasos_preparacion && (
-                            !isPremium ? (
-                              <div className="mt-2">
-                                <p className="text-sm font-medium">Cantidad sugerida:</p>
-                                <p className="mt-1 text-sm opacity-90">{cantidadSugeridaTexto}</p>
-                              </div>
-                            ) : (
-                              <FetchDetails
-                                k={detailKey}
-                                dish={selected}
-                                onLoaded={(p) => setFoodDetails((s) => ({ ...s, [detailKey]: { ...p, loading: false } }))}
-                                onError={(msg) => setFoodDetails((s) => ({ ...s, [detailKey]: { ...s[detailKey], loading: false, error: msg } }))}
-                              />
-                            )
-                          )}
-                          {det?.ingredientes && det.ingredientes.length > 0 && (
-                            <div className="mt-2">
-                              <p className="text-sm font-medium">Ingredientes (cantidades exactas):</p>
-                              <ul className="mt-1 list-disc pl-5 text-sm opacity-90">
-                                {det.ingredientes.map((ing, ii) => (
-                                  <li key={`ing-${ii}-${ing}`}>{ing}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                          {det?.pasos_preparacion && det.pasos_preparacion.length > 0 && (
-                            <div className="mt-2">
-                              <p className="text-sm font-medium">Preparación detallada:</p>
-                              <ol className="mt-1 list-decimal pl-5 text-sm opacity-90">
-                                {det.pasos_preparacion.map((p, pi) => (
-                                  <li key={`step-${pi}-${p}`}>{p}</li>
-                                ))}
-                              </ol>
-                            </div>
-                          )}
-    </div>
-  );
-                    })}
-                  </div>
-                );
-              })()}
-        </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
       <AnimatePresence>
         {modalAbierto && datosEdicion && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-2 backdrop-blur-md sm:p-4"
             onClick={(e) => {
               if (e.target === e.currentTarget) {
                 setModalAbierto(false);
@@ -4678,66 +4548,78 @@ export default function PlanPage() {
             }}
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="glass rounded-2xl p-6 md:p-8 max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+              initial={{ opacity: 0, scale: 0.97, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.97, y: 10 }}
+              transition={{ type: "spring", damping: 26, stiffness: 320 }}
+              className="relative w-full max-w-3xl overflow-y-auto rounded-2xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--background)_94%,#0f172a)] p-4 shadow-[0_24px_60px_-30px_rgba(0,0,0,0.75)] sm:p-6"
               onClick={(e) => e.stopPropagation()}
             >
-              <h2 className="text-2xl font-semibold mb-4">Editar datos del plan</h2>
+              <button
+                type="button"
+                onClick={() => setModalAbierto(false)}
+                className="absolute right-3 top-3 rounded-lg p-1.5 text-[var(--landing-muted)] transition hover:bg-[var(--landing-surface)] hover:text-[var(--foreground)]"
+                aria-label={p(locale, "modalClose")}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+
+              <h2 className="pr-10 text-xl font-semibold text-[var(--foreground)] sm:text-2xl">{p(locale, "editPlanTitle")}</h2>
+              <p className="mt-1 text-xs text-[var(--landing-muted)]">{p(locale, "editPlanSubtitle")}</p>
               
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 mt-6">
-                <label className="flex flex-col gap-1">
-                  <span className="text-sm opacity-80">Nombre</span>
+              <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-[var(--landing-muted)]">{p(locale, "fieldName")}</span>
                   <input
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
+                    className="rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] px-3 py-2 text-sm text-[var(--foreground)] outline-none transition focus:border-[color-mix(in_oklab,var(--brand-end)_45%,transparent)] focus:ring-2 focus:ring-[color-mix(in_oklab,var(--brand-end)_22%,transparent)]"
                     value={datosEdicion.nombre}
                     onChange={(e) => setDatosEdicion({ ...datosEdicion, nombre: e.target.value })}
                   />
                 </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-sm opacity-80">Edad</span>
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-[var(--landing-muted)]">{p(locale, "age")}</span>
                   <input
                     type="number"
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
+                    className="rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] px-3 py-2 text-sm text-[var(--foreground)] outline-none transition focus:border-[color-mix(in_oklab,var(--brand-end)_45%,transparent)] focus:ring-2 focus:ring-[color-mix(in_oklab,var(--brand-end)_22%,transparent)]"
                     value={datosEdicion.edad}
                     onChange={(e) => setDatosEdicion({ ...datosEdicion, edad: Number(e.target.value) })}
                   />
                 </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-sm opacity-80">Peso (kg)</span>
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-[var(--landing-muted)]">{p(locale, "fieldWeightKg")}</span>
                   <input
                     type="number"
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
+                    className="rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] px-3 py-2 text-sm text-[var(--foreground)] outline-none transition focus:border-[color-mix(in_oklab,var(--brand-end)_45%,transparent)] focus:ring-2 focus:ring-[color-mix(in_oklab,var(--brand-end)_22%,transparent)]"
                     value={datosEdicion.pesoKg}
                     onChange={(e) => setDatosEdicion({ ...datosEdicion, pesoKg: Number(e.target.value) })}
                   />
                 </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-sm opacity-80">Altura (cm)</span>
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-[var(--landing-muted)]">{p(locale, "fieldHeightCm")}</span>
                   <input
                     type="number"
-                    className="rounded-xl bg-white/5 px-3 py-2 outline-none"
+                    className="rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] px-3 py-2 text-sm text-[var(--foreground)] outline-none transition focus:border-[color-mix(in_oklab,var(--brand-end)_45%,transparent)] focus:ring-2 focus:ring-[color-mix(in_oklab,var(--brand-end)_22%,transparent)]"
                     value={datosEdicion.alturaCm}
                     onChange={(e) => setDatosEdicion({ ...datosEdicion, alturaCm: Number(e.target.value) })}
                   />
                 </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-sm opacity-80">Sexo</span>
+                <label className="flex flex-col gap-1.5">
+                  <span className="text-xs font-medium text-[var(--landing-muted)]">{p(locale, "fieldSex")}</span>
                   <select
-                    className="rounded-xl bg-white/5 px-3 py-2 text-white"
-                    style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', color: '#e6f6ff' }}
+                    className="rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] px-3 py-2 text-sm text-[var(--foreground)] outline-none transition focus:border-[color-mix(in_oklab,var(--brand-end)_45%,transparent)] focus:ring-2 focus:ring-[color-mix(in_oklab,var(--brand-end)_22%,transparent)]"
                     value={datosEdicion.sexo}
                     onChange={(e) => setDatosEdicion({ ...datosEdicion, sexo: e.target.value as "masculino" | "femenino" })}
                   >
-                    <option value="masculino">Masculino</option>
-                    <option value="femenino">Femenino</option>
+                    <option value="masculino">{p(locale, "sexMale")}</option>
+                    <option value="femenino">{p(locale, "sexFemale")}</option>
                   </select>
                 </label>
                 {!isPremium && (
                   <>
                     <label className="flex flex-col gap-1">
-                      <span className="text-sm opacity-80">Días gym/semana</span>
+                      <span className="text-sm opacity-80">{p(locale, "fieldGymDaysWeek")}</span>
                       <input
                         type="number"
                         min={1} max={7}
@@ -4747,7 +4629,7 @@ export default function PlanPage() {
                       />
                     </label>
                     <label className="flex flex-col gap-1">
-                      <span className="text-sm opacity-80">Días cardio/semana</span>
+                      <span className="text-sm opacity-80">{p(locale, "fieldCardioDaysWeek")}</span>
                       <input
                         type="number"
                         min={0} max={7}
@@ -4757,35 +4639,45 @@ export default function PlanPage() {
                       />
                     </label>
                     <label className="flex flex-col gap-1">
-                      <span className="text-sm opacity-80">Nivel experiencia</span>
+                      <span className="text-sm opacity-80">{p(locale, "fieldExperience")}</span>
                       <select
                         className="rounded-xl bg-white/5 px-3 py-2 text-white"
                         style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', color: '#e6f6ff' }}
                         value={datosEdicion.nivelExperiencia || 'intermedio'}
-                        onChange={(e) => setDatosEdicion({ ...datosEdicion, nivelExperiencia: e.target.value as any })}
+                        onChange={(e) =>
+                          setDatosEdicion({
+                            ...datosEdicion,
+                            nivelExperiencia: e.target.value as "principiante" | "intermedio" | "avanzado",
+                          })
+                        }
                       >
-                        <option value="principiante">Principiante</option>
-                        <option value="intermedio">Intermedio</option>
-                        <option value="avanzado">Avanzado</option>
+                        <option value="principiante">{p(locale, "expBeginner")}</option>
+                        <option value="intermedio">{p(locale, "expIntermediate")}</option>
+                        <option value="avanzado">{p(locale, "expAdvanced")}</option>
                       </select>
                     </label>
                     <label className="flex flex-col gap-1">
-                      <span className="text-sm opacity-80">Equipamiento</span>
+                      <span className="text-sm opacity-80">{p(locale, "fieldEquipment")}</span>
                       <select
                         className="rounded-xl bg-white/5 px-3 py-2 text-white"
                         style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', color: '#e6f6ff' }}
                         value={datosEdicion.equipamiento || 'gimnasio'}
-                        onChange={(e) => setDatosEdicion({ ...datosEdicion, equipamiento: e.target.value as any })}
+                        onChange={(e) =>
+                          setDatosEdicion({
+                            ...datosEdicion,
+                            equipamiento: e.target.value as "gimnasio" | "casa" | "sin_equipo",
+                          })
+                        }
                       >
-                        <option value="gimnasio">Gimnasio completo</option>
-                        <option value="casa">Casa con mancuernas</option>
-                        <option value="sin_equipo">Sin equipo</option>
+                        <option value="gimnasio">{p(locale, "equipFullGym")}</option>
+                        <option value="casa">{p(locale, "equipHomeDb")}</option>
+                        <option value="sin_equipo">{p(locale, "equipNoEquip")}</option>
                       </select>
                     </label>
                   </>
                 )}
                 <label className="flex flex-col gap-1">
-                  <span className="text-sm opacity-80">Cintura (cm) (opcional)</span>
+                  <span className="text-sm opacity-80">{p(locale, "fieldWaistOptional")}</span>
                   <input
                     type="number"
                     className="rounded-xl bg-white/5 px-3 py-2 outline-none"
@@ -4794,7 +4686,7 @@ export default function PlanPage() {
                   />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-sm opacity-80">Cuello (cm) (opcional)</span>
+                  <span className="text-sm opacity-80">{p(locale, "fieldNeckOptional")}</span>
                   <input
                     type="number"
                     className="rounded-xl bg-white/5 px-3 py-2 outline-none"
@@ -4803,7 +4695,7 @@ export default function PlanPage() {
                   />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-sm opacity-80">Cadera (cm) (opcional)</span>
+                  <span className="text-sm opacity-80">{p(locale, "fieldHipOptional")}</span>
                   <input
                     type="number"
                     className="rounded-xl bg-white/5 px-3 py-2 outline-none"
@@ -4819,11 +4711,11 @@ export default function PlanPage() {
                       onChange={(e) => setDatosEdicion({ ...datosEdicion, atletico: e.target.checked })}
                       className="rounded"
                     />
-                    Perfil atlético
+                    {p(locale, "fieldAthleticProfile")}
                   </span>
                 </label>
                 <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80">Preferencias (separadas por comas)</span>
+                  <span className="text-sm opacity-80">{p(locale, "prefsComma")}</span>
                   <input
                     className="rounded-xl bg-white/5 px-3 py-2 outline-none"
                     value={preferenciasTexto}
@@ -4836,7 +4728,7 @@ export default function PlanPage() {
                   />
                 </label>
                 <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80">Restricciones (separadas por comas)</span>
+                  <span className="text-sm opacity-80">{p(locale, "restrComma")}</span>
                   <input
                     className="rounded-xl bg-white/5 px-3 py-2 outline-none"
                     value={restriccionesTexto}
@@ -4849,7 +4741,7 @@ export default function PlanPage() {
                   />
                 </label>
                 <label className="flex flex-col gap-1 md:col-span-2">
-                  <span className="text-sm opacity-80">Patologías (separadas por comas)</span>
+                  <span className="text-sm opacity-80">{p(locale, "pathologiasComma")}</span>
                   <input
                     className="rounded-xl bg-white/5 px-3 py-2 outline-none"
                     value={patologiasTexto}
@@ -4860,13 +4752,11 @@ export default function PlanPage() {
                     }}
                     placeholder="ej: hígado graso, intolerancia a la lactosa, diabetes tipo 2"
                   />
-                  <p className="text-xs opacity-60 mt-1">
-                    Indica condiciones médicas relevantes para ajustar el plan nutricional
-                  </p>
+                  <p className="text-xs opacity-60 mt-1">{p(locale, "pathologiasHint")}</p>
                 </label>
                 <label className="flex flex-col gap-1 md:col-span-2">
                   <span className="text-sm opacity-80 flex items-center gap-2">
-                    Dolores, lesiones o molestias (separadas por comas)
+                    {p(locale, "injuriesComma")}
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       viewBox="0 0 24 24"
@@ -4886,9 +4776,7 @@ export default function PlanPage() {
                     }}
                     placeholder="ej: rodilla derecha, zona lumbar, hombro izquierdo"
                   />
-                  <p className="text-xs opacity-60 mt-1">
-                    Ajustamos el entrenamiento para cuidar estas zonas y recomendar movilidad o precalentamientos específicos.
-                  </p>
+                  <p className="text-xs opacity-60 mt-1">{p(locale, "injuriesHint")}</p>
                 </label>
                 <label className="flex items-start gap-3 md:col-span-2">
                   <input
@@ -4898,23 +4786,23 @@ export default function PlanPage() {
                     onChange={(e) => setDatosEdicion({ ...datosEdicion, preferirRutina: e.target.checked } as unknown as UserInput)}
                   />
                   <span className="text-sm opacity-80">
-                    Mantener comidas rutinarias (poca variación entre días)
+                    {p(locale, "routineMealsCheckbox")}
                     <span className="block text-xs opacity-60 mt-0.5">
-                      Repetir comidas facilita el seguimiento (p. ej., papa en déficit o pasta en volumen). Podés cambiarlo cuando quieras.
+                      {p(locale, "routineMealsCheckboxSub")}
                     </span>
                   </span>
                 </label>
       </div>
               
-              <div className="flex gap-3 mt-6 justify-end">
+              <div className="mt-6 flex flex-col-reverse gap-2 border-t border-[var(--landing-border)] pt-4 sm:flex-row sm:justify-end">
             <button
-                  className="rounded-xl px-6 py-2 text-sm font-medium bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+                  className="rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] px-5 py-2.5 text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--landing-surface-2)]"
                   onClick={() => setModalAbierto(false)}
                 >
-                  Cancelar
+                  {p(locale, "cancel")}
             </button>
             <button
-                  className="rounded-xl px-6 py-2 text-sm font-medium bg-blue-500/20 border border-blue-500/30 hover:bg-blue-500/30 transition-colors"
+                  className="rounded-xl border border-[color-mix(in_oklab,var(--brand-end)_45%,transparent)] bg-[color-mix(in_oklab,var(--brand-end)_16%,transparent)] px-5 py-2.5 text-sm font-semibold text-[var(--foreground)] transition hover:bg-[color-mix(in_oklab,var(--brand-end)_24%,transparent)]"
                   onClick={async () => {
                     if (!datosEdicion) return;
                     setModalAbierto(false);
@@ -4955,7 +4843,7 @@ export default function PlanPage() {
                       const resp = await fetch("/api/generatePlan", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(userActualizado),
+                        body: JSON.stringify({ ...userActualizado, userId: authUser?.uid, locale }),
                       });
                       
                       if (!resp.ok) {
@@ -5007,6 +4895,7 @@ export default function PlanPage() {
                               objetivo: userActualizado.objetivo, // Guardar objetivo
                               atletico: Boolean(userActualizado.atletico), // Guardar perfil atlético
                               doloresLesiones: Array.isArray(userActualizado.doloresLesiones) ? userActualizado.doloresLesiones : [],
+                              appLocale: locale,
                               updatedAt: serverTimestamp(),
                             };
                             
@@ -5154,18 +5043,18 @@ export default function PlanPage() {
               className="fixed inset-0 z-50 flex items-center justify-center p-4"
               onClick={() => setModalInfoAbierto(null)}
             >
-              <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" />
+              <div className="fixed inset-0 bg-[color-mix(in_oklab,#020617_84%,black)] backdrop-blur-sm" />
               <motion.div
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
-                className="relative z-10 w-full max-w-md rounded-xl border border-white/10 bg-black/95 p-6 shadow-2xl"
+                className="relative z-10 w-full max-w-lg rounded-2xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--background)_88%,#0a0f18)] p-5 shadow-[0_24px_80px_-30px_rgba(0,0,0,0.82)]"
                 onClick={(e) => e.stopPropagation()}
               >
             <button
                   onClick={() => setModalInfoAbierto(null)}
-                  className="absolute right-4 top-4 text-white/70 hover:text-white transition-colors"
-                  aria-label="Cerrar"
+                  className="absolute right-4 top-4 rounded-lg border border-[var(--landing-border)] bg-[var(--landing-surface)] p-1.5 text-[var(--landing-muted)] transition-colors hover:text-[var(--foreground)]"
+                  aria-label={p(locale, "modalClose")}
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -5180,24 +5069,29 @@ export default function PlanPage() {
                     <path d="M18 6L6 18M6 6l12 12" />
                   </svg>
             </button>
-                <h3 className="text-lg font-semibold mb-4">
-                  {modalInfoAbierto === 'imc' && '¿Qué es el IMC?'}
-                  {modalInfoAbierto === 'macros' && '¿Qué son los macronutrientes?'}
-                  {modalInfoAbierto === 'sueno' && '¿Cómo contar las horas de sueño?'}
-                  {modalInfoAbierto === 'dificultad' && '¿Qué implica la dificultad del plan?'}
-                  {modalInfoAbierto === 'split' && '¿Qué es la división de entrenamiento?'}
-                </h3>
-                <div className="text-sm opacity-90 leading-relaxed space-y-2">
+                <div className="mb-4 flex items-center gap-2">
+                  <span className="inline-flex rounded-full border border-[var(--landing-border)] bg-[var(--landing-surface)] px-2.5 py-1 text-[10px] uppercase tracking-wide text-[var(--landing-muted)]">
+                    {p(locale, "helpBadge")}
+                  </span>
+                  <h3 className="text-lg font-semibold text-[var(--foreground)]">
+                    {modalInfoAbierto === 'imc' && p(locale, "helpImcTitle")}
+                    {modalInfoAbierto === 'macros' && p(locale, "helpMacrosTitle")}
+                    {modalInfoAbierto === 'sueno' && p(locale, "helpSleepTitle")}
+                    {modalInfoAbierto === 'dificultad' && p(locale, "helpDifficultyTitle")}
+                    {modalInfoAbierto === 'split' && p(locale, "helpSplitTitle")}
+                  </h3>
+                </div>
+                <div className="space-y-2 text-sm leading-relaxed text-[var(--foreground)]">
                   {modalInfoAbierto === 'imc' && (
-                    <p>El Índice de Masa Corporal (IMC) relaciona peso y altura. Es una guía general y no sustituye evaluación clínica.</p>
+                    <p className="rounded-lg bg-[var(--landing-surface)] px-3 py-2">{p(locale, "helpImcBody")}</p>
                   )}
                   {modalInfoAbierto === 'macros' && (
-                    <p>Los macronutrientes son proteínas, grasas y carbohidratos. Tu plan reparte las calorías diarias entre ellos para apoyar tu objetivo.</p>
+                    <p className="rounded-lg bg-[var(--landing-surface)] px-3 py-2">{p(locale, "helpMacrosBody")}</p>
                   )}
                   {modalInfoAbierto === 'sueno' && (
                     <>
-                      <p>Tu objetivo actual: <strong>{typeof horasSuenoActual === 'number' ? horasSuenoActual : (sugerenciaEntrenamiento?.horasSueno ?? 8)}</strong> h por noche.</p>
-                      <p className="opacity-90">Las siestas suman al total diario, pero ideal que sean cortas (20–30 min) y no muy tarde para no afectar el sueño nocturno.</p>
+                      <p className="rounded-lg bg-[var(--landing-surface)] px-3 py-2">Tu objetivo actual: <strong>{typeof horasSuenoActual === 'number' ? horasSuenoActual : (sugerenciaEntrenamiento?.horasSueno ?? 8)}</strong> h por noche.</p>
+                      <p className="rounded-lg bg-[var(--landing-surface)] px-3 py-2 text-[var(--landing-muted)]">Las siestas suman al total diario, pero ideal que sean cortas (20–30 min) y no muy tarde para no afectar el sueño nocturno.</p>
                     </>
                   )}
                   {modalInfoAbierto === 'dificultad' && (
@@ -5217,19 +5111,19 @@ export default function PlanPage() {
                       };
                       return (
                         <>
-                          <p>
+                          <p className="rounded-lg bg-[var(--landing-surface)] px-3 py-2">
                             Tu plan está marcado como <strong className="capitalize">{String((plan as unknown as Record<string, unknown>)?.dificultad || 'media')}</strong>
                             {(plan as unknown as Record<string, unknown>)?.dificultad_detalle ? ` — ${String((plan as unknown as Record<string, unknown>).dificultad_detalle)}` : ''}.
                           </p>
-                          <p className="mt-2 font-medium">¿Qué vas a sentir:</p>
-                          <ul className="list-disc pl-5 space-y-1">
+                          <p className="mt-2 text-sm font-semibold text-[var(--foreground)]">¿Qué vas a sentir?</p>
+                          <ul className="list-disc space-y-1 pl-5 text-[var(--landing-muted)]">
                             <li><strong>Semana 1:</strong> {String(cambios?.semana1 || fallback.semana1)}</li>
                             <li><strong>Semana 2:</strong> {String(cambios?.semana2 || fallback.semana2)}</li>
                             <li><strong>Semana 3-4:</strong> {String(cambios?.semana3_4 || fallback.semana3_4)}</li>
                             <li><strong>Después del mes:</strong> {String(cambios?.post_mes || fallback.post_mes)}</li>
                           </ul>
-                          <p className="mt-2 font-medium">¿Qué cambios pasan en tu cuerpo:</p>
-                          <ul className="list-disc pl-5 space-y-1">
+                          <p className="mt-2 text-sm font-semibold text-[var(--foreground)]">¿Qué cambios pasan en tu cuerpo?</p>
+                          <ul className="list-disc space-y-1 pl-5 text-[var(--landing-muted)]">
                             {(Array.isArray(cambios?.fisiologia) ? cambios.fisiologia : fallback.fisiologia).map((t: string, i: number) => (
                               <li key={`fisio-${i}`}>{t}</li>
                             ))}
@@ -5240,14 +5134,14 @@ export default function PlanPage() {
                   )}
                   {modalInfoAbierto === 'split' && (
                     <>
-                      <p>La división de entrenamiento describe cómo se reparten los grupos musculares a lo largo de la semana:</p>
-                      <ul className="list-disc pl-5 space-y-1">
+                      <p className="rounded-lg bg-[var(--landing-surface)] px-3 py-2">La división de entrenamiento describe cómo se reparten los grupos musculares a lo largo de la semana:</p>
+                      <ul className="list-disc space-y-1 pl-5 text-[var(--landing-muted)]">
                         <li><strong>Full Body</strong>: todo el cuerpo en cada sesión. Ideal para 2–3 días/sem.</li>
                         <li><strong>Upper/Lower</strong>: tren superior y tren inferior alternados. 4 días/sem típicos.</li>
                         <li><strong>Push/Pull/Legs</strong>: empuje, tirón y piernas. 3–6 días/sem según volumen.</li>
                         <li><strong>Mixto</strong>: combinación adaptada a tu objetivo, intensidad y disponibilidad.</li>
                       </ul>
-                      <p className="opacity-90">Tu plan actual: <strong>{splitResumen}</strong>. Esto se ajusta a tus <em>días de gym</em>, intensidad y objetivo para optimizar progreso y recuperación.</p>
+                      <p className="rounded-lg bg-[var(--landing-surface)] px-3 py-2 text-[var(--landing-muted)]">Tu plan actual: <strong>{splitResumen}</strong>. Esto se ajusta a tus <em>días de gym</em>, intensidad y objetivo para optimizar progreso y recuperación.</p>
                     </>
                   )}
           </div>
@@ -5485,7 +5379,7 @@ export default function PlanPage() {
                                             <span className="text-sm opacity-70">· {ejercicio.sets}x{String(ejercicio.reps)}</span>
                                             {ejercicio.muscle_group && (
                                               <span className="text-xs px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-                                                {ejercicio.muscle_group}
+                                                {translateMuscleGroup(ejercicio.muscle_group, locale)}
                                               </span>
                                             )}
                                           </div>
@@ -5893,50 +5787,3 @@ export default function PlanPage() {
     </div>
   );
 }
-
-function FetchDetails({ k, dish, onLoaded, onError }: { k: string; dish: string; onLoaded: (p: { ingredientes?: string[]; pasos_preparacion?: string[] }) => void; onError: (msg: string) => void }) {
-  const { user } = usePlanStore();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const resp = await fetch('/api/mealDetails', { 
-          method: 'POST', 
-          headers: { 'Content-Type': 'application/json' }, 
-          body: JSON.stringify({ 
-            dish,
-            tipoDieta: user?.tipoDieta,
-            restricciones: user?.restricciones,
-            preferencias: user?.preferencias,
-            patologias: user?.patologias
-          }) 
-        });
-        if (!resp.ok) {
-          const data = await resp.json().catch(() => null);
-          throw new Error(data?.error || `HTTP ${resp.status}`);
-        }
-        const data = await resp.json();
-        if (!cancelled) {
-          onLoaded({ ingredientes: data.ingredientes, pasos_preparacion: data.pasos_preparacion });
-          setLoading(false);
-        }
-      } catch (e: unknown) {
-        if (!cancelled) {
-          const msg = e instanceof Error ? e.message : 'Error';
-          setError(msg);
-          onError(msg);
-          setLoading(false);
-        }
-      }
-    })();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dish, k, user?.tipoDieta, user?.restricciones, user?.preferencias, user?.patologias]);
-
-  if (loading) return <p className="text-xs opacity-70">Cargando detalles…</p>;
-  if (error) return <p className="text-xs text-red-300">{String(error)}</p>;
-  return null;
-}
-

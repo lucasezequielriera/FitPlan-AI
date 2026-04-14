@@ -1,5 +1,13 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { FaTimes, FaWeight, FaArrowUp, FaArrowDown, FaCheckCircle, FaClock, FaInfoCircle } from "react-icons/fa";
+import {
+  FaTimes,
+  FaWeight,
+  FaArrowUp,
+  FaArrowDown,
+  FaCheckCircle,
+  FaClock,
+  FaInfoCircle,
+} from "react-icons/fa";
 
 interface IMCInfoModalProps {
   isOpen: boolean;
@@ -98,6 +106,36 @@ export default function IMCInfoModal({
   };
   
   const clasificacion = getClasificacionIMC(imc);
+
+  const estadoTema = estaEnRangoSaludable
+    ? {
+        panel:
+          "from-[color-mix(in_oklab,var(--landing-accent)_20%,transparent)] via-[color-mix(in_oklab,var(--brand-mid)_10%,transparent)] to-[color-mix(in_oklab,var(--brand-end)_18%,transparent)]",
+        border: "border-[color-mix(in_oklab,var(--landing-accent)_35%,transparent)]",
+        badge:
+          "bg-[color-mix(in_oklab,var(--landing-accent)_18%,transparent)] text-[var(--foreground)] border-[color-mix(in_oklab,var(--landing-accent)_38%,transparent)]",
+        button:
+          "from-[var(--brand-start)] via-[var(--brand-mid)] to-[var(--brand-end)] hover:brightness-110",
+      }
+    : estaBajoPeso
+      ? {
+          panel:
+            "from-[color-mix(in_oklab,#f59e0b_22%,transparent)] via-[color-mix(in_oklab,#fbbf24_10%,transparent)] to-[color-mix(in_oklab,#d97706_16%,transparent)]",
+          border: "border-[color-mix(in_oklab,#f59e0b_40%,transparent)]",
+          badge:
+            "bg-[color-mix(in_oklab,#f59e0b_20%,transparent)] text-[var(--foreground)] border-[color-mix(in_oklab,#f59e0b_38%,transparent)]",
+          button:
+            "from-[var(--brand-start)] via-[var(--brand-mid)] to-[var(--brand-end)] hover:brightness-110",
+        }
+      : {
+          panel:
+            "from-[color-mix(in_oklab,#fb923c_20%,transparent)] via-[color-mix(in_oklab,#ef4444_10%,transparent)] to-[color-mix(in_oklab,#f97316_18%,transparent)]",
+          border: "border-[color-mix(in_oklab,#fb923c_36%,transparent)]",
+          badge:
+            "bg-[color-mix(in_oklab,#fb923c_18%,transparent)] text-[var(--foreground)] border-[color-mix(in_oklab,#fb923c_35%,transparent)]",
+          button:
+            "from-[var(--brand-start)] via-[var(--brand-mid)] to-[var(--brand-end)] hover:brightness-110",
+        };
   
   // Mensaje personalizado según objetivo del usuario
   const getMensajePersonalizado = (): string => {
@@ -157,87 +195,84 @@ export default function IMCInfoModal({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[color-mix(in_oklab,#020617_82%,black)] p-3 backdrop-blur-sm"
           onClick={onClose}
         >
           <motion.div
             initial={{ scale: 0.9, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.9, opacity: 0, y: 20 }}
-            transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-white/10 shadow-2xl"
+            transition={{ type: "spring", damping: 24, stiffness: 280 }}
+            className="w-full max-w-lg max-h-[88vh] overflow-y-auto rounded-2xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--background)_88%,#0a0f18)] shadow-[0_24px_80px_-32px_rgba(0,0,0,0.8)]"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
-            <div className={`p-6 border-b border-white/10 ${
-              estaEnRangoSaludable 
-                ? "bg-gradient-to-r from-green-500/20 to-emerald-500/20" 
-                : estaBajoPeso 
-                  ? "bg-gradient-to-r from-yellow-500/20 to-amber-500/20"
-                  : "bg-gradient-to-r from-orange-500/20 to-red-500/20"
-            }`}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={`p-3 rounded-xl ${
-                    estaEnRangoSaludable ? "bg-green-500/20" : estaBajoPeso ? "bg-yellow-500/20" : "bg-orange-500/20"
-                  }`}>
-                    <FaWeight className={`text-2xl ${
-                      estaEnRangoSaludable ? "text-green-400" : estaBajoPeso ? "text-yellow-400" : "text-orange-400"
-                    }`} />
+            <div className={`border-b border-[var(--landing-border)] bg-gradient-to-r ${estadoTema.panel}`}>
+              <div className="p-4 sm:p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <div
+                      className={`rounded-xl border p-2.5 ${estadoTema.badge}`}
+                    >
+                      <FaWeight className="text-xl" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[var(--landing-muted)]">
+                        Índice de masa corporal
+                      </p>
+                      <h2 className="mt-0.5 text-lg font-bold tracking-tight text-[var(--foreground)] sm:text-xl">
+                        Tu análisis de IMC
+                      </h2>
+                      <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-full border border-[var(--landing-border)] bg-[var(--landing-surface)] px-2.5 py-1 text-xs text-[var(--foreground)]">
+                        <span>{clasificacion.emoji}</span>
+                        {clasificacion.nombre}
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-white">Tu Análisis de IMC</h2>
-                    <p className="text-sm text-white/60">Índice de Masa Corporal</p>
-                  </div>
+                  <button
+                    onClick={onClose}
+                    className="rounded-lg border border-[var(--landing-border)] bg-[var(--landing-surface)] p-2 text-[var(--landing-muted)] transition hover:text-[var(--foreground)]"
+                    aria-label="Cerrar modal de IMC"
+                  >
+                    <FaTimes />
+                  </button>
                 </div>
-                <button
-                  onClick={onClose}
-                  className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
-                >
-                  <FaTimes className="text-white/60" />
-                </button>
               </div>
             </div>
-            
-            {/* Contenido */}
-            <div className="p-6 space-y-6">
-              {/* IMC Actual */}
-              <div className="text-center">
-                <div className="inline-flex items-center gap-2 mb-2">
-                  <span className="text-5xl font-bold text-white">{imc.toFixed(1)}</span>
-                  <span className="text-lg text-white/50">IMC</span>
+
+            <div className="space-y-4 p-4 sm:p-5">
+              <div className="grid grid-cols-3 gap-2.5">
+                <div className={`rounded-xl border p-2.5 ${estadoTema.border} bg-[var(--landing-surface)]`}>
+                  <p className="text-[10px] uppercase tracking-wide text-[var(--landing-muted)]">IMC</p>
+                  <div className="mt-1 flex items-end gap-2">
+                    <span className="text-2xl font-bold text-[var(--foreground)]">{imc.toFixed(1)}</span>
+                  </div>
                 </div>
-                <div className={`flex items-center justify-center gap-2 ${clasificacion.color}`}>
-                  <span className="text-xl">{clasificacion.emoji}</span>
-                  <span className="text-lg font-semibold">{clasificacion.nombre}</span>
+                <div className="rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] p-2.5">
+                  <p className="text-[10px] uppercase tracking-wide text-[var(--landing-muted)]">Peso</p>
+                  <p className="mt-1 text-xl font-bold text-[var(--foreground)]">{pesoActual} kg</p>
                 </div>
-                <p className="text-sm text-white/50 mt-1">
-                  Rango saludable: 18.5 - 24.9
-                </p>
+                <div className="rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] p-2.5">
+                  <p className="text-[10px] uppercase tracking-wide text-[var(--landing-muted)]">Rango</p>
+                  <p className="mt-1 text-xl font-bold text-[var(--foreground)]">18.5-24.9</p>
+                </div>
               </div>
-              
-              {/* Barra visual del IMC */}
-              {/* La barra representa IMC de 16 a 40 (rango de 24 unidades) */}
-              <div className="space-y-2">
-                <div className="relative h-4 bg-gray-700 rounded-full overflow-hidden">
-                  {/* Bajo peso: IMC 16-18.5 → 0% a 10.4% */}
-                  <div className="absolute inset-y-0 left-0 w-[10.4%] bg-yellow-500/40"></div>
-                  {/* Saludable: IMC 18.5-25 → 10.4% a 37.5% (ancho 27.1%) */}
-                  <div className="absolute inset-y-0 left-[10.4%] w-[27.1%] bg-green-500/40"></div>
-                  {/* Sobrepeso: IMC 25-30 → 37.5% a 58.3% (ancho 20.8%) */}
-                  <div className="absolute inset-y-0 left-[37.5%] w-[20.8%] bg-yellow-500/40"></div>
-                  {/* Obesidad: IMC 30-40 → 58.3% a 100% (ancho 41.7%) */}
-                  <div className="absolute inset-y-0 left-[58.3%] w-[41.7%] bg-red-500/40"></div>
-                  {/* Indicador de posición - fórmula: ((imc - 16) / 24) * 100 */}
+
+              <div className="space-y-1.5">
+                <p className="text-[11px] text-[var(--landing-muted)]">Posición en escala IMC</p>
+                <div className="relative h-3 overflow-hidden rounded-full bg-[color-mix(in_oklab,var(--foreground)_14%,transparent)]">
+                  <div className="absolute inset-y-0 left-0 w-[10.4%] bg-amber-500/45" />
+                  <div className="absolute inset-y-0 left-[10.4%] w-[27.1%] bg-emerald-500/50" />
+                  <div className="absolute inset-y-0 left-[37.5%] w-[20.8%] bg-yellow-500/45" />
+                  <div className="absolute inset-y-0 left-[58.3%] w-[41.7%] bg-red-500/45" />
                   <motion.div
                     initial={{ left: 0 }}
                     animate={{ left: `${Math.min(Math.max(((imc - 16) / 24) * 100, 1), 99)}%` }}
-                    transition={{ delay: 0.3, duration: 0.5 }}
-                    className="absolute top-0 w-1 h-full bg-white rounded-full shadow-lg"
+                    transition={{ delay: 0.25, duration: 0.45 }}
+                    className="absolute top-0 h-full w-1 rounded-full bg-[var(--foreground)]"
                     style={{ transform: "translateX(-50%)" }}
                   />
                 </div>
-                <div className="flex justify-between text-xs text-white/40">
+                <div className="flex justify-between text-[10px] text-[var(--landing-muted)]">
                   <span>16</span>
                   <span>18.5</span>
                   <span>25</span>
@@ -245,108 +280,103 @@ export default function IMCInfoModal({
                   <span>40</span>
                 </div>
               </div>
-              
-              {/* Información de peso - Bajo peso */}
+
               {estaBajoPeso && (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 }}
-                  className="space-y-3"
+                  transition={{ delay: 0.2, duration: 0.25 }}
+                  className="space-y-2.5"
                 >
-                  {/* Mínimo para entrar en rango saludable */}
-                  <div className="p-4 rounded-xl border bg-green-500/10 border-green-500/20">
-                    <div className="flex items-center gap-3 mb-3">
-                      <FaArrowUp className="text-xl text-green-400" />
+                  <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-3">
+                    <div className="mb-2 flex items-center gap-2.5">
+                      <FaArrowUp className="text-base text-emerald-400" />
                       <div>
-                        <p className="font-semibold text-white text-sm">Mínimo para IMC saludable (18.5)</p>
-                        <p className="text-xs text-white/60">Peso mínimo: {pesoMinimoSaludable} kg</p>
+                        <p className="text-xs font-semibold text-[var(--foreground)]">Mínimo para entrar en rango saludable</p>
+                        <p className="text-[11px] text-[var(--landing-muted)]">Peso mínimo: {pesoMinimoSaludable} kg</p>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3 text-center">
-                      <div className="p-2 bg-white/5 rounded-lg">
-                        <p className="text-xl font-bold text-green-400">+{diferenciaPesoMinimo} kg</p>
-                        <p className="text-xs text-white/50">Para ganar</p>
+                    <div className="grid grid-cols-2 gap-2 text-center">
+                      <div className="rounded-lg bg-[var(--landing-surface)] p-2">
+                        <p className="text-xl font-bold text-emerald-400">+{diferenciaPesoMinimo} kg</p>
+                        <p className="text-[10px] text-[var(--landing-muted)]">Para ganar</p>
                       </div>
-                      <div className="p-2 bg-white/5 rounded-lg">
-                        <p className="text-xl font-bold text-green-400">
+                      <div className="rounded-lg bg-[var(--landing-surface)] p-2">
+                        <p className="text-xl font-bold text-emerald-400">
                           {tiempoMinimoMeses > 0 ? `~${tiempoMinimoMeses} ${tiempoMinimoMeses === 1 ? "mes" : "meses"}` : "< 1 mes"}
                         </p>
-                        <p className="text-xs text-white/50">Tiempo est.</p>
+                        <p className="text-[10px] text-[var(--landing-muted)]">Tiempo est.</p>
                       </div>
                     </div>
                   </div>
-                  
-                  {/* Objetivo recomendado (más sostenible) */}
-                  <div className="p-4 rounded-xl border bg-yellow-500/10 border-yellow-500/20">
-                    <div className="flex items-center gap-3 mb-3">
-                      <FaArrowUp className="text-xl text-yellow-400" />
+
+                  <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-3">
+                    <div className="mb-2 flex items-center gap-2.5">
+                      <FaArrowUp className="text-base text-amber-400" />
                       <div>
-                        <p className="font-semibold text-white text-sm">Objetivo recomendado (IMC {imc >= 18 ? "19" : "20"})</p>
-                        <p className="text-xs text-white/60">Más sostenible y saludable a largo plazo</p>
+                        <p className="text-xs font-semibold text-[var(--foreground)]">Objetivo recomendado (IMC {imc >= 18 ? "19" : "20"})</p>
+                        <p className="text-[11px] text-[var(--landing-muted)]">Más sostenible y saludable</p>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3 text-center">
-                      <div className="p-2 bg-white/5 rounded-lg">
-                        <p className="text-xl font-bold text-yellow-400">+{diferenciaPeso} kg</p>
-                        <p className="text-xs text-white/50">Para ganar</p>
+                    <div className="grid grid-cols-2 gap-2 text-center">
+                      <div className="rounded-lg bg-[var(--landing-surface)] p-2">
+                        <p className="text-xl font-bold text-amber-400">+{diferenciaPeso} kg</p>
+                        <p className="text-[10px] text-[var(--landing-muted)]">Para ganar</p>
                       </div>
-                      <div className="p-2 bg-white/5 rounded-lg">
-                        <p className="text-xl font-bold text-yellow-400">
+                      <div className="rounded-lg bg-[var(--landing-surface)] p-2">
+                        <p className="text-xl font-bold text-amber-400">
                           ~{tiempoEstimadoMeses} {tiempoEstimadoMeses === 1 ? "mes" : "meses"}
                         </p>
-                        <p className="text-xs text-white/50">Tiempo est.</p>
+                        <p className="text-[10px] text-[var(--landing-muted)]">Tiempo est.</p>
                       </div>
                     </div>
                   </div>
                 </motion.div>
               )}
-              
-              {/* Información de peso - Sobrepeso */}
+
               {estaSobrepeso && (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 }}
-                  className="p-4 rounded-xl border bg-orange-500/10 border-orange-500/20"
+                  transition={{ delay: 0.2, duration: 0.25 }}
+                  className="rounded-xl border border-orange-500/25 bg-orange-500/10 p-3"
                 >
-                  <div className="flex items-center gap-3 mb-3">
-                    <FaArrowDown className="text-2xl text-orange-400" />
+                  <div className="mb-2 flex items-center gap-2.5">
+                    <FaArrowDown className="text-xl text-orange-400" />
                     <div>
-                      <p className="font-semibold text-white">Necesitás perder peso</p>
-                      <p className="text-sm text-white/60">
+                      <p className="text-sm font-semibold text-[var(--foreground)]">Necesitás perder peso</p>
+                      <p className="text-[11px] text-[var(--landing-muted)]">
                         Para alcanzar IMC saludable (24.9)
                       </p>
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-4 text-center">
-                    <div className="p-3 bg-white/5 rounded-lg">
-                      <p className="text-2xl font-bold text-white">-{diferenciaPeso} kg</p>
-                      <p className="text-xs text-white/50">Para perder</p>
+                  <div className="grid grid-cols-2 gap-2 text-center">
+                    <div className="rounded-lg bg-[var(--landing-surface)] p-2">
+                      <p className="text-2xl font-bold text-orange-300">-{diferenciaPeso} kg</p>
+                      <p className="text-[10px] text-[var(--landing-muted)]">Para perder</p>
                     </div>
-                    <div className="p-3 bg-white/5 rounded-lg">
-                      <p className="text-2xl font-bold text-white">{pesoObjetivo} kg</p>
-                      <p className="text-xs text-white/50">Peso objetivo</p>
+                    <div className="rounded-lg bg-[var(--landing-surface)] p-2">
+                      <p className="text-2xl font-bold text-orange-300">{pesoObjetivo} kg</p>
+                      <p className="text-[10px] text-[var(--landing-muted)]">Peso objetivo</p>
                     </div>
                   </div>
                 </motion.div>
               )}
-              
-              {/* Tiempo estimado - Solo para sobrepeso (bajo peso ya lo tiene inline) */}
+
               {estaSobrepeso && tiempoEstimadoMeses > 0 && (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
-                  className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20"
+                  transition={{ delay: 0.3, duration: 0.25 }}
+                  className="rounded-xl border border-sky-500/25 bg-sky-500/10 p-3"
                 >
-                  <div className="flex items-center gap-3">
-                    <FaClock className="text-2xl text-blue-400" />
+                  <div className="flex items-center gap-2.5">
+                    <FaClock className="text-xl text-sky-400" />
                     <div>
-                      <p className="font-semibold text-white">Tiempo estimado</p>
-                      <p className="text-sm text-white/60">
-                        Aproximadamente <span className="font-bold text-blue-400">
+                      <p className="text-sm font-semibold text-[var(--foreground)]">Tiempo estimado</p>
+                      <p className="text-[11px] text-[var(--landing-muted)]">
+                        Aproximadamente <span className="font-bold text-sky-300">
                           {tiempoEstimadoMeses} {tiempoEstimadoMeses === 1 ? "mes" : "meses"}
                         </span> siguiendo tu plan con intensidad {intensidad}
                       </p>
@@ -354,79 +384,69 @@ export default function IMCInfoModal({
                   </div>
                 </motion.div>
               )}
-              
-              {/* Mensaje personalizado */}
+
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
-                className="p-4 rounded-xl bg-white/5 border border-white/10"
+                transition={{ delay: 0.4, duration: 0.25 }}
+                className="rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] p-3"
               >
-                <div className="flex items-start gap-3">
-                  <FaInfoCircle className="text-xl text-white/60 mt-0.5" />
-                  <p className="text-sm text-white/80 leading-relaxed">
+                <div className="flex items-start gap-2.5">
+                  <FaInfoCircle className="mt-0.5 text-base text-[var(--landing-muted)]" />
+                  <p className="text-xs leading-relaxed text-[var(--foreground)]">
                     {getMensajePersonalizado()}
                   </p>
                 </div>
               </motion.div>
-              
-              {/* Beneficios */}
+
               {!estaEnRangoSaludable && (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 }}
-                  className="space-y-3"
+                  transition={{ delay: 0.5, duration: 0.25 }}
+                  className="space-y-2 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06] p-3"
                 >
-                  <h3 className="font-semibold text-white flex items-center gap-2">
-                    <FaCheckCircle className="text-green-400" />
+                  <h3 className="flex items-center gap-2 text-sm font-semibold text-[var(--foreground)]">
+                    <FaCheckCircle className="text-emerald-400" />
                     Beneficios de alcanzar tu peso saludable
                   </h3>
-                  <ul className="space-y-2">
+                  <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                     {getBeneficios().map((beneficio, idx) => (
                       <motion.li
                         key={idx}
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: 0.6 + idx * 0.1 }}
-                        className="flex items-center gap-2 text-sm text-white/70"
+                        className="flex items-center gap-2 text-xs text-[var(--foreground)]"
                       >
-                        <span className="w-1.5 h-1.5 bg-green-400 rounded-full"></span>
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
                         {beneficio}
                       </motion.li>
                     ))}
                   </ul>
                 </motion.div>
               )}
-              
-              {/* Estado saludable */}
+
               {estaEnRangoSaludable && (
                 <motion.div
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.3 }}
-                  className="text-center p-6 rounded-xl bg-green-500/10 border border-green-500/20"
+                  transition={{ delay: 0.3, duration: 0.25 }}
+                  className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-center"
                 >
-                  <FaCheckCircle className="text-4xl text-green-400 mx-auto mb-3" />
-                  <h3 className="font-bold text-lg text-white mb-2">¡Peso Saludable!</h3>
-                  <p className="text-sm text-white/70">
+                  <FaCheckCircle className="mx-auto mb-2 text-3xl text-emerald-400" />
+                  <h3 className="mb-1 text-base font-bold text-[var(--foreground)]">¡Peso saludable!</h3>
+                  <p className="text-xs text-[var(--foreground)]">
                     Tu IMC está dentro del rango saludable. Seguí con tu plan para mantener y mejorar tu composición corporal.
                   </p>
                 </motion.div>
               )}
             </div>
-            
-            {/* Footer */}
-            <div className="p-6 border-t border-white/10">
+
+            <div className="border-t border-[var(--landing-border)] p-4">
               <button
                 onClick={onClose}
-                className={`w-full py-3 rounded-xl font-semibold transition-all ${
-                  estaEnRangoSaludable
-                    ? "bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600"
-                    : estaBajoPeso
-                      ? "bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-600 hover:to-amber-600"
-                      : "bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600"
-                } text-white`}
+                className={`w-full rounded-xl bg-gradient-to-r py-2.5 text-sm font-semibold text-white transition-all ${estadoTema.button}`}
               >
                 {estaEnRangoSaludable ? "¡Genial! Continuar" : "Entendido, ¡a trabajar!"}
               </button>

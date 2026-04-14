@@ -2,6 +2,12 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 
+function isQuotaError(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error || "");
+  const normalized = msg.toUpperCase();
+  return normalized.includes("RESOURCE_EXHAUSTED") || normalized.includes("QUOTA EXCEEDED");
+}
+
 /**
  * API para actualizar la última vez que el usuario se conectó
  * Se llama automáticamente cuando el usuario accede a la app
@@ -87,6 +93,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.log(`✅ lastLogin actualizado para usuario ${userId}`);
     return res.status(200).json({ success: true });
   } catch (error) {
+    if (isQuotaError(error)) {
+      return res.status(200).json({
+        success: false,
+        degraded: true,
+        warning: "No se pudo actualizar lastLogin temporalmente por límite de cuota.",
+      });
+    }
     console.error("Error al actualizar lastLogin:", error);
     return res.status(500).json({ 
       error: "Error al actualizar última conexión",

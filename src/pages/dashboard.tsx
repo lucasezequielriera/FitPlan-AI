@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import Head from "next/head";
 import { motion, AnimatePresence } from "framer-motion";
@@ -10,62 +10,16 @@ import { collection, query, where, getDocs, limit, Timestamp, doc, deleteDoc, up
 import Navbar from "@/components/Navbar";
 import PremiumPlanModal from "@/components/PremiumPlanModal";
 import PlanContinuityModal from "@/components/PlanContinuityModal";
-
-interface RegistroPeso {
-  fecha: string;
-  peso: number;
-  timestamp?: Timestamp | Date | { seconds: number; nanoseconds?: number } | number | null;
-}
-
-interface PlanMultiFaseData {
-  pesoInicial: number;
-  pesoObjetivoFinal: number;
-  mesActual: number;
-  totalMeses: number;
-  faseActual: "BULK" | "CUT" | "LEAN_BULK" | "MANTENIMIENTO";
-  pesoMetaEsteMes: number;
-  fases?: Array<{
-    nombre: string;
-    meses: number[];
-    objetivoFase: string;
-    pesoInicio: number;
-    pesoFin: number;
-  }>;
-  historialMeses?: Array<{
-    mesNumero: number;
-    fechaGeneracion?: string;
-    datosAlIniciar?: {
-      peso: number;
-      fechaRegistro?: string;
-      cintura?: number;
-    };
-    datosAlFinalizar?: {
-      peso?: number;
-      fechaRegistro?: string;
-      adherenciaComida: "<50%" | "50-70%" | "70-80%" | ">80%";
-      adherenciaEntreno: "<50%" | "50-70%" | "70-80%" | ">80%";
-      energia: "muy_baja" | "baja" | "normal" | "alta" | "muy_alta";
-      recuperacion: "mala" | "regular" | "normal" | "buena" | "excelente";
-    };
-  }>;
-}
-
-interface SavedPlan {
-  id: string;
-  userId: string;
-  plan: {
-    plan: Record<string, unknown>;
-    user: Record<string, unknown>;
-  };
-  planMultiFase?: PlanMultiFaseData; // Al mismo nivel que plan (así se guarda en Firebase)
-  createdAt: Timestamp;
-  isOldest?: boolean;
-  registrosPeso?: RegistroPeso[];
-  completado?: boolean;
-}
+import { useAppLocale, type AppLocale } from "@/contexts/AppLocaleContext";
+import { dash, dashFmt, goalLabel } from "@/lib/i18n/appUi";
+import type { RegistroPeso, SavedPlan } from "@/types/savedPlan";
+import { DashboardPlanCard } from "@/components/dashboard/DashboardPlanCard";
+import { loadCachedDashboardPlans, saveCachedDashboardPlans } from "@/lib/planLocalCache";
+import { applyPendingWeightOps, clearPendingWeightOps, enqueueWeightOp, loadPendingWeightOps } from "@/lib/weightSyncQueue";
 
 export default function Dashboard() {
   const router = useRouter();
+  const { locale } = useAppLocale();
   const { user: authUser, loading: authLoading } = useAuthStore();
   const { setPlan, setUser, setPlanId, setPlanMultiFase, setPlanCreatedAt } = usePlanStore();
   const [plans, setPlans] = useState<SavedPlan[]>([]);
@@ -89,6 +43,7 @@ export default function Dashboard() {
   const [personalTrainerNotice, setPersonalTrainerNotice] = useState<string | null>(null);
   const [personalTrainerReason, setPersonalTrainerReason] = useState("");
   const [trainerPreference, setTrainerPreference] = useState<"hombre" | "mujer" | null>(null);
+  const [cacheNotice, setCacheNotice] = useState<string | null>(null);
 
   const trainerWhatsappUrl = "https://wa.me/34627043397";
 
@@ -164,7 +119,7 @@ export default function Dashboard() {
 
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(data?.error || "No se pudo procesar la solicitud.");
+        throw new Error(data?.error || dash(locale, "trainerRequestError"));
       }
 
       setPersonalTrainerAssigned(true);
@@ -172,15 +127,14 @@ export default function Dashboard() {
       setPersonalTrainerReason("");
       setTrainerPreference(null);
       if (data?.alreadyAssigned) {
-        setPersonalTrainerNotice("Ya tenías entrenador asignado. Puedes contactar con tu entrenador por WhatsApp.");
+        setPersonalTrainerNotice(dash(locale, "trainerAssignedAlready"));
       } else {
-        setPersonalTrainerNotice(
-          `Listo. Te asignamos a ${data?.trainer?.name || "tu entrenador"} para acompañarte en tu objetivo.`
-        );
+        const name = data?.trainer?.name || dash(locale, "trainerNameFallback");
+        setPersonalTrainerNotice(dash(locale, "trainerAssignedOk").replace("{name}", name));
       }
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "No se pudo procesar la solicitud.";
+        error instanceof Error ? error.message : dash(locale, "trainerRequestError");
       setPersonalTrainerNotice(message);
     } finally {
       setPersonalTrainerLoading(false);
@@ -191,8 +145,24 @@ export default function Dashboard() {
     try {
       const db = getDbSafe();
       const auth = getAuthSafe();
-      if (!db || !auth?.currentUser) {
-        setError("Firebase no configurado");
+      if (!auth?.currentUser) {
+        setError(dash(locale, "errFirebase"));
+        setLoading(false);
+        return;
+      }
+      if (!db) {
+        const cachedPlans = loadCachedDashboardPlans(auth.currentUser.uid);
+        if (cachedPlans && cachedPlans.length > 0) {
+          setPlans(cachedPlans);
+          setCacheNotice(
+            locale === "en"
+              ? "Showing your latest saved plans while the server is temporarily unavailable."
+              : "Mostrando tus últimos planes guardados mientras el servidor no está disponible."
+          );
+          setError(null);
+        } else {
+          setError(dash(locale, "errFirebase"));
+        }
         setLoading(false);
         return;
       }
@@ -206,66 +176,6 @@ export default function Dashboard() {
 
       const querySnapshot = await getDocs(q);
       const plansData: SavedPlan[] = [];
-      
-      // Verificar y guardar snapshots mensuales para planes que cumplieron 30 días
-      const now = new Date();
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        const createdAt = data.createdAt;
-        
-        if (createdAt) {
-          let createdDate: Date;
-          if (createdAt.toDate) {
-            createdDate = createdAt.toDate();
-          } else if (createdAt.seconds) {
-            createdDate = new Date(createdAt.seconds * 1000);
-          } else {
-            createdDate = new Date(createdAt);
-          }
-          
-          const diffTime = now.getTime() - createdDate.getTime();
-          const diffDays = diffTime / (1000 * 60 * 60 * 24);
-          
-          // Si el plan tiene 30 días o más, guardar snapshot mensual (solo una vez)
-          if (diffDays >= 30) {
-            const monthYear = `${createdDate.getFullYear()}-${String(createdDate.getMonth() + 1).padStart(2, '0')}`;
-            
-            // Verificar si ya existe snapshot para este mes
-            if (auth.currentUser) {
-              const historyRef = collection(db, "historial_mensual", auth.currentUser.uid, "meses");
-              const historyQuery = query(historyRef, where("snapshotMonth", "==", monthYear), limit(1));
-              
-              getDocs(historyQuery).then((historySnapshot) => {
-                if (historySnapshot.empty) {
-                  // No existe snapshot, guardarlo
-                  fetch("/api/saveMonthlySnapshot", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      userId: auth.currentUser?.uid,
-                      planId: doc.id,
-                      planData: data.plan?.plan || {},
-                      userData: data.plan?.user || {},
-                    }),
-                  })
-                  .then((response) => {
-                    if (!response.ok) {
-                      console.warn("⚠️ No se pudo guardar snapshot mensual (puede ser normal si Firebase Admin no está configurado)");
-                    }
-                    return response.json();
-                  })
-                  .catch((err) => {
-                    // Silenciar el error para no interrumpir el flujo del usuario
-                    console.warn("⚠️ Error al guardar snapshot mensual (puede ser normal):", err);
-                  });
-                }
-              }).catch((err) => {
-                console.error("Error al verificar snapshot existente:", err);
-              });
-            }
-          }
-        }
-      });
       
       querySnapshot.forEach((doc) => {
         plansData.push({
@@ -288,11 +198,66 @@ export default function Dashboard() {
       const oldestPlanId = limitedPlans.length > 0 ? limitedPlans[limitedPlans.length - 1].id : null;
       
       // Guardar el ID del plan más antiguo para usarlo en el render
-      setPlans(limitedPlans.map(p => ({ ...p, isOldest: p.id === oldestPlanId })));
+      const normalizedPlans = limitedPlans.map(p => ({ ...p, isOldest: p.id === oldestPlanId }));
+      setPlans(normalizedPlans);
+      saveCachedDashboardPlans(auth.currentUser.uid, normalizedPlans);
+      setCacheNotice(null);
+
+      // Optimizacion: evita revisar snapshot de todos los planes en cada carga.
+      // Solo intenta con el plan mas reciente y no mas de una vez por dia.
+      const mostRecentPlan = limitedPlans[0];
+      if (mostRecentPlan?.id) {
+        const createdAtMs =
+          mostRecentPlan.createdAt?.toMillis?.() ||
+          (mostRecentPlan.createdAt?.seconds ? mostRecentPlan.createdAt.seconds * 1000 : 0);
+        if (createdAtMs > 0) {
+          const createdDate = new Date(createdAtMs);
+          const diffDays = (Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24);
+          if (diffDays >= 30) {
+            const monthYear = `${createdDate.getFullYear()}-${String(createdDate.getMonth() + 1).padStart(2, "0")}`;
+            const todayKey = new Date().toISOString().slice(0, 10);
+            const throttleKey = `fitplan:snapshot-check:${auth.currentUser.uid}:${mostRecentPlan.id}:${monthYear}`;
+            const checkedToday = typeof window !== "undefined" ? localStorage.getItem(throttleKey) === todayKey : false;
+
+            if (!checkedToday) {
+              if (typeof window !== "undefined") localStorage.setItem(throttleKey, todayKey);
+              void fetch("/api/saveMonthlySnapshot", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  userId: auth.currentUser.uid,
+                  planId: mostRecentPlan.id,
+                  planData: mostRecentPlan.plan?.plan || {},
+                  userData: mostRecentPlan.plan?.user || {},
+                }),
+              }).catch((snapshotErr) => {
+                console.warn("Error al guardar snapshot mensual (no bloqueante):", snapshotErr);
+              });
+            }
+          }
+        }
+      }
       setError(null);
     } catch (err: unknown) {
       console.error("Error al cargar planes:", err);
-      setError("Error al cargar tus planes guardados");
+      const auth = getAuthSafe();
+      const fallbackUid = auth?.currentUser?.uid;
+      if (fallbackUid) {
+        const cachedPlans = loadCachedDashboardPlans(fallbackUid);
+        if (cachedPlans && cachedPlans.length > 0) {
+          setPlans(cachedPlans);
+          setCacheNotice(
+            locale === "en"
+              ? "Connection issues detected. Showing your latest saved plans."
+              : "Detectamos problemas de conexión. Mostramos tus últimos planes guardados."
+          );
+          setError(null);
+        } else {
+          setError(dash(locale, "errLoadPlans"));
+        }
+      } else {
+        setError(dash(locale, "errLoadPlans"));
+      }
     } finally {
       setLoading(false);
     }
@@ -349,7 +314,7 @@ export default function Dashboard() {
     
     // Prevenir eliminar el Plan Base solo si NO es premium
     if (plan.isOldest && !isPremium) {
-      alert("El Plan Base no se puede eliminar. Es tu plan principal y debe permanecer en tu cuenta. Actualiza a Premium para tener control total sobre todos tus planes.");
+      alert(dash(locale, "alertCannotDeleteBase"));
       return;
     }
     
@@ -362,7 +327,7 @@ export default function Dashboard() {
 
     // Validación de seguridad: no permitir eliminar el Plan Base solo si NO es premium
     if (planToDelete.isOldest && !isPremium) {
-      alert("El Plan Base no se puede eliminar. Es tu plan principal y debe permanecer en tu cuenta. Actualiza a Premium para tener control total sobre todos tus planes.");
+      alert(dash(locale, "alertCannotDeleteBase"));
       setDeleteModalOpen(false);
       setPlanToDelete(null);
       return;
@@ -374,7 +339,7 @@ export default function Dashboard() {
       const auth = getAuthSafe();
       
       if (!db || !auth?.currentUser) {
-        throw new Error("Firebase no configurado");
+        throw new Error(dash(locale, "errFirebase"));
       }
 
       // Eliminar el plan de Firestore
@@ -390,7 +355,7 @@ export default function Dashboard() {
       setError(null);
     } catch (err: unknown) {
       console.error("Error al eliminar plan:", err);
-      setError("No se pudo eliminar el plan. Por favor intenta de nuevo.");
+      setError(dash(locale, "errDeletePlan"));
     } finally {
       setDeleting(false);
     }
@@ -441,8 +406,8 @@ export default function Dashboard() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="opacity-70">Cargando...</p>
+          <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-[var(--landing-border)] border-t-[var(--landing-accent)]" />
+          <p className="text-sm text-[var(--landing-muted)]">{dash(locale, "loading")}</p>
         </div>
       </div>
     );
@@ -453,589 +418,198 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen overflow-x-hidden max-w-full">
+    <div className="relative min-h-screen overflow-x-hidden max-w-full">
       <Head>
-        <title>Mi Dashboard | FitPlan AI</title>
-        <meta name="description" content="Gestioná tus planes de alimentación y entrenamiento personalizados. Seguimiento de progreso, peso y métricas de salud." />
+        <title>{dash(locale, "pageTitle")}</title>
+        <meta name="description" content={dash(locale, "pageDesc")} />
         <meta name="robots" content="noindex, nofollow" />
-        <meta property="og:title" content="Mi Dashboard | FitPlan AI" />
+        <meta property="og:title" content={dash(locale, "ogTitle")} />
         <meta property="og:url" content="https://www.fitplan-ai.com/dashboard" />
       </Head>
       <Navbar />
-      <div className="px-3 py-4 sm:px-4 sm:py-8 md:px-8 max-w-full overflow-x-hidden">
+      <div className="relative z-[1] px-3 py-6 sm:px-5 sm:py-10 md:px-8 max-w-full overflow-x-hidden">
         <div className="mx-auto max-w-6xl w-full">
+          {cacheNotice ? (
+            <div className="mb-4 rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+              {cacheNotice}
+            </div>
+          ) : null}
           <motion.div
-            initial={{ opacity: 0, y: 16 }}
+            initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="glass rounded-xl sm:rounded-2xl p-4 sm:p-6 md:p-8 w-full overflow-x-hidden"
+            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+            className="relative"
           >
-            <div className="mb-4 sm:mb-6">
-              <div className="mb-4 sm:mb-6">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <h1 className="text-2xl sm:text-3xl font-bold mb-1 sm:mb-2">Mi Dashboard</h1>
+            <div className="relative w-full overflow-x-hidden">
+            <header className="mb-8 sm:mb-10">
+              <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0 max-w-2xl">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--landing-muted)]">FitPlan AI</p>
+                  <h1 className="mt-1 text-3xl font-bold tracking-tight text-[var(--foreground)] sm:text-4xl">
+                    {dash(locale, "heading")}
+                  </h1>
+                  <p className="mt-2 text-sm leading-relaxed text-[var(--landing-muted)] sm:text-base">
+                    {dash(locale, "subtitle")}
+                  </p>
+                </div>
+                <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
                   {personalTrainerAssigned ? (
                     <button
+                      type="button"
                       onClick={() => window.open(trainerWhatsappUrl, "_blank", "noopener,noreferrer")}
-                      className="px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white text-sm font-medium transition-all shadow-lg shadow-emerald-500/20"
+                      aria-label={dash(locale, "contactTrainer")}
+                      title={dash(locale, "contactTrainer")}
+                      className="group inline-flex max-w-full items-center justify-center gap-2 rounded-xl border border-[color-mix(in_oklab,var(--brand-end)_40%,transparent)] bg-[color-mix(in_oklab,var(--brand-end)_14%,transparent)] px-4 py-2.5 text-sm font-medium text-[var(--foreground)] shadow-[0_8px_28px_-12px_color-mix(in_oklab,var(--brand-end)_50%,transparent)] transition-all hover:bg-[color-mix(in_oklab,var(--brand-end)_20%,transparent)] sm:gap-0 sm:px-3 sm:py-2.5 sm:hover:gap-2 sm:hover:px-4"
                     >
-                      Contactar con mi entrenador
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                        className="h-4 w-4 shrink-0 opacity-90"
+                        aria-hidden
+                      >
+                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                      </svg>
+                      <span className="whitespace-nowrap max-sm:inline sm:inline-block sm:max-w-0 sm:overflow-hidden sm:opacity-0 sm:transition-[max-width,opacity] sm:duration-200 sm:ease-out sm:group-hover:max-w-[min(18rem,calc(100vw-6rem))] sm:group-hover:opacity-100 sm:group-focus-within:max-w-[min(18rem,calc(100vw-6rem))] sm:group-focus-within:opacity-100">
+                        {dash(locale, "contactTrainer")}
+                      </span>
                     </button>
                   ) : (
                     <button
+                      type="button"
                       onClick={() => setPersonalTrainerModalOpen(true)}
-                      className="px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-500 to-blue-500 hover:from-indigo-600 hover:to-blue-600 text-white text-sm font-medium transition-all shadow-lg shadow-indigo-500/20"
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-[color-mix(in_oklab,var(--landing-accent)_45%,transparent)] bg-[color-mix(in_oklab,var(--landing-accent)_16%,transparent)] px-4 py-2.5 text-sm font-medium text-[var(--foreground)] transition hover:bg-[color-mix(in_oklab,var(--landing-accent)_24%,transparent)]"
                     >
-                      Pedir Entrenador Personal humano
+                      {dash(locale, "requestTrainer")}
                     </button>
                   )}
                 </div>
-                <p className="text-sm sm:text-base opacity-70">Gestiona tus planes nutricionales guardados</p>
               </div>
+
               {personalTrainerNotice && (
-                <div className="mb-4 rounded-lg border border-cyan-500/30 bg-cyan-500/10 p-3 text-sm text-cyan-200">
+                <div className="mt-6 rounded-2xl border border-[color-mix(in_oklab,var(--brand-end)_30%,transparent)] bg-[color-mix(in_oklab,var(--brand-end)_10%,transparent)] px-4 py-3 text-sm leading-relaxed text-[var(--foreground)] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                  <span className="mr-2 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--brand-end)] shadow-[0_0_10px_color-mix(in_oklab,var(--brand-end)_80%,transparent)]" aria-hidden />
                   {personalTrainerNotice}
                 </div>
               )}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
+
+              <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                 {!isPremium && (
                   <button
+                    type="button"
                     onClick={() => {
                       if (!authUser) {
-                        alert("Debes estar registrado para acceder al plan Premium");
+                        alert(dash(locale, "registerPremium"));
                         return;
                       }
                       setPremiumModalOpen(true);
                     }}
                     disabled={processingPayment}
-                    className="flex-1 sm:flex-none px-4 py-2.5 sm:px-6 sm:py-3 rounded-lg sm:rounded-xl bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white text-sm sm:text-base font-medium transition-all shadow-lg shadow-yellow-500/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_12px_36px_-16px_rgba(251,146,60,0.55)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0"
+                      fill="currentColor"
+                      className="h-4 w-4 shrink-0 opacity-95"
                     >
                       <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                     </svg>
-                    <span className="truncate">Ser Premium</span>
+                    {dash(locale, "premium")}
                   </button>
                 )}
-                {(!isPremium && plans.length >= 1) ? (
-                  <div className="relative group flex-1 sm:flex-none">
+                {!isPremium && plans.length >= 1 ? (
+                  <div className="group relative flex-1 sm:flex-none">
                     <button
+                      type="button"
                       disabled
-                      className="w-full sm:w-auto px-4 py-2.5 sm:px-6 sm:py-3 rounded-lg sm:rounded-xl bg-white/5 border border-white/10 text-white/50 text-sm sm:text-base font-medium cursor-not-allowed opacity-50"
+                      className="w-full rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] px-5 py-2.5 text-sm font-medium text-[var(--landing-muted)] opacity-60 sm:w-auto"
                     >
-                      + Nuevo Plan
+                      {dash(locale, "newPlan")}
                     </button>
-                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg bg-yellow-500/20 border border-yellow-500/30 text-yellow-300 text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                      Ya tienes 1 plan. Actualiza a Premium para crear planes ilimitados
+                    <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 -translate-x-1/2 rounded-lg border border-amber-500/25 bg-[color-mix(in_oklab,#0f172a_95%,black)] px-3 py-2 text-xs text-amber-100/95 opacity-0 shadow-xl transition-opacity group-hover:opacity-100">
+                      {dash(locale, "newPlanLocked")}
                     </div>
                   </div>
                 ) : (
                   <button
+                    type="button"
                     onClick={handleCreateNew}
-                    className="flex-1 sm:flex-none px-4 py-2.5 sm:px-6 sm:py-3 rounded-lg sm:rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white text-sm sm:text-base font-medium transition-all shadow-lg shadow-blue-500/20"
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[var(--brand-start)] via-[var(--brand-mid)] to-[var(--brand-end)] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_12px_40px_-18px_color-mix(in_oklab,var(--brand-mid)_50%,transparent)] transition hover:brightness-110 sm:flex-none"
                   >
-                    + Nuevo Plan
+                    {dash(locale, "newPlan")}
                   </button>
                 )}
               </div>
-            </div>
+            </header>
 
             {error && (
-              <div className="mb-6 p-4 rounded-xl bg-red-500/20 border border-red-500/30 text-red-300">
+              <div className="mb-8 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
                 {error}
               </div>
             )}
 
             {plans.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="text-6xl mb-4">📋</div>
-                <h2 className="text-xl font-semibold mb-2">No tienes planes guardados</h2>
-                <p className="opacity-70 mb-6">Crea tu primer plan nutricional personalizado</p>
+              <div className="rounded-2xl border border-dashed border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--foreground)_3%,transparent)] px-6 py-14 text-center">
+                <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--landing-surface)] ring-1 ring-[var(--landing-border)]">
+                  <span className="text-4xl" aria-hidden>
+                    📋
+                  </span>
+                </div>
+                <h2 className="text-xl font-semibold text-[var(--foreground)]">{dash(locale, "noPlansTitle")}</h2>
+                <p className="mx-auto mt-2 max-w-md text-sm text-[var(--landing-muted)]">{dash(locale, "noPlansBody")}</p>
                 <button
+                  type="button"
                   onClick={handleCreateNew}
-                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-medium transition-all shadow-lg shadow-blue-500/20"
+                  className="mt-8 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[var(--brand-start)] via-[var(--brand-mid)] to-[var(--brand-end)] px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:brightness-110"
                 >
-                  Crear mi primer plan
+                  {dash(locale, "createFirst")}
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-                {plans.map((plan) => (
-                  <motion.div
-                    key={plan.id}
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    whileHover={{ scale: 1.02 }}
-                    onClick={() => handlePlanClick(plan)}
-                    className="relative cursor-pointer rounded-lg sm:rounded-xl border border-white/10 bg-white/5 p-4 sm:p-6 hover:bg-white/10 transition-all shadow-lg hover:shadow-xl"
-                  >
-                    <div className="absolute top-3 right-3 sm:top-4 sm:right-4 flex items-center gap-1.5 sm:gap-2 z-10">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setPlanForProgress(plan);
-                          setProgressModalOpen(true);
-                        }}
-                        className="p-1.5 sm:p-2 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-400 hover:text-blue-300 transition-colors"
-                        title="Ver progreso"
-                        aria-label="Ver progreso"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          className="h-4 w-4 sm:h-5 sm:w-5"
-                        >
-                          <line x1="18" y1="20" x2="18" y2="10" />
-                          <line x1="12" y1="20" x2="12" y2="4" />
-                          <line x1="6" y1="20" x2="6" y2="14" />
-                        </svg>
-                      </button>
-                      {isPremium && (
-                        <button
-                          onClick={(e) => handleDeleteClick(e, plan)}
-                          className="p-1.5 sm:p-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-400 hover:text-red-300 transition-colors"
-                          title="Eliminar plan"
-                          aria-label="Eliminar plan"
-                        >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          className="h-4 w-4 sm:h-5 sm:w-5"
-                        >
-                          <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                          <line x1="10" y1="11" x2="10" y2="17" />
-                          <line x1="14" y1="11" x2="14" y2="17" />
-                        </svg>
-                      </button>
-                      )}
-                    </div>
-                    <div className="mb-3 sm:mb-4 pr-16 sm:pr-20">
-                      <h3 className="font-semibold text-base sm:text-lg mb-1 sm:mb-2">
-                        {plan.isOldest 
-                          ? "Plan Base"
-                          : plan.plan?.user?.objetivo === "perder_grasa"
-                          ? "Plan: Perder Grasa"
-                          : plan.plan?.user?.objetivo === "mantener"
-                          ? "Plan: Mantener Peso"
-                          : plan.plan?.user?.objetivo === "ganar_masa"
-                          ? "Plan: Ganar Masa"
-                          : plan.plan?.user?.objetivo === "recomposicion"
-                          ? "Plan: Recomposición"
-                          : plan.plan?.user?.objetivo === "definicion"
-                          ? "Plan: Definición"
-                          : plan.plan?.user?.objetivo === "volumen"
-                          ? "Plan: Volumen"
-                          : plan.plan?.user?.objetivo === "corte"
-                          ? "Plan: Corte"
-                          : plan.plan?.user?.objetivo === "mantenimiento_avanzado"
-                          ? "Plan: Mantenimiento Avanzado"
-                          : plan.plan?.user?.objetivo === "bulk_cut"
-                          ? "Plan: Bulk + Cut"
-                          : plan.plan?.user?.objetivo === "lean_bulk"
-                          ? "Plan: Lean Bulk"
-                          : plan.plan?.user?.objetivo === "rendimiento_deportivo"
-                          ? "Plan: Rendimiento Deportivo"
-                          : plan.plan?.user?.objetivo === "powerlifting"
-                          ? "Plan: Powerlifting"
-                          : plan.plan?.user?.objetivo === "resistencia"
-                          ? "Plan: Resistencia"
-                          : plan.plan?.user?.objetivo === "atleta_elite"
-                          ? "Plan: Atleta Elite"
-                          : String(plan.plan?.user?.nombre || "Plan sin nombre")}
-                      </h3>
-                      <div className="flex flex-wrap gap-2 items-center">
-                        {/* Badge de fase para planes multi-fase */}
-                        {plan.planMultiFase && (
-                          <div
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border"
-                            style={{
-                              backgroundColor: plan.planMultiFase.faseActual === 'BULK' 
-                                ? 'rgba(245,158,11,0.15)' 
-                                : plan.planMultiFase.faseActual === 'CUT' 
-                                ? 'rgba(6,182,212,0.15)' 
-                                : plan.planMultiFase.faseActual === 'LEAN_BULK'
-                                ? 'rgba(16,185,129,0.15)'
-                                : 'rgba(139,92,246,0.15)',
-                              borderColor: plan.planMultiFase.faseActual === 'BULK' 
-                                ? 'rgba(245,158,11,0.4)' 
-                                : plan.planMultiFase.faseActual === 'CUT' 
-                                ? 'rgba(6,182,212,0.4)' 
-                                : plan.planMultiFase.faseActual === 'LEAN_BULK'
-                                ? 'rgba(16,185,129,0.4)'
-                                : 'rgba(139,92,246,0.4)'
-                            }}
-                          >
-                            <span 
-                              className="text-xs font-semibold"
-                              style={{
-                                color: plan.planMultiFase.faseActual === 'BULK' 
-                                  ? '#fcd34d' 
-                                  : plan.planMultiFase.faseActual === 'CUT' 
-                                  ? '#67e8f9' 
-                                  : plan.planMultiFase.faseActual === 'LEAN_BULK'
-                                  ? '#6ee7b7'
-                                  : '#c4b5fd'
-                              }}
-                            >
-                              {plan.planMultiFase.faseActual === 'BULK' && '🏋️'}
-                              {plan.planMultiFase.faseActual === 'CUT' && '✂️'}
-                              {plan.planMultiFase.faseActual === 'LEAN_BULK' && '💎'}
-                              {plan.planMultiFase.faseActual === 'MANTENIMIENTO' && '⚖️'}
-                              {' '}Mes {plan.planMultiFase.mesActual || 1}/{plan.planMultiFase.totalMeses || 1}
-                            </span>
-                          </div>
-                        )}
-                        
-                        {/* Badge de dificultad */}
-                        {(() => {
-                          const dificultad = plan.plan?.plan?.dificultad;
-                          return dificultad && String(dificultad) ? true : false;
-                        })() && (
-                          <div
-                            className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md border"
-                            style={{
-                              backgroundColor: 'rgba(255,255,255,0.05)',
-                              borderColor: plan.plan.plan.dificultad === 'dificil' ? 'rgba(248,113,113,0.4)' : plan.plan.plan.dificultad === 'media' ? 'rgba(250,204,21,0.4)' : 'rgba(52,211,153,0.4)'
-                            }}
-                          >
-                            <span className="text-[11px] opacity-70">Dificultad</span>
-                            <span
-                              className="text-xs font-medium capitalize"
-                              style={{
-                                color: plan.plan.plan.dificultad === 'dificil' ? '#fecaca' : plan.plan.plan.dificultad === 'media' ? '#fde68a' : '#a7f3d0'
-                              }}
-                            >
-                              {String(plan.plan.plan.dificultad || "")}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                      <p className="text-xs sm:text-sm opacity-70 mt-3 font-small">
-                        Creación: {(() => {
-                          const d = plan.createdAt?.toDate?.() || (plan.createdAt?.seconds ? new Date(plan.createdAt.seconds * 1000) : null);
-                          if (!d || isNaN(d.getTime())) return "Fecha no disponible";
-                          const dd = String(d.getDate()).padStart(2, '0');
-                          const mm = String(d.getMonth() + 1).padStart(2, '0');
-                          const yyyy = d.getFullYear();
-                          return `${dd}/${mm}/${yyyy}`;
-                        })()}
-                      </p>
-                    </div>
-                    <div className="space-y-2 sm:space-y-2.5 mb-3 sm:mb-4">
-                      <div className="flex items-center gap-2 text-xs sm:text-sm">
-                        <span className="opacity-60 min-w-[55px] sm:min-w-[70px] flex-shrink-0">Objetivo:</span>
-                        <span className="font-medium">
-                          {(() => {
-                            const obj = plan.plan?.user?.objetivo as string | undefined;
-                            if (!obj) return "N/A";
-                            // Mapeos conocidos con capitalización adecuada
-                            const map: Record<string, string> = {
-                              perder_grasa: "Perder grasa",
-                              mantener: "Mantener peso",
-                              ganar_masa: "Ganar masa",
-                              recomposicion: "Recomposición",
-                              definicion: "Definición",
-                              volumen: "Volumen",
-                              corte: "Corte",
-                              mantenimiento_avanzado: "Mantenimiento avanzado",
-                              bulk_cut: "Bulk + Cut",
-                              lean_bulk: "Lean Bulk",
-                              rendimiento_deportivo: "Rendimiento Deportivo",
-                              powerlifting: "Powerlifting",
-                              resistencia: "Resistencia",
-                              atleta_elite: "Atleta Elite",
-                            };
-                            if (map[obj]) return map[obj];
-                            // Fallback: reemplazar guiones bajos y capitalizar primera letra
-                            const pretty = obj.replace(/_/g, " ");
-                            return pretty.charAt(0).toUpperCase() + pretty.slice(1);
-                          })()}
-                        </span>
-                      </div>
-                      {(() => {
-                        const lesiones = (plan.plan?.user?.doloresLesiones as string[] | undefined)?.filter(
-                          (s) => typeof s === "string" && s.trim().length > 0
-                        );
-                        return lesiones && lesiones.length > 0
-                          ? (
-                            <div className="flex items-center gap-2 text-xs sm:text-sm text-cyan-100">
-                              <div className="relative group flex-shrink-0">
-                                <svg
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  viewBox="0 0 24 24"
-                                  fill="currentColor"
-                                  className="h-4 w-4 opacity-80 text-cyan-200"
-                                >
-                                  <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 15h-1.5v-1.5h1.5Zm1.971-6.279-.675.693A3.375 3.375 0 0 0 12.75 14.25h-1.5a4.875 4.875 0 0 1 1.425-3.45l.93-.936a1.875 1.875 0 1 0-3.195-1.326h-1.5a3.375 3.375 0 1 1 6.03 1.283Z" />
-                                </svg>
-                                <div className="pointer-events-none absolute left-1/2 top-full z-40 mt-2 w-60 -translate-x-1/2 rounded-lg border border-cyan-500/40 bg-black/90 px-3 py-2 text-[10px] sm:text-xs text-cyan-50 opacity-0 shadow-lg transition-opacity duration-200 group-hover:opacity-100">
-                                  Plan adaptado para:{" "}
-                                  <span className="font-medium">
-                                    {lesiones.join(", ")}
-                                  </span>
-                                </div>
-                              </div>
-                              <span className="opacity-80">
-                                Adaptado para:{" "}
-                                <span className="font-medium text-cyan-100">
-                                  {lesiones.join(", ")}
-                                </span>
-                              </span>
-                            </div>
-                          )
-                          : null;
-                      })()}
-                      {(() => {
-                        const peso = plan.plan?.user?.pesoKg;
-                        return peso !== undefined && peso !== null && peso !== 0;
-                      })() && (
-                        <div className="flex items-center gap-2 text-xs sm:text-sm">
-                          <span className="opacity-60 min-w-[55px] sm:min-w-[70px] flex-shrink-0">Peso:</span>
-                          <span className="font-medium">
-                            {String(plan.plan.user.pesoKg)} kg
-                            {(() => {
-                              const objetivo = plan.plan?.user?.objetivo;
-                              return Boolean(objetivo && String(objetivo) !== "mantener" && String(objetivo) !== "mantenimiento_avanzado");
-                            })() ? (
-                              <span className="ml-2 opacity-70">
-                                → {
-                                  (() => {
-                                    const pesoKg = typeof plan.plan.user.pesoKg === 'number' ? plan.plan.user.pesoKg : Number(plan.plan.user.pesoKg) || 0;
-                                    const objetivo = String(plan.plan.user.objetivo || "");
-                                    
-                                    // Para planes multi-fase, usar el peso objetivo del planMultiFase
-                                    if (objetivo === "bulk_cut" || objetivo === "lean_bulk") {
-                                      const pesoObjetivo = plan.planMultiFase?.pesoObjetivoFinal 
-                                        || (plan.plan?.user as Record<string, unknown>)?.pesoObjetivoKg;
-                                      if (pesoObjetivo) return `${pesoObjetivo} kg`;
-                                      // Fallback si no hay pesoObjetivo guardado
-                                      return objetivo === "bulk_cut" 
-                                        ? `${Math.round(pesoKg * 1.1)} kg` 
-                                        : `${Math.round(pesoKg * 1.08)} kg`;
-                                    }
-                                    
-                                    // Objetivos de pérdida
-                                    if (objetivo === "perder_grasa") return `${Math.max(1, Math.round(pesoKg * 0.95))} kg`;
-                                    if (objetivo === "definicion") return `${Math.max(1, Math.round(pesoKg * 0.92))} kg`;
-                                    if (objetivo === "corte") return `${Math.max(1, Math.round(pesoKg * 0.90))} kg`;
-                                    
-                                    // Objetivos de ganancia
-                                    if (objetivo === "ganar_masa") return `${Math.round(pesoKg * 1.05)} kg`;
-                                    if (objetivo === "volumen") return `${Math.round(pesoKg * 1.08)} kg`;
-                                    if (objetivo === "powerlifting") return `${Math.round(pesoKg * 1.1)} kg`;
-                                    
-                                    // Objetivos atléticos (mantienen peso similar)
-                                    if (objetivo === "rendimiento_deportivo") return `${pesoKg} kg`;
-                                    if (objetivo === "atleta_elite") return `${pesoKg} kg`;
-                                    if (objetivo === "resistencia") return `${Math.round(pesoKg * 0.98)} kg`;
-                                    
-                                    // Recomposición (peso similar)
-                                    if (objetivo === "recomposicion") return `${pesoKg} kg`;
-                                    
-                                    return `${pesoKg} kg`;
-                                  })()
-                                }
-                              </span>
-                            ) : null}
-                          </span>
-                        </div>
-                      )}
-                      {(() => {
-                        const calorias = plan.plan?.plan?.calorias_diarias;
-                        return calorias && String(calorias) ? true : false;
-                      })() && (
-                        <div className="flex items-center gap-2 text-xs sm:text-sm">
-                          <span className="opacity-60 min-w-[55px] sm:min-w-[70px] flex-shrink-0">Calorías:</span>
-                          <span className="font-medium">{String(plan.plan.plan.calorias_diarias)} kcal</span>
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Sección de Fases para planes multi-fase (bulk_cut, lean_bulk) */}
-                    {plan.planMultiFase && (
-                      <div className="mt-4 pt-4 border-t border-white/10">
-                        {(() => {
-                          const pmf = plan.planMultiFase;
-                          const faseActual = pmf.faseActual;
-                          const mesActual = pmf.mesActual || 1;
-                          const totalMeses = pmf.totalMeses || 1;
-                          const progresoTotal = Math.round((mesActual / totalMeses) * 100);
-                          
-                          // Calcular progreso del mes actual
-                          const calcularProgresoMes = () => {
-                            try {
-                              // Buscar la fecha de inicio del mes actual en el historial
-                              const historialMeses = pmf.historialMeses ?? [];
-                              const mesActualIndex = mesActual - 1;
-                              const mesActualData = historialMeses[mesActualIndex];
-                              
-                              if (mesActualData && mesActualData.fechaGeneracion) {
-                                const fechaInicio = new Date(mesActualData.fechaGeneracion);
-                                const now = new Date();
-                                const diffTime = now.getTime() - fechaInicio.getTime();
-                                const diffDays = diffTime / (1000 * 60 * 60 * 24);
-                                return Math.min(100, Math.max(0, (diffDays / 30) * 100));
-                              }
-                            } catch (error) {
-                              console.error("Error al calcular progreso del mes:", error);
-                            }
-                            return 0;
-                          };
-                          
-                          const progresoMes = calcularProgresoMes();
-                          const mesCompleto = progresoMes >= 90;
-                          const diasRestantesMes = Math.max(0, Math.ceil(30 - (progresoMes / 100 * 30)));
-                          
-                          // Colores según fase
-                          const faseColors: Record<string, { bg: string; text: string; border: string; gradient: string }> = {
-                            BULK: { bg: "bg-amber-500/20", text: "text-amber-300", border: "border-amber-500/40", gradient: "linear-gradient(90deg, #f59e0b, #fbbf24)" },
-                            CUT: { bg: "bg-cyan-500/20", text: "text-cyan-300", border: "border-cyan-500/40", gradient: "linear-gradient(90deg, #06b6d4, #22d3ee)" },
-                            LEAN_BULK: { bg: "bg-emerald-500/20", text: "text-emerald-300", border: "border-emerald-500/40", gradient: "linear-gradient(90deg, #10b981, #34d399)" },
-                            MANTENIMIENTO: { bg: "bg-purple-500/20", text: "text-purple-300", border: "border-purple-500/40", gradient: "linear-gradient(90deg, #8b5cf6, #a78bfa)" },
-                          };
-                          const colors = faseColors[faseActual] || faseColors.MANTENIMIENTO;
-                          
-                          // Texto de fase
-                          const faseTexto: Record<string, string> = {
-                            BULK: "🏋️ Fase BULK",
-                            CUT: "✂️ Fase CUT",
-                            LEAN_BULK: "💎 Lean Bulk",
-                            MANTENIMIENTO: "⚖️ Mantenimiento",
-                          };
-                          
-                          return (
-                            <div className="space-y-3">
-                              {/* Badge de fase actual */}
-                              <div className="flex items-center justify-between">
-                                <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg ${colors.bg} border ${colors.border}`}>
-                                  <span className={`text-sm font-semibold ${colors.text}`}>
-                                    {faseTexto[faseActual] || faseActual}
-                                  </span>
-                                </div>
-                                <div className="text-right">
-                                  <span className="text-xs opacity-60">Mes </span>
-                                  <span className="text-sm font-bold">{mesActual}</span>
-                                  <span className="text-xs opacity-60"> de </span>
-                                  <span className="text-sm font-bold">{totalMeses}</span>
-                                </div>
-                              </div>
-                              
-                              {/* Barra de progreso del mes actual */}
-                              <div className="space-y-1">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-xs opacity-60">Progreso del mes {mesActual}</span>
-                                  <span className="text-xs font-medium">{Math.round(progresoMes)}%</span>
-                                </div>
-                                <div className="h-2 w-full rounded-full bg-white/10 overflow-hidden">
-                                  <div
-                                    className="h-full rounded-full transition-all duration-300"
-                                    style={{
-                                      width: `${progresoMes}%`,
-                                      background: colors.gradient,
-                                    }}
-                                  />
-                                </div>
-                                <p className="text-xs opacity-50 mt-1">
-                                  {mesCompleto 
-                                    ? `Mes ${mesActual} completado - Abre el plan para generar el mes ${mesActual + 1}`
-                                    : `${diasRestantesMes} día${diasRestantesMes !== 1 ? 's' : ''} restante${diasRestantesMes !== 1 ? 's' : ''} del mes ${mesActual}`}
-                                </p>
-                              </div>
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3 lg:gap-6">
+                {plans.map((plan) => {
+                  const phase = plan.planMultiFase?.faseActual;
+                  const accentBar =
+                    plan.isOldest
+                      ? "bg-gradient-to-r from-slate-500 via-slate-400/70 to-cyan-500/80"
+                      : phase === "BULK"
+                        ? "bg-gradient-to-r from-amber-400 to-orange-500"
+                        : phase === "CUT"
+                          ? "bg-gradient-to-r from-cyan-400 to-blue-600"
+                          : phase === "LEAN_BULK"
+                            ? "bg-gradient-to-r from-emerald-400 to-teal-600"
+                            : phase === "MANTENIMIENTO"
+                              ? "bg-gradient-to-r from-violet-400 to-fuchsia-600"
+                              : "bg-gradient-to-r from-[var(--brand-start)] via-[var(--brand-mid)] to-[var(--brand-end)]";
 
-                              {/* Barra de progreso del plan completo */}
-                              <div className="space-y-1 pt-2 border-t border-white/10">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-xs opacity-60">Progreso del plan completo</span>
-                                  <span className="text-xs font-medium">{progresoTotal}%</span>
-                                </div>
-                                <div className="h-1.5 w-full rounded-full bg-white/10 overflow-hidden">
-                                  <div
-                                    className="h-full rounded-full transition-all duration-300"
-                                    style={{
-                                      width: `${progresoTotal}%`,
-                                      background: "linear-gradient(90deg, var(--brand-start), var(--brand-mid), var(--brand-end))",
-                                    }}
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    )}
-                    
-                    {/* Barra de progreso del plan (solo para planes simples) */}
-                    {!plan.planMultiFase && (
-                    <div className="mt-4 pt-4 border-t border-white/10">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs opacity-60">Progreso del plan</span>
-                        <span className="text-xs font-medium">{calculateProgress(plan.createdAt).toFixed(1)}%</span>
-                      </div>
-                      <div className="h-2 w-full rounded-full bg-white/10 overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all duration-300"
-                          style={{
-                            width: `${calculateProgress(plan.createdAt)}%`,
-                            background: "linear-gradient(90deg, var(--brand-start), var(--brand-mid), var(--brand-end))",
-                          }}
-                        />
-                      </div>
-                      <p className="text-xs opacity-50 mt-1">
-                        {calculateProgress(plan.createdAt) >= 100 
-                          ? "Plan completado" 
-                          : `${calculateDaysRemaining(plan.createdAt)} día${calculateDaysRemaining(plan.createdAt) !== 1 ? 's' : ''} restante${calculateDaysRemaining(plan.createdAt) !== 1 ? 's' : ''}`}
-                      </p>
-
-                      {/* Botón de continuidad para planes al 90-100% (solo para planes simples, no multi-fase) */}
-                      {calculateProgress(plan.createdAt) >= 90 && !plan.completado && (
-                        <motion.button
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setPlanForContinuity(plan);
-                            setContinuityModalOpen(true);
-                          }}
-                          className="w-full mt-3 px-4 py-2 rounded-lg bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white text-sm font-medium transition-all shadow-lg flex items-center justify-center gap-2"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className="h-4 w-4"
-                          >
-                            <path d="M12 5v14M5 12l7 7 7-7" />
-                          </svg>
-                          Preparar continuidad
-                        </motion.button>
-                      )}
-                    </div>
-                    )}
-                  </motion.div>
-                ))}
+                  return (
+                    <DashboardPlanCard
+                      key={plan.id}
+                      plan={plan}
+                      locale={locale}
+                      isPremium={isPremium}
+                      accentBar={accentBar}
+                      onCardClick={() => handlePlanClick(plan)}
+                      onProgressClick={(e) => {
+                        e.stopPropagation();
+                        setPlanForProgress(plan);
+                        setProgressModalOpen(true);
+                      }}
+                      onDeleteClick={(e) => handleDeleteClick(e, plan)}
+                      calculateProgress={calculateProgress}
+                      calculateDaysRemaining={calculateDaysRemaining}
+                      onContinuityClick={(e) => {
+                        e.stopPropagation();
+                        setPlanForContinuity(plan);
+                        setContinuityModalOpen(true);
+                      }}
+                    />
+                  );
+                })}
               </div>
             )}
+            </div>
           </motion.div>
         </div>
       </div>
@@ -1081,10 +655,10 @@ export default function Dashboard() {
                       </svg>
                     </div>
                     <h2 className="text-xl font-semibold mb-2 text-center">
-                      ¿Eliminar plan?
+                      {dash(locale, "deleteModalTitle")}
                     </h2>
                     <p className="text-sm opacity-70 text-center">
-                      Esta acción no se puede deshacer. El plan será eliminado permanentemente.
+                      {dash(locale, "deleteModalBody")}
                     </p>
                   </div>
 
@@ -1094,14 +668,14 @@ export default function Dashboard() {
                       disabled={deleting}
                       className="flex-1 px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Cancelar
+                      {dash(locale, "cancel")}
                     </button>
                     <button
                       onClick={handleConfirmDelete}
                       disabled={deleting}
                       className="flex-1 px-4 py-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-400 hover:text-red-300 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {deleting ? "Eliminando..." : "Eliminar"}
+                      {deleting ? dash(locale, "deleting") : dash(locale, "deleteVerb")}
                     </button>
                   </div>
                 </motion.div>
@@ -1117,30 +691,36 @@ export default function Dashboard() {
         <AnimatePresence>
           {progressModalOpen && planForProgress && (
             <>
-              {/* Backdrop */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 onClick={() => setProgressModalOpen(false)}
-                className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9999]"
+                className="fixed inset-0 z-[9999] bg-black/75 backdrop-blur-md"
               />
-              
-              {/* Modal */}
-              <div 
-                className="pointer-events-none fixed inset-0 z-[10000] flex items-center justify-center p-4"
-              >
+              <div className="pointer-events-none fixed inset-0 z-[10000] flex items-center justify-center p-3 sm:p-4">
                 <motion.div
-                  initial={{ scale: 0.9, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.9, opacity: 0 }}
+                  initial={{ scale: 0.96, opacity: 0, y: 14 }}
+                  animate={{ scale: 1, opacity: 1, y: 0 }}
+                  exit={{ scale: 0.96, opacity: 0, y: 14 }}
+                  transition={{ type: "spring", damping: 26, stiffness: 320 }}
                   onClick={(e) => e.stopPropagation()}
-                  className="pointer-events-auto w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-xl border border-white/10 bg-black/95 p-6 shadow-2xl"
+                  className="pointer-events-auto flex max-h-[min(92vh,calc(100vh-2rem))] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--background)_86%,#0a0f18)] shadow-[0_40px_100px_-36px_rgba(0,0,0,0.9)] ring-1 ring-[color-mix(in_oklab,var(--foreground)_5%,transparent)]"
                 >
-                  <ProgressModalContent 
-                    plan={planForProgress}
-                    onClose={() => setProgressModalOpen(false)}
+                  <div
+                    className="pointer-events-none absolute inset-0 opacity-[0.4]"
+                    style={{
+                      background:
+                        "radial-gradient(65% 42% at 12% 0%, color-mix(in oklab, var(--landing-accent) 22%, transparent), transparent 52%), radial-gradient(50% 38% at 88% 6%, color-mix(in oklab, var(--brand-mid) 14%, transparent), transparent 48%)",
+                    }}
                   />
+                  <div className="relative max-h-full min-h-0 flex-1 overflow-y-auto">
+                    <ProgressModalContent
+                      plan={planForProgress}
+                      onClose={() => setProgressModalOpen(false)}
+                      locale={locale}
+                    />
+                  </div>
                 </motion.div>
               </div>
             </>
@@ -1159,57 +739,88 @@ export default function Dashboard() {
         />
       )}
 
-      <AnimatePresence>
-        {freeExpiredModalOpen && (
-          <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-              onClick={() => setFreeExpiredModalOpen(false)}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 12 }}
-              className="relative z-10 w-full max-w-lg rounded-2xl border border-cyan-400/30 bg-gradient-to-b from-slate-900 to-black p-6 shadow-2xl"
-            >
-              <div className="flex items-start gap-3">
-                <div className="h-11 w-11 rounded-xl bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-200 text-xl">
-                  ⏳
-                </div>
-                <div>
-                  <h3 className="text-xl font-semibold text-white">Tu plan gratuito ya venció</h3>
-                  <p className="mt-2 text-sm text-white/75">
-                    Se cumplieron los 30 días del acceso gratuito. Para seguir entrando a tu plan y generar nuevas etapas,
-                    activa Premium.
-                  </p>
-                </div>
-              </div>
-              <div className="mt-6 flex flex-col sm:flex-row gap-3">
-                <button
-                  type="button"
-                  onClick={() => setFreeExpiredModalOpen(false)}
-                  className="flex-1 px-4 py-2 rounded-lg border border-white/15 bg-white/5 hover:bg-white/10 text-white text-sm transition-colors"
+      {mounted && createPortal(
+        <AnimatePresence>
+          {freeExpiredModalOpen && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[10001] bg-black/75 backdrop-blur-md"
+                onClick={() => setFreeExpiredModalOpen(false)}
+              />
+              <div className="pointer-events-none fixed inset-0 z-[10002] flex items-center justify-center p-3 sm:p-4">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.96, y: 16 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.96, y: 16 }}
+                  transition={{ type: "spring", damping: 26, stiffness: 320 }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="pointer-events-auto relative w-full max-w-lg overflow-hidden rounded-2xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--background)_88%,#0a0f18)] shadow-[0_40px_100px_-40px_rgba(0,0,0,0.92)] ring-1 ring-[color-mix(in_oklab,var(--foreground)_6%,transparent)]"
                 >
-                  Entendido
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFreeExpiredModalOpen(false);
-                    setPremiumModalOpen(true);
-                  }}
-                  className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white text-sm font-medium transition-all"
-                >
-                  Ver planes Premium
-                </button>
+                  <div
+                    className="pointer-events-none absolute inset-0 opacity-[0.5]"
+                    style={{
+                      background:
+                        "radial-gradient(80% 50% at 10% 0%, color-mix(in oklab, var(--landing-accent) 26%, transparent), transparent 55%), radial-gradient(55% 40% at 95% 0%, color-mix(in oklab, #f59e0b 18%, transparent), transparent 50%)",
+                    }}
+                  />
+                  <div className="relative p-6 sm:p-8">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-amber-500/35 bg-[color-mix(in_oklab,#f59e0b_14%,transparent)] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.75"
+                          className="h-7 w-7 text-amber-200"
+                          aria-hidden
+                        >
+                          <circle cx="12" cy="12" r="9" />
+                          <path d="M12 7v5l3 2" strokeLinecap="round" />
+                        </svg>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--landing-muted)]">
+                          FitPlan AI
+                        </p>
+                        <h3 className="mt-1 text-xl font-bold tracking-tight text-[var(--foreground)] sm:text-2xl">
+                          {dash(locale, "freeExpiredTitle")}
+                        </h3>
+                        <p className="mt-3 text-sm leading-relaxed text-[var(--landing-muted)]">
+                          {dash(locale, "freeExpiredBody")}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setFreeExpiredModalOpen(false)}
+                        className="order-2 rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] px-5 py-2.5 text-sm font-medium text-[var(--foreground)] transition hover:border-[color-mix(in_oklab,var(--foreground)_16%,transparent)] sm:order-1 sm:min-w-[9rem]"
+                      >
+                        {dash(locale, "understood")}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFreeExpiredModalOpen(false);
+                          setPremiumModalOpen(true);
+                        }}
+                        className="order-1 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_14px_40px_-18px_rgba(251,146,60,0.55)] transition hover:brightness-110 sm:order-2"
+                      >
+                        {dash(locale, "viewPremiumPlans")}
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
               </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+            </>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
 
       {/* Modal de continuidad de plan */}
       {mounted && createPortal(
@@ -1249,74 +860,78 @@ export default function Dashboard() {
               initial={{ opacity: 0, scale: 0.95, y: 12 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 12 }}
-              className="relative z-10 w-full max-w-3xl rounded-xl border border-white/10 bg-black/95 p-4 sm:p-6 shadow-2xl"
+              className="relative z-10 w-full max-w-3xl rounded-2xl border border-[var(--landing-border)] bg-[var(--background)] p-4 shadow-[0_24px_80px_-32px_rgba(0,0,0,0.85)] ring-1 ring-[color-mix(in_oklab,var(--foreground)_6%,transparent)] sm:p-6"
             >
-              <h2 className="text-xl font-semibold text-white">Entrenador personal humano</h2>
-              <p className="mt-3 text-sm text-white/80">
-                Puedes asesorarte y tener seguimiento de un entrenador personal certificado
-                tanto en entrenamiento como en nutrición.
-              </p>
-              <p className="mt-2 text-xs text-white/60">
-                Si ahora no quieres, puedes pedirlo más adelante por este botón o por el chat del usuario.
-              </p>
+              <div className="mb-4 flex items-start justify-between gap-3 border-b border-[var(--landing-border)] pb-4">
+                <div>
+                  <span className="inline-flex rounded-full border border-[color-mix(in_oklab,var(--brand-end)_45%,transparent)] bg-[color-mix(in_oklab,var(--brand-end)_15%,transparent)] px-2.5 py-1 text-[11px] font-medium text-[var(--foreground)]">
+                    Soporte humano
+                  </span>
+                  <h2 className="mt-2 text-lg font-semibold text-[var(--foreground)] sm:text-xl">{dash(locale, "ptModalTitle")}</h2>
+                  <p className="mt-2 text-sm text-[var(--landing-muted)]">{dash(locale, "ptModalBody")}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPersonalTrainerModalOpen(false)}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[var(--landing-muted)] transition hover:bg-[var(--landing-surface)] hover:text-[var(--foreground)]"
+                  aria-label="Cerrar modal"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <p className="text-xs text-[var(--landing-muted)]">{dash(locale, "ptModalFootnote")}</p>
               <div className="mt-5">
-                <p className="text-sm font-medium text-white">Elige tu tipo de entrenador</p>
+                <p className="text-sm font-medium text-[var(--foreground)]">{dash(locale, "ptChooseTrainer")}</p>
                 <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={() => setTrainerPreference("hombre")}
                     className={`rounded-xl border p-4 text-left transition-all ${
                       trainerPreference === "hombre"
-                        ? "border-cyan-400 bg-cyan-500/15 shadow-lg shadow-cyan-500/20"
-                        : "border-white/15 bg-white/5 hover:bg-white/10"
+                        ? "border-[color-mix(in_oklab,var(--brand-end)_50%,transparent)] bg-[color-mix(in_oklab,var(--brand-end)_15%,transparent)] shadow-[0_10px_28px_-16px_rgba(16,185,129,0.45)]"
+                        : "border-[var(--landing-border)] bg-[var(--landing-surface)] hover:bg-[var(--landing-surface-2)]"
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold text-white">Entrenador hombre</p>
-                      <span className="text-[11px] text-cyan-200 bg-cyan-500/20 border border-cyan-400/30 px-2 py-0.5 rounded-full">
-                        Muy solicitado
+                      <p className="text-sm font-semibold text-[var(--foreground)]">{dash(locale, "ptMaleTitle")}</p>
+                      <span className="rounded-full border border-[color-mix(in_oklab,var(--brand-end)_45%,transparent)] bg-[color-mix(in_oklab,var(--brand-end)_15%,transparent)] px-2 py-0.5 text-[11px] text-[var(--foreground)]">
+                        {dash(locale, "ptMaleBadge")}
                       </span>
                     </div>
-                    <p className="mt-2 text-xs text-white/75">
-                      Especialista en <span className="font-semibold text-white">hipertrofia</span> y
-                      <span className="font-semibold text-white"> rendimiento deportivo</span>.
-                    </p>
+                    <p className="mt-2 text-xs text-[var(--landing-muted)]">{dash(locale, "ptMaleDesc")}</p>
                   </button>
                   <button
                     type="button"
                     onClick={() => setTrainerPreference("mujer")}
                     className={`rounded-xl border p-4 text-left transition-all ${
                       trainerPreference === "mujer"
-                        ? "border-fuchsia-400 bg-fuchsia-500/15 shadow-lg shadow-fuchsia-500/20"
-                        : "border-white/15 bg-white/5 hover:bg-white/10"
+                        ? "border-[color-mix(in_oklab,var(--landing-accent)_50%,transparent)] bg-[color-mix(in_oklab,var(--landing-accent)_16%,transparent)] shadow-[0_10px_28px_-16px_color-mix(in_oklab,var(--landing-accent)_50%,transparent)]"
+                        : "border-[var(--landing-border)] bg-[var(--landing-surface)] hover:bg-[var(--landing-surface-2)]"
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold text-white">Entrenadora mujer</p>
-                      <span className="text-[11px] text-fuchsia-200 bg-fuchsia-500/20 border border-fuchsia-400/30 px-2 py-0.5 rounded-full">
-                        Top tendencia
+                      <p className="text-sm font-semibold text-[var(--foreground)]">{dash(locale, "ptFemaleTitle")}</p>
+                      <span className="rounded-full border border-[color-mix(in_oklab,var(--landing-accent)_45%,transparent)] bg-[color-mix(in_oklab,var(--landing-accent)_15%,transparent)] px-2 py-0.5 text-[11px] text-[var(--foreground)]">
+                        {dash(locale, "ptFemaleBadge")}
                       </span>
                     </div>
-                    <p className="mt-2 text-xs text-white/75">
-                      Especialista en <span className="font-semibold text-white">entrenamiento funcional</span>,
-                      <span className="font-semibold text-white"> alto rendimiento</span> y
-                      <span className="font-semibold text-white"> recomposición corporal</span>.
-                    </p>
+                    <p className="mt-2 text-xs text-[var(--landing-muted)]">{dash(locale, "ptFemaleDesc")}</p>
                   </button>
                 </div>
               </div>
-              <label className="mt-4 block text-xs text-white/70">
-                Cuéntanos tu objetivo principal (opcional)
-              </label>
+              <label className="mt-4 block text-xs text-[var(--landing-muted)]">{dash(locale, "ptOptionalGoal")}</label>
               <textarea
                 value={personalTrainerReason}
                 onChange={(e) => setPersonalTrainerReason(e.target.value)}
                 maxLength={500}
                 rows={3}
-                className="mt-2 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
-                placeholder="Ej: bajar grasa, ganar masa muscular, mejorar rendimiento, etc."
+                className="mt-2 w-full rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--landing-muted)]/70 focus:outline-none focus:ring-2 focus:ring-[color-mix(in_oklab,var(--landing-accent)_28%,transparent)]"
+                placeholder={dash(locale, "ptGoalPlaceholder")}
               />
-              <p className="mt-1 text-[11px] text-white/40">{personalTrainerReason.length}/500</p>
+              <p className="mt-1 text-[11px] text-[var(--landing-muted)]">{personalTrainerReason.length}/500</p>
 
               <div className="mt-6 flex flex-col sm:flex-row gap-3">
                 <button
@@ -1326,17 +941,17 @@ export default function Dashboard() {
                     setPersonalTrainerReason("");
                     setTrainerPreference(null);
                   }}
-                  className="flex-1 px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-white text-sm transition-colors"
+                  className="flex-1 rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] px-4 py-2 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--landing-surface-2)]"
                 >
-                  No, gracias
+                  {dash(locale, "ptNoThanks")}
                 </button>
                 <button
                   type="button"
                   onClick={handleRequestPersonalTrainer}
                   disabled={personalTrainerLoading || !trainerPreference}
-                  className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-indigo-500 to-blue-500 hover:from-indigo-600 hover:to-blue-600 text-white text-sm font-medium transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="flex-1 rounded-xl bg-gradient-to-r from-[var(--brand-start,#3b82f6)] to-[var(--brand-end,#10b981)] px-4 py-2 text-sm font-medium text-white transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {personalTrainerLoading ? "Procesando..." : "Sí, quiero"}
+                  {personalTrainerLoading ? dash(locale, "ptProcessing") : dash(locale, "ptYesWant")}
                 </button>
               </div>
             </motion.div>
@@ -1362,10 +977,11 @@ const getTimestampDateHelper = (ts: RegistroPeso['timestamp']): Date | null => {
   return null;
 };
 
-function ProgressModalContent({ plan, onClose }: { plan: SavedPlan; onClose: () => void }) {
+function ProgressModalContent({ plan, onClose, locale }: { plan: SavedPlan; onClose: () => void; locale: AppLocale }) {
   const user = plan.plan?.user;
   const planData = plan.plan?.plan;
   const planId = plan.id;
+  const dateLoc = locale === "en" ? "en-US" : "es-ES";
   
   const [registrosPeso, setRegistrosPeso] = useState<RegistroPeso[]>([]);
   const [nuevoPeso, setNuevoPeso] = useState<string>('');
@@ -1374,7 +990,13 @@ function ProgressModalContent({ plan, onClose }: { plan: SavedPlan; onClose: () 
   const [mostrarConfirmacion, setMostrarConfirmacion] = useState(false);
   const [registroAEliminar, setRegistroAEliminar] = useState<RegistroPeso | null>(null);
   const [eliminando, setEliminando] = useState(false);
+  const [syncNotice, setSyncNotice] = useState<string | null>(null);
   
+  const persistWeightCache = useCallback((records: RegistroPeso[]) => {
+    if (typeof window === "undefined" || !planId) return;
+    localStorage.setItem(`peso_${planId}`, JSON.stringify(records.map((r) => ({ fecha: r.fecha, peso: r.peso }))));
+  }, [planId]);
+
   // Cargar registros de peso desde Firestore
   useEffect(() => {
     const loadRegistrosPeso = async () => {
@@ -1484,9 +1106,37 @@ function ProgressModalContent({ plan, onClose }: { plan: SavedPlan; onClose: () 
               }
             }
             
-            setRegistrosPeso(registrosLimpios);
-            // Sincronizar con localStorage como cache
-            localStorage.setItem(`peso_${planId}`, JSON.stringify(registrosLimpios.map(r => ({ fecha: r.fecha, peso: r.peso }))));
+            const pendingOps = loadPendingWeightOps(planId);
+            const merged = applyPendingWeightOps(registrosLimpios, pendingOps);
+            setRegistrosPeso(merged);
+            persistWeightCache(merged);
+            if (pendingOps.length > 0) {
+              try {
+                await updateDoc(planRef, {
+                  registrosPeso: merged.map((r) => ({
+                    fecha: r.fecha,
+                    peso: r.peso,
+                    timestamp: new Date(r.fecha),
+                  })),
+                  updatedAt: serverTimestamp(),
+                });
+                clearPendingWeightOps(planId);
+                setSyncNotice(
+                  locale === "en"
+                    ? "Pending weight entries synced successfully."
+                    : "Los registros de peso pendientes se sincronizaron correctamente."
+                );
+              } catch (syncError) {
+                console.warn("No se pudieron sincronizar registros pendientes:", syncError);
+                setSyncNotice(
+                  locale === "en"
+                    ? "Weights saved on this device. They will sync when connection is stable."
+                    : "Los pesos quedaron guardados en este dispositivo y se sincronizaran cuando vuelva la conexion."
+                );
+              }
+            } else {
+              setSyncNotice(null);
+            }
           } else {
             // Si no hay en Firestore, intentar cargar desde localStorage (migración)
             const stored = localStorage.getItem(`peso_${planId}`);
@@ -1494,17 +1144,20 @@ function ProgressModalContent({ plan, onClose }: { plan: SavedPlan; onClose: () 
               try {
                 const localRegistros = JSON.parse(stored);
                 const registrosLimpios = limpiarDuplicados(localRegistros);
-                setRegistrosPeso(registrosLimpios);
+                const pendingOps = loadPendingWeightOps(planId);
+                const merged = applyPendingWeightOps(registrosLimpios, pendingOps);
+                setRegistrosPeso(merged);
                 // Migrar a Firestore (solo si hay registros)
-                if (registrosLimpios.length > 0) {
+                if (merged.length > 0) {
                   await updateDoc(planRef, {
-                    registrosPeso: registrosLimpios.map((r: { fecha: string; peso: number }) => ({
+                    registrosPeso: merged.map((r: { fecha: string; peso: number }) => ({
                       fecha: r.fecha,
                       peso: r.peso,
                       timestamp: new Date(r.fecha) // Usar Date object en lugar de serverTimestamp()
                     })),
                     updatedAt: serverTimestamp()
                   });
+                  clearPendingWeightOps(planId);
                 }
               } catch {
                 setRegistrosPeso([]);
@@ -1520,7 +1173,13 @@ function ProgressModalContent({ plan, onClose }: { plan: SavedPlan; onClose: () 
           try {
             const registros = JSON.parse(stored);
             const registrosLimpios = limpiarDuplicados(registros);
-            setRegistrosPeso(registrosLimpios);
+            const merged = applyPendingWeightOps(registrosLimpios, loadPendingWeightOps(planId));
+            setRegistrosPeso(merged);
+            setSyncNotice(
+              locale === "en"
+                ? "Showing locally saved weight entries while reconnecting."
+                : "Mostrando registros de peso guardados localmente mientras se restablece la conexion."
+            );
           } catch {
             setRegistrosPeso([]);
           }
@@ -1531,7 +1190,7 @@ function ProgressModalContent({ plan, onClose }: { plan: SavedPlan; onClose: () 
     };
     
     loadRegistrosPeso();
-  }, [planId]);
+  }, [locale, persistWeightCache, planId]);
   
   // Helper para convertir timestamp a Date (fuera del useEffect)
   const getTimestampDateFromPlan = (ts: Timestamp | Date | { seconds: number } | number | undefined): Date => {
@@ -1668,9 +1327,7 @@ function ProgressModalContent({ plan, onClose }: { plan: SavedPlan; onClose: () 
           const nuevosRegistros = [nuevoRegistroLocal];
           setRegistrosPeso(nuevosRegistros);
           
-          if (typeof window !== 'undefined') {
-            localStorage.setItem(`peso_${planId}`, JSON.stringify(nuevosRegistros.map(r => ({ fecha: r.fecha, peso: r.peso }))));
-          }
+          persistWeightCache(nuevosRegistros);
         }
         
         setNuevoPeso('');
@@ -1689,9 +1346,20 @@ function ProgressModalContent({ plan, onClose }: { plan: SavedPlan; onClose: () 
         
         setRegistrosPeso(nuevosRegistros);
         setNuevoPeso('');
-        if (typeof window !== 'undefined') {
-          localStorage.setItem(`peso_${planId}`, JSON.stringify(nuevosRegistros.map(r => ({ fecha: r.fecha, peso: r.peso }))));
-        }
+        persistWeightCache(nuevosRegistros);
+        enqueueWeightOp({
+          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          planId,
+          type: "upsert",
+          fecha: fechaISO,
+          peso,
+          createdAt: new Date().toISOString(),
+        });
+        setSyncNotice(
+          locale === "en"
+            ? "Weight saved locally. It will sync automatically."
+            : "Peso guardado localmente. Se sincronizara automaticamente."
+        );
       }
     } catch (error) {
       console.error("Error al guardar peso:", error);
@@ -1708,9 +1376,20 @@ function ProgressModalContent({ plan, onClose }: { plan: SavedPlan; onClose: () 
       
       setRegistrosPeso(nuevosRegistros);
       setNuevoPeso('');
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(`peso_${planId}`, JSON.stringify(nuevosRegistros.map(r => ({ fecha: r.fecha, peso: r.peso }))));
-      }
+      persistWeightCache(nuevosRegistros);
+      enqueueWeightOp({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        planId,
+        type: "upsert",
+        fecha: fechaISO,
+        peso,
+        createdAt: new Date().toISOString(),
+      });
+      setSyncNotice(
+        locale === "en"
+          ? "Weight saved locally. It will sync automatically."
+          : "Peso guardado localmente. Se sincronizara automaticamente."
+      );
     } finally {
       setGuardando(false);
     }
@@ -1771,9 +1450,7 @@ function ProgressModalContent({ plan, onClose }: { plan: SavedPlan; onClose: () 
           setRegistrosPeso(nuevosRegistros);
           
           // Actualizar localStorage
-          if (typeof window !== 'undefined') {
-            localStorage.setItem(`peso_${planId}`, JSON.stringify(nuevosRegistros.map(r => ({ fecha: r.fecha, peso: r.peso }))));
-          }
+          persistWeightCache(nuevosRegistros);
         }
       } else {
         // Si no hay Firebase, eliminar solo del estado local
@@ -1781,10 +1458,19 @@ function ProgressModalContent({ plan, onClose }: { plan: SavedPlan; onClose: () 
           !(r.fecha === registroAEliminar.fecha && Math.abs(r.peso - registroAEliminar.peso) < 0.01)
         );
         setRegistrosPeso(nuevosRegistros);
-        
-        if (typeof window !== 'undefined') {
-          localStorage.setItem(`peso_${planId}`, JSON.stringify(nuevosRegistros.map(r => ({ fecha: r.fecha, peso: r.peso }))));
-        }
+        persistWeightCache(nuevosRegistros);
+        enqueueWeightOp({
+          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          planId,
+          type: "delete",
+          fecha: registroAEliminar.fecha,
+          createdAt: new Date().toISOString(),
+        });
+        setSyncNotice(
+          locale === "en"
+            ? "Deletion saved locally. It will sync automatically."
+            : "Eliminacion guardada localmente. Se sincronizara automaticamente."
+        );
       }
       
       // Cerrar modal y resetear
@@ -1792,21 +1478,57 @@ function ProgressModalContent({ plan, onClose }: { plan: SavedPlan; onClose: () 
       setRegistroAEliminar(null);
     } catch (error) {
       console.error("Error al eliminar peso de Firestore:", error);
-      // Mostrar error pero no cerrar el modal para que pueda intentar de nuevo
-      alert("Error al eliminar el registro. Por favor intenta de nuevo.");
+      const nuevosRegistros = registrosPeso.filter(r => 
+        !(r.fecha === registroAEliminar.fecha && Math.abs(r.peso - registroAEliminar.peso) < 0.01)
+      );
+      setRegistrosPeso(nuevosRegistros);
+      persistWeightCache(nuevosRegistros);
+      enqueueWeightOp({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        planId,
+        type: "delete",
+        fecha: registroAEliminar.fecha,
+        createdAt: new Date().toISOString(),
+      });
+      setSyncNotice(
+        locale === "en"
+          ? "Deletion saved locally. It will sync automatically."
+          : "Eliminacion guardada localmente. Se sincronizara automaticamente."
+      );
+      setMostrarConfirmacion(false);
+      setRegistroAEliminar(null);
     } finally {
       setEliminando(false);
     }
   };
 
+  const duracionPlan =
+    typeof planData?.duracion_plan_dias === "number"
+      ? planData.duracion_plan_dias
+      : Number(planData?.duracion_plan_dias) || 30;
+  const pct = Math.min(100, Math.max(0, progresoPlan.porcentaje));
+
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-semibold">Seguimiento de progreso</h2>
+    <div className="relative px-5 pb-6 pt-5 sm:px-7 sm:pb-8 sm:pt-6">
+      {syncNotice ? (
+        <div className="mb-3 rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+          {syncNotice}
+        </div>
+      ) : null}
+      <div className="flex items-start justify-between gap-4 border-b border-[color-mix(in_oklab,var(--foreground)_8%,transparent)] pb-5">
+        <div className="min-w-0">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--landing-muted)]">
+            FitPlan AI
+          </p>
+          <h2 className="mt-1 text-xl font-bold tracking-tight text-[var(--foreground)] sm:text-2xl">
+            {dash(locale, "progressModalTitle")}
+          </h2>
+        </div>
         <button
+          type="button"
           onClick={onClose}
-          className="text-white/70 hover:text-white transition-colors"
-          aria-label="Cerrar"
+          className="shrink-0 rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] p-2 text-[var(--landing-muted)] transition hover:border-[color-mix(in_oklab,var(--landing-accent)_35%,transparent)] hover:text-[var(--foreground)]"
+          aria-label={dash(locale, "modalClose")}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -1816,204 +1538,235 @@ function ProgressModalContent({ plan, onClose }: { plan: SavedPlan; onClose: () 
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
-            className="h-6 w-6"
+            className="h-5 w-5"
           >
             <path d="M18 6L6 18M6 6l12 12" />
           </svg>
         </button>
       </div>
 
-      {/* Información del plan */}
-      <div className="mb-6 p-4 rounded-lg bg-white/5 border border-white/10">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-          <div>
-            <span className="opacity-60">Plan:</span>
-            <p className="font-medium mt-1">
-              {plan.isOldest 
-                ? "Plan Base"
-                : user?.objetivo === "perder_grasa"
-                ? "Perder Grasa"
-                : user?.objetivo === "mantener"
-                ? "Mantener Peso"
-                : user?.objetivo === "ganar_masa"
-                ? "Ganar Masa"
-                : String(user?.objetivo || "N/A")}
+      <div className="mt-6 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-5">
+          <div
+            className="relative h-[5.25rem] w-[5.25rem] shrink-0 rounded-full p-[3px]"
+            style={{
+              background: `conic-gradient(from -90deg, color-mix(in oklab, var(--landing-accent) 88%, white) 0%, color-mix(in oklab, var(--landing-accent) 88%, white) ${pct}%, color-mix(in oklab, var(--foreground) 12%, transparent) ${pct}%, color-mix(in oklab, var(--foreground) 12%, transparent) 100%)`,
+            }}
+          >
+            <div className="flex h-full w-full items-center justify-center rounded-full bg-[color-mix(in_oklab,var(--background)_92%,#0c1018)] text-center ring-1 ring-[color-mix(in_oklab,var(--foreground)_8%,transparent)]">
+              <div>
+                <p className="text-2xl font-bold tabular-nums text-[var(--foreground)]">{pct.toFixed(0)}%</p>
+                <p className="text-[10px] font-medium uppercase tracking-wider text-[var(--landing-muted)]">
+                  {dash(locale, "simplePlanProgress")}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="min-w-0 space-y-1">
+            <p className="text-sm font-semibold text-[var(--foreground)]">
+              {plan.isOldest ? dash(locale, "planBase") : goalLabel(locale, user?.objetivo as string | undefined)}
+            </p>
+            <p className="text-sm text-[var(--landing-muted)]">
+              {dash(locale, "progressDaysElapsed")}{" "}
+              <span className="font-medium text-[var(--foreground)]/90">
+                {progresoPlan.diasTranscurridos} / {duracionPlan}
+              </span>
             </p>
           </div>
-          <div>
-            <span className="opacity-60">Peso inicial:</span>
-            <p className="font-medium mt-1">{typeof user?.pesoKg === 'number' ? user.pesoKg : Number(user?.pesoKg) || 0} kg</p>
+        </div>
+        <div className="grid flex-1 grid-cols-2 gap-3 sm:max-w-md">
+          <div className="rounded-xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--foreground)_4%,transparent)] px-3 py-2.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--landing-muted)]">
+              {dash(locale, "progressInitialWeight")}
+            </p>
+            <p className="mt-0.5 text-sm font-semibold text-[var(--foreground)]">
+              {typeof user?.pesoKg === "number" ? user.pesoKg : Number(user?.pesoKg) || 0} kg
+            </p>
           </div>
-          <div>
-            <span className="opacity-60">Progreso del plan:</span>
-            <p className="font-medium mt-1">{progresoPlan.porcentaje.toFixed(0)}%</p>
-          </div>
-          <div>
-            <span className="opacity-60">Días transcurridos:</span>
-            <p className="font-medium mt-1">{progresoPlan.diasTranscurridos} / {typeof planData?.duracion_plan_dias === 'number' ? planData.duracion_plan_dias : Number(planData?.duracion_plan_dias) || 30}</p>
+          <div className="rounded-xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--foreground)_4%,transparent)] px-3 py-2.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--landing-muted)]">
+              {dash(locale, "progressPlanPercent")}
+            </p>
+            <p className="mt-0.5 text-sm font-semibold text-[var(--foreground)]">{pct.toFixed(0)}%</p>
           </div>
         </div>
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-          <span className="ml-3 opacity-70">Cargando registros...</span>
+        <div className="mt-8 flex items-center justify-center gap-3 py-12">
+          <div className="relative h-10 w-10">
+            <div className="absolute inset-0 rounded-full bg-[color-mix(in_oklab,var(--landing-accent)_25%,transparent)] blur-md" />
+            <div className="relative h-full w-full animate-spin rounded-full border-2 border-[color-mix(in_oklab,var(--landing-accent)_55%,transparent)] border-t-transparent" />
+          </div>
+          <span className="text-sm text-[var(--landing-muted)]">{dash(locale, "progressLoadingRecords")}</span>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Registro de peso mensual */}
-          <div>
-            <p className="text-sm font-medium opacity-70 mb-3">Registrar peso mensual</p>
-          <div className="flex gap-2">
-            <input
-              type="number"
-              value={nuevoPeso}
-              onChange={(e) => setNuevoPeso(e.target.value)}
-              placeholder={`Peso actual: ${user?.pesoKg || 0} kg`}
-              step="0.1"
-              className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              onKeyPress={(e) => {
-                if (e.key === 'Enter') {
-                  handleGuardarPeso();
-                }
-              }}
-            />
-            <button
-              onClick={handleGuardarPeso}
-              disabled={guardando}
-              className="px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {guardando ? 'Guardando...' : 'Guardar'}
-            </button>
-          </div>
+        <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div className="rounded-2xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--foreground)_3%,transparent)] p-4 sm:p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--landing-muted)]">
+              {dash(locale, "progressRegisterMonthly")}
+            </p>
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+              <input
+                type="number"
+                value={nuevoPeso}
+                onChange={(e) => setNuevoPeso(e.target.value)}
+                placeholder={dashFmt(locale, "progressWeightPlaceholder", {
+                  n: typeof user?.pesoKg === "number" ? user.pesoKg : Number(user?.pesoKg) || 0,
+                })}
+                step="0.1"
+                className="min-w-0 flex-1 rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] px-3.5 py-2.5 text-sm text-[var(--foreground)] placeholder:text-[var(--landing-muted)] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_oklab,var(--landing-accent)_50%,transparent)]"
+                onKeyPress={(e) => {
+                  if (e.key === "Enter") {
+                    handleGuardarPeso();
+                  }
+                }}
+              />
+              <button
+                type="button"
+                onClick={handleGuardarPeso}
+                disabled={guardando}
+                className="shrink-0 rounded-xl bg-gradient-to-r from-[var(--brand-start)] via-[var(--brand-mid)] to-[var(--brand-end)] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_32px_-16px_color-mix(in_oklab,var(--brand-mid)_45%,transparent)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {guardando ? dash(locale, "progressSaving") : dash(locale, "progressSave")}
+              </button>
+            </div>
           
-          {/* Lista de registros */}
-          {registrosPeso.length > 0 && (
-            <div className="mt-4 space-y-2">
-              <p className="text-xs opacity-70 mb-2">Historial de pesos:</p>
-              <div className="space-y-1 max-h-40 overflow-y-auto">
-                {registrosPeso
-                  .sort((a, b) => {
-                    // Comparar strings directamente ya que están en formato YYYY-MM-DD
-                    return b.fecha.localeCompare(a.fecha);
-                  })
-                        .map((registro, idx) => {
-                          // Parsear fecha como local, no UTC
-                          const [año, mes, dia] = registro.fecha.split('-').map(Number);
-                          const fecha = new Date(año, mes - 1, dia);
-                          const pesoInicial = typeof user?.pesoKg === 'number' ? user.pesoKg : Number(user?.pesoKg) || 0;
-                          const diferencia = pesoInicial ? registro.peso - pesoInicial : 0;
-                    const objetivo = user?.objetivo || 'mantener';
-                    const esPositivo = objetivo === 'ganar_masa' || objetivo === 'volumen' 
-                      ? diferencia > 0 
-                      : objetivo === 'perder_grasa' || objetivo === 'corte'
-                      ? diferencia < 0
-                      : Math.abs(diferencia) < 1;
-                    
-                    return (
-                      <div key={idx} className="flex items-center justify-between gap-2 p-2 rounded bg-white/5 text-xs group hover:bg-white/10 transition-colors">
-                        <span className="opacity-80">
-                          {fecha.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
-                        </span>
-                        <span className="font-medium">{registro.peso} kg</span>
-                        {(() => {
-                          const peso = user?.pesoKg;
-                          return Boolean(peso && typeof peso === 'number');
-                        })() ? (
-                          <span className={`text-xs ${esPositivo ? 'text-green-400' : 'text-orange-400'}`}>
-                            {diferencia > 0 ? '+' : ''}{diferencia.toFixed(1)} kg
-                          </span>
-                        ) : null}
-                        <button
-                          onClick={() => {
-                            setRegistroAEliminar(registro);
-                            setMostrarConfirmacion(true);
-                          }}
-                          className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-all"
-                          title="Eliminar registro"
-                          aria-label="Eliminar registro"
+            {registrosPeso.length > 0 && (
+              <div className="mt-5 space-y-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--landing-muted)]">
+                  {dash(locale, "progressHistory")}
+                </p>
+                <div className="max-h-44 space-y-1.5 overflow-y-auto pr-0.5">
+                  {registrosPeso
+                    .sort((a, b) => b.fecha.localeCompare(a.fecha))
+                    .map((registro, idx) => {
+                      const [año, mes, dia] = registro.fecha.split("-").map(Number);
+                      const fecha = new Date(año, mes - 1, dia);
+                      const pesoInicial = typeof user?.pesoKg === "number" ? user.pesoKg : Number(user?.pesoKg) || 0;
+                      const diferencia = pesoInicial ? registro.peso - pesoInicial : 0;
+                      const objetivo = user?.objetivo || "mantener";
+                      const esPositivo =
+                        objetivo === "ganar_masa" || objetivo === "volumen"
+                          ? diferencia > 0
+                          : objetivo === "perder_grasa" || objetivo === "corte"
+                            ? diferencia < 0
+                            : Math.abs(diferencia) < 1;
+
+                      return (
+                        <div
+                          key={idx}
+                          className="group flex items-center justify-between gap-2 rounded-xl border border-[color-mix(in_oklab,var(--foreground)_6%,transparent)] bg-[var(--landing-surface)] px-3 py-2 text-xs transition hover:border-[color-mix(in_oklab,var(--landing-accent)_28%,transparent)]"
                         >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className="h-4 w-4"
-                          >
-                            <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                          </svg>
-                        </button>
-                      </div>
-                    );
-                  })}
-              </div>
-            </div>
-          )}
-        </div>
-        
-        {/* Gráfica de evolución */}
-        <div>
-          <p className="text-sm font-medium opacity-70 mb-3">Evolución del peso</p>
-          {registrosPeso.length > 0 && user?.pesoKg && typeof user.pesoKg === 'number' ? (
-            <div className="space-y-2">
-              <div className="h-32 flex items-end justify-between gap-1">
-                {registrosPeso
-                  .sort((a, b) => a.fecha.localeCompare(b.fecha))
-                  .slice(-6) // Últimos 6 registros
-                  .map((registro, idx) => {
-                    const pesoInicialNum = typeof user.pesoKg === 'number' ? user.pesoKg : Number(user.pesoKg) || 0;
-                    const pesos = registrosPeso
-                      .sort((a, b) => a.fecha.localeCompare(b.fecha))
-                      .slice(-6)
-                      .map(r => r.peso);
-                    const maxPeso = Math.max(...pesos, pesoInicialNum);
-                    const minPeso = Math.min(...pesos, pesoInicialNum);
-                    const rango = maxPeso - minPeso || 1;
-                    const altura = ((registro.peso - minPeso) / rango) * 100;
-                    const diferencia = registro.peso - pesoInicialNum;
-                    
-                    return (
-                      <div key={idx} className="flex-1 flex flex-col items-center gap-1">
-                        <div className="w-full flex items-end justify-center h-full">
-                          <div
-                            className={`w-full rounded-t transition-all ${
-                              diferencia > 0 ? 'bg-green-500' : diferencia < 0 ? 'bg-red-500' : 'bg-blue-500'
-                            }`}
-                            style={{ height: `${Math.max(10, altura)}%` }}
-                            title={`${registro.peso} kg (${diferencia > 0 ? '+' : ''}${diferencia.toFixed(1)} kg)`}
-                          />
-                        </div>
-                        <span className="text-[10px] opacity-60">
+                          <span className="text-[var(--landing-muted)]">
+                            {fecha.toLocaleDateString(dateLoc, { day: "numeric", month: "short", year: "numeric" })}
+                          </span>
+                          <span className="font-semibold text-[var(--foreground)]">{registro.peso} kg</span>
                           {(() => {
-                            // Parsear fecha como local, no UTC
-                            const [año, mes, dia] = registro.fecha.split('-').map(Number);
-                            const fechaLocal = new Date(año, mes - 1, dia);
-                            return fechaLocal.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
-                          })()}
-                        </span>
-                      </div>
-                    );
-                  })}
+                            const peso = user?.pesoKg;
+                            return Boolean(peso && typeof peso === "number");
+                          })() ? (
+                            <span className={`text-xs font-medium ${esPositivo ? "text-emerald-400" : "text-amber-400"}`}>
+                              {diferencia > 0 ? "+" : ""}
+                              {diferencia.toFixed(1)} kg
+                            </span>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRegistroAEliminar(registro);
+                              setMostrarConfirmacion(true);
+                            }}
+                            className="rounded-lg p-1.5 text-red-400/90 opacity-80 transition hover:bg-red-500/15 hover:opacity-100"
+                            title={dash(locale, "deleteWeightRecord")}
+                            aria-label={dash(locale, "deleteWeightRecord")}
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="h-4 w-4"
+                            >
+                              <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                            </svg>
+                          </button>
+                        </div>
+                      );
+                    })}
+                </div>
               </div>
-              <div className="flex items-center justify-between text-xs opacity-70 pt-2 border-t border-white/10">
-                <span>Peso inicial: {user.pesoKg} kg</span>
-                {registrosPeso.length > 0 && (
-                  <span>
-                    Último: {registrosPeso.sort((a, b) => b.fecha.localeCompare(a.fecha))[0].peso} kg
-                  </span>
-                )}
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--foreground)_3%,transparent)] p-4 sm:p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--landing-muted)]">
+              {dash(locale, "progressWeightChart")}
+            </p>
+            {registrosPeso.length > 0 && user?.pesoKg && typeof user.pesoKg === "number" ? (
+              <div className="mt-4 space-y-3">
+                <div className="flex h-36 items-end justify-between gap-1.5 rounded-xl border border-[color-mix(in_oklab,var(--foreground)_8%,transparent)] bg-[color-mix(in_oklab,var(--background)_55%,transparent)] px-2 pb-1 pt-3">
+                  {registrosPeso
+                    .sort((a, b) => a.fecha.localeCompare(b.fecha))
+                    .slice(-6)
+                    .map((registro, idx) => {
+                      const pesoInicialNum = typeof user.pesoKg === "number" ? user.pesoKg : Number(user.pesoKg) || 0;
+                      const pesos = registrosPeso
+                        .sort((a, b) => a.fecha.localeCompare(b.fecha))
+                        .slice(-6)
+                        .map((r) => r.peso);
+                      const maxPeso = Math.max(...pesos, pesoInicialNum);
+                      const minPeso = Math.min(...pesos, pesoInicialNum);
+                      const rango = maxPeso - minPeso || 1;
+                      const altura = ((registro.peso - minPeso) / rango) * 100;
+                      const diferencia = registro.peso - pesoInicialNum;
+
+                      return (
+                        <div key={idx} className="flex flex-1 flex-col items-center gap-1.5">
+                          <div className="flex h-full w-full items-end justify-center">
+                            <div
+                              className={`w-full max-w-[2.75rem] rounded-t-md shadow-sm transition-all ${
+                                diferencia > 0
+                                  ? "bg-emerald-500/90"
+                                  : diferencia < 0
+                                    ? "bg-rose-500/85"
+                                    : "bg-[color-mix(in_oklab,var(--landing-accent)_70%,white)]"
+                              }`}
+                              style={{ height: `${Math.max(12, altura)}%` }}
+                              title={`${registro.peso} kg (${diferencia > 0 ? "+" : ""}${diferencia.toFixed(1)} kg)`}
+                            />
+                          </div>
+                          <span className="text-[10px] text-[var(--landing-muted)]">
+                            {(() => {
+                              const [año, mes, dia] = registro.fecha.split("-").map(Number);
+                              const fechaLocal = new Date(año, mes - 1, dia);
+                              return fechaLocal.toLocaleDateString(dateLoc, { day: "numeric", month: "short" });
+                            })()}
+                          </span>
+                        </div>
+                      );
+                    })}
+                </div>
+                <div className="flex items-center justify-between border-t border-[color-mix(in_oklab,var(--foreground)_10%,transparent)] pt-3 text-xs text-[var(--landing-muted)]">
+                  <span>{dashFmt(locale, "progressChartInitial", { n: user.pesoKg })}</span>
+                  {registrosPeso.length > 0 && (
+                    <span>
+                      {dashFmt(locale, "progressChartLast", {
+                        n: registrosPeso.sort((a, b) => b.fecha.localeCompare(a.fecha))[0].peso,
+                      })}
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-          ) : (
-            <div className="h-32 flex items-center justify-center text-xs opacity-60 border border-white/10 rounded-lg">
-              Registra tu peso para ver la evolución
-            </div>
-          )}
-        </div>
+            ) : (
+              <div className="mt-4 flex h-36 items-center justify-center rounded-xl border border-dashed border-[var(--landing-border)] bg-[var(--landing-surface)] text-center text-xs text-[var(--landing-muted)]">
+                {dash(locale, "progressChartEmpty")}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -2030,22 +1783,19 @@ function ProgressModalContent({ plan, onClose }: { plan: SavedPlan; onClose: () 
                 setMostrarConfirmacion(false);
                 setRegistroAEliminar(null);
               }}
-              className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[10001]"
+              className="fixed inset-0 z-[10001] bg-black/75 backdrop-blur-md"
             />
-            
-            {/* Modal */}
-            <div 
-              className="pointer-events-none fixed inset-0 z-[10002] flex items-center justify-center p-4"
-            >
+            <div className="pointer-events-none fixed inset-0 z-[10002] flex items-center justify-center p-3 sm:p-4">
               <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
+                initial={{ scale: 0.96, opacity: 0, y: 10 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.96, opacity: 0, y: 10 }}
+                transition={{ type: "spring", damping: 26, stiffness: 360 }}
                 onClick={(e) => e.stopPropagation()}
-                className="pointer-events-auto w-full max-w-md rounded-xl border border-white/10 bg-black/95 p-6 shadow-2xl"
+                className="pointer-events-auto w-full max-w-md overflow-hidden rounded-2xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--background)_90%,#0a0f18)] p-6 shadow-[0_32px_80px_-36px_rgba(0,0,0,0.9)] ring-1 ring-[color-mix(in_oklab,var(--foreground)_6%,transparent)]"
               >
                 <div className="mb-4">
-                  <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-500/20 mb-4 mx-auto">
+                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-red-500/35 bg-red-500/10">
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       viewBox="0 0 24 24"
@@ -2059,38 +1809,41 @@ function ProgressModalContent({ plan, onClose }: { plan: SavedPlan; onClose: () 
                       <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                     </svg>
                   </div>
-                  <h2 className="text-xl font-semibold mb-2 text-center">
-                    ¿Eliminar registro de peso?
+                  <h2 className="mb-2 text-center text-lg font-semibold text-[var(--foreground)]">
+                    {dash(locale, "deleteWeightTitle")}
                   </h2>
-                  <p className="text-sm opacity-70 text-center mb-4">
-                    Se eliminará el registro del {(() => {
-                      const [año, mes, dia] = registroAEliminar.fecha.split('-').map(Number);
-                      const fecha = new Date(año, mes - 1, dia);
-                      return fecha.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
-                    })()} ({registroAEliminar.peso} kg) de la base de datos.
+                  <p className="mb-3 text-center text-sm text-[var(--landing-muted)]">
+                    {dashFmt(locale, "deleteWeightBody", {
+                      date: (() => {
+                        const [año, mes, dia] = registroAEliminar.fecha.split("-").map(Number);
+                        const fecha = new Date(año, mes - 1, dia);
+                        return fecha.toLocaleDateString(dateLoc, { day: "numeric", month: "short", year: "numeric" });
+                      })(),
+                      kg: registroAEliminar.peso,
+                    })}
                   </p>
-                  <p className="text-xs opacity-60 text-center">
-                    Esta acción no se puede deshacer.
-                  </p>
+                  <p className="text-center text-xs text-[var(--landing-muted)]/85">{dash(locale, "deleteWeightUndo")}</p>
                 </div>
 
-                <div className="flex gap-3 mt-6">
+                <div className="mt-6 flex gap-3">
                   <button
+                    type="button"
                     onClick={() => {
                       setMostrarConfirmacion(false);
                       setRegistroAEliminar(null);
                     }}
                     disabled={eliminando}
-                    className="flex-1 px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] px-4 py-2.5 text-sm font-medium text-[var(--foreground)] transition hover:border-[color-mix(in_oklab,var(--foreground)_14%,transparent)] disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    Cancelar
+                    {dash(locale, "cancel")}
                   </button>
                   <button
+                    type="button"
                     onClick={handleEliminarPeso}
                     disabled={eliminando}
-                    className="flex-1 px-4 py-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-400 hover:text-red-300 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 rounded-xl border border-red-500/40 bg-red-500/15 px-4 py-2.5 text-sm font-medium text-red-300 transition hover:bg-red-500/25 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {eliminando ? "Eliminando..." : "Eliminar"}
+                    {eliminando ? dash(locale, "deleting") : dash(locale, "deleteVerb")}
                   </button>
                 </div>
               </motion.div>

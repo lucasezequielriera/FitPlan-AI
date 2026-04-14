@@ -47,6 +47,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Obtener todos los usuarios usando Admin SDK (sin restricciones de reglas)
     // Reducir el límite para evitar exceder cuota (500 en lugar de 1000)
     const usersSnapshot = await db.collection("usuarios").limit(500).get();
+    const userIds = usersSnapshot.docs.map((d) => d.id);
 
     // Función auxiliar para convertir timestamps de Firestore Admin a formato serializable
     const convertTimestamp = (timestamp: unknown): unknown => {
@@ -70,8 +71,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return timestamp;
     };
 
-    // Obtener todos los pagos de una vez para optimizar
-    const paymentsSnapshot = await db.collection("pagos").get();
+    // Pagos solo de los usuarios listados (evita leer toda la colección "pagos" en cada request)
     const paymentsByUserId = new Map<string, Array<{
       id: string;
       amount: number;
@@ -83,16 +83,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       paymentMethod: string;
       isManual: boolean;
     }>>();
-    
-    paymentsSnapshot.docs.forEach((doc) => {
-      const paymentData = doc.data();
-      const userId = paymentData.userId;
-      if (userId) {
-        if (!paymentsByUserId.has(userId)) {
-          paymentsByUserId.set(userId, []);
+
+    const IN_LIMIT = 10;
+    for (let i = 0; i < userIds.length; i += IN_LIMIT) {
+      const chunk = userIds.slice(i, i + IN_LIMIT);
+      if (chunk.length === 0) continue;
+      const paymentsSnapshot = await db.collection("pagos").where("userId", "in", chunk).get();
+      paymentsSnapshot.docs.forEach((docSnap) => {
+        const paymentData = docSnap.data();
+        const uid = paymentData.userId as string | undefined;
+        if (!uid) return;
+        if (!paymentsByUserId.has(uid)) {
+          paymentsByUserId.set(uid, []);
         }
-        paymentsByUserId.get(userId)!.push({
-          id: doc.id,
+        paymentsByUserId.get(uid)!.push({
+          id: docSnap.id,
           amount: paymentData.amount || 0,
           currency: paymentData.currency || "ARS",
           date: paymentData.date,
@@ -102,8 +107,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           paymentMethod: paymentData.paymentMethod || "mercadopago",
           isManual: paymentData.isManual || false,
         });
-      }
-    });
+      });
+    }
     
     // Ordenar pagos por fecha (más reciente primero) para cada usuario
     paymentsByUserId.forEach((payments) => {

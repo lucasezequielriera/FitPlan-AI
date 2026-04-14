@@ -2,6 +2,28 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/router";
 import type { UserInput, Goal, PlanAIResponse } from "@/types/plan";
+import { useAppLocale, type AppLocale } from "@/contexts/AppLocaleContext";
+import { dash, dashFmt } from "@/lib/i18n/appUi";
+
+const ENERGY_OPT: Record<string, { es: string; en: string }> = {
+  muy_baja: { es: "Muy baja", en: "Very low" },
+  baja: { es: "Baja", en: "Low" },
+  normal: { es: "Normal", en: "Normal" },
+  alta: { es: "Alta", en: "High" },
+  muy_alta: { es: "Muy alta", en: "Very high" },
+};
+
+const RECOVERY_OPT: Record<string, { es: string; en: string }> = {
+  mala: { es: "Mala", en: "Poor" },
+  regular: { es: "Regular", en: "Fair" },
+  normal: { es: "Normal", en: "Normal" },
+  buena: { es: "Buena", en: "Good" },
+  excelente: { es: "Excelente", en: "Excellent" },
+};
+
+function loc<T extends { es: string; en: string }>(locale: AppLocale, m: T): string {
+  return m[locale];
+}
 
 interface PlanContinuityModalProps {
   isOpen: boolean;
@@ -51,6 +73,7 @@ type Step = "input" | "analyzing" | "suggestion" | "generating" | "complete";
 
 export default function PlanContinuityModal({ isOpen, onClose, planData, registrosPeso, userId }: PlanContinuityModalProps) {
   const router = useRouter();
+  const { locale } = useAppLocale();
   const [step, setStep] = useState<Step>("input");
   const [error, setError] = useState<string | null>(null);
   
@@ -92,7 +115,7 @@ export default function PlanContinuityModal({ isOpen, onClose, planData, registr
 
   const handleAnalyze = async () => {
     if (!pesoFinal || isNaN(parseFloat(pesoFinal))) {
-      setError("Por favor ingresa tu peso final");
+      setError(dash(locale, "continuityErrPeso"));
       return;
     }
 
@@ -144,7 +167,7 @@ export default function PlanContinuityModal({ isOpen, onClose, planData, registr
       setStep("suggestion");
     } catch (err) {
       console.error("Error al analizar:", err);
-      setError("No se pudo analizar el plan. Por favor intenta de nuevo.");
+      setError(dash(locale, "continuityErrAnalyze"));
       setStep("input");
     }
   };
@@ -189,7 +212,7 @@ export default function PlanContinuityModal({ isOpen, onClose, planData, registr
       const response = await fetch("/api/generatePlan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(nuevoUserInput),
+        body: JSON.stringify({ ...nuevoUserInput, userId, locale }),
       });
 
       if (!response.ok) {
@@ -252,46 +275,70 @@ export default function PlanContinuityModal({ isOpen, onClose, planData, registr
       }, 1000);
     } catch (err) {
       console.error("Error al generar plan:", err);
-      setError("No se pudo generar el nuevo plan. Por favor intenta de nuevo.");
+      setError(dash(locale, "continuityErrGenerate"));
       setStep("suggestion");
     }
   };
 
   if (!isOpen) return null;
 
+  const stepTitle =
+    step === "input"
+      ? dash(locale, "continuityTitleInput")
+      : step === "analyzing"
+        ? dash(locale, "continuityTitleAnalyzing")
+        : step === "suggestion"
+          ? dash(locale, "continuityTitleSuggestion")
+          : step === "generating"
+            ? dash(locale, "continuityTitleGenerating")
+            : dash(locale, "continuityTitleDone");
+
+  const inputClass =
+    "w-full rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] px-3.5 py-2.5 text-sm text-[var(--foreground)] placeholder:text-[var(--landing-muted)] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_oklab,var(--landing-accent)_55%,transparent)]";
+  const labelClass = "mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--landing-muted)]";
+
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-        {/* Backdrop */}
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+          className="absolute inset-0 bg-black/75 backdrop-blur-md"
         />
 
-        {/* Modal */}
         <motion.div
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.9, opacity: 0 }}
+          initial={{ scale: 0.96, opacity: 0, y: 14 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.96, opacity: 0, y: 14 }}
+          transition={{ type: "spring", damping: 26, stiffness: 320 }}
           onClick={(e) => e.stopPropagation()}
-          className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl border border-white/10 bg-black/95 p-6 shadow-2xl"
+          className="relative z-10 flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--background)_86%,#0a0f18)] shadow-[0_40px_100px_-36px_rgba(0,0,0,0.9)] ring-1 ring-[color-mix(in_oklab,var(--foreground)_5%,transparent)]"
         >
-          {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-white">
-              {step === "input" && "Finalizar Plan Actual"}
-              {step === "analyzing" && "Analizando resultados..."}
-              {step === "suggestion" && "Sugerencia de Continuidad"}
-              {step === "generating" && "Generando nuevo plan..."}
-              {step === "complete" && "¡Plan generado!"}
-            </h2>
+          <div
+            className="pointer-events-none absolute inset-0 opacity-[0.45]"
+            style={{
+              background:
+                "radial-gradient(70% 45% at 12% 0%, color-mix(in oklab, var(--landing-accent) 24%, transparent), transparent 52%), radial-gradient(55% 40% at 92% 8%, color-mix(in oklab, var(--brand-mid) 16%, transparent), transparent 48%)",
+            }}
+          />
+
+          <div className="relative flex items-start justify-between gap-4 border-b border-[color-mix(in_oklab,var(--foreground)_8%,transparent)] px-5 py-4 sm:px-6 sm:py-5">
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--landing-muted)]">
+                FitPlan AI
+              </p>
+              <h2 className="mt-1 text-lg font-bold tracking-tight text-[var(--foreground)] sm:text-xl">
+                {stepTitle}
+              </h2>
+            </div>
             <button
+              type="button"
               onClick={onClose}
-              className="text-white/70 hover:text-white transition-colors"
+              className="shrink-0 rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] p-2 text-[var(--landing-muted)] transition hover:border-[color-mix(in_oklab,var(--landing-accent)_35%,transparent)] hover:text-[var(--foreground)] disabled:cursor-not-allowed disabled:opacity-40"
               disabled={step === "analyzing" || step === "generating"}
+              aria-label={dash(locale, "modalClose")}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -301,307 +348,321 @@ export default function PlanContinuityModal({ isOpen, onClose, planData, registr
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className="h-6 w-6"
+                className="h-5 w-5"
               >
                 <path d="M18 6L6 18M6 6l12 12" />
               </svg>
             </button>
           </div>
 
-          {error && (
-            <div className="mb-4 p-4 rounded-lg bg-red-500/20 border border-red-500/30 text-red-300 text-sm">
-              {error}
-            </div>
-          )}
-
-          {/* Step 1: Input de datos finales */}
-          {step === "input" && (
-            <div className="space-y-4">
-              <p className="text-white/70 text-sm mb-4">
-                Completa los datos finales de tu plan para recibir una sugerencia personalizada de continuidad.
-              </p>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-white/90 mb-2">
-                    Peso final (kg) *
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={pesoFinal}
-                    onChange={(e) => setPesoFinal(e.target.value)}
-                    className="w-full px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="75.5"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-white/90 mb-2">
-                    Cintura final (cm)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={cinturaFinal}
-                    onChange={(e) => setCinturaFinal(e.target.value)}
-                    className="w-full px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="88"
-                  />
-                </div>
+          <div className="relative max-h-[min(78vh,calc(100vh-8rem))] overflow-y-auto px-5 py-5 sm:px-6 sm:py-6">
+            {error && (
+              <div className="mb-5 rounded-xl border border-red-500/35 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                {error}
               </div>
+            )}
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-white/90 mb-2">
-                    Adherencia a comidas
-                  </label>
-                  <select
-                    value={adherenciaComida}
-                    onChange={(e) => setAdherenciaComida(e.target.value)}
-                    className="w-full px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="<50%">&lt;50%</option>
-                    <option value="50-70%">50-70%</option>
-                    <option value="70-80%">70-80%</option>
-                    <option value=">80%">&gt;80%</option>
-                  </select>
-                </div>
+            {step === "input" && (
+              <div className="space-y-5">
+                <p className="text-sm leading-relaxed text-[var(--landing-muted)]">{dash(locale, "continuityIntro")}</p>
 
-                <div>
-                  <label className="block text-sm font-medium text-white/90 mb-2">
-                    Adherencia a entrenamiento
-                  </label>
-                  <select
-                    value={adherenciaEntreno}
-                    onChange={(e) => setAdherenciaEntreno(e.target.value)}
-                    className="w-full px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="<50%">&lt;50%</option>
-                    <option value="50-70%">50-70%</option>
-                    <option value="70-80%">70-80%</option>
-                    <option value=">80%">&gt;80%</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-white/90 mb-2">
-                    Nivel de energía
-                  </label>
-                  <select
-                    value={energia}
-                    onChange={(e) => setEnergia(e.target.value)}
-                    className="w-full px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="muy_baja">Muy baja</option>
-                    <option value="baja">Baja</option>
-                    <option value="normal">Normal</option>
-                    <option value="alta">Alta</option>
-                    <option value="muy_alta">Muy alta</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-white/90 mb-2">
-                    Recuperación
-                  </label>
-                  <select
-                    value={recuperacion}
-                    onChange={(e) => setRecuperacion(e.target.value)}
-                    className="w-full px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="mala">Mala</option>
-                    <option value="regular">Regular</option>
-                    <option value="normal">Normal</option>
-                    <option value="buena">Buena</option>
-                    <option value="excelente">Excelente</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-white/90 mb-2">
-                  Lesiones nuevas (opcional)
-                </label>
-                <input
-                  type="text"
-                  value={lesionesNuevas}
-                  onChange={(e) => setLesionesNuevas(e.target.value)}
-                  className="w-full px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Ej: Dolor de rodilla leve"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-white/90 mb-2">
-                  Comentarios adicionales (opcional)
-                </label>
-                <textarea
-                  value={comentarios}
-                  onChange={(e) => setComentarios(e.target.value)}
-                  rows={3}
-                  className="w-full px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Comparte cómo te sentiste durante el plan..."
-                />
-              </div>
-
-              <button
-                onClick={handleAnalyze}
-                className="w-full py-3 rounded-lg bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold hover:from-blue-600 hover:to-purple-600 transition-all"
-              >
-                Analizar y obtener sugerencia
-              </button>
-            </div>
-          )}
-
-          {/* Step 2: Analyzing */}
-          {step === "analyzing" && (
-            <div className="flex flex-col items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-400 mb-4"></div>
-              <p className="text-white/70 text-center">
-                Analizando tus resultados con inteligencia artificial...
-              </p>
-            </div>
-          )}
-
-          {/* Step 3: Suggestion */}
-          {step === "suggestion" && analysis && (
-            <div className="space-y-6">
-              {/* Análisis */}
-              <div className="p-4 rounded-lg bg-white/5 border border-white/10">
-                <h3 className="text-lg font-semibold text-white mb-3">Análisis de resultados</h3>
-                <div className="space-y-2 text-sm text-white/80">
-                  <p className="font-medium">
-                    Progreso: <span className={`${
-                      analysis.analisis.progresoGeneral === "excelente" ? "text-green-400" :
-                      analysis.analisis.progresoGeneral === "bueno" ? "text-blue-400" :
-                      analysis.analisis.progresoGeneral === "regular" ? "text-yellow-400" :
-                      "text-orange-400"
-                    }`}>
-                      {analysis.analisis.progresoGeneral.toUpperCase()}
-                    </span>
-                  </p>
-                  <p>{analysis.analisis.resumen}</p>
-                  
-                  {analysis.analisis.puntosPositivos.length > 0 && (
-                    <div className="mt-3">
-                      <p className="font-medium text-green-400 mb-1">Puntos positivos:</p>
-                      <ul className="list-disc list-inside space-y-1">
-                        {analysis.analisis.puntosPositivos.map((punto, i) => (
-                          <li key={i}>{punto}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {analysis.analisis.areasMejora.length > 0 && (
-                    <div className="mt-3">
-                      <p className="font-medium text-yellow-400 mb-1">Áreas de mejora:</p>
-                      <ul className="list-disc list-inside space-y-1">
-                        {analysis.analisis.areasMejora.map((area, i) => (
-                          <li key={i}>{area}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Sugerencia principal */}
-              <div className="p-4 rounded-lg bg-gradient-to-r from-blue-500/20 to-purple-500/20 border border-blue-400/30">
-                <h3 className="text-lg font-semibold text-white mb-3">Sugerencia de continuidad</h3>
-                <div className="space-y-2 text-sm text-white/90">
-                  <p className="font-medium">
-                    Objetivo recomendado: <span className="text-blue-300">{analysis.sugerenciaContinuidad.objetivoRecomendado}</span>
-                  </p>
-                  <p>{analysis.sugerenciaContinuidad.razonObjetivo}</p>
-                  <p className="mt-3 text-blue-200">{analysis.sugerenciaContinuidad.mensajeMotivacional}</p>
-                </div>
-
-                <div className="mt-4 flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="usarSugerencia"
-                    checked={usarSugerencia}
-                    onChange={(e) => setUsarSugerencia(e.target.checked)}
-                    className="w-4 h-4 rounded"
-                  />
-                  <label htmlFor="usarSugerencia" className="text-sm text-white/80">
-                    Usar esta sugerencia
-                  </label>
-                </div>
-              </div>
-
-              {/* Objetivos alternativos */}
-              {analysis.objetivosAlternativos.length > 0 && (
-                <div className="p-4 rounded-lg bg-white/5 border border-white/10">
-                  <h3 className="text-lg font-semibold text-white mb-3">Otras opciones</h3>
-                  <div className="space-y-3">
-                    {analysis.objetivosAlternativos.map((alt, i) => (
-                      <div
-                        key={i}
-                        className={`p-3 rounded-lg border cursor-pointer transition-all ${
-                          objetivoSeleccionado === alt.objetivo && !usarSugerencia
-                            ? "border-blue-400 bg-blue-500/20"
-                            : "border-white/20 bg-white/5 hover:bg-white/10"
-                        }`}
-                        onClick={() => {
-                          setUsarSugerencia(false);
-                          setObjetivoSeleccionado(alt.objetivo);
-                        }}
-                      >
-                        <p className="font-semibold text-white">{alt.objetivo}</p>
-                        <p className="text-sm text-white/70 mt-1">{alt.razon}</p>
-                        <p className="text-xs text-white/50 mt-1">{alt.adecuadoPara}</p>
-                      </div>
-                    ))}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className={labelClass}>{dash(locale, "continuityWeightFinal")}</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={pesoFinal}
+                      onChange={(e) => setPesoFinal(e.target.value)}
+                      className={inputClass}
+                      placeholder="75.5"
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>{dash(locale, "continuityWaistFinal")}</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={cinturaFinal}
+                      onChange={(e) => setCinturaFinal(e.target.value)}
+                      className={inputClass}
+                      placeholder="88"
+                    />
                   </div>
                 </div>
-              )}
 
-              <button
-                onClick={handleGenerateNewPlan}
-                disabled={!objetivoSeleccionado}
-                className="w-full py-3 rounded-lg bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold hover:from-green-600 hover:to-emerald-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {usarSugerencia ? "Aceptar y generar plan" : `Generar plan con ${objetivoSeleccionado}`}
-              </button>
-            </div>
-          )}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className={labelClass}>{dash(locale, "continuityMealAdh")}</label>
+                    <select
+                      value={adherenciaComida}
+                      onChange={(e) => setAdherenciaComida(e.target.value)}
+                      className={inputClass}
+                    >
+                      <option value="<50%">&lt;50%</option>
+                      <option value="50-70%">50-70%</option>
+                      <option value="70-80%">70-80%</option>
+                      <option value=">80%">&gt;80%</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className={labelClass}>{dash(locale, "continuityTrainAdh")}</label>
+                    <select
+                      value={adherenciaEntreno}
+                      onChange={(e) => setAdherenciaEntreno(e.target.value)}
+                      className={inputClass}
+                    >
+                      <option value="<50%">&lt;50%</option>
+                      <option value="50-70%">50-70%</option>
+                      <option value="70-80%">70-80%</option>
+                      <option value=">80%">&gt;80%</option>
+                    </select>
+                  </div>
+                </div>
 
-          {/* Step 4: Generating */}
-          {step === "generating" && (
-            <div className="flex flex-col items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-green-400 mb-4"></div>
-              <p className="text-white/70 text-center">
-                Generando tu nuevo plan personalizado...
-              </p>
-            </div>
-          )}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className={labelClass}>{dash(locale, "continuityEnergy")}</label>
+                    <select
+                      value={energia}
+                      onChange={(e) => setEnergia(e.target.value)}
+                      className={inputClass}
+                    >
+                      {Object.entries(ENERGY_OPT).map(([value, labels]) => (
+                        <option key={value} value={value}>
+                          {loc(locale, labels)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={labelClass}>{dash(locale, "continuityRecovery")}</label>
+                    <select
+                      value={recuperacion}
+                      onChange={(e) => setRecuperacion(e.target.value)}
+                      className={inputClass}
+                    >
+                      {Object.entries(RECOVERY_OPT).map(([value, labels]) => (
+                        <option key={value} value={value}>
+                          {loc(locale, labels)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
 
-          {/* Step 5: Complete */}
-          {step === "complete" && (
-            <div className="flex flex-col items-center justify-center py-12">
-              <div className="w-16 h-16 rounded-full bg-green-500 flex items-center justify-center mb-4">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="h-8 w-8 text-white"
+                <div>
+                  <label className={labelClass}>{dash(locale, "continuityInjuries")}</label>
+                  <input
+                    type="text"
+                    value={lesionesNuevas}
+                    onChange={(e) => setLesionesNuevas(e.target.value)}
+                    className={inputClass}
+                    placeholder={dash(locale, "continuityInjuriesPh")}
+                  />
+                </div>
+
+                <div>
+                  <label className={labelClass}>{dash(locale, "continuityComments")}</label>
+                  <textarea
+                    value={comentarios}
+                    onChange={(e) => setComentarios(e.target.value)}
+                    rows={3}
+                    className={`${inputClass} resize-y min-h-[88px]`}
+                    placeholder={dash(locale, "continuityCommentsPh")}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleAnalyze}
+                  className="w-full rounded-xl bg-gradient-to-r from-[var(--brand-start)] via-[var(--brand-mid)] to-[var(--brand-end)] py-3 text-sm font-semibold text-white shadow-[0_14px_40px_-18px_color-mix(in_oklab,var(--brand-mid)_45%,transparent)] transition hover:brightness-110"
                 >
-                  <path d="M20 6L9 17l-5-5" />
-                </svg>
+                  {dash(locale, "continuityAnalyzeCta")}
+                </button>
               </div>
-              <p className="text-white text-lg font-semibold mb-2">¡Plan generado exitosamente!</p>
-              <p className="text-white/70 text-sm">Redirigiendo a tu nuevo plan...</p>
-            </div>
-          )}
+            )}
+
+            {step === "analyzing" && (
+              <div className="flex flex-col items-center justify-center py-14">
+                <div className="relative mb-5 h-16 w-16">
+                  <div className="absolute inset-0 rounded-full bg-[color-mix(in_oklab,var(--landing-accent)_22%,transparent)] blur-xl" />
+                  <div className="relative flex h-full w-full items-center justify-center rounded-full border-2 border-[color-mix(in_oklab,var(--landing-accent)_45%,transparent)] border-t-transparent animate-spin" />
+                </div>
+                <p className="max-w-sm text-center text-sm text-[var(--landing-muted)]">
+                  {dash(locale, "continuityAnalyzingSub")}
+                </p>
+              </div>
+            )}
+
+            {step === "suggestion" && analysis && (
+              <div className="space-y-5">
+                <div className="rounded-2xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--foreground)_4%,transparent)] p-4 sm:p-5">
+                  <h3 className="text-sm font-semibold text-[var(--foreground)]">
+                    {dash(locale, "continuityAnalysisBlock")}
+                  </h3>
+                  <div className="mt-3 space-y-3 text-sm leading-relaxed text-[var(--landing-muted)]">
+                    <p>
+                      <span className="font-medium text-[var(--foreground)]">
+                        {dash(locale, "continuityProgressLabel")}:{" "}
+                      </span>
+                      <span
+                        className={`font-semibold uppercase tracking-wide ${
+                          analysis.analisis.progresoGeneral === "excelente"
+                            ? "text-emerald-400"
+                            : analysis.analisis.progresoGeneral === "bueno"
+                              ? "text-sky-400"
+                              : analysis.analisis.progresoGeneral === "regular"
+                                ? "text-amber-400"
+                                : "text-orange-400"
+                        }`}
+                      >
+                        {analysis.analisis.progresoGeneral}
+                      </span>
+                    </p>
+                    <p className="text-[var(--foreground)]/90">{analysis.analisis.resumen}</p>
+
+                    {analysis.analisis.puntosPositivos.length > 0 && (
+                      <div>
+                        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-emerald-400/95">
+                          {dash(locale, "continuityPositive")}
+                        </p>
+                        <ul className="list-inside list-disc space-y-1 pl-0.5">
+                          {analysis.analisis.puntosPositivos.map((punto, i) => (
+                            <li key={i}>{punto}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {analysis.analisis.areasMejora.length > 0 && (
+                      <div>
+                        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-amber-300/95">
+                          {dash(locale, "continuityImprove")}
+                        </p>
+                        <ul className="list-inside list-disc space-y-1 pl-0.5">
+                          {analysis.analisis.areasMejora.map((area, i) => (
+                            <li key={i}>{area}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div
+                  className="rounded-2xl border p-4 sm:p-5"
+                  style={{
+                    borderColor: "color-mix(in oklab, var(--landing-accent) 32%, transparent)",
+                    background:
+                      "linear-gradient(135deg, color-mix(in oklab, var(--landing-accent) 12%, transparent), color-mix(in oklab, var(--brand-mid) 8%, transparent))",
+                  }}
+                >
+                  <h3 className="text-sm font-semibold text-[var(--foreground)]">
+                    {dash(locale, "continuitySugBlock")}
+                  </h3>
+                  <div className="mt-3 space-y-2 text-sm text-[var(--foreground)]/90">
+                    <p>
+                      <span className="text-[var(--landing-muted)]">{dash(locale, "continuityObjRecommended")}: </span>
+                      <span className="font-semibold text-[var(--landing-accent)]">
+                        {analysis.sugerenciaContinuidad.objetivoRecomendado}
+                      </span>
+                    </p>
+                    <p className="text-[var(--landing-muted)]">{analysis.sugerenciaContinuidad.razonObjetivo}</p>
+                    <p className="mt-2 border-t border-[color-mix(in_oklab,var(--foreground)_10%,transparent)] pt-3 text-[var(--foreground)]/95">
+                      {analysis.sugerenciaContinuidad.mensajeMotivacional}
+                    </p>
+                  </div>
+
+                  <div className="mt-4 flex items-center gap-2.5 rounded-xl border border-[color-mix(in_oklab,var(--foreground)_10%,transparent)] bg-[color-mix(in_oklab,var(--background)_40%,transparent)] px-3 py-2.5">
+                    <input
+                      type="checkbox"
+                      id="usarSugerencia"
+                      checked={usarSugerencia}
+                      onChange={(e) => setUsarSugerencia(e.target.checked)}
+                      className="h-4 w-4 shrink-0 rounded border-[var(--landing-border)]"
+                    />
+                    <label htmlFor="usarSugerencia" className="text-sm text-[var(--landing-muted)]">
+                      {dash(locale, "continuityUseSuggestion")}
+                    </label>
+                  </div>
+                </div>
+
+                {analysis.objetivosAlternativos.length > 0 && (
+                  <div className="rounded-2xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--foreground)_3%,transparent)] p-4 sm:p-5">
+                    <h3 className="text-sm font-semibold text-[var(--foreground)]">
+                      {dash(locale, "continuityOtherOptions")}
+                    </h3>
+                    <div className="mt-3 space-y-2">
+                      {analysis.objetivosAlternativos.map((alt, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          className={`w-full rounded-xl border p-3.5 text-left transition ${
+                            objetivoSeleccionado === alt.objetivo && !usarSugerencia
+                              ? "border-[color-mix(in_oklab,var(--landing-accent)_55%,transparent)] bg-[color-mix(in_oklab,var(--landing-accent)_12%,transparent)] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+                              : "border-[var(--landing-border)] bg-[var(--landing-surface)] hover:border-[color-mix(in_oklab,var(--foreground)_14%,transparent)]"
+                          }`}
+                          onClick={() => {
+                            setUsarSugerencia(false);
+                            setObjetivoSeleccionado(alt.objetivo);
+                          }}
+                        >
+                          <p className="font-semibold text-[var(--foreground)]">{alt.objetivo}</p>
+                          <p className="mt-1 text-sm text-[var(--landing-muted)]">{alt.razon}</p>
+                          <p className="mt-1 text-xs text-[var(--landing-muted)]/80">{alt.adecuadoPara}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleGenerateNewPlan}
+                  disabled={!objetivoSeleccionado}
+                  className="w-full rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 py-3 text-sm font-semibold text-white shadow-[0_14px_36px_-16px_rgba(16,185,129,0.55)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  {usarSugerencia
+                    ? dash(locale, "continuityCtaGenerate")
+                    : dashFmt(locale, "continuityCtaGenerateWith", { goal: String(objetivoSeleccionado) })}
+                </button>
+              </div>
+            )}
+
+            {step === "generating" && (
+              <div className="flex flex-col items-center justify-center py-14">
+                <div className="relative mb-5 h-16 w-16">
+                  <div className="absolute inset-0 rounded-full bg-emerald-500/25 blur-xl" />
+                  <div className="relative flex h-full w-full items-center justify-center rounded-full border-2 border-emerald-400/50 border-t-transparent animate-spin" />
+                </div>
+                <p className="max-w-sm text-center text-sm text-[var(--landing-muted)]">
+                  {dash(locale, "continuityGeneratingSub")}
+                </p>
+              </div>
+            )}
+
+            {step === "complete" && (
+              <div className="flex flex-col items-center justify-center py-14">
+                <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 shadow-[0_12px_40px_-12px_rgba(16,185,129,0.65)]">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-8 w-8 text-white"
+                  >
+                    <path d="M20 6L9 17l-5-5" />
+                  </svg>
+                </div>
+                <p className="text-lg font-semibold text-[var(--foreground)]">{dash(locale, "continuityDoneTitle")}</p>
+                <p className="mt-2 text-sm text-[var(--landing-muted)]">{dash(locale, "continuityDoneSub")}</p>
+              </div>
+            )}
+          </div>
         </motion.div>
       </div>
     </AnimatePresence>

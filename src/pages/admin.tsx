@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { motion } from "framer-motion";
 import { jsPDF } from "jspdf";
@@ -29,7 +29,6 @@ import {
   FaBell,
   FaWhatsapp,
   FaCircle,
-  FaCog,
   FaUserFriends,
   FaExternalLinkAlt,
 } from "react-icons/fa";
@@ -501,26 +500,8 @@ export default function Admin() {
   const [paymentLinkProvider, setPaymentLinkProvider] = useState<PaymentLinkProvider>("stripe");
   const [paymentLinkPlan, setPaymentLinkPlan] = useState<PaymentLinkPlan>("monthly");
   const [paymentLinkLoading, setPaymentLinkLoading] = useState(false);
-  const [paymentNotificationOpen, setPaymentNotificationOpen] = useState(false);
-  const [paymentNotificationFilter, setPaymentNotificationFilter] = useState<
-    "all" | "payments" | "fatigue" | "risk" | "emails"
-  >("all");
-  const [paymentNotificationUnread, setPaymentNotificationUnread] = useState(0);
   const [requestingCheckinClientId, setRequestingCheckinClientId] = useState<string | null>(null);
   const [requestingWeightClientId, setRequestingWeightClientId] = useState<string | null>(null);
-  const [paymentNotificationItems, setPaymentNotificationItems] = useState<
-    Array<{
-      id: string;
-      userName?: string;
-      userEmail?: string;
-      amount?: number;
-      currency?: string;
-      provider?: string;
-      type?: string;
-      message?: string;
-      createdAt?: unknown;
-    }>
-  >([]);
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const [selectedUserForHistory, setSelectedUserForHistory] = useState<User | null>(null);
   const [userHistory, setUserHistory] = useState<{
@@ -549,6 +530,10 @@ export default function Admin() {
     }>
   >([]);
   const [adminMeta, setAdminMeta] = useState<{ lastUsersCheck?: string | null }>({});
+  /** Evita seguir golpeando /api/admin/stats tras error de cuota */
+  const [statsPollingPaused, setStatsPollingPaused] = useState(false);
+  const lastUsersCheckPollRef = useRef<string | null>(null);
+  const loadUserStatsRef = useRef<((lastUsersCheck?: string | null, silent?: boolean) => Promise<void>) | null>(null);
   const [newUsersList, setNewUsersList] = useState<Array<{ id: string; nombre: string | null; email: string | null; createdAt?: string | null }>>([]);
   const [newUserIds, setNewUserIds] = useState<string[]>([]);
   const [markingNewUsersSeen, setMarkingNewUsersSeen] = useState(false);
@@ -1132,19 +1117,6 @@ export default function Admin() {
     };
   };
 
-  const fetchPaymentNotifications = async () => {
-    try {
-      const auth = getAuthSafe();
-      if (!auth?.currentUser) return;
-      const response = await fetch(`/api/admin/paymentNotifications?adminUserId=${auth.currentUser.uid}`);
-      if (!response.ok) return;
-      const data = await response.json();
-      setPaymentNotificationUnread(typeof data.unreadCount === "number" ? data.unreadCount : 0);
-      setPaymentNotificationItems(Array.isArray(data.items) ? data.items : []);
-    } catch {
-      // noop
-    }
-  };
 
   useEffect(() => {
     if (users.length > 0 && authUser?.uid) {
@@ -1296,40 +1268,33 @@ export default function Admin() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authUser, authLoading, router]);
 
-  // Actualización automática de usuarios - usando polling cada 5 minutos (reducido para evitar cuota)
   useEffect(() => {
-    if (!isAdmin || !authUser) return;
+    lastUsersCheckPollRef.current = adminMeta.lastUsersCheck ?? null;
+  }, [adminMeta.lastUsersCheck]);
 
-    // Actualización automática silenciosa cada 5 minutos (sin mostrar loading)
-    // Intervalo aumentado para reducir el consumo de cuota de Firestore
+  // Polling cada 5 min — deps sin adminMeta.lastUsersCheck para no reiniciar el intervalo al marcar "visto"
+  useEffect(() => {
+    if (!isAdmin || !authUser || statsPollingPaused) return;
+
     const pollInterval = setInterval(async () => {
       try {
-        await loadUserStats(adminMeta.lastUsersCheck ?? null, true); // silent = true para no mostrar loading
+        await loadUserStatsRef.current?.(lastUsersCheckPollRef.current, true);
       } catch (error) {
-        // Silenciar errores en polling, pero loguear si es de cuota
-        if (error instanceof Error && error.message.includes('RESOURCE_EXHAUSTED')) {
-          console.warn('⚠️ Cuota de Firestore excedida, pausando polling temporalmente');
-          // No hacer nada, el intervalo seguirá corriendo pero fallará silenciosamente
+        const msg = error instanceof Error ? error.message : "";
+        const name = error instanceof Error ? error.name : "";
+        if (
+          msg.includes("RESOURCE_EXHAUSTED") ||
+          msg.includes("Cuota de Firestore") ||
+          name === "QuotaExceededError"
+        ) {
+          console.warn("⚠️ Cuota de Firestore: polling de estadísticas detenido");
+          setStatsPollingPaused(true);
         }
       }
-    }, 300000); // Actualizar cada 5 minutos (300000ms) para reducir consumo de cuota
+    }, 300000);
 
-    return () => {
-      clearInterval(pollInterval);
-    };
-    // loadUserStats se maneja manualmente para evitar bucles
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin, authUser, adminMeta.lastUsersCheck]);
-
-  useEffect(() => {
-    if (!isAdmin || !authUser) return;
-    fetchPaymentNotifications();
-    const interval = setInterval(() => {
-      fetchPaymentNotifications();
-    }, 30000);
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin, authUser]);
+    return () => clearInterval(pollInterval);
+  }, [isAdmin, authUser, statsPollingPaused]);
 
   useEffect(() => {
     if (!yearlyEarningsModalOpen || !authUser?.uid) return;
@@ -1384,7 +1349,8 @@ export default function Admin() {
       }
 
       const data = await response.json();
-      
+      setStatsPollingPaused(false);
+
       // Mostrar toda la información en console.log
       console.log("📊 ESTADÍSTICAS DE USUARIOS:", data.stats);
       console.log("👥 LISTA COMPLETA DE USUARIOS:", data.users);
@@ -1513,8 +1479,17 @@ export default function Admin() {
       if (message.includes("Firebase Admin SDK no configurado") || message.includes("500")) {
         setError("Firebase Admin SDK no está configurado en el servidor. Configura las variables de entorno en Vercel: FIREBASE_ADMIN_PRIVATE_KEY, FIREBASE_ADMIN_CLIENT_EMAIL, y NEXT_PUBLIC_FIREBASE_PROJECT_ID.");
       }
+      if (
+        message.includes("Cuota de Firestore") ||
+        message.includes("RESOURCE_EXHAUSTED") ||
+        (err instanceof Error && err.name === "QuotaExceededError")
+      ) {
+        setStatsPollingPaused(true);
+      }
     }
   };
+
+  loadUserStatsRef.current = loadUserStats;
 
   const handleCopyFormLink = async () => {
     try {
@@ -2511,8 +2486,8 @@ export default function Admin() {
         <Navbar />
         <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400 mx-auto mb-4"></div>
-            <p className="text-white/60">Cargando...</p>
+            <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-[var(--landing-border)] border-t-[var(--landing-accent)]" />
+            <p className="text-sm text-[var(--landing-muted)]">Cargando...</p>
           </div>
         </div>
       </div>
@@ -2578,24 +2553,6 @@ export default function Admin() {
 
     return paymentMatches && serviceMatches && searchHaystack.includes(normalizedIntakeSearch);
   });
-  const visibleNotificationItems = paymentNotificationItems.filter((item) => {
-    if (paymentNotificationFilter === "all") return true;
-    if (paymentNotificationFilter === "payments") return item.type === "payment_success";
-    if (paymentNotificationFilter === "fatigue") return item.type === "coach_alert";
-    if (paymentNotificationFilter === "risk") return item.type === "adherence_risk_weekly";
-    return item.type === "weekly_digest_sent" || item.type === "weekly_digest_failed";
-  });
-  const notificationCounts = paymentNotificationItems.reduce(
-    (acc, item) => {
-      if (item.type === "payment_success") acc.payments += 1;
-      else if (item.type === "coach_alert") acc.fatigue += 1;
-      else if (item.type === "adherence_risk_weekly") acc.risk += 1;
-      else if (item.type === "weekly_digest_sent" || item.type === "weekly_digest_failed") acc.emails += 1;
-      return acc;
-    },
-    { payments: 0, fatigue: 0, risk: 0, emails: 0 }
-  );
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900">
       <Navbar />
@@ -2615,58 +2572,6 @@ export default function Admin() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <button
-                type="button"
-                onClick={() => router.push("/admin/configuraciones")}
-                className="px-4 py-2 rounded-lg bg-violet-500/20 border border-violet-400/40 text-violet-100 hover:bg-violet-500/30 transition-colors text-sm font-medium inline-flex items-center gap-2"
-              >
-                <FaCog className="h-3.5 w-3.5" />
-                Configuraciones
-              </button>
-              <button
-                onClick={async () => {
-                  const nextOpen = !paymentNotificationOpen;
-                  setPaymentNotificationOpen(nextOpen);
-                  if (nextOpen && paymentNotificationUnread > 0) {
-                    try {
-                      const auth = getAuthSafe();
-                      if (auth?.currentUser) {
-                        await fetch("/api/admin/paymentNotifications", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ adminUserId: auth.currentUser.uid }),
-                        });
-                        setPaymentNotificationUnread(0);
-                      }
-                    } catch {
-                      // noop
-                    }
-                  }
-                }}
-                className="relative px-4 py-2 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-emerald-100 hover:bg-emerald-500/30 transition-colors text-sm font-medium inline-flex items-center gap-2"
-              >
-                <FaBell className="h-3.5 w-3.5" />
-                Notificaciones
-                <span className="ml-1 inline-flex items-center gap-1">
-                  <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-emerald-400/30 text-emerald-100 border border-emerald-300/40">
-                    C {notificationCounts.payments}
-                  </span>
-                  <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-400/30 text-amber-100 border border-amber-300/40">
-                    F {notificationCounts.fatigue}
-                  </span>
-                  <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-rose-400/30 text-rose-100 border border-rose-300/40">
-                    R {notificationCounts.risk}
-                  </span>
-                  <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-cyan-400/30 text-cyan-100 border border-cyan-300/40">
-                    E {notificationCounts.emails}
-                  </span>
-                </span>
-                {paymentNotificationUnread > 0 && (
-                  <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-emerald-400 text-black font-bold">
-                    {paymentNotificationUnread}
-                  </span>
-                )}
-              </button>
-              <button
                 onClick={() => router.push("/formulario-de-inicio")}
                 className="px-4 py-2 rounded-lg bg-cyan-500/20 border border-cyan-400/40 text-cyan-200 hover:bg-cyan-500/30 transition-colors text-sm font-medium"
               >
@@ -2680,51 +2585,6 @@ export default function Admin() {
               </button>
             </div>
           </div>
-          {paymentNotificationOpen && (
-            <div className="mt-3 rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-3">
-              <p className="text-xs text-emerald-100 mb-2">Cobros, alertas y riesgos recientes</p>
-              <div className="mb-2 flex flex-wrap gap-2">
-                {[
-                  ["all", "Todo"],
-                  ["payments", "Cobros"],
-                  ["fatigue", "Fatiga"],
-                  ["risk", "Riesgo"],
-                  ["emails", "Emails"],
-                ].map(([id, label]) => (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() =>
-                      setPaymentNotificationFilter(id as "all" | "payments" | "fatigue" | "risk" | "emails")
-                    }
-                    className={`px-2 py-1 rounded text-[11px] border ${
-                      paymentNotificationFilter === id
-                        ? "bg-emerald-400/30 border-emerald-300/50 text-emerald-50"
-                        : "bg-white/5 border-white/15 text-white/70 hover:bg-white/10"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <div className="space-y-1 max-h-40 overflow-y-auto">
-                {visibleNotificationItems.length === 0 ? (
-                  <p className="text-xs text-white/60">Sin notificaciones recientes.</p>
-                ) : (
-                  visibleNotificationItems.map((item) => (
-                    <div key={item.id} className="text-xs text-white/85 bg-white/5 border border-white/10 rounded px-2 py-1 flex items-center justify-between gap-2">
-                      <span>
-                        {item.message
-                          ? `${item.userName || item.userEmail || "Cliente"} · ${String(item.message)}`
-                          : `${item.userName || item.userEmail || "Usuario"} · ${item.amount || 0} ${item.currency || ""}`}
-                      </span>
-                      <span className="text-white/50">{String(item.provider || item.type || "").toUpperCase()}</span>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
         </motion.div>
 
         {newUsersList.length > 0 && (

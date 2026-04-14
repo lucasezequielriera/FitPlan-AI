@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FaTimes, FaChartLine, FaFire, FaUtensils, FaCalendar, FaTrash, FaClock, FaExclamationTriangle } from "react-icons/fa";
+import { useAppLocale } from "@/contexts/AppLocaleContext";
+import { foodLogEntryCountLabel, mealOffPlanCountLabel, p, pFmt } from "@/lib/i18n/planUi";
 
 interface WeeklyStatsModalProps {
   isOpen: boolean;
@@ -42,9 +44,15 @@ interface WeeklyStats {
 }
 
 export default function WeeklyStatsModal({ isOpen, onClose, planId, userId }: WeeklyStatsModalProps) {
+  const { locale } = useAppLocale();
+  const dateLocale = locale === "en" ? "en-US" : "es-AR";
+  const weekdayFromIso = (iso: string, style: "short" | "long") =>
+    new Date(`${iso}T12:00:00`).toLocaleDateString(dateLocale, { weekday: style });
+
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<WeeklyStats | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const [deletingIndex, setDeletingIndex] = useState<number | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ show: boolean; foodIndex: number | null; foodDescription: string }>({
     show: false,
@@ -61,25 +69,29 @@ export default function WeeklyStatsModal({ isOpen, onClose, planId, userId }: We
   const loadStats = async () => {
     setLoading(true);
     setError(null);
+    setWarning(null);
     
     try {
       const response = await fetch("/api/getWeeklyStats", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId, userId }),
+        body: JSON.stringify({ planId, userId, locale }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Error desconocido" }));
+        const errorData = await response.json().catch(() => ({ error: p(locale, "foodErrUnknown") }));
         console.error("❌ Error del servidor:", errorData);
-        throw new Error(errorData.detail || errorData.error || "Error al cargar estadísticas");
+        throw new Error(errorData.detail || errorData.error || p(locale, "weeklyErrLoad"));
       }
 
       const data = await response.json();
       setStats(data);
+      if (typeof data?.warning === "string" && data.warning.trim().length > 0) {
+        setWarning(data.warning);
+      }
     } catch (err) {
       console.error("❌ Error al cargar estadísticas:", err);
-      setError(err instanceof Error ? err.message : "Error al cargar estadísticas. Intenta nuevamente.");
+      setError(err instanceof Error ? err.message : p(locale, "weeklyErrLoadRetry"));
     } finally {
       setLoading(false);
     }
@@ -103,19 +115,19 @@ export default function WeeklyStatsModal({ isOpen, onClose, planId, userId }: We
       const response = await fetch("/api/deleteTrackedFood", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId, userId, foodIndex: confirmDelete.foodIndex }),
+        body: JSON.stringify({ planId, userId, foodIndex: confirmDelete.foodIndex, locale }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Error desconocido" }));
-        throw new Error(errorData.detail || errorData.error || "Error al eliminar la comida");
+        const errorData = await response.json().catch(() => ({ error: p(locale, "foodErrUnknown") }));
+        throw new Error(errorData.detail || errorData.error || p(locale, "weeklyErrDelete"));
       }
 
       // Recargar estadísticas después de eliminar
       await loadStats();
     } catch (err) {
       console.error("❌ Error al eliminar comida:", err);
-      alert(err instanceof Error ? err.message : "Error al eliminar la comida. Intenta nuevamente.");
+      alert(err instanceof Error ? err.message : p(locale, "weeklyErrDeleteRetry"));
     } finally {
       setDeletingIndex(null);
     }
@@ -140,224 +152,151 @@ export default function WeeklyStatsModal({ isOpen, onClose, planId, userId }: We
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[9999] flex items-center justify-center p-2 md:p-4"
+            className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4"
           >
-            {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={onClose}
-              className="fixed inset-0 bg-black/80 backdrop-blur-sm"
+              className="fixed inset-0 bg-black/65 backdrop-blur-md"
             />
 
-            {/* Modal */}
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+              initial={{ opacity: 0, scale: 0.97, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.97, y: 10 }}
+              transition={{ type: "spring", damping: 26, stiffness: 320 }}
               onClick={(e) => e.stopPropagation()}
-              className="relative w-full max-w-4xl max-h-[100vh] md:max-h-[90vh] overflow-y-auto rounded-lg md:rounded-xl border border-white/10 bg-black/95 p-4 md:p-6 shadow-2xl"
+              className="relative flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--background)_94%,#0f172a)] shadow-[0_24px_60px_-30px_rgba(0,0,0,0.75)]"
             >
-          <button
-            onClick={onClose}
-            className="absolute top-3 right-3 md:top-4 md:right-4 text-white/60 hover:text-white transition-colors z-10"
-          >
-            <FaTimes className="h-5 w-5 md:h-6 md:w-6" />
-          </button>
-
-          <div className="mb-4 md:mb-6">
-            <div className="flex items-center gap-2 md:gap-3 mb-2">
-              <FaChartLine className="h-5 w-5 md:h-6 md:w-6 text-blue-400" />
-              <h2 className="text-xl md:text-2xl font-bold">Estadísticas Semanales</h2>
-            </div>
-            <p className="text-white/70 text-xs md:text-sm">
-              Resumen de comidas fuera del plan de los últimos 7 días
-            </p>
-          </div>
-
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-            </div>
-          ) : error ? (
-            <div className="p-4 rounded-lg bg-red-500/20 border border-red-500/30 text-red-300">
-              {error}
-            </div>
-          ) : stats ? (
-            <>
-              {/* Resumen general */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 mb-4 md:mb-6">
-                <div className="p-3 md:p-4 rounded-lg bg-white/5 border border-white/10">
-                  <div className="flex items-center gap-1 md:gap-2 mb-1">
-                    <FaFire className="h-3 w-3 md:h-4 md:w-4 text-orange-400" />
-                    <p className="text-xs opacity-70">Total extras</p>
+              <div className="flex items-start justify-between gap-3 border-b border-[var(--landing-border)] bg-[var(--landing-surface)]/55 px-4 py-3 sm:px-5">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <FaChartLine className="h-4 w-4 text-[var(--brand-end)]" />
+                    <h2 className="text-base font-semibold text-[var(--foreground)] sm:text-lg">Estadísticas semanales</h2>
                   </div>
-                  <p className="text-xl md:text-2xl font-bold text-orange-400">{stats.summary.totalExtras}</p>
-                  <p className="text-xs text-white/50">kcal en 7 días</p>
+                  <p className="mt-1 text-xs text-[var(--landing-muted)]">Comidas fuera del plan en los últimos 7 días</p>
                 </div>
-
-                <div className="p-3 md:p-4 rounded-lg bg-white/5 border border-white/10">
-                  <div className="flex items-center gap-1 md:gap-2 mb-1">
-                    <FaChartLine className="h-3 w-3 md:h-4 md:w-4 text-blue-400" />
-                    <p className="text-xs opacity-70">Promedio diario</p>
-                  </div>
-                  <p className="text-xl md:text-2xl font-bold text-blue-400">{stats.summary.averageExtras}</p>
-                  <p className="text-xs text-white/50">kcal por día</p>
-                </div>
-
-                <div className="p-3 md:p-4 rounded-lg bg-white/5 border border-white/10">
-                  <div className="flex items-center gap-1 md:gap-2 mb-1">
-                    <FaUtensils className="h-3 w-3 md:h-4 md:w-4 text-green-400" />
-                    <p className="text-xs opacity-70">Comidas registradas</p>
-                  </div>
-                  <p className="text-xl md:text-2xl font-bold text-green-400">{stats.summary.totalFoods}</p>
-                  <p className="text-xs text-white/50">en total</p>
-                </div>
-
-                <div className="p-3 md:p-4 rounded-lg bg-white/5 border border-white/10">
-                  <div className="flex items-center gap-1 md:gap-2 mb-1">
-                    <FaCalendar className="h-3 w-3 md:h-4 md:w-4 text-purple-400" />
-                    <p className="text-xs opacity-70">Días con registro</p>
-                  </div>
-                  <p className="text-xl md:text-2xl font-bold text-purple-400">{stats.summary.daysWithFoods}</p>
-                  <p className="text-xs text-white/50">de 7 días</p>
-                </div>
+                <button
+                  onClick={onClose}
+                  className="rounded-lg p-1.5 text-[var(--landing-muted)] transition hover:bg-[var(--landing-surface-2)] hover:text-[var(--foreground)]"
+                >
+                  <FaTimes className="h-4 w-4" />
+                </button>
               </div>
 
-              {/* Gráfico de barras */}
-              <div className="mb-4 md:mb-6 p-3 md:p-4 rounded-lg bg-white/5 border border-white/10">
-                <h3 className="font-semibold mb-3 md:mb-4 text-sm md:text-base">Calorías extras por día</h3>
-                <div className="space-y-3">
-                  {stats.weekStats.map((day) => {
-                    const percentage = maxCalories > 0 ? (day.calories / maxCalories) * 100 : 0;
-                    const date = new Date(day.date);
-                    const dateStr = date.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
-                    
-                    return (
-                      <div key={day.date} className="flex items-center gap-2 md:gap-3">
-                        <div className="w-16 md:w-20 text-xs text-white/70 flex-shrink-0">
-                          <span className="hidden md:inline">{day.dayName.substring(0, 3)}</span>
-                          <span className="md:hidden">{day.dayName.substring(0, 2)}</span>
-                          <br />
-                          <span className="text-white/50 text-[10px] md:text-xs">{dateStr}</span>
-                        </div>
-                        <div className="flex-1 relative min-w-0">
-                          <div className="h-6 md:h-8 bg-white/10 rounded-lg overflow-hidden">
-                            <div
-                              className="h-full bg-gradient-to-r from-orange-500 to-pink-500 rounded-lg transition-all duration-500 flex items-center justify-end pr-1 md:pr-2"
-                              style={{ width: `${Math.max(percentage, day.calories > 0 ? 5 : 0)}%` }}
-                            >
-                              {day.calories > 0 && (
-                                <span className="text-[10px] md:text-xs font-medium text-white whitespace-nowrap">
-                                  <span className="hidden sm:inline">{day.calories} kcal</span>
-                                  <span className="sm:hidden">{day.calories}</span>
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="w-12 md:w-16 text-right text-xs text-white/70 flex-shrink-0">
-                          {day.foodsCount > 0 && (
-                            <span className="text-green-400 text-[10px] md:text-xs">
-                              <span className="hidden sm:inline">{day.foodsCount} comida{day.foodsCount !== 1 ? 's' : ''}</span>
-                              <span className="sm:hidden">{day.foodsCount}</span>
-                            </span>
-                          )}
-                          {day.foodsCount === 0 && (
-                            <span className="text-white/30">-</span>
-                          )}
-                        </div>
+              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5">
+                {loading ? (
+                  <div className="flex items-center justify-center py-10">
+                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--landing-border)] border-t-[var(--brand-end)]" />
+                  </div>
+                ) : error ? (
+                  <div className="rounded-xl border border-red-400/35 bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</div>
+                ) : stats ? (
+                  <>
+                    {warning && (
+                      <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                        {warning}
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      <StatCard label={p(locale, "weeklyStatTotalExtras")} value={`${stats.summary.totalExtras} kcal`} icon={<FaFire className="h-3.5 w-3.5 text-orange-300" />} />
+                      <StatCard label={p(locale, "weeklyStatAvgDaily")} value={`${stats.summary.averageExtras} kcal`} icon={<FaChartLine className="h-3.5 w-3.5 text-[var(--brand-end)]" />} />
+                      <StatCard label={p(locale, "weeklyStatMeals")} value={`${stats.summary.totalFoods}`} icon={<FaUtensils className="h-3.5 w-3.5 text-emerald-300" />} />
+                      <StatCard label={p(locale, "weeklyStatDaysLogged")} value={`${stats.summary.daysWithFoods}/7`} icon={<FaCalendar className="h-3.5 w-3.5 text-cyan-300" />} />
+                    </div>
 
-              {/* Día con más calorías */}
-              {stats.summary.maxDay && stats.summary.maxDay.calories > 0 && (
-                <div className="mb-4 md:mb-6 p-3 md:p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
-                  <h3 className="font-semibold mb-2 text-yellow-300 text-sm md:text-base">📊 Día con más calorías extras</h3>
-                  <p className="text-white/80 text-sm md:text-base">
-                    <span className="font-medium">{stats.summary.maxDay.dayName}</span> con{" "}
-                    <span className="font-bold text-yellow-400">{stats.summary.maxDay.calories} kcal</span> extras
-                  </p>
-                </div>
-              )}
-
-              {/* Detalle por día */}
-              <div className="mb-4 md:mb-6">
-                <h3 className="font-semibold mb-3 md:mb-4 text-sm md:text-base">Detalle por día</h3>
-                <div className="space-y-3">
-                  {stats.weekStats.map((day) => {
-                    const date = new Date(day.date);
-                    const dateStr = date.toLocaleDateString('es-AR', { day: 'numeric', month: 'long' });
-                    
-                    return (
-                      <div key={day.date} className="p-3 md:p-4 rounded-lg bg-white/5 border border-white/10">
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-2 gap-2">
-                          <div>
-                            <p className="font-medium text-sm md:text-base">{day.dayName}, {dateStr}</p>
-                            <p className="text-xs text-white/50">
-                              {day.foodsCount > 0 
-                                ? `${day.foodsCount} comida${day.foodsCount !== 1 ? 's' : ''} registrada${day.foodsCount !== 1 ? 's' : ''}`
-                                : "Sin comidas registradas"}
-                            </p>
-                          </div>
-                          {day.calories > 0 && (
-                            <span className="text-base md:text-lg font-bold text-orange-400">
-                              {day.calories} kcal
-                            </span>
-                          )}
-                        </div>
-                        {day.foods.length > 0 && (
-                          <div className="mt-3 space-y-2">
-                            {day.foods.map((food, idx) => (
-                              <div key={`${day.date}-${food.foodIndex ?? idx}-${food.description}`} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-sm bg-white/5 rounded-lg p-2 md:p-3">
-                                <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0">
-                                  <span className="text-white/80 text-xs md:text-sm truncate">• {food.description}</span>
-                                  {food.hour && (
-                                    <span className="flex items-center gap-1 text-white/50 text-xs flex-shrink-0">
-                                      <FaClock className="h-3 w-3" />
-                                      {food.hour}
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-2 md:gap-3 justify-end sm:justify-start">
-                                  <span className="text-orange-400 font-medium text-xs md:text-sm">{food.calories} kcal</span>
-                                  {food.foodIndex !== undefined && (
-                                    <button
-                                      onClick={() => handleDeleteClick(food.foodIndex!, food.description)}
-                                      disabled={deletingIndex === food.foodIndex}
-                                      className="text-red-400 hover:text-red-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-                                      title="Eliminar comida"
-                                    >
-                                      {deletingIndex === food.foodIndex ? (
-                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-400"></div>
-                                      ) : (
-                                        <FaTrash className="h-4 w-4" />
-                                      )}
-                                    </button>
-                                  )}
+                    <div className="rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)]/45 p-3">
+                      <h3 className="mb-2 text-sm font-semibold text-[var(--foreground)]">{p(locale, "weeklyChartExtrasTitle")}</h3>
+                      <div className="space-y-2">
+                        {stats.weekStats.map((day) => {
+                          const percentage = maxCalories > 0 ? (day.calories / maxCalories) * 100 : 0;
+                          return (
+                            <div key={day.date} className="flex items-center gap-2">
+                              <div className="w-14 shrink-0 text-[11px] text-[var(--landing-muted)]">{weekdayFromIso(day.date, "short")}</div>
+                              <div className="h-5 flex-1 overflow-hidden rounded-md bg-[color-mix(in_oklab,var(--foreground)_8%,transparent)]">
+                                <div
+                                  className="flex h-full items-center justify-end rounded-md bg-[linear-gradient(90deg,var(--brand-start),var(--brand-end))] px-1.5 text-[10px] font-semibold text-[#0a1628]"
+                                  style={{ width: `${Math.max(percentage, day.calories > 0 ? 7 : 0)}%` }}
+                                >
+                                  {day.calories > 0 ? `${day.calories}` : ""}
                                 </div>
                               </div>
-                            ))}
-                          </div>
-                        )}
+                              <div className="w-16 shrink-0 text-right text-[11px] text-[var(--landing-muted)]">
+                                {day.foodsCount > 0 ? mealOffPlanCountLabel(locale, day.foodsCount) : "-"}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
+                    </div>
 
-              <button
-                onClick={onClose}
-                className="w-full px-4 py-2 md:py-3 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-medium transition-all text-sm md:text-base"
-              >
-                Cerrar
-              </button>
-            </>
-          ) : null}
+                    {stats.summary.maxDay && stats.summary.maxDay.calories > 0 && (
+                      <div className="rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                        {pFmt(locale, "weeklyPeakWeek", {
+                          day: weekdayFromIso(stats.summary.maxDay.date, "long"),
+                          kcal: stats.summary.maxDay.calories,
+                        })}
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      {stats.weekStats.map((day) => {
+                        const date = new Date(`${day.date}T12:00:00`);
+                        const dateStr = date.toLocaleDateString(dateLocale, { day: "numeric", month: "short" });
+                        return (
+                          <details key={day.date} className="overflow-hidden rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)]/35">
+                            <summary className="flex cursor-pointer items-center justify-between gap-2 px-3 py-2">
+                              <div>
+                                <p className="text-sm font-medium text-[var(--foreground)]">{weekdayFromIso(day.date, "long")} · {dateStr}</p>
+                                <p className="text-[11px] text-[var(--landing-muted)]">
+                                  {day.foodsCount > 0 ? foodLogEntryCountLabel(locale, day.foodsCount) : p(locale, "weeklyNoEntries")}
+                                </p>
+                              </div>
+                              <span className="text-xs font-semibold text-orange-300">{day.calories} kcal</span>
+                            </summary>
+                            {day.foods.length > 0 && (
+                              <div className="space-y-1 border-t border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--foreground)_2%,transparent)] px-3 py-2">
+                                {day.foods.map((food, idx) => (
+                                  <div key={`${day.date}-${food.foodIndex ?? idx}-${food.description}`} className="flex items-center justify-between gap-2 rounded-lg border border-[var(--landing-border)] bg-[var(--landing-surface)]/65 px-2.5 py-2">
+                                    <div className="min-w-0">
+                                      <p className="truncate text-xs text-[var(--foreground)]">{food.description}</p>
+                                      {food.hour && (
+                                        <p className="mt-0.5 flex items-center gap-1 text-[10px] text-[var(--landing-muted)]">
+                                          <FaClock className="h-2.5 w-2.5" />
+                                          {food.hour}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[11px] font-semibold text-orange-300">{food.calories} kcal</span>
+                                      {food.foodIndex !== undefined && (
+                                        <button
+                                          onClick={() => handleDeleteClick(food.foodIndex!, food.description)}
+                                          disabled={deletingIndex === food.foodIndex}
+                                          className="rounded-md p-1 text-red-300 transition hover:bg-red-500/10 hover:text-red-200 disabled:opacity-50"
+                                          title={p(locale, "weeklyDeleteMealTitle")}
+                                        >
+                                          {deletingIndex === food.foodIndex ? (
+                                            <div className="h-3.5 w-3.5 animate-spin rounded-full border border-red-300 border-t-transparent" />
+                                          ) : (
+                                            <FaTrash className="h-3.5 w-3.5" />
+                                          )}
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </details>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : null}
+              </div>
             </motion.div>
           </motion.div>
         )}
@@ -388,43 +327,43 @@ export default function WeeklyStatsModal({ isOpen, onClose, planId, userId }: We
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="relative w-full max-w-md rounded-lg md:rounded-xl border border-red-500/30 bg-black/95 p-4 md:p-6 shadow-2xl"
+              className="relative w-full max-w-md rounded-2xl border border-red-400/30 bg-[color-mix(in_oklab,var(--background)_96%,#0f172a)] p-4 shadow-2xl"
             >
               <div className="flex items-center gap-2 md:gap-3 mb-3 md:mb-4">
                 <div className="p-2 md:p-3 rounded-full bg-red-500/20 border border-red-500/30">
                   <FaExclamationTriangle className="h-5 w-5 md:h-6 md:w-6 text-red-400" />
                 </div>
-                <h3 className="text-lg md:text-xl font-bold text-white">Confirmar eliminación</h3>
+                <h3 className="text-lg font-semibold text-[var(--foreground)]">{p(locale, "weeklyConfirmDeleteTitle")}</h3>
               </div>
 
-              <p className="text-white/80 mb-2 text-sm md:text-base">
-                ¿Estás seguro de que quieres eliminar esta comida?
+              <p className="mb-2 text-sm text-[var(--foreground)]/85">
+                {p(locale, "weeklyConfirmDeleteBody")}
               </p>
               
               {confirmDelete.foodDescription && (
-                <div className="mb-4 md:mb-6 p-2 md:p-3 rounded-lg bg-white/5 border border-white/10">
-                  <p className="text-xs md:text-sm text-white/60 mb-1">Comida a eliminar:</p>
-                  <p className="text-white/90 font-medium text-sm md:text-base break-words">"{confirmDelete.foodDescription}"</p>
+                <div className="mb-4 rounded-lg border border-[var(--landing-border)] bg-[var(--landing-surface)] px-3 py-2">
+                  <p className="mb-1 text-xs text-[var(--landing-muted)]">{p(locale, "weeklyFoodToDelete")}</p>
+                  <p className="break-words text-sm font-medium text-[var(--foreground)]">"{confirmDelete.foodDescription}"</p>
                 </div>
               )}
 
-              <p className="text-xs md:text-sm text-white/50 mb-4 md:mb-6">
-                Esta acción no se puede deshacer.
+              <p className="mb-4 text-xs text-[var(--landing-muted)]">
+                {p(locale, "weeklyCannotUndo")}
               </p>
 
-              <div className="flex flex-col sm:flex-row gap-2 md:gap-3">
+              <div className="flex flex-col gap-2 sm:flex-row">
                 <button
                   onClick={handleCancelDelete}
-                  className="flex-1 px-4 py-2 md:py-3 rounded-lg bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-colors text-sm md:text-base"
+                  className="flex-1 rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] px-4 py-2 text-sm text-[var(--foreground)] transition hover:bg-[var(--landing-surface-2)]"
                 >
-                  Cancelar
+                  {p(locale, "cancel")}
                 </button>
                 <button
                   onClick={handleConfirmDelete}
-                  className="flex-1 px-4 py-2 md:py-3 rounded-lg bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-medium transition-all flex items-center justify-center gap-2 text-sm md:text-base"
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-red-400/35 bg-red-500/15 px-4 py-2 text-sm font-medium text-red-100 transition hover:bg-red-500/25"
                 >
                   <FaTrash className="h-4 w-4" />
-                  Eliminar
+                  {p(locale, "weeklyDelete")}
                 </button>
               </div>
             </motion.div>
@@ -432,6 +371,18 @@ export default function WeeklyStatsModal({ isOpen, onClose, planId, userId }: We
         )}
       </AnimatePresence>
     </>
+  );
+}
+
+function StatCard({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)]/55 px-3 py-2">
+      <div className="mb-1 flex items-center gap-1.5 text-[11px] text-[var(--landing-muted)]">
+        {icon}
+        <span>{label}</span>
+      </div>
+      <p className="text-sm font-semibold text-[var(--foreground)]">{value}</p>
+    </div>
   );
 }
 

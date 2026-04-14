@@ -1,6 +1,12 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
 
+function isQuotaError(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error || "");
+  const normalized = msg.toUpperCase();
+  return normalized.includes("RESOURCE_EXHAUSTED") || normalized.includes("QUOTA EXCEEDED");
+}
+
 /**
  * API para que usuarios obtengan sus mensajes
  */
@@ -86,6 +92,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       unreadRepliesCount,
     });
   } catch (error) {
+    if (isQuotaError(error)) {
+      return res.status(200).json({
+        messages: [],
+        unreadRepliesCount: 0,
+        degraded: true,
+        warning: "No se pudieron cargar mensajes temporalmente por límite de cuota.",
+      });
+    }
     console.error("Error al obtener mensajes del usuario:", error);
     return res.status(500).json({ 
       error: "Error al obtener mensajes",

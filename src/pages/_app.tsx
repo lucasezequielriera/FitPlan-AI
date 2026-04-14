@@ -3,6 +3,7 @@ import type { AppProps } from "next/app";
 import Head from "next/head";
 import { Poppins } from "next/font/google";
 import { useEffect } from "react";
+import { AppLocaleProvider } from "@/contexts/AppLocaleContext";
 import { useAuthStore } from "@/store/authStore";
 import Footer from "@/components/Footer";
 import ContactButton from "@/components/ContactButton";
@@ -77,9 +78,11 @@ export default function App({ Component, pageProps }: AppProps) {
         <link rel="manifest" href="/site.webmanifest" />
       </Head>
       <div className={`${poppins.className} min-h-screen flex flex-col`}>
-        <Component {...pageProps} />
-        <Footer />
-        <ContactButton />
+        <AppLocaleProvider>
+          <Component {...pageProps} />
+          <Footer />
+          <ContactButton />
+        </AppLocaleProvider>
       </div>
       <Analytics />
       <SpeedInsights />

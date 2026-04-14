@@ -1,17 +1,23 @@
 import { useRouter } from "next/router";
+import Link from "next/link";
+import Image from "next/image";
 import { useAuthStore } from "@/store/authStore";
 import { motion } from "framer-motion";
-import { useState, useEffect, useRef } from "react";
-import { FaAppleAlt } from "react-icons/fa";
+import { useState, useEffect, useRef, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
 import LoginModal from "./LoginModal";
 import UserMessagesModal from "./UserMessagesModal";
 import GymCalendarModal from "./GymCalendarModal";
 import { getDbSafe, getAuthSafe } from "@/lib/firebase";
-import { collection, query, where, getDocs, limit, doc, getDoc } from "firebase/firestore";
+import { collection, query, where, getDocs, limit, doc, getDoc, updateDoc } from "firebase/firestore";
 import React from "react";
+import { useAppLocale } from "@/contexts/AppLocaleContext";
+import { ui, dash } from "@/lib/i18n/appUi";
+import { getPendingWeightOpsTotalCount, WEIGHT_QUEUE_CHANGED_EVENT } from "@/lib/weightSyncQueue";
 
 export default function Navbar() {
   const router = useRouter();
+  const { locale, setLocale } = useAppLocale();
   const { user: authUser, logout, initializeAuth, loading: authLoading } = useAuthStore();
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [hasPlans, setHasPlans] = useState<boolean | null>(null);
@@ -20,14 +26,42 @@ export default function Navbar() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [messagesCount, setMessagesCount] = useState(0);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [adminNotificationUnread, setAdminNotificationUnread] = useState(0);
+  const [adminNotificationsOpen, setAdminNotificationsOpen] = useState(false);
+  const [adminNotificationFilter, setAdminNotificationFilter] = useState<
+    "all" | "payments" | "fatigue" | "risk" | "emails"
+  >("all");
+  const [adminNotificationItems, setAdminNotificationItems] = useState<
+    Array<{
+      id: string;
+      userName?: string;
+      userEmail?: string;
+      amount?: number;
+      currency?: string;
+      provider?: string;
+      type?: string;
+      message?: string;
+      createdAt?: unknown;
+    }>
+  >([]);
   const [messagesModalOpen, setMessagesModalOpen] = useState(false);
   const [sendMessageModalOpen, setSendMessageModalOpen] = useState(false);
   const [userMessagesCount, setUserMessagesCount] = useState(0);
   const [userMessagesModalOpen, setUserMessagesModalOpen] = useState(false);
   const [gymCalendarModalOpen, setGymCalendarModalOpen] = useState(false);
   const [currentMonthGymDays, setCurrentMonthGymDays] = useState(0);
+  const [pendingWeightOpsCount, setPendingWeightOpsCount] = useState(0);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [userMenuPos, setUserMenuPos] = useState<{ top: number; right: number; width: number } | null>(null);
+  const userMenuRef = useRef<HTMLDivElement | null>(null);
+  const userMenuPanelRef = useRef<HTMLDivElement | null>(null);
+  const adminNotificationsRef = useRef<HTMLDivElement | null>(null);
   const isPlanPage = router.pathname === "/plan";
   const isDashboardPage = router.pathname === "/dashboard";
+
+  /** Chat / calendario: mismo tamaño que avatar en móvil; un poco más grandes en desktop. */
+  const clientNavActionBtn =
+    "relative flex h-9 w-9 shrink-0 touch-manipulation items-center justify-center rounded-lg px-0 text-[var(--foreground)] transition-colors hover:bg-[var(--landing-surface-2)] active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)] sm:h-10 sm:w-10 sm:rounded-xl";
 
   useEffect(() => {
     initializeAuth();
@@ -84,6 +118,11 @@ export default function Navbar() {
           const nameFromDb: string | undefined = (userData as Record<string, unknown>).nombre as string | undefined;
           const fallbackName = auth.currentUser.displayName || auth.currentUser.email?.split("@")[0] || "Usuario";
           setUserName(nameFromDb && nameFromDb.trim().length > 0 ? nameFromDb : fallbackName);
+
+          const appLocale = (userData as Record<string, unknown>).appLocale as string | undefined;
+          if (appLocale === "en" || appLocale === "es") {
+            setLocale(appLocale);
+          }
           
           // Verificar si es admin por email
           const email = userData.email?.toLowerCase() || auth.currentUser.email?.toLowerCase() || "";
@@ -204,56 +243,285 @@ export default function Navbar() {
     return () => clearInterval(interval);
   }, [authUser, isAdmin]);
 
+  useEffect(() => {
+    if (!authUser) {
+      setPendingWeightOpsCount(0);
+      return;
+    }
+
+    const refreshPendingCount = () => {
+      setPendingWeightOpsCount(getPendingWeightOpsTotalCount());
+    };
+
+    refreshPendingCount();
+    const interval = setInterval(refreshPendingCount, 15000);
+    const handleStorage = () => refreshPendingCount();
+    window.addEventListener("storage", handleStorage);
+    window.addEventListener(WEIGHT_QUEUE_CHANGED_EVENT, handleStorage);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener(WEIGHT_QUEUE_CHANGED_EVENT, handleStorage);
+    };
+  }, [authUser]);
+
+  // Notificaciones del admin (cobros/alertas/riesgo/emails)
+  useEffect(() => {
+    if (!authUser || !isAdmin) {
+      setAdminNotificationUnread(0);
+      setAdminNotificationItems([]);
+      return;
+    }
+    const fetchAdminNotifications = async () => {
+      try {
+        const response = await fetch(`/api/admin/paymentNotifications?adminUserId=${authUser.uid}`);
+        if (!response.ok) return;
+        const data = await response.json();
+        setAdminNotificationUnread(typeof data?.unreadCount === "number" ? data.unreadCount : 0);
+        setAdminNotificationItems(Array.isArray(data?.items) ? data.items : []);
+      } catch {
+        // noop
+      }
+    };
+    fetchAdminNotifications();
+    const interval = setInterval(fetchAdminNotifications, 30000);
+    return () => clearInterval(interval);
+  }, [authUser, isAdmin]);
+
+  useEffect(() => {
+    setUserMenuOpen(false);
+    setAdminNotificationsOpen(false);
+  }, [router.pathname]);
+
+  useLayoutEffect(() => {
+    if (!userMenuOpen || typeof window === "undefined") {
+      setUserMenuPos(null);
+      return;
+    }
+    const update = () => {
+      const wrap = userMenuRef.current;
+      if (!wrap) return;
+      const rect = wrap.getBoundingClientRect();
+      const width = Math.min(280, window.innerWidth - 24);
+      setUserMenuPos({
+        top: rect.bottom + 8,
+        right: window.innerWidth - rect.right,
+        width,
+      });
+    };
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, [userMenuOpen, adminNotificationsOpen]);
+
+  useEffect(() => {
+    if (!userMenuOpen && !adminNotificationsOpen) return;
+    const handleDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (
+        userMenuRef.current?.contains(t) ||
+        userMenuPanelRef.current?.contains(t) ||
+        adminNotificationsRef.current?.contains(t)
+      ) {
+        return;
+      }
+      setUserMenuOpen(false);
+      setAdminNotificationsOpen(false);
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setUserMenuOpen(false);
+        setAdminNotificationsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleDown);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handleDown);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [userMenuOpen]);
+
+  const handleLogout = async () => {
+    setUserMenuOpen(false);
+    if (isAdmin && authUser) {
+      try {
+        const db = getDbSafe();
+        if (db) {
+          const { doc, updateDoc, serverTimestamp } = await import("firebase/firestore");
+          const userRef = doc(db, "usuarios", authUser.uid);
+          await updateDoc(userRef, {
+            lastUsersCheck: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+          console.log("✅ Última conexión del admin actualizada al desconectarse");
+        }
+      } catch (error) {
+        console.error("Error al actualizar lastUsersCheck en logout:", error);
+      }
+    }
+    await logout();
+    router.push("/");
+  };
+
+  const navigateUserHome = () => {
+    setUserMenuOpen(false);
+    if (isAdmin) {
+      router.push("/admin");
+    } else if (hasPlans) {
+      router.push("/dashboard");
+    } else {
+      router.push("/create-plan");
+    }
+  };
+
+  const openAdminNotifications = async () => {
+    if (!isAdmin || !authUser) return;
+    const nextOpen = !adminNotificationsOpen;
+    setAdminNotificationsOpen(nextOpen);
+    if (nextOpen && adminNotificationUnread > 0) {
+      try {
+        await fetch("/api/admin/paymentNotifications", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ adminUserId: authUser.uid }),
+        });
+        setAdminNotificationUnread(0);
+      } catch {
+        // noop
+      }
+    }
+  };
+
+  const visibleAdminNotificationItems = adminNotificationItems.filter((item) => {
+    if (adminNotificationFilter === "all") return true;
+    if (adminNotificationFilter === "payments") return item.type === "payment_success";
+    if (adminNotificationFilter === "fatigue") return item.type === "coach_alert";
+    if (adminNotificationFilter === "risk") return item.type === "adherence_risk_weekly";
+    return item.type === "weekly_digest_sent" || item.type === "weekly_digest_failed";
+  });
+
+  const marketingEsToEn: Record<string, string> = {
+    "/": "/en",
+    "/formulario-de-inicio": "/en/formulario-de-inicio",
+    "/transformacion-fitplan": "/en/transformacion-fitplan",
+  };
+
+  const persistAppLocale = (l: "es" | "en") => {
+    void (async () => {
+      try {
+        const db = getDbSafe();
+        const auth = getAuthSafe();
+        if (!db || !auth?.currentUser) return;
+        await updateDoc(doc(db, "usuarios", auth.currentUser.uid), { appLocale: l });
+      } catch {
+        // ignore
+      }
+    })();
+  };
+
+  const pickLocaleEs = () => {
+    setLocale("es");
+    persistAppLocale("es");
+    if (router.pathname.startsWith("/en")) {
+      const raw = router.asPath.replace(/^\/en(\/?)/, "/") || "/";
+      router.push(raw === "//" ? "/" : raw);
+    }
+    setUserMenuOpen(false);
+  };
+
+  const pickLocaleEn = () => {
+    setLocale("en");
+    persistAppLocale("en");
+    const path = router.pathname;
+    const mapped = marketingEsToEn[path];
+    if (mapped) {
+      router.push(mapped);
+    }
+    setUserMenuOpen(false);
+  };
+
   return (
     <>
-    <nav className="sticky top-0 z-40 w-full border-b border-white/10 bg-black/30 backdrop-blur-md overflow-x-hidden">
-      <div className="mx-auto max-w-7xl px-3 sm:px-4 md:px-6 lg:px-8 w-full overflow-x-hidden">
-        <div className="flex h-16 items-center justify-between">
-          {/* Logo y título */}
-          <div 
-            className="flex items-center gap-2 sm:gap-3 cursor-pointer flex-shrink-0 min-w-0"
-            onClick={() => router.push("/")}
-          >
-            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500">
-              <FaAppleAlt className="h-5 w-5 text-white" />
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-base sm:text-lg font-semibold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent truncate">
-                FitPlan AI
-              </h1>
-              <p className="text-[10px] opacity-60 hidden sm:block">Plan nutricional y entrenamiento inteligente</p>
-            </div>
-          </div>
+    <nav className="sticky top-0 z-50 w-full border-b border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--background)_88%,transparent)] backdrop-blur-md supports-[padding:max(0px)]:pt-[env(safe-area-inset-top)]">
+      <div className="flex w-full items-center justify-between gap-1.5 px-2.5 py-2 sm:gap-3 sm:px-6 sm:py-3">
+        <Link
+          href="/"
+          className="flex min-w-0 shrink items-center gap-2 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)] sm:gap-2.5 sm:shrink-0"
+        >
+          <span className="relative hidden h-9 w-9 shrink-0 overflow-hidden rounded-xl bg-[var(--landing-surface)] ring-1 ring-[var(--landing-border)] sm:block">
+            <Image
+              src="/brand/icon-social-transparent.svg"
+              alt=""
+              width={36}
+              height={36}
+              className="object-contain p-1"
+              priority
+            />
+          </span>
+          <span className="min-w-0 truncate text-sm font-semibold tracking-tight text-[var(--foreground)] sm:text-base">FitPlan AI</span>
+        </Link>
 
-          {/* Información del usuario y acciones */}
-          <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+        <div className="flex min-w-0 max-w-[100%] shrink flex-nowrap items-center justify-end gap-1 overflow-visible sm:flex-wrap sm:gap-2 md:gap-3">
+          {!authUser && (
+            <nav
+              className="flex shrink-0 items-center rounded-lg bg-[var(--landing-surface)] p-0.5 text-[10px] ring-1 ring-[var(--landing-border)] sm:text-xs md:text-sm"
+              aria-label={ui(locale, "language")}
+            >
+              {locale === "en" ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={pickLocaleEs}
+                    className="rounded-md px-2 py-1 text-[var(--landing-muted)] transition-colors hover:text-[var(--foreground)]"
+                  >
+                    ES
+                  </button>
+                  <span className="px-1 text-[var(--landing-muted)]" aria-hidden>
+                    |
+                  </span>
+                  <span className="rounded-md bg-[var(--landing-surface-2)] px-2 py-1 font-medium text-[var(--foreground)]">EN</span>
+                </>
+              ) : (
+                <>
+                  <span className="rounded-md bg-[var(--landing-surface-2)] px-2 py-1 font-medium text-[var(--foreground)]">ES</span>
+                  <span className="px-1 text-[var(--landing-muted)]" aria-hidden>
+                    |
+                  </span>
+                  <button
+                    type="button"
+                    onClick={pickLocaleEn}
+                    className="rounded-md px-2 py-1 text-[var(--landing-muted)] transition-colors hover:text-[var(--foreground)]"
+                  >
+                    EN
+                  </button>
+                </>
+              )}
+            </nav>
+          )}
 
-            {authUser && (
-              <>
-                {/* Icono de mensajes para usuarios (no admin) */}
-                {!isAdmin && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="relative cursor-pointer"
+          {authUser && (
+            <>
+              {!isAdmin && (
+                <motion.div
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex w-auto shrink-0 items-stretch rounded-xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--landing-surface)_92%,transparent)] p-0.5 shadow-[0_10px_36px_-18px_rgba(45,212,191,0.35)] ring-1 ring-[color-mix(in_oklab,var(--foreground)_5%,transparent)] sm:rounded-2xl sm:p-1"
+                  role="group"
+                  aria-label="Mensajes y calendario de gym"
+                >
+                  <button
+                    type="button"
+                    className={clientNavActionBtn}
                     onClick={(e) => {
                       e.stopPropagation();
                       setUserMessagesModalOpen(true);
                     }}
-                    title="Mis mensajes"
+                  title={locale === "en" ? "Messages" : "Mis mensajes"}
+                  aria-label={ui(locale, "messagesAria")}
                   >
-                    <motion.div
-                      animate={userMessagesCount > 0 ? {
-                        scale: [1, 1.1, 1],
-                        rotate: [0, -5, 5, 0]
-                      } : {}}
-                      transition={{
-                        duration: 0.5,
-                        repeat: userMessagesCount > 0 ? Infinity : 0,
-                        repeatDelay: 2
-                      }}
-                      className="p-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
-                    >
+                    <span className="relative inline-flex">
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
                         viewBox="0 0 24 24"
@@ -262,46 +530,37 @@ export default function Navbar() {
                         strokeWidth="2"
                         strokeLinecap="round"
                         strokeLinejoin="round"
-                        className="h-5 w-5 text-white/80"
+                        className={`h-4 w-4 sm:h-[1.15rem] sm:w-[1.15rem] ${userMessagesCount > 0 ? "text-[var(--landing-accent)]" : "text-[var(--foreground)]/85"}`}
+                        aria-hidden
                       >
                         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                       </svg>
-                    </motion.div>
-                    {userMessagesCount > 0 && (
-                      <motion.div
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-blue-500 border-2 border-black flex items-center justify-center"
-                      >
-                        <motion.span
-                          animate={{ scale: [1, 1.2, 1] }}
-                          transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 1 }}
-                          className="text-[10px] font-bold text-white"
-                        >
+                      {userMessagesCount > 0 && (
+                        <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--landing-accent)] px-0.5 text-[9px] font-bold leading-none text-[#0a1628] ring-2 ring-[var(--background)] sm:-right-2 sm:-top-2 sm:h-[18px] sm:min-w-[18px] sm:text-[10px]">
                           {userMessagesCount > 9 ? "9+" : userMessagesCount}
-                        </motion.span>
-                      </motion.div>
-                    )}
-                  </motion.div>
-                )}
+                        </span>
+                      )}
+                    </span>
+                  </button>
 
-                {/* Icono de calendario de gym para usuarios (no admin) */}
-                {!isAdmin && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="relative cursor-pointer"
+                  <span className="my-1 w-px shrink-0 bg-[var(--landing-border)] sm:my-1.5" aria-hidden />
+
+                  <button
+                    type="button"
+                    className={clientNavActionBtn}
                     onClick={(e) => {
                       e.stopPropagation();
                       setGymCalendarModalOpen(true);
-                      // Recargar contador cuando se abre el modal
                       setTimeout(() => loadGymDaysCount(), 500);
                     }}
-                    title="Días de gym"
+                    title={locale === "en" ? "Gym days this month" : "Días de gym este mes"}
+                    aria-label={
+                      locale === "en"
+                        ? `${ui(locale, "gymAria")}${currentMonthGymDays > 0 ? `, ${currentMonthGymDays} ${ui(locale, "gymDaysSuffix")}` : ""}`
+                        : `Calendario de gym${currentMonthGymDays > 0 ? `, ${currentMonthGymDays} días este mes` : ""}`
+                    }
                   >
-                    <motion.div
-                      className="p-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors relative"
-                    >
+                    <span className="relative inline-flex">
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
                         viewBox="0 0 24 24"
@@ -310,40 +569,128 @@ export default function Navbar() {
                         strokeWidth="2"
                         strokeLinecap="round"
                         strokeLinejoin="round"
-                        className="h-5 w-5 text-white/80"
+                        className="h-4 w-4 text-[var(--foreground)]/85 sm:h-[1.15rem] sm:w-[1.15rem]"
+                        aria-hidden
                       >
                         <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
                         <line x1="16" y1="2" x2="16" y2="6" />
                         <line x1="8" y1="2" x2="8" y2="6" />
                         <line x1="3" y1="10" x2="21" y2="10" />
                       </svg>
-                    </motion.div>
-                  </motion.div>
-                )}
+                      {currentMonthGymDays > 0 && (
+                        <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--landing-accent)] px-0.5 text-[9px] font-bold leading-none text-[#0a1628] ring-2 ring-[var(--background)] sm:-right-2 sm:-top-2 sm:h-[18px] sm:min-w-[18px] sm:text-[10px]">
+                          {currentMonthGymDays > 9 ? "9+" : currentMonthGymDays}
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                </motion.div>
+              )}
 
-                {/* Icono de notificaciones de mensajes para admin */}
-                {isAdmin && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.8 }}
+              {isAdmin && (
+                <div className="relative flex items-center gap-2" ref={adminNotificationsRef}>
+                  <motion.button
+                    type="button"
+                    initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className="relative cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openAdminNotifications();
+                    }}
+                    title="Notificaciones"
+                    className="relative inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] text-[var(--foreground)]/90 shadow-[0_8px_24px_-16px_rgba(0,0,0,0.5)] transition-colors hover:bg-[var(--landing-surface-2)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)] sm:h-10 sm:w-10"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4 sm:h-[1.1rem] sm:w-[1.1rem]">
+                      <path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5m6 0a3 3 0 1 1-6 0m6 0H9" />
+                    </svg>
+                    {adminNotificationUnread > 0 && (
+                      <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-[var(--background)] bg-[var(--landing-accent)] px-1 text-[10px] font-bold text-[#0a1628]">
+                        {adminNotificationUnread > 9 ? "9+" : adminNotificationUnread}
+                      </span>
+                    )}
+                  </motion.button>
+
+                  {adminNotificationsOpen && (
+                    <div className="absolute right-0 top-[calc(100%+10px)] z-[10040] w-[min(92vw,420px)] rounded-2xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--background)_96%,#0f172a)] p-3 shadow-[0_24px_60px_-26px_rgba(0,0,0,0.65)] ring-1 ring-[color-mix(in_oklab,var(--foreground)_6%,transparent)]">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--landing-muted)]">
+                        Notificaciones
+                      </p>
+                      <div className="mb-2 flex flex-wrap gap-1.5">
+                        {[
+                          ["all", "Todo"],
+                          ["payments", "Cobros"],
+                          ["fatigue", "Fatiga"],
+                          ["risk", "Riesgo"],
+                          ["emails", "Emails"],
+                        ].map(([id, label]) => (
+                          <button
+                            key={id}
+                            type="button"
+                            onClick={() =>
+                              setAdminNotificationFilter(id as "all" | "payments" | "fatigue" | "risk" | "emails")
+                            }
+                            className={`rounded-lg border px-2 py-1 text-[11px] transition ${
+                              adminNotificationFilter === id
+                                ? "border-[color-mix(in_oklab,var(--landing-accent)_45%,transparent)] bg-[color-mix(in_oklab,var(--landing-accent)_14%,transparent)] text-[var(--foreground)]"
+                                : "border-[var(--landing-border)] bg-[var(--landing-surface)] text-[var(--landing-muted)] hover:text-[var(--foreground)]"
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="max-h-56 space-y-1.5 overflow-y-auto pr-1">
+                        {visibleAdminNotificationItems.length === 0 ? (
+                          <p className="rounded-lg border border-[var(--landing-border)] bg-[var(--landing-surface)] px-3 py-2 text-xs text-[var(--landing-muted)]">
+                            Sin notificaciones recientes.
+                          </p>
+                        ) : (
+                          visibleAdminNotificationItems.map((item) => (
+                            <div
+                              key={item.id}
+                              className="rounded-lg border border-[var(--landing-border)] bg-[var(--landing-surface)]/80 px-3 py-2 text-xs text-[var(--foreground)]"
+                            >
+                              <p>
+                                {item.message
+                                  ? `${item.userName || item.userEmail || "Cliente"} · ${String(item.message)}`
+                                  : `${item.userName || item.userEmail || "Usuario"} · ${item.amount || 0} ${item.currency || ""}`}
+                              </p>
+                              <p className="mt-1 text-[10px] uppercase tracking-wide text-[var(--landing-muted)]">
+                                {String(item.provider || item.type || "Notificación")}
+                              </p>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <motion.button
+                    type="button"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
                     onClick={(e) => {
                       e.stopPropagation();
                       setMessagesModalOpen(true);
                     }}
-                    title="Mensajes"
+                    title="Chat admin"
+                    className="relative inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] text-[var(--foreground)]/90 shadow-[0_8px_24px_-16px_rgba(0,0,0,0.5)] transition-colors hover:bg-[var(--landing-surface-2)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)] sm:h-10 sm:w-10"
                   >
-                    <motion.div
-                      animate={messagesCount > 0 ? {
-                        scale: [1, 1.1, 1],
-                        rotate: [0, -5, 5, 0]
-                      } : {}}
+                    <motion.span
+                      animate={
+                        messagesCount > 0
+                          ? {
+                              scale: [1, 1.06, 1],
+                              rotate: [0, -4, 4, 0],
+                            }
+                          : {}
+                      }
                       transition={{
                         duration: 0.5,
                         repeat: messagesCount > 0 ? Infinity : 0,
-                        repeatDelay: 2
+                        repeatDelay: 2,
                       }}
-                      className="p-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+                      className="relative inline-flex"
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -353,177 +700,297 @@ export default function Navbar() {
                         strokeWidth="2"
                         strokeLinecap="round"
                         strokeLinejoin="round"
-                        className="h-5 w-5 text-white/80"
+                        className="h-4 w-4 sm:h-[1.1rem] sm:w-[1.1rem]"
                       >
                         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                       </svg>
-                    </motion.div>
+                    </motion.span>
                     {messagesCount > 0 && (
-                      <motion.div
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 border-2 border-black flex items-center justify-center"
-                      >
-                        <motion.span
-                          animate={{ scale: [1, 1.2, 1] }}
-                          transition={{ duration: 0.5, repeat: Infinity, repeatDelay: 1 }}
-                          className="text-[10px] font-bold text-white"
-                        >
-                          {messagesCount > 9 ? "9+" : messagesCount}
-                        </motion.span>
-                      </motion.div>
+                      <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-[var(--background)] bg-[var(--landing-accent)] px-1 text-[10px] font-bold text-[#0a1628]">
+                        {messagesCount > 9 ? "9+" : messagesCount}
+                      </span>
                     )}
                     {loadingMessages && messagesCount === 0 && (
-                      <div className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-blue-500 animate-pulse" />
+                      <span className="absolute -right-1 -top-1 h-2.5 w-2.5 animate-pulse rounded-full bg-[var(--landing-accent)]" />
                     )}
-                  </motion.div>
-                )}
+                  </motion.button>
+                </div>
+              )}
 
-                <motion.div
-                  initial={{ opacity: 0, x: 10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 cursor-pointer hover:bg-white/10 transition-colors"
-                  onClick={() => {
-                    if (isAdmin) {
-                      router.push("/admin");
-                    } else if (hasPlans) {
-                      router.push("/dashboard");
-                    } else {
-                      router.push("/create-plan");
-                    }
-                  }}
+              {pendingWeightOpsCount > 0 && (
+                <div
+                  className="inline-flex h-8 items-center gap-1 rounded-full border border-amber-400/35 bg-amber-500/12 px-2.5 text-[11px] font-semibold text-amber-200 sm:h-9 sm:text-xs"
+                  title={
+                    locale === "en"
+                      ? "Pending sync entries from this device"
+                      : "Registros pendientes de sincronizacion en este dispositivo"
+                  }
                 >
-                  <div className="relative h-8 w-8 rounded-full bg-gradient-to-br from-emerald-500 to-cyan-500 flex items-center justify-center text-xs font-semibold text-white">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-300" />
+                  {locale === "en" ? "Pending sync" : "Pendiente sync"}: {pendingWeightOpsCount > 99 ? "99+" : pendingWeightOpsCount}
+                </div>
+              )}
+
+              <div className="relative shrink-0" ref={userMenuRef}>
+                <motion.button
+                  type="button"
+                  initial={{ opacity: 0, x: 8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  onClick={() => setUserMenuOpen((o) => !o)}
+                  aria-expanded={userMenuOpen}
+                  aria-haspopup="menu"
+                  id="user-menu-button"
+                  title={
+                    isAdmin
+                      ? ui(locale, "menuAccountAdmin")
+                      : userName
+                        ? `${ui(locale, "menuAccount")} — ${userName}`
+                        : ui(locale, "menuAccount")
+                  }
+                  aria-label={
+                    isAdmin
+                      ? ui(locale, "openMenuAdmin")
+                      : userName
+                        ? `${ui(locale, "openMenuNamed")}, ${userName}`
+                        : ui(locale, "openMenuNamed")
+                  }
+                  className="flex h-9 w-9 shrink-0 touch-manipulation items-center justify-center gap-1.5 rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] px-1 transition-colors hover:bg-[var(--landing-surface-2)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)] sm:h-10 sm:min-h-0 sm:w-auto sm:max-w-[min(260px,32vw)] sm:justify-start sm:gap-2 sm:px-2 sm:py-1.5"
+                >
+                  <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_oklab,var(--landing-accent)_20%,transparent)] text-xs font-semibold text-[var(--foreground)] ring-1 ring-[var(--landing-accent)]/40">
                     {authUser.email?.charAt(0).toUpperCase() || "U"}
                     {isPremium && (
-                      <div className="absolute -top-1 -right-1">
+                      <span
+                        className="pointer-events-none absolute -right-0.5 -top-0.5 z-[2] flex h-3 w-3 items-center justify-center text-yellow-400 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)] sm:h-3.5 sm:w-3.5"
+                        title="Premium"
+                        aria-hidden
+                      >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
                           viewBox="0 0 24 24"
                           fill="currentColor"
-                          className="h-4 w-4 text-yellow-400"
+                          className="h-full w-full"
                         >
                           <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                         </svg>
-                      </div>
+                      </span>
                     )}
+                    <span
+                      className="absolute -bottom-0.5 -right-0.5 z-[1] h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500 ring-2 ring-[var(--background)]"
+                      title={ui(locale, "connected")}
+                      aria-hidden
+                    />
                   </div>
-                  <div className="hidden md:block">
-                    <p className="text-xs font-medium flex items-center gap-1">
+                  <div className="hidden min-w-0 flex-1 flex-col items-start text-left sm:flex">
+                    <p className="flex w-full items-center gap-1 truncate text-xs font-medium text-[var(--foreground)]">
                       {isAdmin
-                        ? "Administrador"
+                        ? ui(locale, "admin")
                         : isPlanPage
-                          ? "Ir a mi dashboard"
+                          ? `${locale === "en" ? "Hello" : "Hola"}, ${userName || "Usuario"}`
                           : isDashboardPage
-                            ? (userName || "Mi dashboard")
+                            ? userName || ui(locale, "myDashboard")
                             : hasPlans === null
                               ? "..."
                               : hasPlans
-                                ? "Dashboard"
-                                : "Crear mi plan"}
-                      {isPremium && (
+                                ? ui(locale, "dashboard")
+                                : ui(locale, "createPlan")}
+                    </p>
+                    <p className="w-full truncate text-[10px] text-[var(--landing-muted)]">{ui(locale, "connected")}</p>
+                  </div>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className={`hidden h-3.5 w-3.5 shrink-0 text-[var(--landing-muted)] transition-transform sm:block ${userMenuOpen ? "rotate-180" : ""}`}
+                    aria-hidden
+                  >
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </motion.button>
+
+                {userMenuOpen &&
+                  userMenuPos &&
+                  typeof document !== "undefined" &&
+                  createPortal(
+                    <div
+                      ref={userMenuPanelRef}
+                      style={{
+                        position: "fixed",
+                        top: userMenuPos.top,
+                        right: userMenuPos.right,
+                        width: userMenuPos.width,
+                        zIndex: 10050,
+                      }}
+                      className="origin-top-right rounded-xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--background)_96%,#0f172a)] py-1 shadow-[0_20px_50px_-24px_rgba(0,0,0,0.65)] ring-1 ring-[color-mix(in_oklab,var(--foreground)_6%,transparent)]"
+                      role="menu"
+                      aria-labelledby="user-menu-button"
+                    >
+                      <button
+                        type="button"
+                        role="menuitem"
+                        disabled={hasPlans === null}
+                        onClick={navigateUserHome}
+                        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--landing-surface)] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
                           viewBox="0 0 24 24"
-                          fill="currentColor"
-                          className="h-3 w-3 text-yellow-400"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          className="h-4 w-4 shrink-0 text-[var(--landing-accent)]"
+                          aria-hidden
                         >
-                          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                          <polyline points="9 22 9 12 15 12 15 22" />
                         </svg>
-                      )}
-                    </p>
-                    <p className="text-[10px] opacity-60">Conectado</p>
-                  </div>
-                </motion.div>
-              </>
-            )}
+                        <span className="min-w-0 flex-1 truncate">
+                          {isAdmin
+                            ? ui(locale, "goAdminPanel")
+                            : isPlanPage
+                              ? ui(locale, "goDashboard")
+                              : isDashboardPage
+                                ? ui(locale, "myDashboardMenu")
+                                : hasPlans === null
+                                  ? ui(locale, "loadingShort")
+                                  : hasPlans
+                                    ? ui(locale, "goDashboardMenu")
+                                    : ui(locale, "createPlanMenu")}
+                        </span>
+                      </button>
 
-            <div className="flex items-center gap-2">
-              {!authUser && !isPlanPage && (
-                <div className="flex items-center gap-2 text-xs opacity-70">
-                  <span className="hidden sm:inline">Crea tu plan personalizado</span>
-                </div>
-              )}
-              
-              {/* Botón de iniciar sesión o cerrar sesión */}
-              {authLoading ? (
-                <div className="flex items-center gap-2 px-4 py-2 text-sm opacity-70">
-                  Cargando...
-                </div>
-              ) : authUser ? (
-                <button
-                  onClick={async () => {
-                    // Si es admin, actualizar lastUsersCheck antes de desconectarse
-                    if (isAdmin && authUser) {
-                      try {
-                        const db = getDbSafe();
-                        if (db) {
-                          const { doc, updateDoc, serverTimestamp } = await import("firebase/firestore");
-                          const userRef = doc(db, "usuarios", authUser.uid);
-                          await updateDoc(userRef, {
-                            lastUsersCheck: serverTimestamp(),
-                            updatedAt: serverTimestamp(),
-                          });
-                          console.log("✅ Última conexión del admin actualizada al desconectarse");
-                        }
-                      } catch (error) {
-                        console.error("Error al actualizar lastUsersCheck en logout:", error);
-                        // Continuar con el logout aunque falle la actualización
-                      }
-                    }
-                    await logout();
-                    router.push("/");
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-sm transition-colors"
-                  title="Cerrar sesión"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="h-4 w-4"
-                  >
-                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                    <polyline points="16 17 21 12 16 7" />
-                    <line x1="21" y1="12" x2="9" y2="12" />
-                  </svg>
-                  <span className="hidden md:inline">Cerrar sesión</span>
-                </button>
-              ) : (
-                <button
-                  onClick={() => setLoginModalOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white text-sm font-medium transition-all shadow-lg shadow-blue-500/20"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="h-4 w-4"
-                  >
-                    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
-                    <polyline points="10 17 15 12 10 7" />
-                    <line x1="15" y1="12" x2="3" y2="12" />
-                  </svg>
-                  <span>Iniciar sesión</span>
-                </button>
-              )}
-            </div>
-          </div>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setUserMenuOpen(false);
+                            router.push("/admin/configuraciones");
+                          }}
+                          className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--landing-surface)]"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4 shrink-0 text-[var(--landing-accent)]" aria-hidden>
+                            <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.08a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.08a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.08a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1V15Z" />
+                          </svg>
+                          <span className="min-w-0 flex-1 truncate">Configuraciones</span>
+                        </button>
+                      )}
+
+                      <div className="my-1 h-px bg-[var(--landing-border)]" role="separator" />
+
+                      <div className="px-3 py-2">
+                        <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--landing-muted)]">
+                          {ui(locale, "language")}
+                        </p>
+                        <div className="flex rounded-lg bg-[var(--landing-surface)] p-0.5 ring-1 ring-[var(--landing-border)]">
+                          {locale === "en" ? (
+                            <>
+                              <button
+                                type="button"
+                                role="menuitem"
+                                onClick={pickLocaleEs}
+                                className="flex-1 rounded-md px-2 py-1.5 text-center text-xs font-medium text-[var(--landing-muted)] transition hover:text-[var(--foreground)]"
+                              >
+                                ES
+                              </button>
+                              <span className="self-stretch w-px bg-[var(--landing-border)]" aria-hidden />
+                              <span className="flex-1 rounded-md bg-[var(--landing-surface-2)] px-2 py-1.5 text-center text-xs font-medium text-[var(--foreground)]">
+                                EN
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="flex-1 rounded-md bg-[var(--landing-surface-2)] px-2 py-1.5 text-center text-xs font-medium text-[var(--foreground)]">
+                                ES
+                              </span>
+                              <span className="self-stretch w-px bg-[var(--landing-border)]" aria-hidden />
+                              <button
+                                type="button"
+                                role="menuitem"
+                                onClick={pickLocaleEn}
+                                className="flex-1 rounded-md px-2 py-1.5 text-center text-xs font-medium text-[var(--landing-muted)] transition hover:text-[var(--foreground)]"
+                              >
+                                EN
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="my-1 h-px bg-[var(--landing-border)]" role="separator" />
+
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={handleLogout}
+                        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-medium text-[var(--foreground)] transition hover:bg-[color-mix(in_oklab,#f87171_12%,transparent)]"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="h-4 w-4 shrink-0"
+                          aria-hidden
+                        >
+                          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                          <polyline points="16 17 21 12 16 7" />
+                          <line x1="21" y1="12" x2="9" y2="12" />
+                        </svg>
+                        {ui(locale, "signOut")}
+                      </button>
+                    </div>,
+                    document.body
+                  )}
+              </div>
+            </>
+          )}
+
+          {!authUser && !isPlanPage && (
+            <span className="hidden max-w-[10rem] truncate text-[10px] text-[var(--landing-muted)] sm:inline sm:max-w-none sm:text-xs">
+              {ui(locale, "tagline")}
+            </span>
+          )}
+
+          {authLoading ? (
+            <div className="px-3 py-2 text-xs text-[var(--landing-muted)] sm:text-sm">{ui(locale, "loading")}</div>
+          ) : !authUser ? (
+            <button
+              type="button"
+              onClick={() => setLoginModalOpen(true)}
+              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-medium text-[var(--foreground)] ring-1 ring-[var(--landing-border)] bg-[var(--landing-surface)] transition-colors hover:bg-[var(--landing-surface-2)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)] sm:gap-2 sm:px-3 sm:text-sm"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-4 w-4 shrink-0"
+              >
+                <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                <polyline points="10 17 15 12 10 7" />
+                <line x1="15" y1="12" x2="3" y2="12" />
+              </svg>
+              <span>{ui(locale, "signIn")}</span>
+            </button>
+          ) : null}
         </div>
       </div>
       <LoginModal
         isOpen={loginModalOpen}
         onClose={() => setLoginModalOpen(false)}
         defaultMode="login"
-        locale={router.pathname.startsWith("/en") ? "en" : "es"}
+        locale={locale}
       />
     </nav>
     
@@ -607,20 +1074,21 @@ export default function Navbar() {
   );
 }
 
-// Componente Modal para enviar mensaje
-function SendMessageModal({ 
-  isOpen, 
-  onClose, 
-  userName, 
+// Modal enviar mensaje — misma línea visual que UserMessagesModal
+function SendMessageModal({
+  isOpen,
+  onClose,
+  userName,
   userEmail,
-  onMessageSent
-}: { 
-  isOpen: boolean; 
-  onClose: () => void; 
+  onMessageSent,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
   userName: string | null;
   userEmail: string | null;
   onMessageSent?: () => void;
 }) {
+  const { locale } = useAppLocale();
   const { user: authUser } = useAuthStore();
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
@@ -631,7 +1099,7 @@ function SendMessageModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!authUser || !message.trim()) {
-      setError("El mensaje no puede estar vacío");
+      setError(dash(locale, "composeEmpty"));
       return;
     }
 
@@ -646,30 +1114,29 @@ function SendMessageModal({
           userId: authUser.uid,
           userName: userName || null,
           userEmail: userEmail || null,
-          subject: subject.trim() || "Consulta",
+          subject: subject.trim() || dash(locale, "composeDefaultSubject"),
           message: message.trim(),
         }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Error al enviar mensaje");
+        throw new Error(errorData.error || dash(locale, "composeError"));
       }
 
       setSuccess(true);
       setSubject("");
       setMessage("");
-      
+
       if (onMessageSent) {
         onMessageSent();
       }
-      
-      // Mostrar mensaje de éxito por 2 segundos y luego permitir enviar otro
+
       setTimeout(() => {
         setSuccess(false);
       }, 2000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al enviar mensaje");
+      setError(err instanceof Error ? err.message : dash(locale, "composeError"));
     } finally {
       setLoading(false);
     }
@@ -678,130 +1145,136 @@ function SendMessageModal({
   if (!isOpen) return null;
 
   return (
-    <div 
-      className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
-      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/65 p-3 backdrop-blur-md sm:p-4"
       onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          onClose();
-        }
+        if (e.target === e.currentTarget) onClose();
       }}
     >
       <motion.div
-        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        initial={{ opacity: 0, scale: 0.96, y: 16 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.9, y: 20 }}
-        className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto"
+        exit={{ opacity: 0, scale: 0.96, y: 16 }}
+        transition={{ type: "spring", damping: 26, stiffness: 320 }}
+        className="relative w-full max-w-lg max-h-[min(92vh,720px)] overflow-y-auto rounded-2xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--background)_88%,#0b1020)] shadow-[0_24px_80px_-32px_rgba(0,0,0,0.85)] ring-1 ring-[color-mix(in_oklab,var(--foreground)_5%,transparent)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-5 w-5 text-blue-400"
-            >
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
-            Enviar Mensaje
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-white/70 hover:text-white transition-colors"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-6 w-6">
-              <path d="M18 6L6 18M6 6l12 12"/>
-            </svg>
-          </button>
-        </div>
-
-        {success ? (
-          <div className="text-center py-6">
-            <div className="mb-4">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                className="h-12 w-12 text-green-400 mx-auto"
-              >
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                <polyline points="22 4 12 14.01 9 11.01" />
-              </svg>
+        <div className="relative border-b border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--landing-surface)_70%,transparent)] px-4 py-4 sm:px-5">
+          <div
+            className="pointer-events-none absolute inset-0 opacity-[0.35]"
+            style={{
+              background:
+                "radial-gradient(120% 80% at 0% 0%, color-mix(in oklab, var(--landing-accent) 28%, transparent), transparent 55%), radial-gradient(90% 60% at 100% 0%, rgba(6,182,212,0.12), transparent 50%)",
+            }}
+          />
+          <div className="relative flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--landing-surface)] ring-1 ring-[var(--landing-border)]">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  className="h-5 w-5 text-[var(--landing-accent)]"
+                >
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-lg font-semibold tracking-tight text-[var(--foreground)]">{dash(locale, "composeTitle")}</h2>
+                <p className="truncate text-xs text-[var(--landing-muted)]">FitPlan AI</p>
+              </div>
             </div>
-            <p className="text-green-400 font-semibold">¡Mensaje enviado exitosamente!</p>
-            <p className="text-white/60 text-sm mt-2 mb-4">Te responderemos pronto</p>
             <button
-              onClick={() => setSuccess(false)}
-              className="px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white text-sm font-medium transition-all"
+              type="button"
+              onClick={onClose}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[var(--landing-muted)] transition hover:bg-[var(--landing-surface)] hover:text-[var(--foreground)]"
+              aria-label={dash(locale, "modalClose")}
             >
-              Enviar otro mensaje
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
             </button>
           </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-white/60 mb-2">
-                Asunto (opcional)
-              </label>
-              <input
-                type="text"
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                placeholder="Ej: Error en el plan, Consulta sobre premium..."
-                className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                maxLength={100}
-              />
-            </div>
+        </div>
 
-            <div>
-              <label className="block text-sm font-medium text-white/60 mb-2">
-                Mensaje <span className="text-red-400">*</span>
-              </label>
-              <textarea
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                placeholder="Escribe tu consulta, error, petición o lo que necesites..."
-                rows={6}
-                className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                required
-                maxLength={2000}
-              />
-              <p className="text-white/40 text-xs mt-1 text-right">
-                {message.length}/2000
-              </p>
-            </div>
-
-            {error && (
-              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30">
-                <p className="text-red-400 text-sm">{error}</p>
+        <div className="p-4 sm:p-5">
+          {success ? (
+            <div className="py-4 text-center">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/15 ring-1 ring-emerald-500/30">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-8 w-8 text-emerald-400">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                  <polyline points="22 4 12 14.01 9 11.01" />
+                </svg>
               </div>
-            )}
-
-            <div className="flex gap-3">
+              <p className="font-semibold text-emerald-300">{dash(locale, "composeSuccess")}</p>
+              <p className="mt-2 text-sm text-[var(--landing-muted)]">{dash(locale, "composeSuccessSub")}</p>
               <button
                 type="button"
-                onClick={onClose}
-                className="flex-1 px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-white transition-colors"
+                onClick={() => setSuccess(false)}
+                className="mt-6 rounded-xl bg-gradient-to-r from-[var(--brand-start,#3b82f6)] via-[var(--brand-mid,#06b6d4)] to-[var(--brand-end,#10b981)] px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-cyan-500/15 transition hover:brightness-110"
               >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={loading || !message.trim()}
-                className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? "Enviando..." : "Enviar"}
+                {dash(locale, "composeAnother")}
               </button>
             </div>
-          </form>
-        )}
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="mb-2 block text-xs font-medium text-[var(--landing-muted)] sm:text-sm">
+                  {dash(locale, "composeSubjectOptional")}
+                </label>
+                <input
+                  type="text"
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  placeholder={dash(locale, "composeSubjectPlaceholder")}
+                  className="w-full rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] px-4 py-2.5 text-sm text-[var(--foreground)] placeholder:text-[var(--landing-muted)]/70 focus:border-[color-mix(in_oklab,var(--landing-accent)_50%,transparent)] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_oklab,var(--landing-accent)_25%,transparent)]"
+                  maxLength={100}
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-medium text-[var(--landing-muted)] sm:text-sm">
+                  {dash(locale, "composeMessageLabel")} <span className="text-red-400">*</span>
+                </label>
+                <textarea
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder={dash(locale, "composeMessagePlaceholder")}
+                  rows={6}
+                  className="w-full resize-none rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] px-4 py-3 text-sm text-[var(--foreground)] placeholder:text-[var(--landing-muted)]/70 focus:border-[color-mix(in_oklab,var(--landing-accent)_50%,transparent)] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_oklab,var(--landing-accent)_25%,transparent)]"
+                  required
+                  maxLength={2000}
+                />
+                <p className="mt-1 text-right text-[11px] text-[var(--landing-muted)]">{message.length}/2000</p>
+              </div>
+
+              {error && (
+                <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3">
+                  <p className="text-sm text-red-300">{error}</p>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="flex-1 rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] px-4 py-2.5 text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--landing-surface-2)]"
+                >
+                  {dash(locale, "cancel")}
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading || !message.trim()}
+                  className="flex-1 rounded-xl bg-gradient-to-r from-[var(--brand-start,#3b82f6)] via-[var(--brand-mid,#06b6d4)] to-[var(--brand-end,#10b981)] px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  {loading ? dash(locale, "composeSending") : dash(locale, "composeSend")}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
       </motion.div>
     </div>
   );
@@ -1030,280 +1503,229 @@ function MessagesModal({
 
   const selectedMsg = selectedMessage ? messages.find(m => m.id === selectedMessage) : null;
   const unreadCount = messages.filter(m => !m.read).length;
+  const formatShort = (iso: string | null) => {
+    if (!iso) return "";
+    return new Date(iso).toLocaleDateString("es-AR", {
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+  const formatLong = (iso: string | null) => {
+    if (!iso) return "";
+    return new Date(iso).toLocaleDateString("es-AR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+  const threadStatusLabel = (msg: (typeof messages)[0]) => {
+    if (msg.closed) return { text: "Finalizado", className: "text-[var(--landing-muted)]" };
+    if (msg.initiatedByAdmin) return { text: "Enviado por admin", className: "text-[var(--landing-accent)]" };
+    const replies = msg.replies || [];
+    if (replies.length === 0) return { text: "Responder", className: "text-[var(--brand-start)]" };
+    const lastReply = replies[replies.length - 1];
+    return lastReply?.senderType === "admin"
+      ? { text: "Respondido", className: "text-[var(--brand-end)]" }
+      : { text: "Cliente respondió", className: "text-[var(--landing-accent)]" };
+  };
+  const detailStatusBadge = (msg: (typeof messages)[number]) => {
+    if (msg.closed) {
+      return (
+        <span className="rounded-full border border-[var(--landing-border)] bg-[var(--landing-surface)] px-2.5 py-1 text-[11px] font-medium text-[var(--landing-muted)]">
+          Chat finalizado
+        </span>
+      );
+    }
+    const replies = msg.replies || [];
+    if (replies.length === 0) {
+      return (
+        <span className="rounded-full border border-[color-mix(in_oklab,var(--brand-start)_30%,transparent)] bg-[color-mix(in_oklab,var(--brand-start)_10%,transparent)] px-2.5 py-1 text-[11px] font-medium text-[var(--foreground)]">
+          Pendiente de respuesta
+        </span>
+      );
+    }
+    const lastReply = replies[replies.length - 1];
+    return lastReply?.senderType === "admin" ? (
+      <span className="rounded-full border border-[color-mix(in_oklab,var(--brand-end)_30%,transparent)] bg-[color-mix(in_oklab,var(--brand-end)_10%,transparent)] px-2.5 py-1 text-[11px] font-medium text-[var(--foreground)]">
+        Respondido
+      </span>
+    ) : (
+      <span className="rounded-full border border-[color-mix(in_oklab,var(--landing-accent)_30%,transparent)] bg-[color-mix(in_oklab,var(--landing-accent)_10%,transparent)] px-2.5 py-1 text-[11px] font-medium text-[var(--foreground)]">
+        Cliente respondió
+      </span>
+    );
+  };
 
   return (
-    <div 
-      className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
-      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/65 p-2 backdrop-blur-md sm:p-4"
       onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          onClose();
-        }
+        if (e.target === e.currentTarget) onClose();
       }}
     >
       <motion.div
-        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        initial={{ opacity: 0, scale: 0.96, y: 16 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.9, y: 20 }}
-        className="bg-gray-900 rounded-xl border border-white/10 p-3 sm:p-4 md:p-6 max-w-4xl w-full h-[90vh] sm:h-[85vh] overflow-hidden flex flex-col"
+        exit={{ opacity: 0, scale: 0.96, y: 16 }}
+        transition={{ type: "spring", damping: 26, stiffness: 320 }}
+        className="relative flex max-h-[min(92vh,880px)] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--background)_88%,#0b1020)] shadow-[0_24px_80px_-32px_rgba(0,0,0,0.85)] ring-1 ring-[color-mix(in_oklab,var(--foreground)_5%,transparent)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-3 sm:mb-4">
-          <div className="flex items-center gap-2 sm:gap-3">
-            {/* Botón atrás en móvil cuando hay mensaje seleccionado */}
-            {selectedMessage && (
-              <button
-                onClick={() => setSelectedMessage(null)}
-                className="md:hidden text-white/70 hover:text-white transition-colors mr-1"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
-                  <path d="M19 12H5M12 19l-7-7 7-7"/>
-                </svg>
-              </button>
-            )}
-            <h2 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="h-5 w-5 text-blue-400"
-              >
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-              </svg>
-              Mensajes
-              {unreadCount > 0 && (
-                <span className="px-2 py-0.5 text-xs rounded-full bg-red-500 text-white">
-                  {unreadCount}
-                </span>
+        <div className="relative shrink-0 border-b border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--landing-surface)_70%,transparent)] px-3 py-3 sm:px-5 sm:py-4">
+          <div className="relative flex items-center justify-between gap-2">
+            <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+              {selectedMessage && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedMessage(null)}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] text-[var(--foreground)] transition hover:bg-[var(--landing-surface-2)] md:hidden"
+                  aria-label="Volver a la lista"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
+                    <path d="M19 12H5M12 19l-7-7 7-7" />
+                  </svg>
+                </button>
               )}
-            </h2>
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--landing-surface)] ring-1 ring-[var(--landing-border)]">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5 text-[var(--landing-accent)]">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+              </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="truncate text-base font-semibold tracking-tight text-[var(--foreground)] sm:text-lg">Mensajes (Admin)</h2>
+                  {unreadCount > 0 && (
+                    <span className="shrink-0 rounded-full bg-[color-mix(in_oklab,var(--landing-accent)_35%,transparent)] px-2 py-0.5 text-[11px] font-semibold text-[var(--foreground)] ring-1 ring-[color-mix(in_oklab,var(--landing-accent)_45%,transparent)]">
+                      {unreadCount} sin leer
+                    </span>
+                  )}
+                </div>
+                <p className="truncate text-xs text-[var(--landing-muted)]">Chats con clientes</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex h-9 w-9 items-center justify-center rounded-xl text-[var(--landing-muted)] transition hover:bg-[var(--landing-surface)] hover:text-[var(--foreground)]"
+              aria-label="Cerrar"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="text-white/70 hover:text-white transition-colors flex-shrink-0"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5 sm:h-6 sm:w-6">
-              <path d="M18 6L6 18M6 6l12 12"/>
-            </svg>
-          </button>
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400"></div>
+          <div className="flex flex-1 flex-col gap-3 p-4 sm:p-6">
+            <div className="h-4 w-40 animate-pulse rounded-lg bg-white/5" />
+            <div className="h-4 w-full animate-pulse rounded-lg bg-white/5" />
+            <div className="h-4 w-3/4 animate-pulse rounded-lg bg-white/5" />
           </div>
         ) : (
-          <div className="flex-1 flex gap-2 sm:gap-4 overflow-hidden">
-            {/* Lista de mensajes */}
-            <div className={`${selectedMessage ? 'hidden md:block' : 'block'} w-full md:w-1/3 lg:w-1/3 border-r border-white/10 pr-2 sm:pr-4 overflow-y-auto flex-shrink-0`}>
+          <div className="flex min-h-0 flex-1 gap-0 overflow-hidden">
+            <div className={`${selectedMessage ? "hidden md:flex" : "flex"} w-full shrink-0 flex-col border-[var(--landing-border)] md:w-[min(100%,320px)] md:border-r lg:w-[340px]`}>
               {messages.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-white/60">No hay mensajes</p>
+                <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-12 text-center">
+                  <p className="text-sm text-[var(--landing-muted)]">No hay mensajes por ahora.</p>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {messages.map((msg) => (
-                    <div
+                <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto p-2 sm:p-3">
+                  {messages.map((msg) => {
+                    const status = threadStatusLabel(msg);
+                    const active = selectedMessage === msg.id;
+                    return (
+                    <button
                       key={msg.id}
+                      type="button"
                       onClick={() => {
                         setSelectedMessage(msg.id);
                         if (!msg.read) {
                           handleMarkAsRead(msg.id);
                         }
                       }}
-                      className={`p-2 sm:p-3 rounded-lg border cursor-pointer transition-colors ${
-                        selectedMessage === msg.id
-                          ? "bg-blue-500/20 border-blue-500/50"
+                      className={`w-full rounded-xl border p-3 text-left transition ${
+                        active
+                          ? "border-[color-mix(in_oklab,var(--landing-accent)_45%,transparent)] bg-[color-mix(in_oklab,var(--landing-accent)_12%,transparent)]"
                           : msg.read
-                          ? "bg-white/5 border-white/10 hover:bg-white/10"
-                          : "bg-blue-500/10 border-blue-500/30 hover:bg-blue-500/20"
+                            ? "border-transparent bg-[var(--landing-surface)]/40 hover:bg-[var(--landing-surface)]"
+                            : "border-transparent bg-[color-mix(in_oklab,var(--landing-accent)_8%,transparent)] hover:bg-[color-mix(in_oklab,var(--landing-accent)_14%,transparent)]"
                       }`}
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2 mb-1">
-                            <p className={`text-sm font-medium truncate ${msg.read ? "text-white/80" : "text-white"}`}>
-                              {msg.subject}
-                            </p>
-                            {(() => {
-                              if (msg.closed) {
-                                return (
-                                  <span className="px-2 py-0.5 text-xs rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/30 whitespace-nowrap flex-shrink-0">
-                                    Finalizado
-                                  </span>
-                                );
-                              }
-                              // Verificar si el mensaje fue iniciado por el admin
-                              if (msg.initiatedByAdmin) {
-                                return (
-                                  <span className="px-2 py-0.5 text-xs rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30 whitespace-nowrap flex-shrink-0">
-                                    Enviado
-                                  </span>
-                                );
-                              }
-                              // Verificar si hay respuestas y si la última es del admin
-                              const replies = msg.replies || [];
-                              if (replies.length === 0) {
-                                return (
-                                  <span className="px-2 py-0.5 text-xs rounded-full bg-red-500/20 text-red-400 border border-red-500/30 whitespace-nowrap flex-shrink-0">
-                                    Responder
-                                  </span>
-                                );
-                              }
-                              // Verificar si la última respuesta es del admin
-                              const lastReply = replies[replies.length - 1];
-                              const lastReplyIsAdmin = lastReply?.senderType === "admin";
-                              return lastReplyIsAdmin ? (
-                                <span className="px-2 py-0.5 text-xs rounded-full bg-green-500/20 text-green-400 border border-green-500/30 whitespace-nowrap flex-shrink-0">
-                                  Respondido
-                                </span>
-                              ) : (
-                                <span className="px-2 py-0.5 text-xs rounded-full bg-red-500/20 text-red-400 border border-red-500/30 whitespace-nowrap flex-shrink-0">
-                                  Responder
-                                </span>
-                              );
-                            })()}
-                          </div>
-                          <p className="text-xs text-white/60 truncate mt-1">
-                            {msg.userName || msg.userEmail || "Usuario"}
-                          </p>
-                          {msg.createdAt && (
-                            <p className="text-xs text-white/40 mt-1">
-                              {new Date(msg.createdAt).toLocaleDateString('es-AR', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </p>
-                          )}
+                      <div className="flex gap-2">
+                        <div className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${msg.read ? "bg-transparent" : "bg-[var(--landing-accent)]"}`} />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-[var(--foreground)]">{msg.subject}</p>
+                          <p className={`mt-0.5 text-[11px] ${status.className}`}>{status.text}</p>
+                          <p className="mt-1 text-[10px] text-[var(--landing-muted)]">{msg.userName || msg.userEmail || "Usuario"}</p>
+                          {msg.createdAt && <p className="mt-1 text-[10px] text-[var(--landing-muted)]">{formatShort(msg.createdAt)}</p>}
                         </div>
-                        {!msg.read && (
-                          <div className="h-2 w-2 rounded-full bg-blue-400 flex-shrink-0 mt-1" />
-                        )}
                       </div>
-                    </div>
-                  ))}
+                    </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
 
-            {/* Detalle del mensaje */}
-            <div className={`${selectedMessage ? 'block' : 'hidden md:block'} flex-1 flex flex-col min-h-0 overflow-hidden`}>
+            <div className={`${selectedMessage ? "flex" : "hidden md:flex"} min-h-0 min-w-0 flex-1 flex-col bg-[color-mix(in_oklab,var(--background)_40%,transparent)]`}>
               {selectedMsg ? (
                 <>
-                  {/* Área de mensajes con scroll */}
-                  <div ref={messagesScrollRef} className="flex-1 overflow-y-auto min-h-0 pr-2">
-                    <div className="space-y-4 pb-4">
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <h3 className="text-lg font-semibold text-white">{selectedMsg.subject}</h3>
-                          <div className="flex items-center gap-2">
-                            {selectedMsg.closed ? (
-                              <span className="px-2 py-1 text-xs rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/30">
-                                Chat Finalizado
-                              </span>
-                            ) : (
-                              (() => {
-                                // Verificar si hay respuestas y si la última es del admin
-                                const replies = selectedMsg.replies || [];
-                                if (replies.length === 0) return null;
-                                const lastReply = replies[replies.length - 1];
-                                const lastReplyIsAdmin = lastReply?.senderType === "admin";
-                                return lastReplyIsAdmin ? (
-                                  <span className="px-2 py-1 text-xs rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
-                                    Respondido
-                                  </span>
-                                ) : null;
-                              })()
-                            )}
-                          </div>
+                  <div ref={messagesScrollRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-5">
+                    <div className="mx-auto max-w-2xl space-y-4">
+                      <div className="flex flex-wrap items-start justify-between gap-2 border-b border-[var(--landing-border)]/80 pb-3">
+                        <div className="min-w-0">
+                          <h3 className="text-lg font-semibold leading-tight text-[var(--foreground)]">{selectedMsg.subject}</h3>
+                          <p className="mt-1 text-xs text-[var(--landing-muted)]">Iniciado · {formatLong(selectedMsg.createdAt)}</p>
+                          <p className="mt-1 text-xs text-[var(--landing-muted)]">{selectedMsg.userName || selectedMsg.userEmail || "Usuario"}</p>
                         </div>
-                        <div className="text-sm text-white/60 space-y-1">
-                          {selectedMsg.userName && (
-                            <p><span className="text-white/80">De:</span> {selectedMsg.userName.charAt(0).toUpperCase() + selectedMsg.userName.slice(1).toLowerCase()}</p>
-                          )}
-                          {selectedMsg.userEmail && (
-                            <p><span className="text-white/80">Email:</span> {selectedMsg.userEmail}</p>
-                          )}
-                          {selectedMsg.createdAt && (
-                            <p><span className="text-white/80">Fecha:</span> {new Date(selectedMsg.createdAt).toLocaleDateString('es-AR', {
-                              day: '2-digit',
-                              month: '2-digit',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}</p>
-                          )}
-                        </div>
+                        {detailStatusBadge(selectedMsg)}
                       </div>
 
-                      <div className="p-4 rounded-lg bg-white/5 border border-white/10">
-                        <div className="flex items-start gap-3">
-                          {selectedMsg.userName && (
-                            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-sm font-semibold text-white flex-shrink-0">
-                              {selectedMsg.userName.charAt(0).toUpperCase()}
-                            </div>
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-2">
-                              {selectedMsg.userName && (
-                                <p className="text-sm font-medium text-white">
-                                  {selectedMsg.userName.charAt(0).toUpperCase() + selectedMsg.userName.slice(1).toLowerCase()}
-                                </p>
-                              )}
-                            </div>
-                            <p className="text-white whitespace-pre-wrap">{selectedMsg.message}</p>
+                      <div className="flex justify-start">
+                        <div className="max-w-[92%] sm:max-w-[85%]">
+                          <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-[var(--landing-muted)]">Cliente</p>
+                          <div className="rounded-2xl rounded-tl-md border border-[color-mix(in_oklab,var(--landing-accent)_25%,transparent)] bg-[color-mix(in_oklab,var(--landing-accent)_10%,transparent)] px-4 py-3 text-[var(--foreground)]">
+                            <p className="whitespace-pre-wrap text-sm leading-relaxed">{selectedMsg.message}</p>
                           </div>
                         </div>
                       </div>
 
                       {selectedMsg.replies && selectedMsg.replies.length > 0 && (
                         <div className="space-y-3">
-                          <h4 className="text-sm font-semibold text-white/80">Conversación:</h4>
+                          <p className="text-center text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--landing-muted)]">Conversación</p>
                           {selectedMsg.replies.map((reply, index) => {
                             const senderName = reply.senderName || (reply.senderType === "admin" ? "Equipo de FitPlan" : "Usuario");
-                            const senderInitial = senderName.charAt(0).toUpperCase();
                             const replyDate = reply.createdAt ? new Date(reply.createdAt) : null;
                             const isAdminReply = reply.senderType === "admin";
-                            
+
                             return (
-                              <div key={index} className={`p-4 rounded-lg border ${
-                                isAdminReply 
-                                  ? "bg-green-500/10 border-green-500/30" 
-                                  : "bg-blue-500/10 border-blue-500/30"
-                              }`}>
-                                <div className="flex items-start gap-3 mb-3">
-                                  <div className={`h-10 w-10 rounded-full flex items-center justify-center text-sm font-semibold text-white flex-shrink-0 ${
-                                    isAdminReply
-                                      ? "bg-gradient-to-br from-emerald-500 to-cyan-500"
-                                      : "bg-gradient-to-br from-blue-500 to-cyan-500"
-                                  }`}>
-                                    {senderInitial}
+                              <div key={index} className={`flex ${isAdminReply ? "justify-end" : "justify-start"}`}>
+                                <div className={`max-w-[92%] sm:max-w-[85%]`}>
+                                  <div
+                                    className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                                      isAdminReply
+                                        ? "rounded-tr-md border border-[color-mix(in_oklab,var(--brand-end)_25%,transparent)] bg-[color-mix(in_oklab,var(--brand-end)_12%,transparent)] text-[var(--foreground)]"
+                                        : "rounded-tl-md border border-[color-mix(in_oklab,var(--landing-accent)_25%,transparent)] bg-[color-mix(in_oklab,var(--landing-accent)_10%,transparent)] text-[var(--foreground)]"
+                                    }`}
+                                  >
+                                    <p className="mb-1 text-xs font-semibold text-[var(--foreground)]/90">{senderName}</p>
+                                    <p className="whitespace-pre-wrap">{reply.message}</p>
                                   </div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <p className={`text-sm font-medium ${isAdminReply ? "text-green-400" : "text-blue-400"}`}>
-                                        {senderName}
-                                      </p>
-                                      {replyDate && (
-                                        <span className="text-xs text-white/60">
-                                          {replyDate.toLocaleDateString('es-AR', {
-                                            day: '2-digit',
-                                            month: '2-digit',
-                                            year: 'numeric',
-                                            hour: '2-digit',
-                                            minute: '2-digit'
-                                          })}
-                                        </span>
-                                      )}
-                                    </div>
-                                    <p className="text-white/90 whitespace-pre-wrap">{reply.message}</p>
-                                  </div>
+                                  {replyDate && (
+                                    <p className={`mt-1 text-[10px] text-[var(--landing-muted)] ${isAdminReply ? "text-right" : "text-left"}`}>
+                                      {replyDate.toLocaleDateString("es-AR", {
+                                        day: "2-digit",
+                                        month: "2-digit",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })}
+                                    </p>
+                                  )}
                                 </div>
                               </div>
                             );
@@ -1311,37 +1733,30 @@ function MessagesModal({
                         </div>
                       )}
 
-                      {/* Mensaje de finalización */}
                       {selectedMsg.closed && selectedMsg.closedAt && (
-                        <div className="mt-4 p-3 rounded-lg bg-gray-500/10 border border-gray-500/30 text-center">
-                          <p className="text-xs text-gray-400">
-                            Chat finalizado el {new Date(selectedMsg.closedAt).toLocaleDateString('es-AR', {
-                              day: '2-digit',
-                              month: '2-digit',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
+                        <div className="rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)]/30 px-4 py-3 text-center">
+                          <p className="text-xs text-[var(--landing-muted)]">
+                            Chat finalizado el {formatLong(selectedMsg.closedAt)}
                           </p>
                         </div>
                       )}
                     </div>
                   </div>
 
-                  {/* Área de respuesta fija (footer) */}
-                  <div className="border-t border-white/10 pt-4 mt-4 flex-shrink-0 bg-gray-900">
+                  <div className="shrink-0 border-t border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--background)_92%,#0a0f18)] px-3 py-3 sm:px-5 sm:py-4">
                     {selectedMsg.closed ? (
-                      <div className="p-4 rounded-lg bg-gray-500/10 border border-gray-500/30 text-center">
-                        <p className="text-gray-400 text-sm">Este chat ha sido finalizado</p>
-                        <p className="text-gray-500 text-xs mt-1">No se pueden enviar más mensajes</p>
+                      <div className="rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)]/40 px-4 py-4 text-center">
+                        <p className="text-sm font-medium text-[var(--landing-muted)]">Este chat ha sido finalizado</p>
+                        <p className="mt-1 text-xs text-[var(--landing-muted)]/85">No se pueden enviar más mensajes</p>
                       </div>
                     ) : (
-                      <div className="space-y-2 sm:space-y-3">
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                          <label className="block text-xs sm:text-sm font-medium text-white/60">
+                      <div className="mx-auto max-w-2xl space-y-3">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <label className="text-xs font-medium text-[var(--landing-muted)]">
                             {selectedMsg.replied ? "Agregar otra respuesta" : "Responder"}
                           </label>
                           <button
+                            type="button"
                             onClick={async () => {
                               if (!selectedMsg || !confirm("¿Estás seguro de que deseas finalizar este chat? No se podrán enviar más mensajes.")) {
                                 return;
@@ -1370,7 +1785,7 @@ function MessagesModal({
                                 alert(error instanceof Error ? error.message : "Error al finalizar chat");
                               }
                             }}
-                            className="px-3 py-1.5 text-xs rounded-lg bg-gray-500/20 hover:bg-gray-500/30 text-gray-300 border border-gray-500/30 transition-all w-full sm:w-auto"
+                            className="w-full rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] px-3 py-2 text-xs text-[var(--foreground)] transition hover:bg-[var(--landing-surface-2)] sm:w-auto"
                           >
                             Finalizar Chat
                           </button>
@@ -1380,22 +1795,28 @@ function MessagesModal({
                           onChange={(e) => setReplyText(e.target.value)}
                           placeholder="Escribe tu respuesta..."
                           rows={3}
-                          className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                          className="w-full resize-none rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] px-4 py-3 text-sm text-[var(--foreground)] placeholder:text-[var(--landing-muted)]/70 focus:border-[color-mix(in_oklab,var(--landing-accent)_50%,transparent)] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_oklab,var(--landing-accent)_25%,transparent)]"
                         />
                         <button
+                          type="button"
                           onClick={() => handleReply(selectedMsg.id)}
                           disabled={replying || !replyText.trim()}
-                          className="w-full px-4 py-2.5 sm:py-2 text-sm sm:text-base rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="w-full rounded-xl border border-[color-mix(in_oklab,var(--brand-end)_45%,transparent)] bg-[color-mix(in_oklab,var(--brand-end)_16%,transparent)] py-3 text-sm font-semibold text-[var(--foreground)] transition hover:bg-[color-mix(in_oklab,var(--brand-end)_24%,transparent)] disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          {replying ? "Enviando..." : selectedMsg.replied ? "Agregar Respuesta" : "Enviar Respuesta"}
+                          {replying ? "Enviando..." : selectedMsg.replied ? "Agregar respuesta" : "Enviar respuesta"}
                         </button>
                       </div>
                     )}
                   </div>
                 </>
               ) : (
-                <div className="flex items-center justify-center h-full">
-                  <p className="text-white/60">Selecciona un mensaje para ver los detalles</p>
+                <div className="my-6 flex flex-1 flex-col items-center justify-center gap-3 px-8 text-center">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--landing-surface)] ring-1 ring-[var(--landing-border)]">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-7 w-7 text-[var(--landing-muted)]">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    </svg>
+                  </div>
+                  <p className="max-w-xs text-sm text-[var(--landing-muted)]">Seleccioná una conversación para ver el hilo completo.</p>
                 </div>
               )}
             </div>

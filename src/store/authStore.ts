@@ -9,6 +9,8 @@ import {
   getIdToken
 } from "firebase/auth";
 
+let authInitialized = false;
+
 interface AuthState {
   user: User | null;
   loading: boolean;
@@ -94,17 +96,25 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
   
   initializeAuth: () => {
+    if (authInitialized) return;
+
     const auth = getAuthSafe();
     if (!auth) {
       set({ loading: false });
       return;
     }
-    
+
+    authInitialized = true;
     onAuthStateChanged(auth, async (user) => {
       set({ user, loading: false });
       
       // Actualizar lastLogin cuando el usuario se conecta
       if (user) {
+        const sessionKey = `lastLoginSynced:${user.uid}`;
+        const syncedInSession = typeof window !== "undefined" ? sessionStorage.getItem(sessionKey) : null;
+        if (syncedInSession === "1") {
+          return;
+        }
         try {
           const response = await fetch("/api/updateLastLogin", {
             method: "POST",
@@ -116,7 +126,9 @@ export const useAuthStore = create<AuthState>((set) => ({
             const errorData = await response.json().catch(() => ({}));
             console.warn("No se pudo actualizar lastLogin:", errorData);
           } else {
-            console.log("✅ lastLogin actualizado correctamente");
+            if (typeof window !== "undefined") {
+              sessionStorage.setItem(sessionKey, "1");
+            }
           }
         } catch (error) {
           // Silenciar errores de lastLogin para no bloquear el flujo

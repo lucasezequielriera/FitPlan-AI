@@ -1,4 +1,9 @@
 import { Goal, UserInput } from "@/types/plan";
+import type { AppLocale } from "@/contexts/AppLocaleContext";
+
+function ui(loc: AppLocale | undefined, es: string, en: string): string {
+  return loc === "en" ? en : es;
+}
 
 const activityMultiplier: Record<string, number> = {
   sedentario: 1.2,
@@ -150,7 +155,16 @@ export function whtrCategory(value?: number | null): "saludable" | "precaucion" 
 }
 
 // Obtener tiempo objetivo según intensidad
-export function getTiempoObjetivo(intensidad: "leve" | "moderada" | "intensa" | "ultra"): string {
+export function getTiempoObjetivo(
+  intensidad: "leve" | "moderada" | "intensa" | "ultra",
+  locale?: AppLocale
+): string {
+  if (locale === "en") {
+    if (intensidad === "ultra") return "1-2 months";
+    if (intensidad === "intensa") return "1-3 months";
+    if (intensidad === "moderada") return "3 months";
+    return "3-5 months";
+  }
   if (intensidad === "ultra") return "1-2 meses";
   if (intensidad === "intensa") return "1-3 meses";
   if (intensidad === "moderada") return "3 meses";
@@ -163,7 +177,8 @@ export function sugerirEntrenamiento(
   intensidad: "leve" | "moderada" | "intensa" | "ultra",
   edad: number,
   bmi: number,
-  atletico?: boolean
+  atletico?: boolean,
+  locale?: AppLocale
 ): { diasGym: number; minutosCaminata: number; horasSueno: number; descripcion: string } {
   // Base según objetivo
   let baseGym = getSugerenciasEntrenamiento(objetivo).gym;
@@ -265,15 +280,35 @@ export function sugerirEntrenamiento(
   
   let descripcion = "";
   if (objetivo === "perder_grasa" || objetivo === "corte") {
-    descripcion = "Enfoque en quema de grasa: entrenamiento de fuerza para mantener músculo y caminata para acelerar el déficit calórico.";
+    descripcion = ui(
+      locale,
+      "Enfoque en quema de grasa: entrenamiento de fuerza para mantener músculo y caminata para acelerar el déficit calórico.",
+      "Fat-loss focus: strength training to preserve muscle and walking to support your calorie deficit."
+    );
   } else if (objetivo === "ganar_masa" || objetivo === "volumen" || objetivo === "bulk_cut") {
-    descripcion = "Priorizar crecimiento muscular con entrenamiento de fuerza. Cardio mínimo para no interferir con la recuperación y ganancia.";
+    descripcion = ui(
+      locale,
+      "Priorizar crecimiento muscular con entrenamiento de fuerza. Cardio mínimo para no interferir con la recuperación y ganancia.",
+      "Prioritize muscle growth with strength training. Minimal cardio so it doesn’t interfere with recovery and gains."
+    );
   } else if (objetivo === "lean_bulk") {
-    descripcion = "Ganancia muscular controlada con cardio estratégico para mantener definición. Superávit moderado y progresión constante.";
+    descripcion = ui(
+      locale,
+      "Ganancia muscular controlada con cardio estratégico para mantener definición. Superávit moderado y progresión constante.",
+      "Controlled muscle gain with strategic cardio to stay lean. Moderate surplus and steady progression."
+    );
   } else if (objetivo === "recomposicion") {
-    descripcion = "Balance entre construcción muscular y quema de grasa. Entrenamiento de fuerza regular con cardio moderado.";
+    descripcion = ui(
+      locale,
+      "Balance entre construcción muscular y quema de grasa. Entrenamiento de fuerza regular con cardio moderado.",
+      "Balance muscle building and fat loss. Regular strength training with moderate cardio."
+    );
   } else {
-    descripcion = "Mantenimiento de condición física y salud general con entrenamiento equilibrado.";
+    descripcion = ui(
+      locale,
+      "Mantenimiento de condición física y salud general con entrenamiento equilibrado.",
+      "Maintain fitness and general health with balanced training."
+    );
   }
   
   return {
@@ -315,7 +350,8 @@ export function calcularProyeccionesMotivacionales(
   sexo: "masculino" | "femenino",
   bmi: number,
   atletico?: boolean,
-  diasGym?: number
+  diasGym?: number,
+  locale?: AppLocale
 ): { 
   musculoGananciaMensual?: string; 
   grasaPerdidaMensual?: string;
@@ -323,124 +359,242 @@ export function calcularProyeccionesMotivacionales(
   tiempoEstimado: string;
 } {
   const proyecciones: string[] = [];
+  const t = (es: string, en: string) => ui(locale, es, en);
   let musculoGanancia: string | undefined = "0.5-1 kg";
   let grasaPerdida: string | undefined;
-  let tiempoEstimado = "3-6 meses";
-  
+  let tiempoEstimado = t("3-6 meses", "3-6 months");
+
   // Determinar nivel de experiencia (aproximado)
   const esPrincipiante = !atletico && (typeof diasGym === "undefined" || diasGym === 0);
   const esIntermedio = !esPrincipiante && !atletico;
   const esAvanzado = atletico || (diasGym !== undefined && diasGym >= 5);
-  
+
   // Tiempos objetivo según intensidad (aplicable a todos los objetivos)
-  const tiempoObjetivo = getTiempoObjetivo(intensidad);
+  const tiempoObjetivo = getTiempoObjetivo(intensidad, locale);
   
   if (objetivo === "ganar_masa" || objetivo === "volumen" || objetivo === "powerlifting" || objetivo === "bulk_cut" || objetivo === "lean_bulk") {
     // Ganancia de músculo - primero según nivel, luego ajustar por intensidad
     if (esPrincipiante) {
       if (intensidad === "ultra") {
         musculoGanancia = sexo === "masculino" ? "2-3 kg" : "1-1.5 kg";
-        proyecciones.push("🔥 ULTRA: Como principiante con máxima intensidad, podés ganar músculo extremadamente rápido (efecto novato + protocolo élite)");
+        proyecciones.push(
+          t(
+            "🔥 ULTRA: Como principiante con máxima intensidad, podés ganar músculo extremadamente rápido (efecto novato + protocolo élite)",
+            "🔥 ULTRA: As a beginner at max intensity, you can gain muscle extremely fast (newbie gains + elite protocol)"
+          )
+        );
       } else if (intensidad === "intensa") {
         musculoGanancia = sexo === "masculino" ? "1.5-2.5 kg" : "0.75-1.25 kg";
-        proyecciones.push("Como principiante con alta intensidad, podés ganar músculo muy rápido (efecto novato maximizado)");
+        proyecciones.push(
+          t(
+            "Como principiante con alta intensidad, podés ganar músculo muy rápido (efecto novato maximizado)",
+            "As a beginner with high intensity, you can gain muscle very quickly (maximized newbie gains)"
+          )
+        );
       } else if (intensidad === "moderada") {
         musculoGanancia = sexo === "masculino" ? "1-2 kg" : "0.5-1 kg";
-        proyecciones.push("Como principiante, podés ganar músculo más rápido (efecto novato)");
+        proyecciones.push(
+          t("Como principiante, podés ganar músculo más rápido (efecto novato)", "As a beginner, you can gain muscle faster (newbie effect)")
+        );
       } else {
         musculoGanancia = sexo === "masculino" ? "0.75-1.5 kg" : "0.4-0.75 kg";
-        proyecciones.push("Como principiante con progresión gradual, ganancia sostenible a largo plazo");
+        proyecciones.push(
+          t(
+            "Como principiante con progresión gradual, ganancia sostenible a largo plazo",
+            "As a beginner with gradual progression, sustainable long-term gain"
+          )
+        );
       }
     } else if (esIntermedio) {
       if (intensidad === "ultra") {
         musculoGanancia = sexo === "masculino" ? "1-1.5 kg" : "0.5-0.8 kg";
-        proyecciones.push("🔥 ULTRA: Máximo protocolo de hipertrofia con entrenamiento de élite");
+        proyecciones.push(
+          t("🔥 ULTRA: Máximo protocolo de hipertrofia con entrenamiento de élite", "🔥 ULTRA: Maximum hypertrophy protocol with elite-level training")
+        );
       } else if (intensidad === "intensa") {
         musculoGanancia = sexo === "masculino" ? "0.75-1.25 kg" : "0.4-0.7 kg";
-        proyecciones.push("Con alta intensidad y disciplina, maximizás tu potencial de crecimiento");
+        proyecciones.push(
+          t(
+            "Con alta intensidad y disciplina, maximizás tu potencial de crecimiento",
+            "With high intensity and discipline, you maximize your growth potential"
+          )
+        );
       } else if (intensidad === "moderada") {
         musculoGanancia = sexo === "masculino" ? "0.5-1 kg" : "0.25-0.5 kg";
-        proyecciones.push("Ganancia de músculo constante y sostenible");
+        proyecciones.push(t("Ganancia de músculo constante y sostenible", "Steady, sustainable muscle gain"));
       } else {
         musculoGanancia = sexo === "masculino" ? "0.4-0.8 kg" : "0.2-0.4 kg";
-        proyecciones.push("Progresión gradual y sostenible, ideal para mantener a largo plazo");
+        proyecciones.push(
+          t(
+            "Progresión gradual y sostenible, ideal para mantener a largo plazo",
+            "Gradual, sustainable progression—ideal for the long run"
+          )
+        );
       }
     } else {
       if (intensidad === "ultra") {
         musculoGanancia = sexo === "masculino" ? "0.6-1 kg" : "0.3-0.5 kg";
-        proyecciones.push("🔥 ULTRA: Protocolo de atleta élite, cada décima de músculo optimizada");
+        proyecciones.push(
+          t(
+            "🔥 ULTRA: Protocolo de atleta élite, cada décima de músculo optimizada",
+            "🔥 ULTRA: Elite-athlete protocol—every bit of muscle optimized"
+          )
+        );
       } else if (intensidad === "intensa") {
         musculoGanancia = sexo === "masculino" ? "0.4-0.7 kg" : "0.2-0.4 kg";
-        proyecciones.push("Ganancia refinada con alta intensidad, cada gramo cuenta");
+        proyecciones.push(
+          t("Ganancia refinada con alta intensidad, cada gramo cuenta", "Refined gains at high intensity—every gram counts")
+        );
       } else if (intensidad === "moderada") {
         musculoGanancia = sexo === "masculino" ? "0.25-0.5 kg" : "0.15-0.3 kg";
-        proyecciones.push("Ganancia refinada, cada gramo de músculo es valioso");
+        proyecciones.push(t("Ganancia refinada, cada gramo de músculo es valioso", "Refined gains—every gram of muscle matters"));
       } else {
         musculoGanancia = sexo === "masculino" ? "0.2-0.4 kg" : "0.1-0.25 kg";
-        proyecciones.push("Progresión muy gradual, enfocada en sostenibilidad y salud");
+        proyecciones.push(
+          t(
+            "Progresión muy gradual, enfocada en sostenibilidad y salud",
+            "Very gradual progression focused on sustainability and health"
+          )
+        );
       }
     }
-    tiempoEstimado = `${tiempoObjetivo} para ver resultados notables`;
-    proyecciones.push(intensidad === "ultra" ? "Aumento de fuerza: +10-15% en levantamientos principales por mes" : "Aumento de fuerza: +5-10% en levantamientos principales por mes");
-    proyecciones.push("Mejora en composición corporal: reducción de % de grasa mientras ganás masa");
+    tiempoEstimado = `${tiempoObjetivo} ${t("para ver resultados notables", "to see noticeable results")}`;
+    proyecciones.push(
+      intensidad === "ultra"
+        ? t(
+            "Aumento de fuerza: +10-15% en levantamientos principales por mes",
+            "Strength gain: +10-15% on main lifts per month"
+          )
+        : t(
+            "Aumento de fuerza: +5-10% en levantamientos principales por mes",
+            "Strength gain: +5-10% on main lifts per month"
+          )
+    );
+    proyecciones.push(
+      t(
+        "Mejora en composición corporal: reducción de % de grasa mientras ganás masa",
+        "Better body composition: lower body-fat % while gaining mass"
+      )
+    );
     
   } else if (objetivo === "perder_grasa" || objetivo === "corte") {
     // Pérdida de grasa
     musculoGanancia = undefined; // No mostrar ganancia de músculo para este objetivo
     grasaPerdida = intensidad === "ultra" ? "2-3 kg" : intensidad === "intensa" ? "1-2 kg" : intensidad === "moderada" ? "0.5-1 kg" : "0.3-0.7 kg";
-    proyecciones.push("Preservación de masa muscular gracias al entrenamiento de fuerza");
-    
+    proyecciones.push(
+      t(
+        "Preservación de masa muscular gracias al entrenamiento de fuerza",
+        "Muscle preservation thanks to strength training"
+      )
+    );
+
     if (bmi > 30) {
-      proyecciones.push("Los primeros meses podés perder más peso (agua y grasa)");
-      tiempoEstimado = `${tiempoObjetivo} para alcanzar peso saludable`;
+      proyecciones.push(
+        t(
+          "Los primeros meses podés perder más peso (agua y grasa)",
+          "In the first months you may lose more weight (water and fat)"
+        )
+      );
+      tiempoEstimado = `${tiempoObjetivo} ${t("para alcanzar peso saludable", "to reach a healthy weight")}`;
     } else if (bmi > 25) {
-      tiempoEstimado = `${tiempoObjetivo} para cambios visibles`;
-      proyecciones.push("Mejora notable en definición muscular y energía");
+      tiempoEstimado = `${tiempoObjetivo} ${t("para cambios visibles", "for visible changes")}`;
+      proyecciones.push(
+        t("Mejora notable en definición muscular y energía", "Clearer definition and better energy")
+      );
     } else {
-      tiempoEstimado = `${tiempoObjetivo} para definición visible`;
-      proyecciones.push("Enfoque en definición y preservación de músculo ganado");
+      tiempoEstimado = `${tiempoObjetivo} ${t("para definición visible", "for visible definition")}`;
+      proyecciones.push(
+        t("Enfoque en definición y preservación de músculo ganado", "Focus on definition while keeping muscle you’ve built")
+      );
     }
-    
-    proyecciones.push("Reducción de circunferencia de cintura: ~2-4 cm por mes");
+
+    proyecciones.push(
+      t(
+        "Reducción de circunferencia de cintura: ~2-4 cm por mes",
+        "Waist circumference: ~2-4 cm per month"
+      )
+    );
     
   } else if (objetivo === "recomposicion") {
     if (intensidad === "ultra") {
       musculoGanancia = sexo === "masculino" ? "0.6-1 kg" : "0.35-0.6 kg";
-      proyecciones.push(`Ganancia de músculo: ${musculoGanancia} por mes`);
-      proyecciones.push("🔥 ULTRA: Transformación acelerada con protocolo élite");
+      proyecciones.push(
+        t(`Ganancia de músculo: ${musculoGanancia} por mes`, `Muscle gain: ${musculoGanancia} per month`)
+      );
+      proyecciones.push(
+        t("🔥 ULTRA: Transformación acelerada con protocolo élite", "🔥 ULTRA: Faster transformation with an elite protocol")
+      );
     } else if (intensidad === "intensa") {
       musculoGanancia = sexo === "masculino" ? "0.4-0.8 kg" : "0.25-0.5 kg";
-      proyecciones.push(`Ganancia de músculo: ${musculoGanancia} por mes`);
-      proyecciones.push("Con alta intensidad, transformación más rápida");
+      proyecciones.push(
+        t(`Ganancia de músculo: ${musculoGanancia} por mes`, `Muscle gain: ${musculoGanancia} per month`)
+      );
+      proyecciones.push(
+        t("Con alta intensidad, transformación más rápida", "At high intensity, faster body recomposition")
+      );
     } else if (intensidad === "moderada") {
       musculoGanancia = sexo === "masculino" ? "0.3-0.7 kg" : "0.2-0.4 kg";
-      proyecciones.push(`Ganancia de músculo: ${musculoGanancia} por mes`);
+      proyecciones.push(
+        t(`Ganancia de músculo: ${musculoGanancia} por mes`, `Muscle gain: ${musculoGanancia} per month`)
+      );
     } else {
       musculoGanancia = sexo === "masculino" ? "0.2-0.5 kg" : "0.15-0.3 kg";
-      proyecciones.push(`Ganancia de músculo: ${musculoGanancia} por mes`);
-      proyecciones.push("Progresión gradual, ideal para mantener a largo plazo");
+      proyecciones.push(
+        t(`Ganancia de músculo: ${musculoGanancia} por mes`, `Muscle gain: ${musculoGanancia} per month`)
+      );
+      proyecciones.push(
+        t("Progresión gradual, ideal para mantener a largo plazo", "Gradual progression—ideal for the long run")
+      );
     }
-    tiempoEstimado = `${tiempoObjetivo} para transformación completa`;
-    proyecciones.push("Pérdida simultánea de grasa mientras ganás músculo");
-    proyecciones.push("Mejora en composición corporal sin cambios drásticos de peso");
+    tiempoEstimado = `${tiempoObjetivo} ${t("para transformación completa", "for full recomposition")}`;
+    proyecciones.push(
+      t("Pérdida simultánea de grasa mientras ganás músculo", "Fat loss while gaining muscle at the same time")
+    );
+    proyecciones.push(
+      t(
+        "Mejora en composición corporal sin cambios drásticos de peso",
+        "Better body composition without drastic scale changes"
+      )
+    );
     
   } else if (objetivo === "definicion") {
     // Pérdida de grasa para definición (más gradual que perder_grasa para preservar músculo)
     musculoGanancia = undefined; // No mostrar ganancia de músculo para este objetivo
     grasaPerdida = intensidad === "ultra" ? "1.5-2 kg" : intensidad === "intensa" ? "0.8-1.5 kg" : intensidad === "moderada" ? "0.5-1 kg" : "0.3-0.6 kg";
-    proyecciones.push("Mantenimiento de masa muscular mientras reducís grasa");
-    proyecciones.push("Definición muscular visible: abs y músculos más marcados");
-    proyecciones.push("Reducción de % de grasa corporal: 1-2% por mes");
-    
+    proyecciones.push(
+      t("Mantenimiento de masa muscular mientras reducís grasa", "Keep muscle while losing fat")
+    );
+    proyecciones.push(
+      t(
+        "Definición muscular visible: abs y músculos más marcados",
+        "Visible definition: abs and sharper muscle lines"
+      )
+    );
+    proyecciones.push(
+      t("Reducción de % de grasa corporal: 1-2% por mes", "Body fat % down: about 1-2% per month")
+    );
+
     if (bmi > 25) {
-      tiempoEstimado = `${tiempoObjetivo} para definición visible`;
-      proyecciones.push("Mejora notable en definición muscular y energía");
+      tiempoEstimado = `${tiempoObjetivo} ${t("para definición visible", "for visible definition")}`;
+      proyecciones.push(
+        t("Mejora notable en definición muscular y energía", "Clearer definition and better energy")
+      );
     } else {
-      tiempoEstimado = `${tiempoObjetivo} para definición óptima`;
-      proyecciones.push("Enfoque en definición extrema preservando músculo ganado");
+      tiempoEstimado = `${tiempoObjetivo} ${t("para definición óptima", "for peak definition")}`;
+      proyecciones.push(
+        t(
+          "Enfoque en definición extrema preservando músculo ganado",
+          "Extreme definition focus while keeping muscle"
+        )
+      );
     }
-    
-    proyecciones.push("Reducción de circunferencia de cintura: ~1-3 cm por mes");
+
+    proyecciones.push(
+      t(
+        "Reducción de circunferencia de cintura: ~1-3 cm por mes",
+        "Waist circumference: ~1-3 cm per month"
+      )
+    );
     
   } else {
     // Mantener
@@ -480,8 +634,10 @@ export function analizarCambiosEntrenamiento(
   horasSuenoSugerido: number,
   horasSuenoEditado: number,
   minutosSesionGymSugerido?: number,
-  minutosSesionGymEditado?: number
+  minutosSesionGymEditado?: number,
+  locale?: AppLocale
 ): { pros: string[]; contras: string[] } {
+  const t = (es: string, en: string) => ui(locale, es, en);
   const pros: string[] = [];
   const contras: string[] = [];
   
@@ -491,34 +647,92 @@ export function analizarCambiosEntrenamiento(
     if (diferencia > 0) {
       // Más días de gym
       if (objetivo === "ganar_masa" || objetivo === "volumen") {
-        pros.push("Mayor frecuencia de entrenamiento puede acelerar la ganancia de músculo");
-        pros.push("Más estimulo para el crecimiento muscular");
+        pros.push(
+          t(
+            "Mayor frecuencia de entrenamiento puede acelerar la ganancia de músculo",
+            "More training days can speed up muscle gain"
+          )
+        );
+        pros.push(t("Más estimulo para el crecimiento muscular", "More stimulus for muscle growth"));
       } else if (objetivo === "perder_grasa") {
-        pros.push("Más quema de calorías adicionales durante el entrenamiento");
-        pros.push("Mejor preservación de masa muscular");
+        pros.push(
+          t(
+            "Más quema de calorías adicionales durante el entrenamiento",
+            "More calories burned during workouts"
+          )
+        );
+        pros.push(
+          t("Mejor preservación de masa muscular", "Better muscle preservation")
+        );
       }
       if (diasGymEditado >= 6) {
-        contras.push("Riesgo de sobreentrenamiento si no hay suficiente recuperación");
-        contras.push("Mayor fatiga puede afectar la intensidad de cada sesión");
-        contras.push("Aumento del riesgo de lesiones por falta de descanso");
+        contras.push(
+          t(
+            "Riesgo de sobreentrenamiento si no hay suficiente recuperación",
+            "Overtraining risk if recovery is insufficient"
+          )
+        );
+        contras.push(
+          t(
+            "Mayor fatiga puede afectar la intensidad de cada sesión",
+            "More fatigue can lower each session’s intensity"
+          )
+        );
+        contras.push(
+          t(
+            "Aumento del riesgo de lesiones por falta de descanso",
+            "Higher injury risk without enough rest"
+          )
+        );
       } else if (diasGymEditado === 5) {
-        contras.push("Necesitarás optimizar tu recuperación y nutrición");
+        contras.push(
+          t(
+            "Necesitarás optimizar tu recuperación y nutrición",
+            "You’ll need to optimize recovery and nutrition"
+          )
+        );
       }
     } else {
       // Menos días de gym
       if (objetivo === "ganar_masa" || objetivo === "volumen") {
-        contras.push("Menos estímulo para el crecimiento muscular");
-        contras.push("Ganancia de músculo potencialmente más lenta");
+        contras.push(
+          t("Menos estímulo para el crecimiento muscular", "Less stimulus for muscle growth")
+        );
+        contras.push(
+          t(
+            "Ganancia de músculo potencialmente más lenta",
+            "Potentially slower muscle gain"
+          )
+        );
       } else if (objetivo === "perder_grasa") {
-        contras.push("Menos quema de calorías durante entrenamientos");
-        contras.push("Riesgo de perder más músculo durante el déficit");
+        contras.push(
+          t("Menos quema de calorías durante entrenamientos", "Fewer calories burned from training")
+        );
+        contras.push(
+          t(
+            "Riesgo de perder más músculo durante el déficit",
+            "Higher risk of muscle loss in a deficit"
+          )
+        );
       }
       if (diasGymEditado >= 3) {
-        pros.push("Más tiempo de recuperación entre sesiones puede mejorar la calidad del entrenamiento");
-        pros.push("Menor riesgo de sobreentrenamiento");
+        pros.push(
+          t(
+            "Más tiempo de recuperación entre sesiones puede mejorar la calidad del entrenamiento",
+            "More recovery between sessions can improve workout quality"
+          )
+        );
+        pros.push(t("Menor riesgo de sobreentrenamiento", "Lower overtraining risk"));
       } else {
-        pros.push("Más tiempo para otras actividades y descanso");
-        contras.push("Muy poco entrenamiento puede no ser suficiente para tu objetivo");
+        pros.push(
+          t("Más tiempo para otras actividades y descanso", "More time for other activities and rest")
+        );
+        contras.push(
+          t(
+            "Muy poco entrenamiento puede no ser suficiente para tu objetivo",
+            "Very little training may not match your goal"
+          )
+        );
       }
     }
   }
@@ -529,32 +743,65 @@ export function analizarCambiosEntrenamiento(
     if (diferencia > 0) {
       // Más caminata
       if (objetivo === "perder_grasa" || objetivo === "corte") {
-        pros.push("Mayor déficit calórico y quema de grasa acelerada");
-        pros.push("Mejora de salud cardiovascular");
+        pros.push(
+          t("Mayor déficit calórico y quema de grasa acelerada", "Larger deficit and faster fat loss")
+        );
+        pros.push(t("Mejora de salud cardiovascular", "Better cardiovascular health"));
       } else {
-        pros.push("Mayor quema de calorías diarias");
+        pros.push(t("Mayor quema de calorías diarias", "Higher daily calorie burn"));
         if (objetivo === "ganar_masa" || objetivo === "volumen") {
-          contras.push("Puede interferir con la recuperación y ganancia de masa");
-          contras.push("Mayor gasto calórico requiere más calorías para mantener superávit");
+          contras.push(
+            t(
+              "Puede interferir con la recuperación y ganancia de masa",
+              "Can interfere with recovery and mass gain"
+            )
+          );
+          contras.push(
+            t(
+              "Mayor gasto calórico requiere más calorías para mantener superávit",
+              "Higher burn needs more food to stay in a surplus"
+            )
+          );
         }
       }
       if (minutosCaminataEditado >= 60) {
-        contras.push("Alto volumen de cardio puede afectar la recuperación muscular");
-        contras.push("Riesgo de fatiga acumulada");
+        contras.push(
+          t(
+            "Alto volumen de cardio puede afectar la recuperación muscular",
+            "High cardio volume can hurt muscle recovery"
+          )
+        );
+        contras.push(t("Riesgo de fatiga acumulada", "Risk of accumulated fatigue"));
       }
     } else {
       // Menos caminata
       if (objetivo === "ganar_masa" || objetivo === "volumen") {
-        pros.push("Menos interferencia con la recuperación y ganancia muscular");
-        pros.push("Menor gasto calórico facilita el superávit");
+        pros.push(
+          t(
+            "Menos interferencia con la recuperación y ganancia muscular",
+            "Less interference with recovery and muscle gain"
+          )
+        );
+        pros.push(
+          t("Menor gasto calórico facilita el superávit", "Lower burn makes a surplus easier")
+        );
       } else if (objetivo === "perder_grasa") {
-        contras.push("Menor quema de calorías diarias");
-        contras.push("Progreso de pérdida de grasa más lento");
+        contras.push(t("Menor quema de calorías diarias", "Lower daily calorie burn"));
+        contras.push(
+          t("Progreso de pérdida de grasa más lento", "Slower fat-loss progress")
+        );
       }
       if (minutosCaminataEditado < 20) {
-        contras.push("Muy poca actividad puede afectar la salud cardiovascular general");
+        contras.push(
+          t(
+            "Muy poca actividad puede afectar la salud cardiovascular general",
+            "Very low activity can affect general cardiovascular health"
+          )
+        );
       } else {
-        pros.push("Más energía para el entrenamiento de fuerza");
+        pros.push(
+          t("Más energía para el entrenamiento de fuerza", "More energy for strength training")
+        );
       }
     }
   }
@@ -564,21 +811,66 @@ export function analizarCambiosEntrenamiento(
     const diferencia = horasSuenoEditado - horasSuenoSugerido;
     if (diferencia > 0) {
       // Más sueño
-      pros.push("Mejor recuperación muscular y síntesis de proteínas");
-      pros.push("Mejor producción de hormonas de crecimiento (HGH)");
-      pros.push("Menor riesgo de sobreentrenamiento");
-      pros.push("Mejor función cognitiva y energía durante el día");
+      pros.push(
+        t(
+          "Mejor recuperación muscular y síntesis de proteínas",
+          "Better muscle recovery and protein synthesis"
+        )
+      );
+      pros.push(
+        t(
+          "Mejor producción de hormonas de crecimiento (HGH)",
+          "Better growth-hormone (GH) output"
+        )
+      );
+      pros.push(t("Menor riesgo de sobreentrenamiento", "Lower overtraining risk"));
+      pros.push(
+        t(
+          "Mejor función cognitiva y energía durante el día",
+          "Better focus and daytime energy"
+        )
+      );
       if (horasSuenoEditado >= 9) {
-        pros.push("Recuperación óptima para entrenamiento intenso");
+        pros.push(
+          t(
+            "Recuperación óptima para entrenamiento intenso",
+            "Optimal recovery for hard training"
+          )
+        );
       }
     } else {
       // Menos sueño
-      contras.push("Recuperación subóptima puede limitar el crecimiento muscular");
-      contras.push("Aumento del cortisol (hormona del estrés) que puede dificultar la pérdida de grasa");
-      contras.push("Menor producción de testosterona y HGH");
-      contras.push("Mayor riesgo de fatiga crónica y sobreentrenamiento");
+      contras.push(
+        t(
+          "Recuperación subóptima puede limitar el crecimiento muscular",
+          "Subpar recovery can limit muscle growth"
+        )
+      );
+      contras.push(
+        t(
+          "Aumento del cortisol (hormona del estrés) que puede dificultar la pérdida de grasa",
+          "Higher cortisol (stress) can make fat loss harder"
+        )
+      );
+      contras.push(
+        t(
+          "Menor producción de testosterona y HGH",
+          "Lower testosterone and GH production"
+        )
+      );
+      contras.push(
+        t(
+          "Mayor riesgo de fatiga crónica y sobreentrenamiento",
+          "Higher risk of chronic fatigue and overtraining"
+        )
+      );
       if (horasSuenoEditado < 6) {
-        contras.push("Sueño insuficiente afecta gravemente la recuperación y el rendimiento");
+        contras.push(
+          t(
+            "Sueño insuficiente afecta gravemente la recuperación y el rendimiento",
+            "Too little sleep seriously hurts recovery and performance"
+          )
+        );
       }
     }
   }
@@ -593,26 +885,55 @@ export function analizarCambiosEntrenamiento(
   ) {
     const diff = minutosSesionGymEditado - minutosSesionGymSugerido;
     if (diff > 0) {
-      pros.push("Sesiones más largas aumentan el estímulo de entrenamiento");
+      pros.push(
+        t(
+          "Sesiones más largas aumentan el estímulo de entrenamiento",
+          "Longer sessions increase training stimulus"
+        )
+      );
       if (objetivo === "ganar_masa" || objetivo === "volumen") {
-        pros.push("Más volumen puede favorecer la hipertrofia si hay recuperación suficiente");
+        pros.push(
+          t(
+            "Más volumen puede favorecer la hipertrofia si hay recuperación suficiente",
+            "More volume can help hypertrophy if recovery is on point"
+          )
+        );
       } else if (objetivo === "perder_grasa" || objetivo === "corte") {
-        pros.push("Mayor gasto calórico por sesión");
+        pros.push(t("Mayor gasto calórico por sesión", "Higher calorie burn per session"));
       }
       if (minutosSesionGymEditado >= 120) {
-        contras.push("Sesiones muy largas pueden reducir la intensidad efectiva");
-        contras.push("Mayor riesgo de fatiga y sobreentrenamiento");
+        contras.push(
+          t(
+            "Sesiones muy largas pueden reducir la intensidad efectiva",
+            "Very long sessions can reduce effective intensity"
+          )
+        );
+        contras.push(
+          t("Mayor riesgo de fatiga y sobreentrenamiento", "Higher fatigue and overtraining risk")
+        );
       }
     } else {
       // menor duración
-      pros.push("Sesiones más cortas facilitan mantener alta intensidad y adherencia");
+      pros.push(
+        t(
+          "Sesiones más cortas facilitan mantener alta intensidad y adherencia",
+          "Shorter sessions make it easier to keep intensity and consistency"
+        )
+      );
       if (objetivo === "ganar_masa" || objetivo === "volumen") {
-        contras.push("Menos volumen puede limitar la ganancia muscular");
+        contras.push(
+          t("Menos volumen puede limitar la ganancia muscular", "Less volume may limit muscle gain")
+        );
       } else if (objetivo === "perder_grasa" || objetivo === "corte") {
-        contras.push("Menor gasto calórico por sesión");
+        contras.push(t("Menor gasto calórico por sesión", "Lower calorie burn per session"));
       }
       if (minutosSesionGymEditado < 45) {
-        contras.push("Duración muy baja puede ser insuficiente para tu objetivo");
+        contras.push(
+          t(
+            "Duración muy baja puede ser insuficiente para tu objetivo",
+            "Very short sessions may be insufficient for your goal"
+          )
+        );
       }
     }
   }
