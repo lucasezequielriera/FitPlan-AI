@@ -4,6 +4,7 @@ import { readConsent } from "@/lib/consent";
 export type AnalyticsEventName =
   | "page_view"
   | "view_content"
+  | "add_to_cart"
   | "lead"
   | "begin_checkout"
   | "purchase";
@@ -27,6 +28,7 @@ declare global {
 const GA4_EVENT_MAP: Record<AnalyticsEventName, string> = {
   page_view: "page_view",
   view_content: "view_content",
+  add_to_cart: "add_to_cart",
   lead: "generate_lead",
   begin_checkout: "begin_checkout",
   purchase: "purchase",
@@ -35,6 +37,7 @@ const GA4_EVENT_MAP: Record<AnalyticsEventName, string> = {
 const META_EVENT_MAP: Record<AnalyticsEventName, string> = {
   page_view: "PageView",
   view_content: "ViewContent",
+  add_to_cart: "AddToCart",
   lead: "Lead",
   begin_checkout: "InitiateCheckout",
   purchase: "Purchase",
@@ -43,6 +46,7 @@ const META_EVENT_MAP: Record<AnalyticsEventName, string> = {
 const TIKTOK_EVENT_MAP: Record<AnalyticsEventName, string> = {
   page_view: "PageView",
   view_content: "ViewContent",
+  add_to_cart: "AddToCart",
   lead: "SubmitForm",
   begin_checkout: "InitiateCheckout",
   purchase: "CompletePayment",

@@ -271,6 +271,16 @@ export default function PremiumPlanModal({
     }
   };
 
+  const handlePlanSelection = (planType: PlanType) => {
+    setSelectedPlan(planType);
+    trackEvent("add_to_cart", {
+      source: "premium-modal",
+      content_type: "subscription_plan",
+      plan_type: planType,
+      currency: paymentProvider === "stripe" ? stripeCurrency.toUpperCase() : "ARS",
+    });
+  };
+
   const priceLabel = (plan: Plan) => {
     if (paymentProvider === "stripe") {
       if (stripeCurrency === "usd") {
@@ -438,9 +448,9 @@ export default function PremiumPlanModal({
               role="button"
               tabIndex={0}
               onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") setSelectedPlan(plan.type);
+                if (e.key === "Enter" || e.key === " ") handlePlanSelection(plan.type);
               }}
-              onClick={() => setSelectedPlan(plan.type)}
+              onClick={() => handlePlanSelection(plan.type)}
               className={`relative flex flex-col p-4 sm:pl-5 sm:pr-5 sm:py-5 rounded-xl border cursor-pointer transition-all text-left touch-manipulation min-h-0 border-l-[3px] pl-[1.1rem] sm:pl-6 ${
                 plan.type === "monthly"
                   ? "border-l-cyan-400/75"
