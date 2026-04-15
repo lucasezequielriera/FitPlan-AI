@@ -560,6 +560,28 @@ export default function Navbar() {
   const visibleNotificationsCount = isAllNotificationsFilter
     ? Math.min(5, visibleAdminNotificationItems.length)
     : visibleAdminNotificationItems.length;
+  const canOpenAllNotifications = isAllNotificationsFilter;
+  const handleAdminNotificationClick = (item: (typeof visibleAdminNotificationItems)[number]) => {
+    setAdminNotificationsOpen(false);
+    if (item.type === "user_registered") {
+      const queryValue = item.userEmail || item.userName || "";
+      if (queryValue) {
+        router.push(`/admin/clientes-fitplan?q=${encodeURIComponent(queryValue)}`);
+        return;
+      }
+      router.push("/admin/clientes-fitplan");
+      return;
+    }
+    if (item.type === "payment_success") {
+      router.push("/admin/clientes-fitplan");
+      return;
+    }
+    if (item.type === "coach_alert" || item.type === "adherence_risk_weekly") {
+      router.push("/admin/clientes-1-1");
+      return;
+    }
+    router.push("/admin/actividad");
+  };
 
   const marketingEsToEn: Record<string, string> = {
     "/": "/en",
@@ -804,7 +826,12 @@ export default function Navbar() {
                           Última revisión: {new Date(adminLastUsersCheck).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
                         </p>
                       )}
-                      <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+                      {isAllNotificationsFilter && (
+                        <p className="mb-2 text-[10px] uppercase tracking-wide text-[var(--landing-muted)]">
+                          Mostrando {visibleNotificationsCount} de {visibleAdminNotificationItems.length}
+                        </p>
+                      )}
+                      <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
                         {visibleNotificationsCount === 0 ? (
                           <p className="rounded-lg border border-[var(--landing-border)] bg-[var(--landing-surface)] px-3 py-2 text-xs text-[var(--landing-muted)]">
                             Sin notificaciones recientes.
@@ -819,9 +846,11 @@ export default function Navbar() {
                                   ? `${String(itemDate.getHours()).padStart(2, "0")}:${String(itemDate.getMinutes()).padStart(2, "0")}`
                                   : "--:--";
                                 return (
-                                  <div
+                                  <button
+                                    type="button"
                                     key={item.id}
-                                    className="rounded-lg border border-[var(--landing-border)] bg-[var(--landing-surface)]/80 px-3 py-2 text-xs text-[var(--foreground)]"
+                                    onClick={() => handleAdminNotificationClick(item)}
+                                    className="w-full rounded-lg border border-[var(--landing-border)] bg-[var(--landing-surface)]/80 px-3 py-2 text-left text-xs text-[var(--foreground)] transition hover:border-cyan-400/35 hover:bg-[var(--landing-surface)]"
                                   >
                                     <div className="flex items-center justify-between gap-2">
                                       <p className="text-[10px] uppercase tracking-wide text-[var(--landing-muted)]">
@@ -836,13 +865,15 @@ export default function Navbar() {
                                         ? `${item.userName || item.userEmail || "Cliente"} · ${String(item.message)}`
                                         : `${item.userName || item.userEmail || "Usuario"} · ${item.amount || 0} ${item.currency || ""}`}
                                     </p>
-                                  </div>
+                                  </button>
                                 );
                               })}
                             </div>
                           ))
                         )}
-                        {isAllNotificationsFilter && (
+                      </div>
+                      {canOpenAllNotifications && (
+                        <div className="mt-2 border-t border-[var(--landing-border)] pt-2 sticky bottom-0 bg-[color-mix(in_oklab,var(--background)_96%,#0f172a)]">
                           <button
                             type="button"
                             onClick={() => {
@@ -853,8 +884,8 @@ export default function Navbar() {
                           >
                             Ver todas
                           </button>
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
