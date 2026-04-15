@@ -29,6 +29,7 @@ export default function AdminActividadPage() {
   const [items, setItems] = useState<ActivityItem[]>([]);
   const [categoryFilter, setCategoryFilter] = useState<"all" | "users" | "payments" | "fatigue" | "risk" | "emails">("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [filtersInitialized, setFiltersInitialized] = useState(false);
 
   useEffect(() => {
     const run = async () => {
@@ -44,6 +45,39 @@ export default function AdminActividadPage() {
     };
     void run();
   }, [authUser, authLoading, router]);
+
+  useEffect(() => {
+    if (!router.isReady || filtersInitialized) return;
+    const rawCat = typeof router.query.cat === "string" ? router.query.cat : "all";
+    const allowedCats = new Set(["all", "users", "payments", "fatigue", "risk", "emails"]);
+    const cat = allowedCats.has(rawCat) ? (rawCat as "all" | "users" | "payments" | "fatigue" | "risk" | "emails") : "all";
+    const q = typeof router.query.q === "string" ? router.query.q : "";
+    setCategoryFilter(cat);
+    setSearchQuery(q);
+    setFiltersInitialized(true);
+  }, [router.isReady, router.query.cat, router.query.q, filtersInitialized]);
+
+  useEffect(() => {
+    if (!router.isReady || !filtersInitialized) return;
+    const nextQuery: Record<string, string> = {};
+    if (categoryFilter !== "all") nextQuery.cat = categoryFilter;
+    if (searchQuery.trim()) nextQuery.q = searchQuery.trim();
+
+    const currentCat = typeof router.query.cat === "string" ? router.query.cat : "";
+    const currentQ = typeof router.query.q === "string" ? router.query.q : "";
+    const nextCat = nextQuery.cat || "";
+    const nextQ = nextQuery.q || "";
+    if (currentCat === nextCat && currentQ === nextQ) return;
+
+    void router.replace(
+      {
+        pathname: router.pathname,
+        query: nextQuery,
+      },
+      undefined,
+      { shallow: true }
+    );
+  }, [router, router.isReady, router.pathname, router.query.cat, router.query.q, categoryFilter, searchQuery, filtersInitialized]);
 
   useEffect(() => {
     const load = async () => {
