@@ -351,7 +351,9 @@ function formatIntakeFieldValue(value: unknown): string {
   return normalized.length > 0 ? normalized : "N/A";
 }
 
-export default function Admin() {
+export type AdminView = "dashboard" | "intake" | "fitplan";
+
+export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
   const router = useRouter();
   const { user: authUser, loading: authLoading } = useAuthStore();
   const [users, setUsers] = useState<User[]>([]);
@@ -2482,9 +2484,18 @@ export default function Admin() {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900">
+      <div className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
+        <div
+          className="pointer-events-none absolute inset-0 -z-0 bg-[radial-gradient(ellipse_100%_55%_at_50%_-15%,rgba(34,211,238,0.14),transparent_58%)]"
+          aria-hidden
+        />
+        <div
+          className="pointer-events-none absolute inset-0 -z-0 bg-[radial-gradient(ellipse_70%_45%_at_100%_60%,rgba(16,185,129,0.1),transparent_55%)]"
+          aria-hidden
+        />
+        <div className="pointer-events-none absolute inset-0 -z-0 bg-gradient-to-b from-[#0b1e37]/90 via-slate-950 to-slate-950" aria-hidden />
         <Navbar />
-        <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
+        <div className="relative flex items-center justify-center min-h-[calc(100vh-4rem)]">
           <div className="text-center">
             <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-[var(--landing-border)] border-t-[var(--landing-accent)]" />
             <p className="text-sm text-[var(--landing-muted)]">Cargando...</p>
@@ -2496,9 +2507,18 @@ export default function Admin() {
 
   if (!isAdmin || error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900">
+      <div className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
+        <div
+          className="pointer-events-none absolute inset-0 -z-0 bg-[radial-gradient(ellipse_100%_55%_at_50%_-15%,rgba(34,211,238,0.14),transparent_58%)]"
+          aria-hidden
+        />
+        <div
+          className="pointer-events-none absolute inset-0 -z-0 bg-[radial-gradient(ellipse_70%_45%_at_100%_60%,rgba(16,185,129,0.1),transparent_55%)]"
+          aria-hidden
+        />
+        <div className="pointer-events-none absolute inset-0 -z-0 bg-gradient-to-b from-[#0b1e37]/90 via-slate-950 to-slate-950" aria-hidden />
         <Navbar />
-        <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
+        <div className="relative flex items-center justify-center min-h-[calc(100vh-4rem)]">
           <div className="text-center p-8 rounded-xl bg-red-500/10 border border-red-500/30">
             <p className="text-red-400 text-lg">{error || "Acceso denegado"}</p>
           </div>
@@ -2553,286 +2573,312 @@ export default function Admin() {
 
     return paymentMatches && serviceMatches && searchHaystack.includes(normalizedIntakeSearch);
   });
+
+  const nonAdminUsers = users.filter((user) => user.email?.toLowerCase() !== "admin@fitplan-ai.com");
+  const nowDate = new Date();
+  const currentMonthKey = `${nowDate.getFullYear()}-${String(nowDate.getMonth() + 1).padStart(2, "0")}`;
+  const previousMonthDate = new Date(nowDate.getFullYear(), nowDate.getMonth() - 1, 1);
+  const previousMonthKey = `${previousMonthDate.getFullYear()}-${String(previousMonthDate.getMonth() + 1).padStart(2, "0")}`;
+  const monthKeyFromDate = (date: Date | null): string | null =>
+    date ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}` : null;
+
+  const totalRegisteredCurrentMonth = nonAdminUsers.filter(
+    (user) => monthKeyFromDate(convertTimestampToDate(user.createdAt)) === currentMonthKey
+  ).length;
+  const totalRegisteredPreviousMonth = nonAdminUsers.filter(
+    (user) => monthKeyFromDate(convertTimestampToDate(user.createdAt)) === previousMonthKey
+  ).length;
+  const totalUsersMonthDelta = totalRegisteredCurrentMonth - totalRegisteredPreviousMonth;
+  const premiumActivatedCurrentMonth = nonAdminUsers.filter((user) => {
+    const premiumDate = convertTimestampToDate(user.premiumSince);
+    return monthKeyFromDate(premiumDate) === currentMonthKey;
+  }).length;
+  const currentMonthLabel = nowDate.toLocaleDateString("es-AR", { month: "short", year: "numeric" });
+  const previousMonthLabel = previousMonthDate.toLocaleDateString("es-AR", { month: "short", year: "numeric" });
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900">
+    <div className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
+      <div
+        className="pointer-events-none absolute inset-0 -z-0 bg-[radial-gradient(ellipse_100%_55%_at_50%_-15%,rgba(34,211,238,0.14),transparent_58%)]"
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute inset-0 -z-0 bg-[radial-gradient(ellipse_70%_45%_at_100%_60%,rgba(16,185,129,0.1),transparent_55%)]"
+        aria-hidden
+      />
+      <div className="pointer-events-none absolute inset-0 -z-0 bg-gradient-to-b from-[#0b1e37]/90 via-slate-950 to-slate-950" aria-hidden />
       <Navbar />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-7">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
+          className="mb-6"
         >
-          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent mb-2">
-                Panel de Administración
-              </h1>
-              <p className="text-white/60">Gestiona usuarios y permisos del sistema</p>
+          {view === "dashboard" ? (
+            <div className="rounded-2xl border border-cyan-400/25 bg-gradient-to-br from-blue-500/14 via-cyan-500/10 to-emerald-500/12 p-4 md:p-5 shadow-[0_16px_48px_-28px_rgba(34,211,238,0.55)]">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-200/90 mb-1.5">
+                    FitPlan · Admin
+                  </p>
+                  <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
+                    Panel de administración
+                  </h1>
+                  <p className="text-white/70 text-sm mt-1.5 max-w-xl">
+                    Resumen de ingresos y actividad; las listas de clientes están en vistas dedicadas.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleCopyFormLink}
+                    className="px-3 py-2 rounded-xl border border-white/25 bg-white/5 hover:bg-white/10 text-white/90 text-xs sm:text-sm font-medium transition-colors"
+                  >
+                    {copiedFormLink ? "Enlace copiado" : "Copiar enlace del formulario"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => router.push("/admin/clientes-1-1")}
+                    className="px-3 py-2 rounded-xl border border-emerald-400/40 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-100 text-xs sm:text-sm font-semibold transition-colors"
+                  >
+                    Ver clientes 1:1
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => router.push("/admin/clientes-fitplan")}
+                    className="px-3 py-2 rounded-xl border border-cyan-400/40 bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-100 text-xs sm:text-sm font-semibold transition-colors"
+                  >
+                    Ver clientes FitPlan
+                  </button>
+                </div>
+              </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => router.push("/formulario-de-inicio")}
-                className="px-4 py-2 rounded-lg bg-cyan-500/20 border border-cyan-400/40 text-cyan-200 hover:bg-cyan-500/30 transition-colors text-sm font-medium"
+          ) : (
+            <div className="rounded-2xl border border-cyan-400/25 bg-gradient-to-br from-blue-500/14 via-cyan-500/10 to-emerald-500/12 p-4 md:p-5 shadow-[0_16px_48px_-28px_rgba(34,211,238,0.55)]">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => router.push("/admin")}
+                    className="px-3 py-1.5 rounded-lg border border-white/20 bg-white/5 hover:bg-white/10 text-white/90 text-xs font-medium transition-colors"
+                  >
+                    ← Panel
+                  </button>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-200/90">
+                      {view === "intake" ? "FORMULARIO 1:1" : "APP FITPLAN"}
+                    </p>
+                    <h1 className="text-xl md:text-2xl font-extrabold text-white tracking-tight">
+                      {view === "intake" ? "Clientes 1:1" : "Clientes FitPlan"}
+                    </h1>
+                    <p className="text-white/65 text-xs mt-0.5">
+                      {view === "intake"
+                        ? "Leads y seguimiento del formulario de inicio."
+                        : "Usuarios registrados en la plataforma."}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 shrink-0">
+                  {view === "intake" ? (
+                    <button
+                      type="button"
+                      onClick={() => router.push("/admin/clientes-fitplan")}
+                      className="px-3 py-2 rounded-xl border border-white/20 bg-white/5 text-white/90 text-xs font-medium"
+                    >
+                      Ver FitPlan
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => router.push("/admin/clientes-1-1")}
+                      className="px-3 py-2 rounded-xl border border-white/20 bg-white/5 text-white/90 text-xs font-medium"
+                    >
+                      Ver 1:1
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </motion.div>
+
+        {view === "dashboard" && (
+        <>
+        {/* Panel de Estadísticas de Ganancias — compacto */}
+        <div className="mb-5">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="relative overflow-hidden p-4 md:p-5 rounded-2xl border border-cyan-300/25 bg-gradient-to-br from-[#0b1e37] via-[#0f2847] to-[#0f3d3a] shadow-[0_18px_56px_-36px_rgba(34,211,238,0.75)]"
+          >
+            <div className="pointer-events-none absolute -top-12 -right-10 h-36 w-36 rounded-full bg-cyan-400/18 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-14 -left-12 h-40 w-40 rounded-full bg-emerald-400/15 blur-3xl" />
+
+            <div className="relative">
+              <div className="flex flex-wrap items-center gap-1.5 mb-3">
+                <span className="px-2 py-0.5 rounded-full border border-cyan-300/35 bg-cyan-400/15 text-[10px] font-semibold tracking-wide text-cyan-100">
+                  FINANZAS
+                </span>
+                <span className="px-2 py-0.5 rounded-full border border-emerald-300/35 bg-emerald-400/15 text-[10px] font-semibold tracking-wide text-emerald-100">
+                  ADMIN FITPLAN
+                </span>
+              </div>
+              <div className="grid grid-cols-1 xl:grid-cols-[1.35fr_0.65fr] gap-3 mb-3">
+                <div className="rounded-xl border border-white/15 bg-black/20 p-4">
+                  <p className="text-cyan-100/85 text-[10px] uppercase tracking-[0.14em] mb-1">Ganancias de este mes</p>
+                  <h2 className="text-lg md:text-xl font-extrabold text-white leading-tight">
+                    Estadísticas de Ganancias
+                  </h2>
+                  <p className="text-white/70 text-xs mt-1">Ingresos, riesgo y renovaciones.</p>
+                  <div className="mt-3">
+                    <p className="text-[10px] uppercase tracking-[0.1em] text-emerald-200/90">Ingresado (real)</p>
+                    <p className="text-2xl md:text-3xl font-extrabold text-emerald-300">
+                      ${revenueStats.actualMonthly.toLocaleString("es-AR")}
+                    </p>
+                    <p className="text-white/50 text-[11px] mt-0.5">
+                      {(revenueStats.actualMonthly / 2000).toFixed(2)} EUR aprox.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-cyan-300/30 bg-gradient-to-b from-cyan-400/18 to-emerald-400/12 p-4">
+                  <p className="text-[10px] uppercase tracking-[0.1em] text-cyan-100 mb-1">Acción recomendada</p>
+                  <p className="text-white/90 text-xs leading-snug">
+                    Pendientes + renovaciones 7 días para proteger caja.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setYearlyEarningsYear(new Date().getFullYear());
+                      setYearlyEarningsModalOpen(true);
+                    }}
+                    className="mt-3 w-full px-3 py-2 rounded-lg bg-white/90 text-slate-900 font-semibold hover:bg-white transition-colors text-xs"
+                  >
+                    Ver detalle {new Date().getFullYear()}
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+                <div className="rounded-lg border border-emerald-300/30 bg-emerald-400/10 p-3">
+                  <p className="text-white/75 text-[10px] uppercase tracking-[0.1em] mb-0.5">Mensual estimada</p>
+                  <p className="text-lg sm:text-xl font-bold text-emerald-200">
+                    ${revenueStats.estimatedMonthly.toLocaleString("es-AR")}
+                  </p>
+                  <p className="text-white/50 text-[10px] mt-0.5">{(revenueStats.estimatedMonthly / 2000).toFixed(2)} EUR</p>
+                </div>
+
+                <div className="rounded-lg border border-cyan-300/30 bg-cyan-400/10 p-3">
+                  <p className="text-white/75 text-[10px] uppercase tracking-[0.1em] mb-0.5">Premium activos</p>
+                  <p className="text-lg sm:text-xl font-bold text-cyan-200">{revenueStats.premiumActiveThisMonth}</p>
+                  <p className="text-white/50 text-[10px] mt-0.5">Mes actual</p>
+                </div>
+
+                <div className="rounded-lg border border-orange-300/30 bg-orange-400/10 p-3">
+                  <p className="text-white/75 text-[10px] uppercase tracking-[0.1em] mb-0.5">Pendientes</p>
+                  <p className="text-lg sm:text-xl font-bold text-orange-200">{revenueStats.pendingPayments}</p>
+                  <p className="text-white/50 text-[10px] mt-0.5">Seguimiento</p>
+                </div>
+
+                <div className="rounded-lg border border-blue-300/30 bg-blue-400/10 p-3">
+                  <p className="text-white/75 text-[10px] uppercase tracking-[0.1em] mb-0.5">Renov. 7d</p>
+                  <p className="text-lg sm:text-xl font-bold text-blue-200">{revenueStats.renewingSoon}</p>
+                  <p className="text-white/50 text-[10px] mt-0.5">Crítico</p>
+                </div>
+              </div>
+
+              <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="rounded-lg border border-indigo-300/25 bg-indigo-400/10 p-3">
+                  <p className="text-white/75 text-[10px] uppercase tracking-[0.1em] mb-0.5">Proyección anual</p>
+                  <p className="text-lg font-bold text-indigo-100">
+                    ${revenueStats.estimatedAnnual.toLocaleString("es-AR")}
+                  </p>
+                  <p className="text-white/50 text-[10px] mt-0.5">{(revenueStats.estimatedAnnual / 2000).toFixed(2)} EUR</p>
+                </div>
+                <div className="rounded-lg border border-purple-300/25 bg-purple-400/10 p-3">
+                  <p className="text-white/75 text-[10px] uppercase tracking-[0.1em] mb-0.5">Total premium histórico</p>
+                  <p className="text-lg font-bold text-purple-100">{revenueStats.totalPremiumUsers}</p>
+                  <p className="text-white/50 text-[10px] mt-0.5">Registrados</p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+
+        {/* Estadísticas rápidas — compacto, misma paleta */}
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="relative overflow-hidden mb-6 rounded-2xl border border-cyan-300/25 bg-gradient-to-br from-[#0b1e37] via-[#0f2847] to-[#0f3d3a] p-4 md:p-5 shadow-[0_16px_48px_-28px_rgba(34,211,238,0.55)]"
+        >
+          <div className="pointer-events-none absolute -top-10 -right-6 h-28 w-28 rounded-full bg-cyan-400/15 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-12 left-1/3 h-32 w-32 rounded-full bg-emerald-400/12 blur-3xl" />
+
+          <div className="relative flex flex-wrap items-center gap-1.5 mb-3">
+            <span className="px-2 py-0.5 rounded-full border border-cyan-300/35 bg-cyan-400/15 text-[10px] font-semibold tracking-wide text-cyan-100">
+              USUARIOS
+            </span>
+            <span className="px-2 py-0.5 rounded-full border border-white/20 bg-white/10 text-[10px] font-semibold tracking-wide text-white/90">
+              Vista rápida
+            </span>
+          </div>
+          <h2 className="text-lg md:text-xl font-extrabold text-white tracking-tight">Estadísticas rápidas</h2>
+          <p className="text-white/65 text-xs mt-0.5 mb-3 max-w-xl">
+            Total, premium, regulares y atléticos.
+          </p>
+
+          <div className="relative grid grid-cols-2 lg:grid-cols-4 gap-2">
+            <div className="rounded-xl border border-cyan-300/30 bg-black/25 p-3 backdrop-blur-sm">
+              <p className="text-cyan-100/85 text-[10px] uppercase tracking-[0.1em] mb-0.5">Total</p>
+              <p className="text-2xl font-extrabold text-white tabular-nums">{totalUsers}</p>
+              <p className="text-white/45 text-[10px] mt-0.5">Registrados</p>
+              <p
+                className={`text-[10px] mt-1 ${
+                  totalUsersMonthDelta > 0
+                    ? "text-emerald-200"
+                    : totalUsersMonthDelta < 0
+                    ? "text-red-200"
+                    : "text-white/55"
+                }`}
               >
-                Abrir formulario de clientes
-              </button>
-              <button
-                onClick={handleCopyFormLink}
-                className="px-4 py-2 rounded-lg bg-white/10 border border-white/20 text-white/90 hover:bg-white/20 transition-colors text-sm font-medium"
-              >
-                {copiedFormLink ? "Enlace copiado" : "Copiar enlace del formulario"}
-              </button>
+                {currentMonthLabel}: {totalUsersMonthDelta > 0 ? "+" : ""}
+                {totalUsersMonthDelta} altas netas vs {previousMonthLabel}
+              </p>
+            </div>
+            <div className="rounded-xl border border-emerald-300/35 bg-emerald-500/10 p-3">
+              <p className="text-emerald-100/90 text-[10px] uppercase tracking-[0.1em] mb-0.5">Premium</p>
+              <p className="text-2xl font-extrabold text-emerald-200 tabular-nums">{premiumUsers}</p>
+              <p className="text-white/50 text-[10px] mt-0.5">Con premium</p>
+              <p className="text-emerald-100/85 text-[10px] mt-1">
+                {currentMonthLabel}: {premiumActivatedCurrentMonth} premium nuevos
+              </p>
+            </div>
+            <div className="rounded-xl border border-blue-300/30 bg-blue-500/10 p-3">
+              <p className="text-blue-100/90 text-[10px] uppercase tracking-[0.1em] mb-0.5">Regulares</p>
+              <p className="text-2xl font-extrabold text-blue-200 tabular-nums">{regularUsers}</p>
+              <p className="text-white/50 text-[10px] mt-0.5">Sin premium</p>
+            </div>
+            <div className="rounded-xl border border-emerald-400/25 bg-gradient-to-br from-emerald-500/15 to-cyan-500/10 p-3">
+              <p className="text-emerald-100/90 text-[10px] uppercase tracking-[0.1em] mb-0.5">Atléticos</p>
+              <p className="text-2xl font-extrabold text-emerald-100 tabular-nums">{athleticUsers}</p>
+              <p className="text-white/50 text-[10px] mt-0.5">Perfil deportivo</p>
             </div>
           </div>
         </motion.div>
 
-        {newUsersList.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-8 p-6 rounded-xl border border-green-500/30 bg-gradient-to-r from-green-500/20 to-emerald-500/10 backdrop-blur-sm"
-          >
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-                  <span role="img" aria-label="confeti">🎉</span>
-                  {newUsersList.length === 1
-                    ? "Nuevo usuario desde tu última revisión"
-                    : `${newUsersList.length} usuarios nuevos desde tu última revisión`}
-                </h2>
-                <p className="text-white/70 text-sm mt-1">
-                  Última revisión registrada: {formatDateTimeWithHour(adminMeta.lastUsersCheck)}
-                </p>
-              </div>
-              <button
-                onClick={handleMarkNewUsersSeen}
-                disabled={markingNewUsersSeen}
-                className="px-4 py-2 rounded-lg bg-green-500/30 hover:bg-green-500/40 border border-green-500/40 text-green-200 text-sm font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {markingNewUsersSeen ? "Guardando..." : "Marcar como revisado"}
-              </button>
-            </div>
-            <ul className="mt-4 space-y-2 text-sm">
-              {newUsersList.slice(0, 5).map((user) => (
-                <li
-                  key={user.id}
-                  className="flex items-center justify-between px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white/90"
-                >
-                  <div>
-                    <p className="font-medium text-white">{user.nombre || user.email || user.id}</p>
-                    <p className="text-white/60 text-xs">
-                      {user.email || "Sin email registrado"}
-                    </p>
-                  </div>
-                  <span className="text-white/60 text-xs">
-                    {user.createdAt ? formatDateTimeWithHour(user.createdAt) : "Sin fecha"}
-                  </span>
-                </li>
-              ))}
-              {newUsersList.length > 5 && (
-                <li className="text-white/60 text-xs text-center">
-                  ... y {newUsersList.length - 5} usuarios más
-                </li>
-              )}
-            </ul>
-          </motion.div>
+        </>
         )}
 
-        {/* Panel de Estadísticas de Ganancias */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="lg:col-span-2 p-6 rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-blue-500/30 backdrop-blur-sm"
-          >
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 shrink-0 text-yellow-400">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1.41 16.09V20h-2.67v-1.93c-1.71-.36-3.16-1.46-3.27-3.4h1.96c.1 1.05.82 1.87 2.65 1.87 1.96 0 2.4-.98 2.4-1.59 0-.83-.44-1.61-2.67-2.14-2.48-.6-4.18-1.62-4.18-3.67 0-1.72 1.39-2.84 3.11-3.21V4h2.67v1.95c1.86.45 2.79 1.86 2.85 3.39H14.3c-.05-1.11-.64-1.87-2.22-1.87-1.5 0-2.4.68-2.4 1.64 0 .84.65 1.39 2.67 1.95s4.18 1.08 4.18 3.67c-.01 1.83-1.38 2.83-3.12 3.16z"/>
-                </svg>
-                Estadísticas de Ganancias
-              </h2>
-              <button
-                type="button"
-                onClick={() => {
-                  setYearlyEarningsYear(new Date().getFullYear());
-                  setYearlyEarningsModalOpen(true);
-                }}
-                className="shrink-0 px-4 py-2 rounded-lg bg-cyan-500/25 border border-cyan-400/40 text-cyan-100 hover:bg-cyan-500/35 transition-colors text-sm font-semibold w-full sm:w-auto text-center"
-              >
-                Ver {new Date().getFullYear()}
-              </button>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <p className="text-white/60 text-xs mb-1">Ganancia Mensual Real</p>
-                <p className="text-2xl font-bold text-green-400">
-                  ${revenueStats.actualMonthly.toLocaleString('es-AR')}
-                </p>
-                <p className="text-white/40 text-xs mt-1">ARS / {(revenueStats.actualMonthly / 2000).toFixed(2)} EUR</p>
-              </div>
-              <div>
-                <p className="text-white/60 text-xs mb-1">Ganancia Mensual Estimada</p>
-                <p className="text-2xl font-bold text-yellow-400">
-                  ${revenueStats.estimatedMonthly.toLocaleString('es-AR')}
-                </p>
-                <p className="text-white/40 text-xs mt-1">ARS / {(revenueStats.estimatedMonthly / 2000).toFixed(2)} EUR</p>
-              </div>
-              <div>
-                <p className="text-white/60 text-xs mb-1">Premium Activos (Este Mes)</p>
-                <p className="text-2xl font-bold text-cyan-400">
-                  {revenueStats.premiumActiveThisMonth}
-                </p>
-                <p className="text-white/40 text-xs mt-1">usuarios</p>
-              </div>
-              <div>
-                <p className="text-white/60 text-xs mb-1">Pendientes de Pago</p>
-                <p className="text-2xl font-bold text-orange-400">
-                  {revenueStats.pendingPayments}
-                </p>
-                <p className="text-white/40 text-xs mt-1">usuarios</p>
-              </div>
-              <div>
-                <p className="text-white/60 text-xs mb-1">Renovando Pronto</p>
-                <p className="text-2xl font-bold text-blue-400">
-                  {revenueStats.renewingSoon}
-                </p>
-                <p className="text-white/40 text-xs mt-1">próximos 7 días</p>
-              </div>
-            </div>
-            <div className="mt-4 pt-4 border-t border-white/10">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white/60 text-sm">Proyección Anual</p>
-                  <p className="text-xl font-bold text-cyan-400">
-                    ${revenueStats.estimatedAnnual.toLocaleString('es-AR')} ARS
-                  </p>
-                  <p className="text-white/40 text-xs mt-1">{(revenueStats.estimatedAnnual / 2000).toFixed(2)} EUR</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-white/60 text-sm">Total Premium</p>
-                  <p className="text-xl font-bold text-purple-400">
-                    {revenueStats.totalPremiumUsers}
-                  </p>
-                  <p className="text-white/40 text-xs mt-1">
-                    usuarios premium registrados
-                  </p>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-          
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.2 }}
-            className="p-6 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm"
-          >
-            <h3 className="text-lg font-semibold text-white mb-4">Acciones Rápidas</h3>
-            <div className="space-y-3">
-              <button
-                type="button"
-                onClick={() => setAssignedTrainerModalOpen(true)}
-                className="w-full px-4 py-2 rounded-lg bg-emerald-500/20 border border-emerald-400/35 text-emerald-100 hover:bg-emerald-500/30 transition-colors text-sm font-medium inline-flex items-center justify-center gap-2"
-              >
-                <FaUserFriends className="h-3.5 w-3.5 shrink-0" />
-                <span className="text-left flex-1">Entrenadores asignados</span>
-                {assignedTrainerUsers.length > 0 && (
-                  <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[10px] bg-emerald-400/25 text-emerald-100 border border-emerald-400/30">
-                    {assignedTrainerUsers.length}
-                  </span>
-                )}
-              </button>
-              <button
-                onClick={() => {
-                  const pendingUsers = users.filter(u => {
-                    // Excluir al admin
-                    if (u.email?.toLowerCase() === "admin@fitplan-ai.com") return false;
-                    const status = getPaymentStatus(u);
-                    return status.status === "unpaid" && u.premium;
-                  });
-                  const totalARS = pendingUsers.length * 10000;
-                  const totalEUR = pendingUsers.length * 5;
-                  alert(`${pendingUsers.length} usuarios premium están sin pagar este mes. Total a recuperar: $${totalARS.toLocaleString('es-AR')} ARS / ${totalEUR.toFixed(2)} EUR`);
-                }}
-                className="w-full px-4 py-2 rounded-lg bg-orange-500/20 border border-orange-500/30 text-orange-400 hover:bg-orange-500/30 transition-colors text-sm"
-              >
-                Ver Pendientes
-              </button>
-              <button
-                onClick={() => {
-                  const totalRenewARS = revenueStats.renewingSoon * 10000;
-                  const totalRenewEUR = revenueStats.renewingSoon * 5;
-                  alert(`${revenueStats.renewingSoon} usuarios renovarán en los próximos 7 días. Total esperado: $${totalRenewARS.toLocaleString('es-AR')} ARS / ${totalRenewEUR.toFixed(2)} EUR`);
-                }}
-                className="w-full px-4 py-2 rounded-lg bg-blue-500/20 border border-blue-500/30 text-blue-400 hover:bg-blue-500/30 transition-colors text-sm"
-              >
-                Renovaciones Próximas
-              </button>
-              <div className="pt-3 border-t border-white/10">
-                <p className="text-white/60 text-xs mb-2">Precios mensuales actuales</p>
-                <p className="text-lg font-bold text-white">$10.000 ARS</p>
-                <p className="text-lg font-bold text-white">5.00 EUR</p>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-
-        {/* Estadísticas rápidas */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="p-4 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm"
-          >
-            <p className="text-white/60 text-sm mb-1">Total Usuarios</p>
-            <p className="text-2xl font-bold text-blue-400">{totalUsers}</p>
-          </motion.div>
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.1 }}
-            className="p-4 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm"
-          >
-            <p className="text-white/60 text-sm mb-1">Usuarios Premium</p>
-            <p className="text-2xl font-bold text-yellow-400">
-              {premiumUsers}
-            </p>
-          </motion.div>
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.2 }}
-            className="p-4 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm"
-          >
-            <p className="text-white/60 text-sm mb-1">Usuarios Regulares</p>
-            <p className="text-2xl font-bold text-cyan-400">
-              {regularUsers}
-            </p>
-          </motion.div>
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.3 }}
-            className="p-4 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm"
-          >
-            <p className="text-white/60 text-sm mb-1">Atléticos</p>
-            <p className="text-2xl font-bold text-green-400">
-              {athleticUsers}
-            </p>
-          </motion.div>
-        </div>
-
-        {/* Clientes provenientes del formulario de inicio */}
-        <div className="rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm overflow-hidden mb-8">
-          <div className="px-5 py-4 border-b border-white/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        {/* Clientes provenientes del formulario de inicio — solo vista 1:1 */}
+        {view === "intake" && (
+        <div className="relative overflow-hidden rounded-2xl border border-cyan-300/25 bg-gradient-to-br from-[#0b1e37] via-[#0f2847] to-[#0f3d3a] shadow-[0_16px_48px_-28px_rgba(34,211,238,0.45)] mb-6">
+          <div className="px-4 py-3 border-b border-white/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-black/20">
             <div>
-              <h2 className="text-lg font-semibold">Clientes del formulario de inicio</h2>
-              <p className="text-xs text-white/60 mt-1">Leads que te contactan para entrenamiento 1:1</p>
+              <h2 className="text-base font-bold text-white">Lista de clientes (formulario 1:1)</h2>
+              <p className="text-[11px] text-white/55 mt-0.5">Filtros y acciones por lead</p>
             </div>
-            <span className="inline-flex items-center gap-2 rounded-full bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 px-3 py-1 text-xs font-medium w-fit">
-              {filteredIntakeClients.length} de {intakeClients.length}
+            <span className="inline-flex items-center gap-2 rounded-full bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 px-2.5 py-0.5 text-[11px] font-medium w-fit">
+              {filteredIntakeClients.length} / {intakeClients.length}
             </span>
           </div>
           {!loadingIntakeClients && intakeClients.length > 0 && (
@@ -3547,24 +3593,31 @@ export default function Admin() {
             </>
           )}
         </div>
+        )}
 
-        {/* Lista de usuarios */}
-        <div className="rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm overflow-hidden">
+        {/* Lista de usuarios FitPlan */}
+        {view === "fitplan" && (
+        <div className="relative overflow-hidden rounded-2xl border border-cyan-300/25 bg-gradient-to-br from-[#0b1e37] via-[#0f2847] to-[#0f3d3a] shadow-[0_16px_48px_-28px_rgba(34,211,238,0.45)] mb-6">
+          <div className="px-4 py-3 border-b border-white/10 bg-black/20">
+            <h2 className="text-base font-bold text-white">Usuarios FitPlan</h2>
+            <p className="text-[11px] text-white/55 mt-0.5">Cuentas registradas (sin admin)</p>
+          </div>
+          <div className="overflow-hidden bg-black/10">
           {/* Vista de tabla para desktop */}
           <div className="hidden lg:block overflow-x-auto">
             <table className="w-full">
               <thead className="bg-white/5 border-b border-white/10">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Nombre</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Contacto</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Plan</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Estado de Pago</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Edad</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Altura</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Peso</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Estado</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Creado</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Acciones</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-white/55 uppercase tracking-wider">Nombre</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-white/55 uppercase tracking-wider">Contacto</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-white/55 uppercase tracking-wider">Plan</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-white/55 uppercase tracking-wider">Pago</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-white/55 uppercase tracking-wider">Edad</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-white/55 uppercase tracking-wider">Alt.</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-white/55 uppercase tracking-wider">Peso</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-white/55 uppercase tracking-wider">Estado</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-white/55 uppercase tracking-wider">Creado</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-white/55 uppercase tracking-wider">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/10">
@@ -4314,6 +4367,8 @@ export default function Admin() {
             )}
           </div>
         </div>
+        </div>
+        )}
 
         {/* Modal de edición */}
         {editingUser && (

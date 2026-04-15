@@ -9,7 +9,7 @@ import LoginModal from "./LoginModal";
 import UserMessagesModal from "./UserMessagesModal";
 import GymCalendarModal from "./GymCalendarModal";
 import { getDbSafe, getAuthSafe } from "@/lib/firebase";
-import { collection, query, where, getDocs, limit, doc, getDoc, updateDoc } from "firebase/firestore";
+import { collection, query, where, getDocs, limit, doc, getDoc, updateDoc, orderBy } from "firebase/firestore";
 import React from "react";
 import { useAppLocale } from "@/contexts/AppLocaleContext";
 import { ui, dash } from "@/lib/i18n/appUi";
@@ -27,9 +27,11 @@ export default function Navbar() {
   const [messagesCount, setMessagesCount] = useState(0);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [adminNotificationUnread, setAdminNotificationUnread] = useState(0);
+  const [adminNewUsersUnread, setAdminNewUsersUnread] = useState(0);
+  const [adminLastUsersCheck, setAdminLastUsersCheck] = useState<string | null>(null);
   const [adminNotificationsOpen, setAdminNotificationsOpen] = useState(false);
   const [adminNotificationFilter, setAdminNotificationFilter] = useState<
-    "all" | "payments" | "fatigue" | "risk" | "emails"
+    "all" | "payments" | "fatigue" | "risk" | "emails" | "users"
   >("all");
   const [adminNotificationItems, setAdminNotificationItems] = useState<
     Array<{
@@ -42,6 +44,7 @@ export default function Navbar() {
       type?: string;
       message?: string;
       createdAt?: unknown;
+      source?: "system" | "users";
     }>
   >([]);
   const [messagesModalOpen, setMessagesModalOpen] = useState(false);
@@ -266,26 +269,135 @@ export default function Navbar() {
     };
   }, [authUser]);
 
-  // Notificaciones del admin (cobros/alertas/riesgo/emails)
-  useEffect(() => {
+  const toDateSafe = (value: unknown): Date | null => {
+    if (!value) return null;
+    if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+    if (typeof value === "string") {
+      const parsed = new Date(value);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+    if (typeof value === "object") {
+      if ("toDate" in value && typeof (value as { toDate?: () => Date }).toDate === "function") {
+        const parsed = (value as { toDate: () => Date }).toDate();
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
+      }
+      if ("seconds" in value) {
+        const ts = value as { seconds: number; nanoseconds?: number };
+        const parsed = new Date(ts.seconds * 1000 + (ts.nanoseconds || 0) / 1000000);
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
+      }
+    }
+    return null;
+  };
+
+  const refreshAdminNotifications = async () => {
     if (!authUser || !isAdmin) {
       setAdminNotificationUnread(0);
+      setAdminNewUsersUnread(0);
+      setAdminLastUsersCheck(null);
       setAdminNotificationItems([]);
       return;
     }
-    const fetchAdminNotifications = async () => {
-      try {
+    try {
+        let systemUnreadCount = 0;
+        let systemItems: Array<{
+          id: string;
+          userName?: string;
+          userEmail?: string;
+          amount?: number;
+          currency?: string;
+          provider?: string;
+          type?: string;
+          message?: string;
+          createdAt?: unknown;
+          source?: "system" | "users";
+        }> = [];
+
         const response = await fetch(`/api/admin/paymentNotifications?adminUserId=${authUser.uid}`);
-        if (!response.ok) return;
-        const data = await response.json();
-        setAdminNotificationUnread(typeof data?.unreadCount === "number" ? data.unreadCount : 0);
-        setAdminNotificationItems(Array.isArray(data?.items) ? data.items : []);
-      } catch {
-        // noop
-      }
-    };
-    fetchAdminNotifications();
-    const interval = setInterval(fetchAdminNotifications, 30000);
+        if (response.ok) {
+          const data = await response.json();
+          systemUnreadCount = typeof data?.unreadCount === "number" ? data.unreadCount : 0;
+          systemItems = Array.isArray(data?.items)
+            ? data.items.map((item: Record<string, unknown>) => ({
+                id: String(item.id || ""),
+                userName: typeof item.userName === "string" ? item.userName : undefined,
+                userEmail: typeof item.userEmail === "string" ? item.userEmail : undefined,
+                amount: typeof item.amount === "number" ? item.amount : undefined,
+                currency: typeof item.currency === "string" ? item.currency : undefined,
+                provider: typeof item.provider === "string" ? item.provider : undefined,
+                type: typeof item.type === "string" ? item.type : undefined,
+                message: typeof item.message === "string" ? item.message : undefined,
+                createdAt: item.createdAt,
+                source: "system",
+              }))
+            : [];
+        }
+
+        let newUserItems: typeof systemItems = [];
+        let unreadNewUsers = 0;
+        const db = getDbSafe();
+        if (db) {
+          const adminDoc = await getDoc(doc(db, "usuarios", authUser.uid));
+          const adminData = adminDoc.data() || {};
+          const lastCheckDate = toDateSafe((adminData as Record<string, unknown>).lastUsersCheck);
+          const lastCheckIso = lastCheckDate ? lastCheckDate.toISOString() : null;
+          setAdminLastUsersCheck(lastCheckIso);
+
+          const usersSnap = await getDocs(query(collection(db, "usuarios"), orderBy("createdAt", "desc"), limit(40)));
+          newUserItems = usersSnap.docs
+            .map((userDoc) => {
+              const userData = userDoc.data() as Record<string, unknown>;
+              const email = typeof userData.email === "string" ? userData.email.toLowerCase() : "";
+              if (email === "admin@fitplan-ai.com") return null;
+              const createdAtDate = toDateSafe(userData.createdAt);
+              if (!createdAtDate) return null;
+
+              return {
+                id: `user-registered-${userDoc.id}`,
+                userName: typeof userData.nombre === "string" ? userData.nombre : undefined,
+                userEmail: typeof userData.email === "string" ? userData.email : undefined,
+                type: "user_registered",
+                message: "Nuevo registro en FitPlan",
+                createdAt: createdAtDate.toISOString(),
+                source: "users" as const,
+              };
+            })
+            .filter((item): item is NonNullable<typeof item> => Boolean(item));
+          unreadNewUsers = newUserItems.filter((item) => {
+            const createdAtDate = toDateSafe(item.createdAt);
+            if (!createdAtDate) return false;
+            if (!lastCheckDate) return true;
+            return createdAtDate.getTime() > lastCheckDate.getTime();
+          }).length;
+        }
+
+        const mergedItems = [...newUserItems, ...systemItems].sort((a, b) => {
+          const aDate = toDateSafe(a.createdAt)?.getTime() || 0;
+          const bDate = toDateSafe(b.createdAt)?.getTime() || 0;
+          return bDate - aDate;
+        });
+
+        setAdminNewUsersUnread(unreadNewUsers);
+        setAdminNotificationUnread(systemUnreadCount + unreadNewUsers);
+        setAdminNotificationItems(mergedItems.slice(0, 30));
+    } catch {
+      // noop
+    }
+  };
+
+  // Notificaciones del admin (cobros/alertas/riesgo/emails + nuevos usuarios)
+  useEffect(() => {
+    if (!authUser || !isAdmin) {
+      setAdminNotificationUnread(0);
+      setAdminNewUsersUnread(0);
+      setAdminLastUsersCheck(null);
+      setAdminNotificationItems([]);
+      return;
+    }
+    void refreshAdminNotifications();
+    const interval = setInterval(() => {
+      void refreshAdminNotifications();
+    }, 30000);
     return () => clearInterval(interval);
   }, [authUser, isAdmin]);
 
@@ -380,6 +492,9 @@ export default function Navbar() {
     if (!isAdmin || !authUser) return;
     const nextOpen = !adminNotificationsOpen;
     setAdminNotificationsOpen(nextOpen);
+    if (nextOpen) {
+      await refreshAdminNotifications();
+    }
     if (nextOpen && adminNotificationUnread > 0) {
       try {
         await fetch("/api/admin/paymentNotifications", {
@@ -387,20 +502,64 @@ export default function Navbar() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ adminUserId: authUser.uid }),
         });
-        setAdminNotificationUnread(0);
       } catch {
         // noop
       }
+      if (adminNewUsersUnread > 0) {
+        try {
+          const db = getDbSafe();
+          if (db) {
+            const nowIso = new Date().toISOString();
+            await updateDoc(doc(db, "usuarios", authUser.uid), {
+              lastUsersCheck: nowIso,
+              updatedAt: nowIso,
+            });
+            setAdminLastUsersCheck(nowIso);
+            setAdminNewUsersUnread(0);
+          }
+        } catch {
+          // noop
+        }
+      }
+      setAdminNotificationUnread(0);
     }
   };
 
   const visibleAdminNotificationItems = adminNotificationItems.filter((item) => {
     if (adminNotificationFilter === "all") return true;
+    if (adminNotificationFilter === "users") return item.type === "user_registered";
     if (adminNotificationFilter === "payments") return item.type === "payment_success";
     if (adminNotificationFilter === "fatigue") return item.type === "coach_alert";
     if (adminNotificationFilter === "risk") return item.type === "adherence_risk_weekly";
     return item.type === "weekly_digest_sent" || item.type === "weekly_digest_failed";
   });
+
+  const groupedAdminNotificationItems = visibleAdminNotificationItems.reduce<Record<string, Array<(typeof visibleAdminNotificationItems)[number]>>>((acc, item) => {
+    const date = toDateSafe(item.createdAt);
+    const dayKey = date
+      ? date.toLocaleDateString("es-AR", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" })
+      : "Sin fecha";
+    if (!acc[dayKey]) acc[dayKey] = [];
+    acc[dayKey].push(item);
+    return acc;
+  }, {});
+  const isAllNotificationsFilter = adminNotificationFilter === "all";
+  const limitedGroupedAdminNotificationItems = Object.entries(groupedAdminNotificationItems).reduce<
+    Array<[string, Array<(typeof visibleAdminNotificationItems)[number]>]>
+  >((acc, [dayKey, dayItems]) => {
+    if (!isAllNotificationsFilter) {
+      acc.push([dayKey, dayItems]);
+      return acc;
+    }
+    const alreadyCounted = acc.reduce((sum, [, items]) => sum + items.length, 0);
+    if (alreadyCounted >= 5) return acc;
+    const remaining = 5 - alreadyCounted;
+    acc.push([dayKey, dayItems.slice(0, remaining)]);
+    return acc;
+  }, []);
+  const visibleNotificationsCount = isAllNotificationsFilter
+    ? Math.min(5, visibleAdminNotificationItems.length)
+    : visibleAdminNotificationItems.length;
 
   const marketingEsToEn: Record<string, string> = {
     "/": "/en",
@@ -618,6 +777,7 @@ export default function Navbar() {
                       <div className="mb-2 flex flex-wrap gap-1.5">
                         {[
                           ["all", "Todo"],
+                          ["users", "Usuarios"],
                           ["payments", "Cobros"],
                           ["fatigue", "Fatiga"],
                           ["risk", "Riesgo"],
@@ -627,7 +787,7 @@ export default function Navbar() {
                             key={id}
                             type="button"
                             onClick={() =>
-                              setAdminNotificationFilter(id as "all" | "payments" | "fatigue" | "risk" | "emails")
+                              setAdminNotificationFilter(id as "all" | "payments" | "fatigue" | "risk" | "emails" | "users")
                             }
                             className={`rounded-lg border px-2 py-1 text-[11px] transition ${
                               adminNotificationFilter === id
@@ -639,27 +799,60 @@ export default function Navbar() {
                           </button>
                         ))}
                       </div>
-                      <div className="max-h-56 space-y-1.5 overflow-y-auto pr-1">
-                        {visibleAdminNotificationItems.length === 0 ? (
+                      {!!adminLastUsersCheck && (
+                        <p className="mb-2 text-[10px] uppercase tracking-wide text-[var(--landing-muted)]">
+                          Última revisión: {new Date(adminLastUsersCheck).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                      )}
+                      <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+                        {visibleNotificationsCount === 0 ? (
                           <p className="rounded-lg border border-[var(--landing-border)] bg-[var(--landing-surface)] px-3 py-2 text-xs text-[var(--landing-muted)]">
                             Sin notificaciones recientes.
                           </p>
                         ) : (
-                          visibleAdminNotificationItems.map((item) => (
-                            <div
-                              key={item.id}
-                              className="rounded-lg border border-[var(--landing-border)] bg-[var(--landing-surface)]/80 px-3 py-2 text-xs text-[var(--foreground)]"
-                            >
-                              <p>
-                                {item.message
-                                  ? `${item.userName || item.userEmail || "Cliente"} · ${String(item.message)}`
-                                  : `${item.userName || item.userEmail || "Usuario"} · ${item.amount || 0} ${item.currency || ""}`}
-                              </p>
-                              <p className="mt-1 text-[10px] uppercase tracking-wide text-[var(--landing-muted)]">
-                                {String(item.provider || item.type || "Notificación")}
-                              </p>
+                          limitedGroupedAdminNotificationItems.map(([dayKey, dayItems]) => (
+                            <div key={dayKey} className="space-y-1.5">
+                              <p className="px-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--landing-muted)]">{dayKey}</p>
+                              {dayItems.map((item) => {
+                                const itemDate = toDateSafe(item.createdAt);
+                                const hourLabel = itemDate
+                                  ? `${String(itemDate.getHours()).padStart(2, "0")}:${String(itemDate.getMinutes()).padStart(2, "0")}`
+                                  : "--:--";
+                                return (
+                                  <div
+                                    key={item.id}
+                                    className="rounded-lg border border-[var(--landing-border)] bg-[var(--landing-surface)]/80 px-3 py-2 text-xs text-[var(--foreground)]"
+                                  >
+                                    <div className="flex items-center justify-between gap-2">
+                                      <p className="text-[10px] uppercase tracking-wide text-[var(--landing-muted)]">
+                                        {hourLabel}
+                                      </p>
+                                      <p className="text-[10px] uppercase tracking-wide text-[var(--landing-muted)]">
+                                        {String(item.provider || item.type || "Notificación")}
+                                      </p>
+                                    </div>
+                                    <p className="mt-1">
+                                      {item.message
+                                        ? `${item.userName || item.userEmail || "Cliente"} · ${String(item.message)}`
+                                        : `${item.userName || item.userEmail || "Usuario"} · ${item.amount || 0} ${item.currency || ""}`}
+                                    </p>
+                                  </div>
+                                );
+                              })}
                             </div>
                           ))
+                        )}
+                        {isAllNotificationsFilter && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAdminNotificationsOpen(false);
+                              router.push("/admin/actividad");
+                            }}
+                            className="w-full rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/20 transition-colors"
+                          >
+                            Ver todas
+                          </button>
                         )}
                       </div>
                     </div>
