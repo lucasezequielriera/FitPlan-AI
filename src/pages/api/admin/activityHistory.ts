@@ -67,6 +67,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!adminDoc.exists || email !== "admin@fitplan-ai.com") {
     return res.status(403).json({ error: "Solo administradores" });
   }
+  const lastUsersCheck = toIso((adminDoc.data() as Record<string, unknown>)?.lastUsersCheck);
 
   const [systemSnap, usersSnap] = await Promise.all([
     db
@@ -131,5 +132,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return bMs - aMs;
   });
 
-  return res.status(200).json({ items });
+  return res.status(200).json({ items, lastUsersCheck });
 }

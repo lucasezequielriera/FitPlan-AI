@@ -9,7 +9,7 @@ import LoginModal from "./LoginModal";
 import UserMessagesModal from "./UserMessagesModal";
 import GymCalendarModal from "./GymCalendarModal";
 import { getDbSafe, getAuthSafe } from "@/lib/firebase";
-import { collection, query, where, getDocs, limit, doc, getDoc, updateDoc, orderBy } from "firebase/firestore";
+import { collection, query, where, getDocs, limit, doc, getDoc, updateDoc } from "firebase/firestore";
 import React from "react";
 import { useAppLocale } from "@/contexts/AppLocaleContext";
 import { ui, dash } from "@/lib/i18n/appUi";
@@ -30,6 +30,7 @@ export default function Navbar() {
   const [adminNewUsersUnread, setAdminNewUsersUnread] = useState(0);
   const [adminLastUsersCheck, setAdminLastUsersCheck] = useState<string | null>(null);
   const [adminNotificationsOpen, setAdminNotificationsOpen] = useState(false);
+  const [adminNotificationsMobileTop, setAdminNotificationsMobileTop] = useState<number | null>(null);
   const [adminNotificationFilter, setAdminNotificationFilter] = useState<
     "all" | "payments" | "fatigue" | "risk" | "emails" | "users"
   >("all");
@@ -59,6 +60,7 @@ export default function Navbar() {
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const userMenuPanelRef = useRef<HTMLDivElement | null>(null);
   const adminNotificationsRef = useRef<HTMLDivElement | null>(null);
+  const adminBellButtonRef = useRef<HTMLButtonElement | null>(null);
   const isPlanPage = router.pathname === "/plan";
   const isDashboardPage = router.pathname === "/dashboard";
 
@@ -333,49 +335,43 @@ export default function Navbar() {
             : [];
         }
 
-        let newUserItems: typeof systemItems = [];
+        let mergedItems = [...systemItems].sort((a, b) => {
+          const aDate = toDateSafe(a.createdAt)?.getTime() || 0;
+          const bDate = toDateSafe(b.createdAt)?.getTime() || 0;
+          return bDate - aDate;
+        });
         let unreadNewUsers = 0;
-        const db = getDbSafe();
-        if (db) {
-          const adminDoc = await getDoc(doc(db, "usuarios", authUser.uid));
-          const adminData = adminDoc.data() || {};
-          const lastCheckDate = toDateSafe((adminData as Record<string, unknown>).lastUsersCheck);
-          const lastCheckIso = lastCheckDate ? lastCheckDate.toISOString() : null;
+
+        const historyResponse = await fetch(`/api/admin/activityHistory?adminUserId=${authUser.uid}`);
+        if (historyResponse.ok) {
+          const historyData = await historyResponse.json();
+          const historyItems = Array.isArray(historyData?.items)
+            ? historyData.items.map((item: Record<string, unknown>) => ({
+                id: String(item.id || ""),
+                userName: typeof item.userName === "string" ? item.userName : undefined,
+                userEmail: typeof item.userEmail === "string" ? item.userEmail : undefined,
+                amount: typeof item.amount === "number" ? item.amount : undefined,
+                currency: typeof item.currency === "string" ? item.currency : undefined,
+                provider: typeof item.provider === "string" ? item.provider : undefined,
+                type: typeof item.type === "string" ? item.type : undefined,
+                message: typeof item.message === "string" ? item.message : undefined,
+                createdAt: item.createdAt,
+                source: item.source === "users" ? "users" : "system",
+              }))
+            : [];
+          mergedItems = historyItems.length > 0 ? historyItems : mergedItems;
+
+          const lastCheckIso = typeof historyData?.lastUsersCheck === "string" ? historyData.lastUsersCheck : null;
           setAdminLastUsersCheck(lastCheckIso);
-
-          const usersSnap = await getDocs(query(collection(db, "usuarios"), orderBy("createdAt", "desc"), limit(40)));
-          newUserItems = usersSnap.docs
-            .map((userDoc) => {
-              const userData = userDoc.data() as Record<string, unknown>;
-              const email = typeof userData.email === "string" ? userData.email.toLowerCase() : "";
-              if (email === "admin@fitplan-ai.com") return null;
-              const createdAtDate = toDateSafe(userData.createdAt);
-              if (!createdAtDate) return null;
-
-              return {
-                id: `user-registered-${userDoc.id}`,
-                userName: typeof userData.nombre === "string" ? userData.nombre : undefined,
-                userEmail: typeof userData.email === "string" ? userData.email : undefined,
-                type: "user_registered",
-                message: "Nuevo registro en FitPlan",
-                createdAt: createdAtDate.toISOString(),
-                source: "users" as const,
-              };
-            })
-            .filter((item): item is NonNullable<typeof item> => Boolean(item));
-          unreadNewUsers = newUserItems.filter((item) => {
+          const lastCheckDate = toDateSafe(lastCheckIso);
+          unreadNewUsers = mergedItems.filter((item) => {
+            if (item.type !== "user_registered") return false;
             const createdAtDate = toDateSafe(item.createdAt);
             if (!createdAtDate) return false;
             if (!lastCheckDate) return true;
             return createdAtDate.getTime() > lastCheckDate.getTime();
           }).length;
         }
-
-        const mergedItems = [...newUserItems, ...systemItems].sort((a, b) => {
-          const aDate = toDateSafe(a.createdAt)?.getTime() || 0;
-          const bDate = toDateSafe(b.createdAt)?.getTime() || 0;
-          return bDate - aDate;
-        });
 
         setAdminNewUsersUnread(unreadNewUsers);
         setAdminNotificationUnread(systemUnreadCount + unreadNewUsers);
@@ -426,6 +422,27 @@ export default function Navbar() {
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
   }, [userMenuOpen, adminNotificationsOpen]);
+
+  useLayoutEffect(() => {
+    if (!adminNotificationsOpen || typeof window === "undefined") {
+      setAdminNotificationsMobileTop(null);
+      return;
+    }
+    const update = () => {
+      const bell = adminBellButtonRef.current;
+      if (!bell) return;
+      const rect = bell.getBoundingClientRect();
+      // Debajo de la campana para que "se sienta" anclado, pero centrado en pantalla.
+      setAdminNotificationsMobileTop(rect.bottom + 10);
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, { passive: true });
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update);
+    };
+  }, [adminNotificationsOpen]);
 
   useEffect(() => {
     if (!userMenuOpen && !adminNotificationsOpen) return;
@@ -507,13 +524,14 @@ export default function Navbar() {
       }
       if (adminNewUsersUnread > 0) {
         try {
-          const db = getDbSafe();
-          if (db) {
-            const nowIso = new Date().toISOString();
-            await updateDoc(doc(db, "usuarios", authUser.uid), {
-              lastUsersCheck: nowIso,
-              updatedAt: nowIso,
-            });
+          const response = await fetch("/api/admin/markUsersSeen", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ adminUserId: authUser.uid }),
+          });
+          if (response.ok) {
+            const data = await response.json();
+            const nowIso = typeof data?.lastUsersCheck === "string" ? data.lastUsersCheck : new Date().toISOString();
             setAdminLastUsersCheck(nowIso);
             setAdminNewUsersUnread(0);
           }
@@ -625,7 +643,7 @@ export default function Navbar() {
 
   return (
     <>
-    <nav className="sticky top-0 z-50 w-full border-b border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--background)_88%,transparent)] backdrop-blur-md supports-[padding:max(0px)]:pt-[env(safe-area-inset-top)]">
+    <nav className="fixed inset-x-0 top-0 z-50 w-full border-b border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--background)_88%,transparent)] backdrop-blur-md supports-[padding:max(0px)]:pt-[env(safe-area-inset-top)]">
       <div className="flex w-full items-center justify-between gap-1.5 px-2.5 py-2 sm:gap-3 sm:px-6 sm:py-3">
         <Link
           href="/"
@@ -771,6 +789,7 @@ export default function Navbar() {
               {isAdmin && (
                 <div className="relative flex items-center gap-2" ref={adminNotificationsRef}>
                   <motion.button
+                    ref={adminBellButtonRef}
                     type="button"
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
@@ -792,7 +811,14 @@ export default function Navbar() {
                   </motion.button>
 
                   {adminNotificationsOpen && (
-                    <div className="absolute right-0 top-[calc(100%+10px)] z-[10040] w-[min(92vw,420px)] rounded-2xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--background)_96%,#0f172a)] p-3 shadow-[0_24px_60px_-26px_rgba(0,0,0,0.65)] ring-1 ring-[color-mix(in_oklab,var(--foreground)_6%,transparent)]">
+                    <div
+                      style={
+                        adminNotificationsMobileTop !== null
+                          ? { top: `${adminNotificationsMobileTop}px` }
+                          : undefined
+                      }
+                      className="fixed left-1/2 top-[calc(env(safe-area-inset-top)+70px)] z-[10040] w-[min(92vw,420px)] -translate-x-1/2 rounded-2xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--background)_96%,#0f172a)] p-3 shadow-[0_24px_60px_-26px_rgba(0,0,0,0.65)] ring-1 ring-[color-mix(in_oklab,var(--foreground)_6%,transparent)] sm:absolute sm:right-0 sm:left-auto sm:top-[calc(100%+10px)] sm:translate-x-0"
+                    >
                       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--landing-muted)]">
                         Notificaciones
                       </p>
@@ -1217,6 +1243,10 @@ export default function Navbar() {
         locale={locale}
       />
     </nav>
+    <div
+      aria-hidden
+      className="h-[calc(56px+env(safe-area-inset-top))] sm:h-[calc(64px+env(safe-area-inset-top))]"
+    />
     
     {/* Modal para enviar mensaje (usuarios) */}
     {sendMessageModalOpen && (
