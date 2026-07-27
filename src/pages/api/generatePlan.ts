@@ -3,6 +3,7 @@ import type { UserInput } from "@/types/plan";
 import { generateTemplateBasedPlan, type PlanGenerationLocale } from "@/lib/templatePlans";
 import { ensureMealMacrosAprox } from "@/lib/mealMacros";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { calculateBMR, clampCaloriesToSafeFloor } from "@/utils/calculations";
 
 // Interface para contexto multi-fase
 interface ContextoMultiFase {
@@ -80,7 +81,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   
   // Valores precalculados del frontend (para consistencia con proyección)
   const tdeeDelFrontend = input._tdeeCalculado;
-  const caloriasObjetivoDelFrontend = input._caloriasObjetivo;
+  // Defensa en profundidad: create-plan.tsx ya aplica un piso de seguridad de
+  // calorías, pero se re-verifica acá server-side por si algún llamador futuro
+  // no pasa por ese flujo (ver clampCaloriesToSafeFloor en utils/calculations.ts).
+  const bmrParaClampServer =
+    input._bmrCalculado ??
+    (input.pesoKg && input.alturaCm && input.edad && input.sexo
+      ? calculateBMR(input.pesoKg, input.alturaCm, input.edad, input.sexo)
+      : undefined);
+  const caloriasObjetivoDelFrontend =
+    input._caloriasObjetivo && bmrParaClampServer && input.sexo
+      ? clampCaloriesToSafeFloor(input._caloriasObjetivo, bmrParaClampServer, input.sexo)
+      : input._caloriasObjetivo;
   const macrosDelFrontend = input._macrosObjetivo;
   // Datos nuevos de versión de plantillas
   const diasGymUsuario = input.diasGym;

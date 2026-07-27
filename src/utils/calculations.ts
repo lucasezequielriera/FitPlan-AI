@@ -54,6 +54,28 @@ export function calculateTDEE(
   return Math.round(bmr * mult);
 }
 
+/**
+ * Piso mínimo seguro de calorías diarias. Sin esto, un déficit calculado
+ * sobre un TDEE bajo (persona pequeña/sedentaria + objetivo agresivo) puede
+ * dar un objetivo peligrosamente bajo — ej. 145cm/45kg/sedentaria +
+ * perder_grasa/ultra da ~334 kcal/día con la lógica de déficit sin piso,
+ * por debajo incluso de lo que consume la proteína objetivo sola.
+ *
+ * Regla: nunca por debajo del BMR (lo que el cuerpo quema en reposo — comer
+ * menos que eso de forma sostenida no es seguro) NI por debajo de un piso
+ * absoluto de referencia clínica común (1200 kcal mujeres / 1500 kcal
+ * hombres). Se usa el mayor de los dos.
+ */
+export function clampCaloriesToSafeFloor(
+  calorias: number,
+  bmr: number,
+  sex: "masculino" | "femenino"
+): number {
+  const absoluteMin = sex === "masculino" ? 1500 : 1200;
+  const floor = Math.max(absoluteMin, Math.round(bmr));
+  return Math.max(Math.round(calorias), floor);
+}
+
 export function applyGoalCalories(tdee: number, objetivo: Goal): number {
   if (objetivo === "perder_grasa") return Math.round(tdee * 0.8);
   if (objetivo === "ganar_masa") return Math.round(tdee * 1.15);

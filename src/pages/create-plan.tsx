@@ -8,7 +8,7 @@ import { getAuthSafe, getDbSafe } from "@/lib/firebase";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import type { UserInput, TipoDieta, Intensidad, PlanMultiFase, FaseMultiFase, HistorialMes, Suplemento, PlanAIResponse } from "@/types/plan";
 import Navbar from "@/components/Navbar";
-import { calculateBMR, calculateTDEE } from "@/utils/calculations";
+import { calculateBMR, calculateTDEE, clampCaloriesToSafeFloor } from "@/utils/calculations";
 import PremiumPlanModal from "@/components/PremiumPlanModal";
 import Head from "next/head";
 import { useAppLocale } from "@/contexts/AppLocaleContext";
@@ -797,7 +797,12 @@ export default function CreatePlan() {
         else {
           caloriasObjetivo = tdeeCalculado;
         }
-        
+
+        // Piso de seguridad: nunca por debajo del BMR ni de un mínimo
+        // clínico absoluto, sin importar cuán agresivo sea el déficit
+        // calculado arriba (ver clampCaloriesToSafeFloor).
+        caloriasObjetivo = clampCaloriesToSafeFloor(caloriasObjetivo, bmrCalculado, sexo);
+
         // Calcular macros basados en objetivo y peso
         const calcularMacros = () => {
           // Proteína según objetivo (g por kg de peso corporal)
