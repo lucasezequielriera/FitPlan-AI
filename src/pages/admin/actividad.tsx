@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import Navbar from "@/components/Navbar";
 import { useAuthStore } from "@/store/authStore";
-import { getIsAdminClient } from "@/lib/adminAuthClient";
+import { getIsAdminClient, adminFetch } from "@/lib/adminAuthClient";
 import { FaArrowLeft } from "react-icons/fa";
 
 type ActivityItem = {
@@ -84,7 +84,7 @@ export default function AdminActividadPage() {
       if (!allowed || !authUser) return;
       try {
         setLoading(true);
-        const response = await fetch(`/api/admin/activityHistory?adminUserId=${authUser.uid}`);
+        const response = await adminFetch(`/api/admin/activityHistory?adminUserId=${authUser.uid}`);
         if (!response.ok) throw new Error("No se pudo cargar el historial");
         const data = await response.json();
         setItems(Array.isArray(data?.items) ? data.items : []);
@@ -151,7 +151,7 @@ export default function AdminActividadPage() {
       <div className="min-h-screen bg-slate-950 text-white">
         <Navbar />
         <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center">
-          <div className="h-10 w-10 animate-spin rounded-full border-2 border-cyan-300/30 border-t-cyan-200" />
+          <div className="h-10 w-10 animate-spin rounded-full border-2 border-[var(--info)]/30 border-t-[var(--info)]" />
         </div>
       </div>
     );
@@ -171,8 +171,8 @@ export default function AdminActividadPage() {
           Volver al panel
         </Link>
 
-        <div className="mb-5 rounded-2xl border border-cyan-300/25 bg-gradient-to-br from-[#0b1e37] via-[#0f2847] to-[#0f3d3a] p-4 sm:p-5">
-          <p className="text-[11px] uppercase tracking-[0.16em] text-cyan-200/90">Admin · Historial</p>
+        <div className="mb-5 rounded-2xl border border-[var(--info)]/25 bg-gradient-to-br from-[#0b1e37] via-[#0f2847] to-[#0f3d3a] p-4 sm:p-5">
+          <p className="text-[11px] uppercase tracking-[0.16em] text-info/90">Admin · Historial</p>
           <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-white">Actividad y notificaciones</h1>
           <p className="mt-1 text-sm text-white/65">Registro completo de eventos recientes, agrupado por fecha y hora.</p>
         </div>
@@ -193,7 +193,7 @@ export default function AdminActividadPage() {
                 onClick={() => setCategoryFilter(id as "all" | "users" | "payments" | "fatigue" | "risk" | "emails")}
                 className={`rounded-lg border px-2.5 py-1.5 text-xs transition ${
                   categoryFilter === id
-                    ? "border-cyan-300/50 bg-cyan-500/20 text-cyan-100"
+                    ? "border-[var(--info)]/50 bg-info/20 text-info"
                     : "border-white/15 bg-white/5 text-white/70 hover:text-white"
                 }`}
               >
@@ -206,7 +206,7 @@ export default function AdminActividadPage() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Buscar por nombre, email, tipo o contenido..."
-            className="w-full rounded-lg border border-white/20 bg-black/25 px-3 py-2 text-sm text-white placeholder:text-white/45 focus:outline-none focus:ring-2 focus:ring-cyan-500/45"
+            className="w-full rounded-lg border border-white/20 bg-black/25 px-3 py-2 text-sm text-white placeholder:text-white/45 focus:outline-none focus:ring-2 focus:ring-info/45"
           />
         </div>
 
@@ -222,7 +222,7 @@ export default function AdminActividadPage() {
           <div className="space-y-4">
             {Object.entries(groupedByDay).map(([dayKey, dayItems]) => (
               <section key={dayKey} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 sm:p-4">
-                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-200/85">{dayKey}</p>
+                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-info/85">{dayKey}</p>
                 <div className="space-y-2">
                   {dayItems.map((item) => {
                     const date = item.createdAt ? new Date(item.createdAt) : null;
@@ -233,7 +233,7 @@ export default function AdminActividadPage() {
                       <article key={item.id} className="rounded-xl border border-white/10 bg-black/20 px-3 py-2.5">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <p className="text-[11px] font-semibold uppercase tracking-wide text-white/60">{hour}</p>
-                          <p className="text-[11px] uppercase tracking-wide text-cyan-200/85">
+                          <p className="text-[11px] uppercase tracking-wide text-info/85">
                             {item.label}
                             {item.provider ? ` · ${item.provider}` : ""}
                           </p>

@@ -5,6 +5,7 @@ import { jsPDF } from "jspdf";
 import { parseClientTrackingExcel } from "@/lib/intakePlanExcel";
 import { useAuthStore } from "@/store/authStore";
 import { getDbSafe, getAuthSafe } from "@/lib/firebase";
+import { adminFetch } from "@/lib/adminAuthClient";
 import Navbar from "@/components/Navbar";
 import WeeklyStatsModal from "@/components/WeeklyStatsModal";
 import ExerciseDemoMedia from "@/components/ExerciseDemoMedia";
@@ -719,23 +720,23 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
       const diferencia = pesoMinimo - peso;
       return {
         status: "bajo",
-        icon: <FaArrowDown className="text-blue-400" />,
-        color: "text-blue-400",
+        icon: <FaArrowDown className="text-info" />,
+        color: "text-info",
         weightDifference: diferencia
       };
     } else if (imc >= 18.5 && imc < 25) {
       return {
         status: "saludable",
-        icon: <FaCheck className="text-green-400" />,
-        color: "text-green-400"
+        icon: <FaCheck className="text-success" />,
+        color: "text-success"
       };
     } else {
       // Si está excedido, comparar con el límite superior
       const diferencia = peso - pesoMaximo;
       return {
         status: "excedido",
-        icon: <FaArrowUp className="text-red-400" />,
-        color: "text-red-400",
+        icon: <FaArrowUp className="text-danger" />,
+        color: "text-danger",
         weightDifference: diferencia
       };
     }
@@ -827,7 +828,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
       const currentYear = now.getFullYear();
       const monthId = `${currentYear}-${currentMonth}`;
       
-      const response = await fetch(`/api/admin/monthlyEarnings?monthId=${monthId}&adminUserId=${authUser.uid}`);
+      const response = await adminFetch(`/api/admin/monthlyEarnings?monthId=${monthId}&adminUserId=${authUser.uid}`);
       if (!response.ok) {
         console.warn("No se pudieron obtener las ganancias mensuales");
         return 0;
@@ -1084,38 +1085,38 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
     if (client.wellnessCheckinRequested) {
       return {
         label: "Pendiente",
-        className: "bg-amber-500/20 text-amber-200 border-amber-400/40",
+        className: "bg-warning/20 text-warning border-warning/40",
       };
     }
     if (!client.lastWellnessCheckinAt) {
       return {
         label: "Sin check-in",
-        className: "bg-rose-500/20 text-rose-200 border-rose-400/40",
+        className: "bg-danger/20 text-danger border-danger/40",
       };
     }
     const last = new Date(client.lastWellnessCheckinAt);
     if (isNaN(last.getTime())) {
       return {
         label: "Sin check-in",
-        className: "bg-rose-500/20 text-rose-200 border-rose-400/40",
+        className: "bg-danger/20 text-danger border-danger/40",
       };
     }
     const days = Math.floor((Date.now() - last.getTime()) / 86400000);
     if (days <= 2) {
       return {
         label: "Al día",
-        className: "bg-emerald-500/20 text-emerald-200 border-emerald-400/40",
+        className: "bg-success/20 text-success border-success/40",
       };
     }
     if (days <= 7) {
       return {
         label: `Hace ${days}d`,
-        className: "bg-yellow-500/20 text-yellow-200 border-yellow-400/40",
+        className: "bg-warning/20 text-warning border-warning/40",
       };
     }
     return {
       label: `Atrasado ${days}d`,
-      className: "bg-rose-500/20 text-rose-200 border-rose-400/40",
+      className: "bg-danger/20 text-danger border-danger/40",
     };
   };
 
@@ -1304,7 +1305,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
     (async () => {
       setYearlyEarningsLoading(true);
       try {
-        const res = await fetch(
+        const res = await adminFetch(
           `/api/admin/yearlyEarnings?year=${yearlyEarningsYear}&adminUserId=${encodeURIComponent(authUser.uid)}`
         );
         if (!res.ok) throw new Error("yearlyEarnings");
@@ -1334,7 +1335,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
       }
 
       // Llamar al endpoint API para obtener estadísticas
-      const response = await fetch(`/api/admin/stats?userId=${auth.currentUser.uid}`);
+      const response = await adminFetch(`/api/admin/stats?userId=${auth.currentUser.uid}`);
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: "Error desconocido" }));
@@ -1437,7 +1438,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
           if (status.status === "expired") {
             // Desactivar premium vencido automáticamente
             try {
-              const expireResponse = await fetch("/api/admin/expirePremium", {
+              const expireResponse = await adminFetch("/api/admin/expirePremium", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ userId: user.id }),
@@ -1511,7 +1512,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
       const auth = getAuthSafe();
       if (!auth?.currentUser) return;
       setLoadingIntakeClients(true);
-      const response = await fetch(`/api/admin/intakeClients?userId=${auth.currentUser.uid}`);
+      const response = await adminFetch(`/api/admin/intakeClients?userId=${auth.currentUser.uid}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || `HTTP ${response.status}`);
@@ -1543,7 +1544,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
       setIntakeClientDetailError(null);
       setIntakeClientDetailLoading(true);
 
-      const response = await fetch(
+      const response = await adminFetch(
         `/api/admin/intakeClientDetail?userId=${auth.currentUser.uid}&clientId=${client.id}`
       );
       if (!response.ok) {
@@ -1570,7 +1571,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
       setIntakeEmailHistoryItems([]);
       setIntakeEmailHistoryMessage(null);
       setIntakeEmailHistoryLoading(true);
-      const response = await fetch(
+      const response = await adminFetch(
         `/api/admin/intakeClientEmailHistory?adminUserId=${auth.currentUser.uid}&clientId=${client.id}`
       );
       const data = await response.json().catch(() => ({}));
@@ -1590,7 +1591,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
       if (!auth?.currentUser || !intakeEmailHistoryClient) return;
       setSendingIntakeWelcomeEmail(true);
       setIntakeEmailHistoryMessage(null);
-      const response = await fetch("/api/admin/sendIntakeWelcomeEmail", {
+      const response = await adminFetch("/api/admin/sendIntakeWelcomeEmail", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1676,7 +1677,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
             : c
         )
       );
-      await fetch("/api/admin/updateIntakeClientDigestPrefs", {
+      await adminFetch("/api/admin/updateIntakeClientDigestPrefs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1702,7 +1703,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
       const auth = getAuthSafe();
       if (!auth?.currentUser) return;
       setRequestingWeightClientId(client.id);
-      const response = await fetch("/api/admin/requestIntakeClientWeight", {
+      const response = await adminFetch("/api/admin/requestIntakeClientWeight", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1748,7 +1749,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
       if (!auth?.currentUser) return;
       setIntakePaymentLoading(true);
       const provider = inferProviderByCountry(intakePaymentClient.pais || null);
-      const response = await fetch("/api/admin/createIntakeClientPaymentLink", {
+      const response = await adminFetch("/api/admin/createIntakeClientPaymentLink", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1802,7 +1803,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
       const auth = getAuthSafe();
       if (!auth?.currentUser) return;
       setPaymentLinkLoading(true);
-      const response = await fetch("/api/admin/createUserPaymentLink", {
+      const response = await adminFetch("/api/admin/createUserPaymentLink", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1842,7 +1843,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
       const auth = getAuthSafe();
       if (!auth?.currentUser) return;
       setProcessingIntakeAction(true);
-      const response = await fetch("/api/admin/deleteIntakeClient", {
+      const response = await adminFetch("/api/admin/deleteIntakeClient", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1938,7 +1939,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
       if (!auth?.currentUser) return;
       setProcessingIntakeAction(true);
       setIntakePlanGeneratingClientId(intakePlanClient.id);
-      const response = await fetch("/api/admin/intakeClientPlanAction", {
+      const response = await adminFetch("/api/admin/intakeClientPlanAction", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -2009,7 +2010,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
     try {
       const auth = getAuthSafe();
       if (!auth?.currentUser) return;
-      const response = await fetch("/api/admin/issueIntakeClientViewToken", {
+      const response = await adminFetch("/api/admin/issueIntakeClientViewToken", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -2043,7 +2044,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
       setIntakeGeneratedPlanLoading(true);
       setIntakeGeneratedPlanError(null);
       setIntakeGeneratedPlan(null);
-      const response = await fetch(
+      const response = await adminFetch(
         `/api/admin/intakeClientPlanDetail?userId=${auth.currentUser.uid}&planId=${client.latestPlanId}`
       );
       if (!response.ok) {
@@ -2069,7 +2070,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
       );
       if (!ok) return;
       setRequestingCheckinClientId(client.id);
-      const response = await fetch("/api/admin/requestIntakeClientCheckin", {
+      const response = await adminFetch("/api/admin/requestIntakeClientCheckin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -2116,7 +2117,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
       const auth = getAuthSafe();
       if (!auth?.currentUser) return;
       setProcessingIntakeAction(true);
-      const response = await fetch("/api/admin/deleteIntakeClientPlan", {
+      const response = await adminFetch("/api/admin/deleteIntakeClientPlan", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -2204,7 +2205,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
       console.log("🗑️ Eliminando usuario...");
       
       // Llamar al endpoint API para eliminar usuario
-      const response = await fetch("/api/admin/deleteUser", {
+      const response = await adminFetch("/api/admin/deleteUser", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -2324,7 +2325,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
       console.log("💾 Enviando cambios al API...", { updateData, editingUserId: editingUser.id });
       
       // Usar el endpoint API que tiene permisos de Admin SDK
-      const response = await fetch("/api/admin/updateUser", {
+      const response = await adminFetch("/api/admin/updateUser", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -2453,7 +2454,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
         return;
       }
       setMarkingNewUsersSeen(true);
-      const response = await fetch("/api/admin/markUsersSeen", {
+      const response = await adminFetch("/api/admin/markUsersSeen", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -2519,8 +2520,8 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
         <div className="pointer-events-none absolute inset-0 -z-0 bg-gradient-to-b from-[#0b1e37]/90 via-slate-950 to-slate-950" aria-hidden />
         <Navbar />
         <div className="relative flex items-center justify-center min-h-[calc(100vh-4rem)]">
-          <div className="text-center p-8 rounded-xl bg-red-500/10 border border-red-500/30">
-            <p className="text-red-400 text-lg">{error || "Acceso denegado"}</p>
+          <div className="text-center p-8 rounded-xl bg-danger/10 border border-danger/30">
+            <p className="text-danger text-lg">{error || "Acceso denegado"}</p>
           </div>
         </div>
       </div>
@@ -2615,10 +2616,10 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
           className="mb-6"
         >
           {view === "dashboard" ? (
-            <div className="rounded-2xl border border-cyan-400/25 bg-gradient-to-br from-blue-500/14 via-cyan-500/10 to-emerald-500/12 p-4 md:p-5 shadow-[0_16px_48px_-28px_rgba(34,211,238,0.55)]">
+            <div className="rounded-2xl border border-info/25 bg-gradient-to-br from-blue-500/14 via-cyan-500/10 to-emerald-500/12 p-4 md:p-5 shadow-[0_16px_48px_-28px_rgba(34,211,238,0.55)]">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-200/90 mb-1.5">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-info/90 mb-1.5">
                     FitPlan · Admin
                   </p>
                   <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
@@ -2639,14 +2640,14 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                   <button
                     type="button"
                     onClick={() => router.push("/admin/clientes-1-1")}
-                    className="px-3 py-2 rounded-xl border border-emerald-400/40 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-100 text-xs sm:text-sm font-semibold transition-colors"
+                    className="px-3 py-2 rounded-xl border border-success/40 bg-success/15 hover:bg-success/25 text-success text-xs sm:text-sm font-semibold transition-colors"
                   >
                     Ver clientes 1:1
                   </button>
                   <button
                     type="button"
                     onClick={() => router.push("/admin/clientes-fitplan")}
-                    className="px-3 py-2 rounded-xl border border-cyan-400/40 bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-100 text-xs sm:text-sm font-semibold transition-colors"
+                    className="px-3 py-2 rounded-xl border border-info/40 bg-info/15 hover:bg-info/25 text-info text-xs sm:text-sm font-semibold transition-colors"
                   >
                     Ver clientes FitPlan
                   </button>
@@ -2654,7 +2655,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
               </div>
             </div>
           ) : (
-            <div className="rounded-2xl border border-cyan-400/25 bg-gradient-to-br from-blue-500/14 via-cyan-500/10 to-emerald-500/12 p-4 md:p-5 shadow-[0_16px_48px_-28px_rgba(34,211,238,0.55)]">
+            <div className="rounded-2xl border border-info/25 bg-gradient-to-br from-blue-500/14 via-cyan-500/10 to-emerald-500/12 p-4 md:p-5 shadow-[0_16px_48px_-28px_rgba(34,211,238,0.55)]">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap items-center gap-3">
                   <button
@@ -2665,7 +2666,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                     ← Panel
                   </button>
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-200/90">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-info/90">
                       {view === "intake" ? "FORMULARIO 1:1" : "APP FITPLAN"}
                     </p>
                     <h1 className="text-xl md:text-2xl font-extrabold text-white tracking-tight">
@@ -2709,30 +2710,30 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
           <motion.div
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="relative overflow-hidden p-4 md:p-5 rounded-2xl border border-cyan-300/25 bg-gradient-to-br from-[#0b1e37] via-[#0f2847] to-[#0f3d3a] shadow-[0_18px_56px_-36px_rgba(34,211,238,0.75)]"
+            className="relative overflow-hidden p-4 md:p-5 rounded-2xl border border-info/25 bg-gradient-to-br from-[#0b1e37] via-[#0f2847] to-[#0f3d3a] shadow-[0_18px_56px_-36px_rgba(34,211,238,0.75)]"
           >
-            <div className="pointer-events-none absolute -top-12 -right-10 h-36 w-36 rounded-full bg-cyan-400/18 blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-14 -left-12 h-40 w-40 rounded-full bg-emerald-400/15 blur-3xl" />
+            <div className="pointer-events-none absolute -top-12 -right-10 h-36 w-36 rounded-full bg-info/18 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-14 -left-12 h-40 w-40 rounded-full bg-success/15 blur-3xl" />
 
             <div className="relative">
               <div className="flex flex-wrap items-center gap-1.5 mb-3">
-                <span className="px-2 py-0.5 rounded-full border border-cyan-300/35 bg-cyan-400/15 text-[10px] font-semibold tracking-wide text-cyan-100">
+                <span className="px-2 py-0.5 rounded-full border border-info/35 bg-info/15 text-[10px] font-semibold tracking-wide text-info">
                   FINANZAS
                 </span>
-                <span className="px-2 py-0.5 rounded-full border border-emerald-300/35 bg-emerald-400/15 text-[10px] font-semibold tracking-wide text-emerald-100">
+                <span className="px-2 py-0.5 rounded-full border border-success/35 bg-success/15 text-[10px] font-semibold tracking-wide text-success">
                   ADMIN FITPLAN
                 </span>
               </div>
               <div className="grid grid-cols-1 xl:grid-cols-[1.35fr_0.65fr] gap-3 mb-3">
                 <div className="rounded-xl border border-white/15 bg-black/20 p-4">
-                  <p className="text-cyan-100/85 text-[10px] uppercase tracking-[0.14em] mb-1">Ganancias de este mes</p>
+                  <p className="text-info/85 text-[10px] uppercase tracking-[0.14em] mb-1">Ganancias de este mes</p>
                   <h2 className="text-lg md:text-xl font-extrabold text-white leading-tight">
                     Estadísticas de Ganancias
                   </h2>
                   <p className="text-white/70 text-xs mt-1">Ingresos, riesgo y renovaciones.</p>
                   <div className="mt-3">
-                    <p className="text-[10px] uppercase tracking-[0.1em] text-emerald-200/90">Ingresado (real)</p>
-                    <p className="text-2xl md:text-3xl font-extrabold text-emerald-300">
+                    <p className="text-[10px] uppercase tracking-[0.1em] text-success/90">Ingresado (real)</p>
+                    <p className="text-2xl md:text-3xl font-extrabold text-success">
                       ${revenueStats.actualMonthly.toLocaleString("es-AR")}
                     </p>
                     <p className="text-white/50 text-[11px] mt-0.5">
@@ -2741,8 +2742,8 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-cyan-300/30 bg-gradient-to-b from-cyan-400/18 to-emerald-400/12 p-4">
-                  <p className="text-[10px] uppercase tracking-[0.1em] text-cyan-100 mb-1">Acción recomendada</p>
+                <div className="rounded-xl border border-info/30 bg-gradient-to-b from-cyan-400/18 to-emerald-400/12 p-4">
+                  <p className="text-[10px] uppercase tracking-[0.1em] text-info mb-1">Acción recomendada</p>
                   <p className="text-white/90 text-xs leading-snug">
                     Pendientes + renovaciones 7 días para proteger caja.
                   </p>
@@ -2760,29 +2761,29 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
               </div>
 
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-                <div className="rounded-lg border border-emerald-300/30 bg-emerald-400/10 p-3">
+                <div className="rounded-lg border border-success/30 bg-success/10 p-3">
                   <p className="text-white/75 text-[10px] uppercase tracking-[0.1em] mb-0.5">Mensual estimada</p>
-                  <p className="text-lg sm:text-xl font-bold text-emerald-200">
+                  <p className="text-lg sm:text-xl font-bold text-success">
                     ${revenueStats.estimatedMonthly.toLocaleString("es-AR")}
                   </p>
                   <p className="text-white/50 text-[10px] mt-0.5">{(revenueStats.estimatedMonthly / 2000).toFixed(2)} EUR</p>
                 </div>
 
-                <div className="rounded-lg border border-cyan-300/30 bg-cyan-400/10 p-3">
+                <div className="rounded-lg border border-info/30 bg-info/10 p-3">
                   <p className="text-white/75 text-[10px] uppercase tracking-[0.1em] mb-0.5">Premium activos</p>
-                  <p className="text-lg sm:text-xl font-bold text-cyan-200">{revenueStats.premiumActiveThisMonth}</p>
+                  <p className="text-lg sm:text-xl font-bold text-info">{revenueStats.premiumActiveThisMonth}</p>
                   <p className="text-white/50 text-[10px] mt-0.5">Mes actual</p>
                 </div>
 
-                <div className="rounded-lg border border-orange-300/30 bg-orange-400/10 p-3">
+                <div className="rounded-lg border border-warning/30 bg-warning/10 p-3">
                   <p className="text-white/75 text-[10px] uppercase tracking-[0.1em] mb-0.5">Pendientes</p>
-                  <p className="text-lg sm:text-xl font-bold text-orange-200">{revenueStats.pendingPayments}</p>
+                  <p className="text-lg sm:text-xl font-bold text-warning">{revenueStats.pendingPayments}</p>
                   <p className="text-white/50 text-[10px] mt-0.5">Seguimiento</p>
                 </div>
 
-                <div className="rounded-lg border border-blue-300/30 bg-blue-400/10 p-3">
+                <div className="rounded-lg border border-info/30 bg-info/10 p-3">
                   <p className="text-white/75 text-[10px] uppercase tracking-[0.1em] mb-0.5">Renov. 7d</p>
-                  <p className="text-lg sm:text-xl font-bold text-blue-200">{revenueStats.renewingSoon}</p>
+                  <p className="text-lg sm:text-xl font-bold text-info">{revenueStats.renewingSoon}</p>
                   <p className="text-white/50 text-[10px] mt-0.5">Crítico</p>
                 </div>
               </div>
@@ -2809,13 +2810,13 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="relative overflow-hidden mb-6 rounded-2xl border border-cyan-300/25 bg-gradient-to-br from-[#0b1e37] via-[#0f2847] to-[#0f3d3a] p-4 md:p-5 shadow-[0_16px_48px_-28px_rgba(34,211,238,0.55)]"
+          className="relative overflow-hidden mb-6 rounded-2xl border border-info/25 bg-gradient-to-br from-[#0b1e37] via-[#0f2847] to-[#0f3d3a] p-4 md:p-5 shadow-[0_16px_48px_-28px_rgba(34,211,238,0.55)]"
         >
-          <div className="pointer-events-none absolute -top-10 -right-6 h-28 w-28 rounded-full bg-cyan-400/15 blur-3xl" />
-          <div className="pointer-events-none absolute -bottom-12 left-1/3 h-32 w-32 rounded-full bg-emerald-400/12 blur-3xl" />
+          <div className="pointer-events-none absolute -top-10 -right-6 h-28 w-28 rounded-full bg-info/15 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-12 left-1/3 h-32 w-32 rounded-full bg-success/12 blur-3xl" />
 
           <div className="relative flex flex-wrap items-center gap-1.5 mb-3">
-            <span className="px-2 py-0.5 rounded-full border border-cyan-300/35 bg-cyan-400/15 text-[10px] font-semibold tracking-wide text-cyan-100">
+            <span className="px-2 py-0.5 rounded-full border border-info/35 bg-info/15 text-[10px] font-semibold tracking-wide text-info">
               USUARIOS
             </span>
             <span className="px-2 py-0.5 rounded-full border border-white/20 bg-white/10 text-[10px] font-semibold tracking-wide text-white/90">
@@ -2828,16 +2829,16 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
           </p>
 
           <div className="relative grid grid-cols-2 lg:grid-cols-4 gap-2">
-            <div className="rounded-xl border border-cyan-300/30 bg-black/25 p-3 backdrop-blur-sm">
-              <p className="text-cyan-100/85 text-[10px] uppercase tracking-[0.1em] mb-0.5">Total</p>
+            <div className="rounded-xl border border-info/30 bg-black/25 p-3 backdrop-blur-sm">
+              <p className="text-info/85 text-[10px] uppercase tracking-[0.1em] mb-0.5">Total</p>
               <p className="text-2xl font-extrabold text-white tabular-nums">{totalUsers}</p>
               <p className="text-white/45 text-[10px] mt-0.5">Registrados</p>
               <p
                 className={`text-[10px] mt-1 ${
                   totalUsersMonthDelta > 0
-                    ? "text-emerald-200"
+                    ? "text-success"
                     : totalUsersMonthDelta < 0
-                    ? "text-red-200"
+                    ? "text-danger"
                     : "text-white/55"
                 }`}
               >
@@ -2845,22 +2846,22 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                 {totalUsersMonthDelta} altas netas vs {previousMonthLabel}
               </p>
             </div>
-            <div className="rounded-xl border border-emerald-300/35 bg-emerald-500/10 p-3">
-              <p className="text-emerald-100/90 text-[10px] uppercase tracking-[0.1em] mb-0.5">Premium</p>
-              <p className="text-2xl font-extrabold text-emerald-200 tabular-nums">{premiumUsers}</p>
+            <div className="rounded-xl border border-success/35 bg-success/10 p-3">
+              <p className="text-success/90 text-[10px] uppercase tracking-[0.1em] mb-0.5">Premium</p>
+              <p className="text-2xl font-extrabold text-success tabular-nums">{premiumUsers}</p>
               <p className="text-white/50 text-[10px] mt-0.5">Con premium</p>
-              <p className="text-emerald-100/85 text-[10px] mt-1">
+              <p className="text-success/85 text-[10px] mt-1">
                 {currentMonthLabel}: {premiumActivatedCurrentMonth} premium nuevos
               </p>
             </div>
-            <div className="rounded-xl border border-blue-300/30 bg-blue-500/10 p-3">
-              <p className="text-blue-100/90 text-[10px] uppercase tracking-[0.1em] mb-0.5">Regulares</p>
-              <p className="text-2xl font-extrabold text-blue-200 tabular-nums">{regularUsers}</p>
+            <div className="rounded-xl border border-info/30 bg-info/10 p-3">
+              <p className="text-info/90 text-[10px] uppercase tracking-[0.1em] mb-0.5">Regulares</p>
+              <p className="text-2xl font-extrabold text-info tabular-nums">{regularUsers}</p>
               <p className="text-white/50 text-[10px] mt-0.5">Sin premium</p>
             </div>
-            <div className="rounded-xl border border-emerald-400/25 bg-gradient-to-br from-emerald-500/15 to-cyan-500/10 p-3">
-              <p className="text-emerald-100/90 text-[10px] uppercase tracking-[0.1em] mb-0.5">Atléticos</p>
-              <p className="text-2xl font-extrabold text-emerald-100 tabular-nums">{athleticUsers}</p>
+            <div className="rounded-xl border border-success/25 bg-gradient-to-br from-emerald-500/15 to-cyan-500/10 p-3">
+              <p className="text-success/90 text-[10px] uppercase tracking-[0.1em] mb-0.5">Atléticos</p>
+              <p className="text-2xl font-extrabold text-success tabular-nums">{athleticUsers}</p>
               <p className="text-white/50 text-[10px] mt-0.5">Perfil deportivo</p>
             </div>
           </div>
@@ -2871,13 +2872,13 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
 
         {/* Clientes provenientes del formulario de inicio — solo vista 1:1 */}
         {view === "intake" && (
-        <div className="relative overflow-hidden rounded-2xl border border-cyan-300/25 bg-gradient-to-br from-[#0b1e37] via-[#0f2847] to-[#0f3d3a] shadow-[0_16px_48px_-28px_rgba(34,211,238,0.45)] mb-6">
+        <div className="relative overflow-hidden rounded-2xl border border-info/25 bg-gradient-to-br from-[#0b1e37] via-[#0f2847] to-[#0f3d3a] shadow-[0_16px_48px_-28px_rgba(34,211,238,0.45)] mb-6">
           <div className="px-4 py-3 border-b border-white/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-black/20">
             <div>
               <h2 className="text-base font-bold text-white">Lista de clientes (formulario 1:1)</h2>
               <p className="text-[11px] text-white/55 mt-0.5">Filtros y acciones por lead</p>
             </div>
-            <span className="inline-flex items-center gap-2 rounded-full bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 px-2.5 py-0.5 text-[11px] font-medium w-fit">
+            <span className="inline-flex items-center gap-2 rounded-full bg-info/15 border border-info/30 text-info px-2.5 py-0.5 text-[11px] font-medium w-fit">
               {filteredIntakeClients.length} / {intakeClients.length}
             </span>
           </div>
@@ -2888,14 +2889,14 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                 value={intakeSearchQuery}
                 onChange={(e) => setIntakeSearchQuery(e.target.value)}
                 placeholder="Buscar por nombre, email, WhatsApp, Instagram..."
-                className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-cyan-500/45"
+                className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-info/45"
               />
               <select
                 value={intakePaymentFilter}
                 onChange={(e) =>
                   setIntakePaymentFilter(e.target.value as "all" | "paid" | "pending" | "unpaid")
                 }
-                className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/45"
+                className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-info/45"
               >
                 <option value="all">Todos los pagos</option>
                 <option value="paid">Pagado mes actual</option>
@@ -2906,7 +2907,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                 <select
                   value={intakeServiceFilter}
                   onChange={(e) => setIntakeServiceFilter(e.target.value)}
-                  className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/45"
+                  className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-info/45"
                 >
                   <option value="all">Todos los servicios</option>
                   {intakeServiceOptions.map((service) => (
@@ -2959,7 +2960,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                         key={client.id}
                         className={`hover:bg-white/5 transition-colors align-top ${
                           intakePlanGeneratingClientId === client.id
-                            ? "bg-cyan-500/[0.12] ring-1 ring-inset ring-cyan-400/40"
+                            ? "bg-info/[0.12] ring-1 ring-inset ring-info/40"
                             : ""
                         }`}
                       >
@@ -3037,8 +3038,8 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                 </label>
                               </div>
                             </div>
-                            <div className="mt-2 rounded-md border border-cyan-400/20 bg-cyan-500/5 p-2">
-                              <label className="inline-flex items-center gap-2 text-[11px] text-cyan-100/90">
+                            <div className="mt-2 rounded-md border border-info/20 bg-info/5 p-2">
+                              <label className="inline-flex items-center gap-2 text-[11px] text-info/90">
                                 <input
                                   type="checkbox"
                                   checked={client.wellnessAutoEnabled === true}
@@ -3115,10 +3116,10 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                           <span
                             className={`inline-flex items-center gap-1 px-2 py-1 rounded-full border text-xs ${
                               isIntakeCurrentMonthPaid(client)
-                                ? "bg-green-500/20 text-green-300 border-green-500/40"
+                                ? "bg-success/20 text-success border-success/40"
                                 : client.paymentStatus === "pending"
-                                ? "bg-yellow-500/20 text-yellow-300 border-yellow-500/40"
-                                : "bg-red-500/20 text-red-300 border-red-500/40"
+                                ? "bg-warning/20 text-warning border-warning/40"
+                                : "bg-danger/20 text-danger border-danger/40"
                             }`}
                           >
                             <FaCircle className="h-2.5 w-2.5" />
@@ -3165,8 +3166,8 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                         </td>
                         <td className="px-4 py-3 text-sm min-w-[420px]">
                           {intakePlanGeneratingClientId === client.id && (
-                            <div className="mb-2 rounded-lg border border-cyan-400/35 bg-cyan-500/15 px-2.5 py-2 text-xs text-cyan-100 flex flex-wrap items-center gap-2">
-                              <span className="inline-block h-3.5 w-3.5 border-2 border-cyan-300/40 border-t-cyan-100 rounded-full animate-spin shrink-0" />
+                            <div className="mb-2 rounded-lg border border-info/35 bg-info/15 px-2.5 py-2 text-xs text-info flex flex-wrap items-center gap-2">
+                              <span className="inline-block h-3.5 w-3.5 border-2 border-info/40 border-t-info rounded-full animate-spin shrink-0" />
                               <span>
                                 {intakePlanActionType === "generate"
                                   ? "Generando plan… (la IA puede tardar 1–2 min)."
@@ -3187,7 +3188,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                               type="button"
                               onClick={() => openIntakePlanModal(client, "generate")}
                               disabled={intakePlanGeneratingClientId !== null}
-                              className="px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 hover:bg-emerald-500/30 transition-colors inline-flex items-center gap-1.5 disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:bg-emerald-500/20"
+                              className="px-3 py-1.5 rounded-lg bg-success/20 border border-success/40 text-success hover:bg-success/30 transition-colors inline-flex items-center gap-1.5 disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:bg-success/20"
                             >
                               <FaPlusCircle className="h-3.5 w-3.5" />
                               <span>Generar</span>
@@ -3198,7 +3199,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                   type="button"
                                   onClick={() => openIntakePlanModal(client, "update")}
                                   disabled={intakePlanGeneratingClientId !== null}
-                                  className="px-3 py-1.5 rounded-lg bg-blue-500/20 border border-blue-400/40 text-blue-200 hover:bg-blue-500/30 transition-colors inline-flex items-center gap-1.5 disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:bg-blue-500/20"
+                                  className="px-3 py-1.5 rounded-lg bg-info/20 border border-info/40 text-info hover:bg-info/30 transition-colors inline-flex items-center gap-1.5 disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:bg-info/20"
                                 >
                                   <FaSyncAlt className="h-3.5 w-3.5" />
                                   <span>Actualizar</span>
@@ -3222,7 +3223,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                 <button
                                   onClick={() => openDeletePlanModal(client)}
                                   disabled={processingIntakeAction}
-                                  className="px-3 py-1.5 rounded-lg bg-orange-500/20 border border-orange-400/40 text-orange-200 hover:bg-orange-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
+                                  className="px-3 py-1.5 rounded-lg bg-danger/20 border border-danger/40 text-danger hover:bg-danger/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
                                 >
                                   <FaTrashAlt className="h-3.5 w-3.5" />
                                   <span>Eliminar plan</span>
@@ -3235,8 +3236,8 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                               disabled={requestingCheckinClientId === client.id}
                               className={`px-3 py-1.5 rounded-lg border transition-colors inline-flex items-center gap-1.5 ${
                                 client.wellnessCheckinRequested
-                                  ? "bg-amber-500/20 border-amber-400/40 text-amber-200 hover:bg-amber-500/30"
-                                  : "bg-cyan-500/20 border-cyan-400/40 text-cyan-100 hover:bg-cyan-500/30"
+                                  ? "bg-warning/20 border-warning/40 text-warning hover:bg-warning/30"
+                                  : "bg-info/20 border-info/40 text-info hover:bg-info/30"
                               } disabled:opacity-60`}
                               title="Solicitar check-in de bienestar al cliente"
                             >
@@ -3260,7 +3261,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                             </button>
                             <button
                               onClick={() => openIntakePaymentModal(client)}
-                              className="px-3 py-1.5 rounded-lg bg-emerald-600/20 border border-emerald-400/40 text-emerald-200 hover:bg-emerald-600/30 transition-colors inline-flex items-center gap-1.5"
+                              className="px-3 py-1.5 rounded-lg bg-success/20 border border-success/40 text-success hover:bg-success/30 transition-colors inline-flex items-center gap-1.5"
                             >
                               <FaLink className="h-3.5 w-3.5" />
                               <span>Link pago</span>
@@ -3275,7 +3276,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                             <button
                               onClick={() => openDeleteUserModal(client)}
                               disabled={processingIntakeAction}
-                              className="px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-400/40 text-red-200 hover:bg-red-500/30 transition-colors disabled:opacity-60 inline-flex items-center gap-1.5"
+                              className="px-3 py-1.5 rounded-lg bg-danger/20 border border-danger/40 text-danger hover:bg-danger/30 transition-colors disabled:opacity-60 inline-flex items-center gap-1.5"
                             >
                               <FaTrashAlt className="h-3.5 w-3.5" />
                               <span>Eliminar</span>
@@ -3295,7 +3296,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                     key={client.id}
                     className={`rounded-xl border p-3 ${
                       intakePlanGeneratingClientId === client.id
-                        ? "border-cyan-400/40 bg-cyan-500/10"
+                        ? "border-info/40 bg-info/10"
                         : "border-white/10 bg-black/20"
                     }`}
                   >
@@ -3317,10 +3318,10 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                       <span
                         className={`inline-flex items-center gap-1 px-2 py-1 rounded-full border text-[11px] ${
                           isIntakeCurrentMonthPaid(client)
-                            ? "bg-green-500/20 text-green-300 border-green-500/40"
+                            ? "bg-success/20 text-success border-success/40"
                             : client.paymentStatus === "pending"
-                            ? "bg-yellow-500/20 text-yellow-300 border-yellow-500/40"
-                            : "bg-red-500/20 text-red-300 border-red-500/40"
+                            ? "bg-warning/20 text-warning border-warning/40"
+                            : "bg-danger/20 text-danger border-danger/40"
                         }`}
                       >
                         <FaCircle className="h-2.5 w-2.5" />
@@ -3383,7 +3384,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                             className="mt-1 w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white"
                           />
                         </label>
-                        <label className="mt-2 inline-flex items-center gap-2 text-[11px] text-cyan-100/90">
+                        <label className="mt-2 inline-flex items-center gap-2 text-[11px] text-info/90">
                           <input
                             type="checkbox"
                             checked={client.wellnessAutoEnabled === true}
@@ -3471,8 +3472,8 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                     </div>
 
                     {intakePlanGeneratingClientId === client.id && (
-                      <div className="mt-3 rounded-lg border border-cyan-400/35 bg-cyan-500/15 px-2.5 py-2 text-xs text-cyan-100 flex flex-wrap items-center gap-2">
-                        <span className="inline-block h-3.5 w-3.5 border-2 border-cyan-300/40 border-t-cyan-100 rounded-full animate-spin shrink-0" />
+                      <div className="mt-3 rounded-lg border border-info/35 bg-info/15 px-2.5 py-2 text-xs text-info flex flex-wrap items-center gap-2">
+                        <span className="inline-block h-3.5 w-3.5 border-2 border-info/40 border-t-info rounded-full animate-spin shrink-0" />
                         <span>
                           {intakePlanActionType === "generate"
                             ? "Generando plan… (la IA puede tardar 1–2 min)."
@@ -3494,7 +3495,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                         type="button"
                         onClick={() => openIntakePlanModal(client, "generate")}
                         disabled={intakePlanGeneratingClientId !== null}
-                        className="px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 hover:bg-emerald-500/30 transition-colors inline-flex items-center gap-1.5 disabled:opacity-45 disabled:cursor-not-allowed text-xs"
+                        className="px-3 py-1.5 rounded-lg bg-success/20 border border-success/40 text-success hover:bg-success/30 transition-colors inline-flex items-center gap-1.5 disabled:opacity-45 disabled:cursor-not-allowed text-xs"
                       >
                         <FaPlusCircle className="h-3.5 w-3.5" />
                         <span>Generar</span>
@@ -3505,7 +3506,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                             type="button"
                             onClick={() => openIntakePlanModal(client, "update")}
                             disabled={intakePlanGeneratingClientId !== null}
-                            className="px-3 py-1.5 rounded-lg bg-blue-500/20 border border-blue-400/40 text-blue-200 hover:bg-blue-500/30 transition-colors inline-flex items-center gap-1.5 disabled:opacity-45 disabled:cursor-not-allowed text-xs"
+                            className="px-3 py-1.5 rounded-lg bg-info/20 border border-info/40 text-info hover:bg-info/30 transition-colors inline-flex items-center gap-1.5 disabled:opacity-45 disabled:cursor-not-allowed text-xs"
                           >
                             <FaSyncAlt className="h-3.5 w-3.5" />
                             <span>Actualizar</span>
@@ -3529,7 +3530,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                           <button
                             onClick={() => openDeletePlanModal(client)}
                             disabled={processingIntakeAction}
-                            className="px-3 py-1.5 rounded-lg bg-orange-500/20 border border-orange-400/40 text-orange-200 hover:bg-orange-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5 text-xs"
+                            className="px-3 py-1.5 rounded-lg bg-danger/20 border border-danger/40 text-danger hover:bg-danger/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5 text-xs"
                           >
                             <FaTrashAlt className="h-3.5 w-3.5" />
                             <span>Eliminar plan</span>
@@ -3542,8 +3543,8 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                         disabled={requestingCheckinClientId === client.id}
                         className={`px-3 py-1.5 rounded-lg border transition-colors inline-flex items-center gap-1.5 text-xs ${
                           client.wellnessCheckinRequested
-                            ? "bg-amber-500/20 border-amber-400/40 text-amber-200 hover:bg-amber-500/30"
-                            : "bg-cyan-500/20 border-cyan-400/40 text-cyan-100 hover:bg-cyan-500/30"
+                            ? "bg-warning/20 border-warning/40 text-warning hover:bg-warning/30"
+                            : "bg-info/20 border-info/40 text-info hover:bg-info/30"
                         } disabled:opacity-60`}
                       >
                         <FaBell className="h-3.5 w-3.5" />
@@ -3566,7 +3567,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                       </button>
                       <button
                         onClick={() => openIntakePaymentModal(client)}
-                        className="px-3 py-1.5 rounded-lg bg-emerald-600/20 border border-emerald-400/40 text-emerald-200 hover:bg-emerald-600/30 transition-colors inline-flex items-center gap-1.5 text-xs"
+                        className="px-3 py-1.5 rounded-lg bg-success/20 border border-success/40 text-success hover:bg-success/30 transition-colors inline-flex items-center gap-1.5 text-xs"
                       >
                         <FaLink className="h-3.5 w-3.5" />
                         <span>Link pago</span>
@@ -3581,7 +3582,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                       <button
                         onClick={() => openDeleteUserModal(client)}
                         disabled={processingIntakeAction}
-                        className="px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-400/40 text-red-200 hover:bg-red-500/30 transition-colors disabled:opacity-60 inline-flex items-center gap-1.5 text-xs"
+                        className="px-3 py-1.5 rounded-lg bg-danger/20 border border-danger/40 text-danger hover:bg-danger/30 transition-colors disabled:opacity-60 inline-flex items-center gap-1.5 text-xs"
                       >
                         <FaTrashAlt className="h-3.5 w-3.5" />
                         <span>Eliminar</span>
@@ -3597,7 +3598,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
 
         {/* Lista de usuarios FitPlan */}
         {view === "fitplan" && (
-        <div className="relative overflow-hidden rounded-2xl border border-cyan-300/25 bg-gradient-to-br from-[#0b1e37] via-[#0f2847] to-[#0f3d3a] shadow-[0_16px_48px_-28px_rgba(34,211,238,0.45)] mb-6">
+        <div className="relative overflow-hidden rounded-2xl border border-info/25 bg-gradient-to-br from-[#0b1e37] via-[#0f2847] to-[#0f3d3a] shadow-[0_16px_48px_-28px_rgba(34,211,238,0.45)] mb-6">
           <div className="px-4 py-3 border-b border-white/10 bg-black/20">
             <h2 className="text-base font-bold text-white">Usuarios FitPlan</h2>
             <p className="text-[11px] text-white/55 mt-0.5">Cuentas registradas (sin admin)</p>
@@ -3644,13 +3645,13 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.05 }}
-                      className={`hover:bg-white/5 transition-colors border-l-4 group ${isNewUser ? "bg-green-500/10 border-green-400/70" : "border-transparent"}`}
+                      className={`hover:bg-white/5 transition-colors border-l-4 group ${isNewUser ? "bg-success/10 border-success/70" : "border-transparent"}`}
                     >
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
                         <div className="flex items-center gap-2">
                           <span>{user.nombre || user.email || "N/A"}</span>
                           {isNewUser && (
-                            <span className="px-2 py-0.5 text-[10px] uppercase tracking-wide rounded-full bg-green-500/30 text-green-100 border border-green-500/40">
+                            <span className="px-2 py-0.5 text-[10px] uppercase tracking-wide rounded-full bg-success/30 text-success border border-success/40">
                               Nuevo
                             </span>
                           )}
@@ -3705,7 +3706,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                           {user.email ? (
                             <a
                               href={`mailto:${user.email}`}
-                              className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-400 transition-colors"
+                              className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-info/20 hover:bg-info/30 border border-info/30 text-info transition-colors"
                               title={user.email}
                             >
                               <FaEnvelope className="text-sm" />
@@ -3719,7 +3720,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                 setSelectedUserForMessage(user);
                                 setSendMessageModalOpen(true);
                               }}
-                              className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 text-green-400 transition-colors"
+                              className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-success/20 hover:bg-success/30 border border-success/30 text-success transition-colors"
                               title={`Enviar mensaje a ${user.nombre || user.email}`}
                             >
                               <FaComment className="text-sm" />
@@ -3728,7 +3729,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                           {user.email && user.email.toLowerCase() !== "admin@fitplan-ai.com" && (
                             <button
                               onClick={() => openPaymentLinkModal(user)}
-                              className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-300 transition-colors"
+                              className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-success/20 hover:bg-success/30 border border-success/30 text-success transition-colors"
                               title={`Generar link de pago para ${user.nombre || user.email}`}
                             >
                               <FaLink className="text-sm" />
@@ -3743,11 +3744,11 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                           </span>
                         ) : user.premium ? (
                           <div className="flex flex-col gap-1">
-                            <span className="px-2 py-1 text-xs rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+                            <span className="px-2 py-1 text-xs rounded-full bg-warning/20 text-warning border border-warning/30">
                               Premium
                             </span>
                             {user.premiumPlanType && (
-                              <span className="px-2 py-0.5 text-[10px] rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                              <span className="px-2 py-0.5 text-[10px] rounded-full bg-info/20 text-info border border-info/30">
                                 {user.premiumPlanType === "monthly" 
                                   ? "Mensual" 
                                   : user.premiumPlanType === "quarterly"
@@ -3773,7 +3774,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                           <div className="relative flex items-center gap-2">
                             <FaCircle
                               className={`h-2.5 w-2.5 ${
-                                isCurrentMonthPaid(user) ? "text-green-400 drop-shadow-[0_0_6px_rgba(74,222,128,0.9)]" : "text-red-400/80"
+                                isCurrentMonthPaid(user) ? "text-success drop-shadow-[0_0_6px_rgba(74,222,128,0.9)]" : "text-danger/80"
                               }`}
                               title={isCurrentMonthPaid(user) ? "Mes corriente pago" : "Mes corriente pendiente"}
                             />
@@ -3785,7 +3786,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                 try {
                                   const auth = getAuthSafe();
                                   if (!auth?.currentUser) return;
-                                  const response = await fetch(`/api/admin/payments?userId=${user.id}&adminUserId=${auth.currentUser.uid}`);
+                                  const response = await adminFetch(`/api/admin/payments?userId=${user.id}&adminUserId=${auth.currentUser.uid}`);
                                   if (!response.ok) throw new Error("Error al cargar historial");
                                   const data = await response.json();
                                   setPaymentHistory(data.payments || []);
@@ -3798,10 +3799,10 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                               }}
                               className={`px-2 py-1 text-xs rounded-full border cursor-pointer touch-manipulation hover:opacity-80 transition-opacity ${
                                 paymentStatus.status === "paid" 
-                                  ? "bg-green-500/20 text-green-400 border-green-500/30"
+                                  ? "bg-success/20 text-success border-success/30"
                                   : paymentStatus.status === "expiring"
-                                  ? "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
-                                  : "bg-red-500/20 text-red-400 border-red-500/30"
+                                  ? "bg-warning/20 text-warning border-warning/30"
+                                  : "bg-danger/20 text-danger border-danger/30"
                               }`}
                             >
                               {paymentStatus.label}
@@ -3930,12 +3931,12 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                               return (
                                 <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-[9999] px-3 py-2 rounded-lg bg-black/95 border border-white/20 shadow-xl text-sm whitespace-nowrap pointer-events-auto">
                                   {status.status === "bajo" && status.weightDifference && (
-                                    <p className="text-blue-400">
+                                    <p className="text-info">
                                       {status.weightDifference.toFixed(1)} kg por debajo del peso ideal
                                     </p>
                                   )}
                                   {status.status === "excedido" && status.weightDifference && (
-                                    <p className="text-red-400">
+                                    <p className="text-danger">
                                       {status.weightDifference.toFixed(1)} kg por encima del peso ideal
                                     </p>
                                   )}
@@ -3951,7 +3952,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleEdit(user)}
-                            className="px-3 py-1.5 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30 transition-colors"
+                            className="px-3 py-1.5 rounded-lg bg-info/20 hover:bg-info/30 text-info border border-info/30 transition-colors"
                           >
                             Editar
                           </button>
@@ -3962,7 +3963,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                 setHistoryModalOpen(true);
                                 setLoadingHistory(true);
                                 try {
-                                  const response = await fetch(`/api/admin/userHistory?userId=${user.id}&adminUserId=${authUser?.uid}`);
+                                  const response = await adminFetch(`/api/admin/userHistory?userId=${user.id}&adminUserId=${authUser?.uid}`);
                                   if (!response.ok) throw new Error("Error al cargar historial");
                                   const data = await response.json();
                                   setUserHistory(data);
@@ -3973,7 +3974,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                   setLoadingHistory(false);
                                 }
                               }}
-                              className="px-3 py-1.5 rounded-lg bg-green-500/20 hover:bg-green-500/30 text-green-400 border border-green-500/30 transition-colors"
+                              className="px-3 py-1.5 rounded-lg bg-success/20 hover:bg-success/30 text-success border border-success/30 transition-colors"
                             >
                               Historial
                             </button>
@@ -4013,7 +4014,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                     transition={{ delay: index * 0.05 }}
                     className={`rounded-lg border p-4 space-y-3 group ${
                       isNewUser 
-                        ? "bg-green-500/10 border-green-400/30 border-l-4 border-l-green-400" 
+                        ? "bg-success/10 border-success/30 border-l-4 border-l-success" 
                         : "bg-white/5 border-white/10"
                     }`}
                   >
@@ -4022,7 +4023,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                       <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="text-base font-semibold text-white">{user.nombre || user.email || "N/A"}</h3>
                         {isNewUser && (
-                          <span className="px-2 py-0.5 text-[10px] uppercase tracking-wide rounded-full bg-green-500/30 text-green-100 border border-green-500/40">
+                          <span className="px-2 py-0.5 text-[10px] uppercase tracking-wide rounded-full bg-success/30 text-success border border-success/40">
                             Nuevo
                           </span>
                         )}
@@ -4076,11 +4077,11 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                           </span>
                         ) : user.premium ? (
                           <>
-                            <span className="px-2 py-1 text-xs rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+                            <span className="px-2 py-1 text-xs rounded-full bg-warning/20 text-warning border border-warning/30">
                               Premium
                             </span>
                             {user.premiumPlanType && (
-                              <span className="px-2 py-0.5 text-[10px] rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                              <span className="px-2 py-0.5 text-[10px] rounded-full bg-info/20 text-info border border-info/30">
                                 {user.premiumPlanType === "monthly" 
                                   ? "Mensual" 
                                   : user.premiumPlanType === "quarterly"
@@ -4106,7 +4107,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                         <>
                           <a
                             href={`mailto:${user.email}`}
-                            className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-400 transition-colors"
+                            className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-info/20 hover:bg-info/30 border border-info/30 text-info transition-colors"
                             title={user.email}
                           >
                             <FaEnvelope className="text-sm" />
@@ -4117,7 +4118,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                 setSelectedUserForMessage(user);
                                 setSendMessageModalOpen(true);
                               }}
-                              className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 text-green-400 transition-colors"
+                              className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-success/20 hover:bg-success/30 border border-success/30 text-success transition-colors"
                               title={`Enviar mensaje a ${user.nombre || user.email}`}
                             >
                               <FaComment className="text-sm" />
@@ -4126,7 +4127,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                           {user.email.toLowerCase() !== "admin@fitplan-ai.com" && (
                             <button
                               onClick={() => openPaymentLinkModal(user)}
-                              className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-300 transition-colors"
+                              className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-success/20 hover:bg-success/30 border border-success/30 text-success transition-colors"
                               title={`Generar link de pago para ${user.nombre || user.email}`}
                             >
                               <FaLink className="text-sm" />
@@ -4174,12 +4175,12 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                               return (
                                 <div className="absolute left-0 top-full mt-2 z-[9999] px-3 py-2 rounded-lg bg-black/95 border border-white/20 shadow-xl text-sm whitespace-nowrap pointer-events-auto">
                                   {status.status === "bajo" && status.weightDifference && (
-                                    <p className="text-blue-400">
+                                    <p className="text-info">
                                       {status.weightDifference.toFixed(1)} kg por debajo del peso ideal
                                     </p>
                                   )}
                                   {status.status === "excedido" && status.weightDifference && (
-                                    <p className="text-red-400">
+                                    <p className="text-danger">
                                       {status.weightDifference.toFixed(1)} kg por encima del peso ideal
                                     </p>
                                   )}
@@ -4200,7 +4201,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                           <div className="relative inline-block">
                             <FaCircle
                               className={`h-2.5 w-2.5 inline-block mr-1 ${
-                                isCurrentMonthPaid(user) ? "text-green-400 drop-shadow-[0_0_6px_rgba(74,222,128,0.9)]" : "text-red-400/80"
+                                isCurrentMonthPaid(user) ? "text-success drop-shadow-[0_0_6px_rgba(74,222,128,0.9)]" : "text-danger/80"
                               }`}
                               title={isCurrentMonthPaid(user) ? "Mes corriente pago" : "Mes corriente pendiente"}
                             />
@@ -4212,7 +4213,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                 try {
                                   const auth = getAuthSafe();
                                   if (!auth?.currentUser) return;
-                                  const response = await fetch(`/api/admin/payments?userId=${user.id}&adminUserId=${auth.currentUser.uid}`);
+                                  const response = await adminFetch(`/api/admin/payments?userId=${user.id}&adminUserId=${auth.currentUser.uid}`);
                                   if (!response.ok) throw new Error("Error al cargar historial");
                                   const data = await response.json();
                                   setPaymentHistory(data.payments || []);
@@ -4225,10 +4226,10 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                               }}
                               className={`px-2 py-1 text-xs rounded-full border cursor-pointer touch-manipulation hover:opacity-80 transition-opacity ${
                                 paymentStatus.status === "paid" 
-                                  ? "bg-green-500/20 text-green-400 border-green-500/30"
+                                  ? "bg-success/20 text-success border-success/30"
                                   : paymentStatus.status === "expiring"
-                                  ? "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
-                                  : "bg-red-500/20 text-red-400 border-red-500/30"
+                                  ? "bg-warning/20 text-warning border-warning/30"
+                                  : "bg-danger/20 text-danger border-danger/30"
                               }`}
                             >
                               {paymentStatus.label}
@@ -4333,7 +4334,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                     <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-white/10">
                       <button
                         onClick={() => handleEdit(user)}
-                        className="flex-1 px-3 py-2 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30 transition-colors text-sm font-medium"
+                        className="flex-1 px-3 py-2 rounded-lg bg-info/20 hover:bg-info/30 text-info border border-info/30 transition-colors text-sm font-medium"
                       >
                         Editar
                       </button>
@@ -4344,7 +4345,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                             setHistoryModalOpen(true);
                             setLoadingHistory(true);
                             try {
-                              const response = await fetch(`/api/admin/userHistory?userId=${user.id}&adminUserId=${authUser?.uid}`);
+                              const response = await adminFetch(`/api/admin/userHistory?userId=${user.id}&adminUserId=${authUser?.uid}`);
                               if (!response.ok) throw new Error("Error al cargar historial");
                               const data = await response.json();
                               setUserHistory(data);
@@ -4355,7 +4356,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                               setLoadingHistory(false);
                             }
                           }}
-                          className="flex-1 px-3 py-2 rounded-lg bg-green-500/20 hover:bg-green-500/30 text-green-400 border border-green-500/30 transition-colors text-sm font-medium"
+                          className="flex-1 px-3 py-2 rounded-lg bg-success/20 hover:bg-success/30 text-success border border-success/30 transition-colors text-sm font-medium"
                         >
                           Historial
                         </button>
@@ -4389,7 +4390,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                     type="text"
                     value={editForm.nombre || ""}
                     onChange={(e) => setEditForm({ ...editForm, nombre: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                   />
                 </div>
 
@@ -4399,7 +4400,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                     type="email"
                     value={editForm.email || ""}
                     onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                   />
                 </div>
 
@@ -4408,7 +4409,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                   <select
                     value={editForm.sexo || ""}
                     onChange={(e) => setEditForm({ ...editForm, sexo: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                   >
                     <option value="">Seleccionar...</option>
                     <option value="masculino">Masculino</option>
@@ -4423,7 +4424,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                     type="number"
                     value={editForm.edad ?? ""}
                     onChange={(e) => setEditForm({ ...editForm, edad: e.target.value ? Number(e.target.value) : null })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                   />
                 </div>
 
@@ -4433,7 +4434,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                     type="number"
                     value={editForm.alturaCm ?? ""}
                     onChange={(e) => setEditForm({ ...editForm, alturaCm: e.target.value ? Number(e.target.value) : null })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                   />
                 </div>
 
@@ -4444,7 +4445,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                     step="0.1"
                     value={editForm.peso ?? ""}
                     onChange={(e) => setEditForm({ ...editForm, peso: e.target.value ? Number(e.target.value) : null })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                   />
                 </div>
 
@@ -4455,7 +4456,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                     step="0.1"
                     value={editForm.pesoObjetivo ?? ""}
                     onChange={(e) => setEditForm({ ...editForm, pesoObjetivo: e.target.value ? Number(e.target.value) : null })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                   />
                 </div>
 
@@ -4466,7 +4467,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                       type="checkbox"
                       checked={editForm.premium || false}
                       onChange={(e) => setEditForm({ ...editForm, premium: e.target.checked })}
-                      className="w-4 h-4 rounded bg-white/5 border border-white/10 text-blue-500 focus:ring-2 focus:ring-blue-500"
+                      className="w-4 h-4 rounded bg-[var(--surface-2)] border border-[var(--border)] text-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]"
                     />
                     <span className="text-white">Activar Premium</span>
                   </label>
@@ -4478,7 +4479,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                     <select
                       value={editForm.premiumPlanType || ""}
                       onChange={(e) => setEditForm({ ...editForm, premiumPlanType: e.target.value || null })}
-                      className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                     >
                       <option value="">Seleccionar tipo de plan...</option>
                       <option value="monthly">Mensual ($10.000 ARS / 5 EUR)</option>
@@ -4495,7 +4496,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                       type="checkbox"
                       checked={editForm.atletico || false}
                       onChange={(e) => setEditForm({ ...editForm, atletico: e.target.checked })}
-                      className="w-4 h-4 rounded bg-white/5 border border-white/10 text-blue-500 focus:ring-2 focus:ring-blue-500"
+                      className="w-4 h-4 rounded bg-[var(--surface-2)] border border-[var(--border)] text-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]"
                     />
                     <span className="text-white">Activar</span>
                   </label>
@@ -4508,7 +4509,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                     step="0.1"
                     value={editForm.cinturaCm ?? ""}
                     onChange={(e) => setEditForm({ ...editForm, cinturaCm: e.target.value ? Number(e.target.value) : null })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                   />
                 </div>
 
@@ -4519,7 +4520,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                     step="0.1"
                     value={editForm.cuelloCm ?? ""}
                     onChange={(e) => setEditForm({ ...editForm, cuelloCm: e.target.value ? Number(e.target.value) : null })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                   />
                 </div>
 
@@ -4530,7 +4531,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                     step="0.1"
                     value={editForm.caderaCm ?? ""}
                     onChange={(e) => setEditForm({ ...editForm, caderaCm: e.target.value ? Number(e.target.value) : null })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                   />
                 </div>
 
@@ -4540,7 +4541,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                     type="text"
                     value={editForm.ciudad || ""}
                     onChange={(e) => setEditForm({ ...editForm, ciudad: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                     placeholder="Ej: Buenos Aires"
                   />
                 </div>
@@ -4551,7 +4552,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                     type="text"
                     value={editForm.pais || ""}
                     onChange={(e) => setEditForm({ ...editForm, pais: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                     placeholder="Ej: Argentina"
                   />
                 </div>
@@ -4561,14 +4562,14 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                 <button
                   onClick={handleSave}
                   disabled={saving || deleting}
-                  className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                  className="btn btn-primary flex-1"
                 >
                   {saving ? "Guardando..." : "Guardar Cambios"}
                 </button>
                 <button
                   onClick={handleDelete}
                   disabled={saving || deleting || editingUser?.email?.toLowerCase() === "admin@fitplan-ai.com"}
-                  className="px-4 py-2 rounded-lg bg-red-500/20 border border-red-500/30 text-red-400 hover:bg-red-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 rounded-lg bg-danger/20 border border-danger/30 text-danger hover:bg-danger/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   title={editingUser?.email?.toLowerCase() === "admin@fitplan-ai.com" ? "No se puede eliminar al administrador" : "Eliminar usuario"}
                 >
                   {deleting ? "Eliminando..." : "Eliminar Usuario"}
@@ -4619,7 +4620,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
 
               {loadingHistory ? (
                 <div className="flex items-center justify-center py-12">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400"></div>
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-info"></div>
                 </div>
               ) : userHistory ? (
                 <div className="space-y-6">
@@ -4670,7 +4671,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                           </div>
                           <div>
                             <p className="text-white/60">Premium</p>
-                            <p className={`font-medium ${user.premium ? "text-yellow-400" : "text-gray-400"}`}>
+                            <p className={`font-medium ${user.premium ? "text-warning" : "text-gray-400"}`}>
                               {user.premium ? "Sí" : "No"}
                             </p>
                           </div>
@@ -4851,7 +4852,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                       <td className="text-right py-2 text-white font-medium">{record.peso} kg</td>
                                       <td className="text-right py-2">
                                         {cambio && (
-                                          <span className={Number(cambio) > 0 ? "text-red-400" : "text-green-400"}>
+                                          <span className={Number(cambio) > 0 ? "text-danger" : "text-success"}>
                                             {Number(cambio) > 0 ? `+${cambio}` : cambio} kg
                                           </span>
                                         )}
@@ -4891,7 +4892,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                               </div>
                               <div>
                                 <p className="text-white/60">Cambio Total</p>
-                                <p className={`font-medium ${diferencia > 0 ? "text-red-400" : diferencia < 0 ? "text-green-400" : "text-white"}`}>
+                                <p className={`font-medium ${diferencia > 0 ? "text-danger" : diferencia < 0 ? "text-success" : "text-white"}`}>
                                   {diferencia > 0 ? `+${diferencia.toFixed(1)}` : diferencia.toFixed(1)} kg
                                 </p>
                               </div>
@@ -4937,7 +4938,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                               if (response.ok) {
                                 alert("Snapshot mensual creado exitosamente");
                                 // Recargar historial
-                                const historyResponse = await fetch(`/api/admin/userHistory?userId=${selectedUserForHistory.id}&adminUserId=${authUser?.uid}`);
+                                const historyResponse = await adminFetch(`/api/admin/userHistory?userId=${selectedUserForHistory.id}&adminUserId=${authUser?.uid}`);
                                 if (historyResponse.ok) {
                                   const data = await historyResponse.json();
                                   setUserHistory(data);
@@ -4954,7 +4955,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                             alert("Error al crear snapshot mensual");
                           }
                         }}
-                        className="px-3 py-1.5 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30 transition-colors text-sm"
+                        className="px-3 py-1.5 rounded-lg bg-info/20 hover:bg-info/30 text-info border border-info/30 transition-colors text-sm"
                       >
                         Crear Snapshot Manual
                       </button>
@@ -5000,7 +5001,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                     setSelectedPlanIdForStats(p.id || null);
                                     setWeeklyStatsModalOpen(true);
                                   }}
-                                  className="w-full mt-2 px-3 py-1.5 rounded-lg bg-blue-500/20 border border-blue-500/30 text-blue-300 hover:bg-blue-500/30 transition-colors text-xs font-medium flex items-center justify-center gap-2"
+                                  className="w-full mt-2 px-3 py-1.5 rounded-lg bg-info/20 border border-info/30 text-info hover:bg-info/30 transition-colors text-xs font-medium flex items-center justify-center gap-2"
                                 >
                                   <FaChartLine className="h-3 w-3" />
                                   Ver estadísticas semanales
@@ -5023,8 +5024,8 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                   </div>
                 </div>
               ) : (
-                <div className="p-6 rounded-lg bg-red-500/10 border border-red-500/30 text-center">
-                  <p className="text-red-400">Error al cargar el historial</p>
+                <div className="p-6 rounded-lg bg-danger/10 border border-danger/30 text-center">
+                  <p className="text-danger">Error al cargar el historial</p>
                 </div>
               )}
             </motion.div>
@@ -5058,7 +5059,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                         notes: "",
                       });
                     }}
-                    className="px-4 py-2 rounded-lg bg-green-500/20 hover:bg-green-500/30 text-green-400 border border-green-500/30 transition-colors text-sm"
+                    className="px-4 py-2 rounded-lg bg-success/20 hover:bg-success/30 text-success border border-success/30 transition-colors text-sm"
                   >
                     + Agregar Pago
                   </button>
@@ -5092,7 +5093,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                         step="0.01"
                         value={newPayment.amount}
                         onChange={(e) => setNewPayment({ ...newPayment, amount: e.target.value })}
-                        className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                         placeholder="10000"
                       />
                     </div>
@@ -5101,7 +5102,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                       <select
                         value={newPayment.planType}
                         onChange={(e) => setNewPayment({ ...newPayment, planType: e.target.value })}
-                        className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                       >
                         <option value="monthly">Mensual</option>
                         <option value="quarterly">Trimestral</option>
@@ -5114,7 +5115,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                         type="date"
                         value={newPayment.date}
                         onChange={(e) => setNewPayment({ ...newPayment, date: e.target.value })}
-                        className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                       />
                     </div>
                     <div>
@@ -5122,7 +5123,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                       <select
                         value={newPayment.paymentMethod}
                         onChange={(e) => setNewPayment({ ...newPayment, paymentMethod: e.target.value })}
-                        className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                       >
                         <option value="transferencia">Transferencia</option>
                         <option value="efectivo">Efectivo</option>
@@ -5135,7 +5136,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                         type="text"
                         value={newPayment.notes}
                         onChange={(e) => setNewPayment({ ...newPayment, notes: e.target.value })}
-                        className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                         placeholder="Ej: Transferencia N° 12345, Comprobante adjunto"
                       />
                     </div>
@@ -5152,7 +5153,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                           const auth = getAuthSafe();
                           if (!auth?.currentUser) return;
                           
-                          const response = await fetch("/api/admin/payments", {
+                          const response = await adminFetch("/api/admin/payments", {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({
@@ -5169,7 +5170,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                           if (!response.ok) throw new Error("Error al crear pago");
                           
                           // Recargar historial
-                          const historyResponse = await fetch(`/api/admin/payments?userId=${selectedUserForPaymentHistory.id}&adminUserId=${auth.currentUser.uid}`);
+                          const historyResponse = await adminFetch(`/api/admin/payments?userId=${selectedUserForPaymentHistory.id}&adminUserId=${auth.currentUser.uid}`);
                           if (historyResponse.ok) {
                             const data = await historyResponse.json();
                             setPaymentHistory(data.payments || []);
@@ -5191,7 +5192,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                         }
                       }}
                       disabled={savingPayment}
-                      className="px-4 py-2 rounded-lg bg-green-500/20 hover:bg-green-500/30 text-green-400 border border-green-500/30 transition-colors disabled:opacity-50"
+                      className="px-4 py-2 rounded-lg bg-success/20 hover:bg-success/30 text-success border border-success/30 transition-colors disabled:opacity-50"
                     >
                       {savingPayment ? "Guardando..." : "Guardar Pago"}
                     </button>
@@ -5216,7 +5217,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
 
               {loadingPaymentHistory ? (
                 <div className="flex items-center justify-center py-12">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400"></div>
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-info"></div>
                 </div>
               ) : paymentHistory.length === 0 ? (
                 <div className="text-center py-12">
@@ -5244,7 +5245,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                     ...editingPayment!,
                                     amount: Number(e.target.value)
                                   })}
-                                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  className="w-full px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                                 />
                               </div>
                               <div>
@@ -5255,7 +5256,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                     ...editingPayment!,
                                     planType: e.target.value
                                   })}
-                                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  className="w-full px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                                 >
                                   <option value="monthly">Mensual</option>
                                   <option value="quarterly">Trimestral</option>
@@ -5271,7 +5272,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                     ...editingPayment!,
                                     date: e.target.value
                                   })}
-                                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  className="w-full px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                                 />
                               </div>
                               <div>
@@ -5283,7 +5284,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                     ...editingPayment!,
                                     expiresAt: e.target.value
                                   })}
-                                  className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  className="w-full px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                                 />
                               </div>
                             </div>
@@ -5305,7 +5306,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                     alert("Error al actualizar el pago");
                                   }
                                 }}
-                                className="px-4 py-2 rounded-lg bg-green-500/20 hover:bg-green-500/30 text-green-400 border border-green-500/30 transition-colors"
+                                className="px-4 py-2 rounded-lg bg-success/20 hover:bg-success/30 text-success border border-success/30 transition-colors"
                               >
                                 Guardar
                               </button>
@@ -5340,7 +5341,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                     <p className="text-white font-medium capitalize">
                                       {payment.paymentMethod === "mercadopago" ? "MercadoPago" : payment.paymentMethod === "stripe" ? "Stripe" : payment.paymentMethod}
                                       {payment.isManual && (
-                                        <span className="ml-2 text-xs text-blue-400">(Manual)</span>
+                                        <span className="ml-2 text-xs text-info">(Manual)</span>
                                       )}
                                     </p>
                                   </div>
@@ -5365,9 +5366,9 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                           const now = new Date();
                                           const diffTime = expiresDate.getTime() - now.getTime();
                                           const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                                          if (diffDays < 0) return "text-red-400";
-                                          if (diffDays <= 7) return "text-yellow-400";
-                                          return "text-green-400";
+                                          if (diffDays < 0) return "text-danger";
+                                          if (diffDays <= 7) return "text-warning";
+                                          return "text-success";
                                         })()
                                       : "text-gray-400"
                                   }`}>
@@ -5393,7 +5394,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                     expiresAt: expiresDate ? expiresDate.toISOString().split('T')[0] : '',
                                   });
                                 }}
-                                className="px-3 py-1.5 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30 transition-colors text-sm"
+                                className="px-3 py-1.5 rounded-lg bg-info/20 hover:bg-info/30 text-info border border-info/30 transition-colors text-sm"
                               >
                                 Editar
                               </button>
@@ -5454,7 +5455,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                   <button
                     onClick={() => void handleSendIntakeWelcomeEmail()}
                     disabled={sendingIntakeWelcomeEmail}
-                    className="px-3 py-1.5 rounded-lg bg-cyan-500/20 border border-cyan-400/40 text-cyan-100 hover:bg-cyan-500/30 disabled:opacity-60 text-xs"
+                    className="px-3 py-1.5 rounded-lg bg-info/20 border border-info/40 text-info hover:bg-info/30 disabled:opacity-60 text-xs"
                   >
                     {sendingIntakeWelcomeEmail ? "Enviando..." : "Enviar bienvenida"}
                   </button>
@@ -5462,7 +5463,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                 </div>
               </div>
               {intakeEmailHistoryMessage ? (
-                <p className="text-xs mb-3 text-cyan-200">{intakeEmailHistoryMessage}</p>
+                <p className="text-xs mb-3 text-info">{intakeEmailHistoryMessage}</p>
               ) : null}
               {intakeEmailHistoryLoading ? (
                 <p className="text-sm text-white/70">Cargando…</p>
@@ -5474,7 +5475,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                     <details key={item.id} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2">
                       <summary className="cursor-pointer text-sm text-white">
                         {item.subject || "Email"} · {item.weekKey || "—"} ·{" "}
-                        <span className={item.status === "failed" ? "text-red-300" : "text-emerald-300"}>
+                        <span className={item.status === "failed" ? "text-danger" : "text-success"}>
                           {item.status === "failed" ? "Fallido" : "Enviado"}
                         </span>{" "}
                         ·{" "}
@@ -5484,7 +5485,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                         <p><span className="text-white/60">Para:</span> {item.to || "N/A"}</p>
                         <p><span className="text-white/60">Frecuencia:</span> {item.frequency || "weekly"}</p>
                         {item.status === "failed" ? (
-                          <p className="text-red-300"><span className="text-red-200/80">Error:</span> {item.error || "Sin detalle"}</p>
+                          <p className="text-danger"><span className="text-danger/80">Error:</span> {item.error || "Sin detalle"}</p>
                         ) : (
                           <div className="rounded bg-white border border-white/10 p-2 max-h-72 overflow-auto">
                             {item.html ? (
@@ -5642,7 +5643,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
             <motion.div
               initial={{ opacity: 0, scale: 0.97 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-gray-900 rounded-xl border border-emerald-500/30 max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl"
+              className="bg-gray-900 rounded-xl border border-success/30 max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-white/10 shrink-0">
@@ -5662,7 +5663,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                       type="button"
                       onClick={() => setTrainerPreferenceFilter("hombre")}
                       className={`px-2 py-1 rounded-md transition-colors ${
-                        trainerPreferenceFilter === "hombre" ? "bg-cyan-500/30 text-cyan-100" : "text-white/70 hover:text-white"
+                        trainerPreferenceFilter === "hombre" ? "bg-info/30 text-info" : "text-white/70 hover:text-white"
                       }`}
                     >
                       Hombre
@@ -5708,7 +5709,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                               user.personalTrainerPreference === "mujer"
                                 ? "bg-fuchsia-500/20 border-fuchsia-400/40 text-fuchsia-100"
                                 : user.personalTrainerPreference === "hombre"
-                                  ? "bg-cyan-500/20 border-cyan-400/40 text-cyan-100"
+                                  ? "bg-info/20 border-info/40 text-info"
                                   : "bg-white/10 border-white/25 text-white/80"
                             }`}
                           >
@@ -5733,7 +5734,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                         <button
                           type="button"
                           onClick={() => window.open("https://wa.me/34627043397", "_blank", "noopener,noreferrer")}
-                          className="mt-3 w-full px-3 py-1.5 rounded-lg bg-emerald-500/25 border border-emerald-400/40 text-emerald-100 hover:bg-emerald-500/35 transition-colors"
+                          className="mt-3 w-full px-3 py-1.5 rounded-lg bg-success/25 border border-success/40 text-success hover:bg-success/35 transition-colors"
                         >
                           Contactar por WhatsApp
                         </button>
@@ -5777,7 +5778,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
             <motion.div
               initial={{ opacity: 0, scale: 0.97 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-gray-900 rounded-xl border border-cyan-500/30 max-w-xl w-full max-h-[min(90vh,720px)] overflow-hidden flex flex-col shadow-2xl"
+              className="bg-gray-900 rounded-xl border border-info/30 max-w-xl w-full max-h-[min(90vh,720px)] overflow-hidden flex flex-col shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5 sm:py-4 border-b border-white/10 shrink-0">
@@ -5788,7 +5789,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                     <select
                       value={yearlyEarningsYear}
                       onChange={(e) => setYearlyEarningsYear(Number(e.target.value))}
-                      className="rounded-lg border border-white/20 bg-black/40 px-3 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                      className="rounded-lg border border-white/20 bg-black/40 px-3 py-1.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-info/50"
                     >
                       {Array.from(
                         { length: new Date().getFullYear() - 2019 },
@@ -5834,7 +5835,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                           <span className="text-white/50 text-[11px] sm:text-xs tabular-nums text-right">
                             {row.paymentCount > 0 ? row.paymentCount : "—"}
                           </span>
-                          <span className="text-green-400 font-semibold tabular-nums text-right text-xs sm:text-sm">
+                          <span className="text-success font-semibold tabular-nums text-right text-xs sm:text-sm">
                             {row.totalEarningsArs > 0
                               ? `$${row.totalEarningsArs.toLocaleString("es-AR")}`
                               : "—"}
@@ -5847,7 +5848,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                           {row.legacyTotal > 0 &&
                             row.totalEarningsArs === 0 &&
                             row.totalEarningsEur === 0 && (
-                            <span className="col-span-4 text-[10px] text-amber-200/80 pl-0.5 -mt-0.5">
+                            <span className="col-span-4 text-[10px] text-warning/80 pl-0.5 -mt-0.5">
                               Solo total histórico (sin ARS/EUR separados): ${row.legacyTotal.toLocaleString("es-AR")}
                             </span>
                           )}
@@ -5858,7 +5859,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                       <span className="text-white font-semibold">Total año {yearlyEarningsPayload.year}</span>
                       <div className="flex flex-wrap justify-between gap-2 text-sm">
                         <span className="text-white/70">ARS</span>
-                        <span className="text-green-400 font-bold tabular-nums">
+                        <span className="text-success font-bold tabular-nums">
                           ${yearlyEarningsPayload.yearlyTotalArs.toLocaleString("es-AR")}
                         </span>
                       </div>
@@ -5873,8 +5874,8 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                       </div>
                       {yearlyEarningsPayload.yearlyLegacyTotal > 0 && (
                         <div className="flex flex-wrap justify-between gap-2 text-sm">
-                          <span className="text-amber-200/90">Histórico sin desglose</span>
-                          <span className="text-amber-200 font-semibold tabular-nums">
+                          <span className="text-warning/90">Histórico sin desglose</span>
+                          <span className="text-warning font-semibold tabular-nums">
                             ${yearlyEarningsPayload.yearlyLegacyTotal.toLocaleString("es-AR")}
                           </span>
                         </div>
@@ -5883,7 +5884,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                   </>
                 )}
                 {!yearlyEarningsLoading && !yearlyEarningsPayload && (
-                  <p className="text-sm text-red-300/90">No se pudieron cargar las ganancias de ese año.</p>
+                  <p className="text-sm text-danger/90">No se pudieron cargar las ganancias de ese año.</p>
                 )}
               </div>
             </motion.div>
@@ -6004,7 +6005,7 @@ function IntakePlanActionModal({
             <p className="text-sm text-white/70 mt-1">{client.nombreCompleto || client.email || client.id}</p>
             <p className="text-xs text-white/50 mt-1">{subtitle}</p>
             {includeTraining && (
-              <p className="text-[11px] text-cyan-200/80 mt-2 leading-snug">
+              <p className="text-[11px] text-info/80 mt-2 leading-snug">
                 Si marcas limitaciones de entreno abajo, la IA las prioriza y el sistema corrige sentadilla/zancada si aun así aparecieran.
               </p>
             )}
@@ -6029,7 +6030,7 @@ function IntakePlanActionModal({
             <span className="text-sm text-white">Plan de entrenamiento</span>
             <input type="checkbox" checked={includeTraining} onChange={onToggleTraining} className="h-4 w-4" />
           </label>
-          <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-200">
+          <div className="rounded-lg border border-info/30 bg-info/10 px-3 py-2 text-xs text-info">
             Frecuencia: mensual
           </div>
           <div className="space-y-3 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-3">
@@ -6087,10 +6088,10 @@ function IntakePlanActionModal({
             )}
           </div>
           {includeTraining && (
-            <div className="space-y-3 rounded-lg border border-amber-500/30 bg-amber-500/[0.08] px-3 py-3">
-              <p className="text-xs font-semibold text-amber-100">Entreno — lo que tú confirmas ahora</p>
+            <div className="space-y-3 rounded-lg border border-warning/30 bg-warning/[0.08] px-3 py-3">
+              <p className="text-xs font-semibold text-warning">Entreno — lo que tú confirmas ahora</p>
               {clinicalTrainingHint ? (
-                <p className="text-[11px] text-amber-100/85 leading-relaxed">
+                <p className="text-[11px] text-warning/85 leading-relaxed">
                   <span className="text-white/45">Resumen del formulario:</span> {clinicalTrainingHint}
                 </p>
               ) : (
@@ -6165,8 +6166,8 @@ function IntakePlanActionModal({
                 />
               </label>
               {includeTraining && (
-                <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 space-y-2">
-                  <p className="text-xs text-emerald-100/90">
+                <div className="rounded-lg border border-success/25 bg-success/10 px-3 py-2 space-y-2">
+                  <p className="text-xs text-success/90">
                     Excel de seguimiento (opcional): si el cliente devolvió el archivo con pesos, descansos y RIR
                     rellenados, súbelo aquí para que la IA lo use al actualizar.
                   </p>
@@ -6180,7 +6181,7 @@ function IntakePlanActionModal({
                   <div className="flex flex-wrap items-center gap-2">
                     <label
                       htmlFor="intake-tracking-excel-input"
-                      className="cursor-pointer px-3 py-1.5 rounded-lg bg-emerald-500/30 border border-emerald-400/40 text-emerald-100 text-sm hover:bg-emerald-500/40"
+                      className="cursor-pointer px-3 py-1.5 rounded-lg bg-success/30 border border-success/40 text-success text-sm hover:bg-success/40"
                     >
                       Elegir archivo
                     </label>
@@ -6191,7 +6192,7 @@ function IntakePlanActionModal({
                       <button
                         type="button"
                         onClick={() => onTrackingExcelChange(null)}
-                        className="text-xs text-red-300 hover:underline"
+                        className="text-xs text-danger hover:underline"
                       >
                         Quitar
                       </button>
@@ -6255,7 +6256,7 @@ function IntakePlanActionModal({
             type="button"
             onClick={onClose}
             disabled={loading}
-            className="flex-1 px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn btn-secondary flex-1"
           >
             Cancelar
           </button>
@@ -6263,7 +6264,7 @@ function IntakePlanActionModal({
             type="button"
             onClick={onSubmit}
             disabled={loading}
-            className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-medium disabled:opacity-60 inline-flex items-center justify-center gap-2"
+            className="btn btn-primary flex-1"
           >
             {loading ? (
               <>
@@ -6341,14 +6342,14 @@ function DeleteIntakePlanModal({
         <div className="mt-5 flex gap-3">
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-white"
+            className="btn btn-secondary flex-1"
           >
             Cancelar
           </button>
           <button
             onClick={onSubmit}
             disabled={loading || (!deleteNutrition && !deleteTraining)}
-            className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-medium disabled:opacity-60"
+            className="btn btn-danger flex-1"
           >
             {loading ? "Eliminando..." : "Eliminar selección"}
           </button>
@@ -6406,7 +6407,7 @@ function DeleteIntakeUserModal({
           <button onClick={onClose} className="text-white/60 hover:text-white">✕</button>
         </div>
 
-        <div className="rounded-lg border border-red-400/30 bg-red-500/10 p-3 text-sm text-red-100">
+        <div className="rounded-lg border border-danger/30 bg-danger/10 p-3 text-sm text-danger">
           Esta acción eliminará al cliente del formulario de inicio y todos sus planes relacionados. No se puede deshacer.
         </div>
         <div className="mt-3 rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-white/85">
@@ -6416,14 +6417,14 @@ function DeleteIntakeUserModal({
         <div className="mt-5 flex gap-3">
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-white"
+            className="btn btn-secondary flex-1"
           >
             Cancelar
           </button>
           <button
             onClick={onSubmit}
             disabled={loading}
-            className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white font-medium disabled:opacity-60"
+            className="btn btn-danger flex-1"
           >
             {loading ? "Eliminando..." : "Sí, eliminar todo"}
           </button>
@@ -6492,13 +6493,13 @@ function PaymentLinkModal({
         </div>
         <p className="mt-3 text-xs text-white/60">Se genera el link, se copia al portapapeles y, si hay WhatsApp, se abre el envío directo.</p>
         <div className="mt-5 flex gap-3">
-          <button onClick={onClose} className="flex-1 px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-white">
+          <button onClick={onClose} className="btn btn-secondary flex-1">
             Cancelar
           </button>
           <button
             onClick={onSubmit}
             disabled={loading}
-            className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-medium disabled:opacity-60 inline-flex items-center justify-center gap-2"
+            className="btn btn-primary flex-1"
           >
             <FaWhatsapp className="h-4 w-4" />
             {loading ? "Generando..." : "Generar y enviar"}
@@ -6555,13 +6556,13 @@ function IntakePaymentLinkModal({
         </label>
 
         <div className="mt-5 flex gap-3">
-          <button onClick={onClose} className="flex-1 px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-white">
+          <button onClick={onClose} className="btn btn-secondary flex-1">
             Cancelar
           </button>
           <button
             onClick={onSubmit}
             disabled={loading}
-            className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-medium disabled:opacity-60"
+            className="btn btn-primary flex-1"
           >
             {loading ? "Generando..." : "Generar link"}
           </button>
@@ -6729,7 +6730,7 @@ function IntakeClientDetailsModal({
     setSavingBasics(true);
     setSaveError(null);
     try {
-      const response = await fetch("/api/admin/updateIntakeClientBasics", {
+      const response = await adminFetch("/api/admin/updateIntakeClientBasics", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -6796,7 +6797,7 @@ function IntakeClientDetailsModal({
           <div className="flex items-center gap-2">
             <button
               onClick={openBasicsEdit}
-              className="px-3 py-1.5 rounded-lg border border-cyan-300/30 bg-cyan-500/10 text-cyan-200 text-sm hover:bg-cyan-500/20"
+              className="px-3 py-1.5 rounded-lg border border-info/30 bg-info/10 text-info text-sm hover:bg-info/20"
             >
               Editar esenciales
             </button>
@@ -6811,8 +6812,8 @@ function IntakeClientDetailsModal({
         </div>
 
         {editOpen && (
-          <div className="mb-5 rounded-xl border border-cyan-300/20 bg-cyan-500/5 p-4">
-            <p className="text-sm font-medium text-cyan-200">Editar datos esenciales</p>
+          <div className="mb-5 rounded-xl border border-info/20 bg-info/5 p-4">
+            <p className="text-sm font-medium text-info">Editar datos esenciales</p>
             <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
               {[
                 ["nombre", "Nombre"],
@@ -6863,7 +6864,7 @@ function IntakeClientDetailsModal({
                 Consentimiento privacidad
               </label>
             </div>
-            {saveError ? <p className="text-xs text-red-300 mt-3">{saveError}</p> : null}
+            {saveError ? <p className="text-xs text-danger mt-3">{saveError}</p> : null}
             <div className="mt-4 flex gap-2">
               <button
                 onClick={() => setEditOpen(false)}
@@ -6875,7 +6876,7 @@ function IntakeClientDetailsModal({
               <button
                 onClick={() => void saveBasics()}
                 disabled={savingBasics}
-                className="px-3 py-1.5 rounded-lg bg-cyan-500/20 border border-cyan-300/30 text-cyan-100 hover:bg-cyan-500/30 disabled:opacity-60"
+                className="px-3 py-1.5 rounded-lg bg-info/20 border border-info/30 text-info hover:bg-info/30 disabled:opacity-60"
               >
                 {savingBasics ? "Guardando..." : "Guardar"}
               </button>
@@ -6885,10 +6886,10 @@ function IntakeClientDetailsModal({
 
         {loading ? (
           <div className="py-10 flex justify-center">
-            <div className="h-8 w-8 rounded-full border-b-2 border-cyan-400 animate-spin" />
+            <div className="h-8 w-8 rounded-full border-b-2 border-info animate-spin" />
           </div>
         ) : error ? (
-          <div className="p-3 rounded-lg bg-red-500/20 border border-red-500/30 text-red-300 text-sm">
+          <div className="p-3 rounded-lg bg-danger/20 border border-danger/30 text-danger text-sm">
             {error}
           </div>
         ) : !detail ? (
@@ -6925,8 +6926,8 @@ function IntakeClientDetailsModal({
               </div>
             </div>
             {detail.adherence ? (
-              <div className="rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-3 py-2">
-                <p className="text-xs text-cyan-100 mb-1">Adherencia (dashboard rápido)</p>
+              <div className="rounded-lg border border-info/30 bg-info/10 px-3 py-2">
+                <p className="text-xs text-info mb-1">Adherencia (dashboard rápido)</p>
                 <p className="text-sm text-white">
                   28d: {detail.adherence.sessionsLast28d} sesiones · 56d: {detail.adherence.sessionsLast56d} sesiones ·
                   Semanas activas (4): {detail.adherence.activeWeeksLast4}/4 · Promedio semanal: {detail.adherence.weeklyAvgLast4}
@@ -6934,9 +6935,9 @@ function IntakeClientDetailsModal({
               </div>
             ) : null}
             {detail.timelines ? (
-              <div className="rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-2">
+              <div className="rounded-lg border border-success/30 bg-success/10 px-3 py-2">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs text-emerald-100">Seguimiento (día / semana / mes)</p>
+                  <p className="text-xs text-success">Seguimiento (día / semana / mes)</p>
                   <div className="inline-flex items-center gap-1">
                     {[
                       ["7d", "7d"],
@@ -6951,7 +6952,7 @@ function IntakeClientDetailsModal({
                         onClick={() => setAnalyticsRange(id as "7d" | "30d" | "90d" | "12m" | "all")}
                         className={`px-2 py-0.5 rounded text-[10px] border ${
                           analyticsRange === id
-                            ? "bg-emerald-400/30 border-emerald-300/50 text-emerald-50"
+                            ? "bg-success/30 border-success/50 text-success"
                             : "bg-white/5 border-white/15 text-white/70 hover:bg-white/10"
                         }`}
                       >
@@ -7015,8 +7016,8 @@ function IntakeClientDetailsModal({
               </div>
             ) : null}
             {engagementEventsFiltered.length > 0 ? (
-              <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2">
-                <p className="text-xs text-amber-100 mb-2">Historial de solicitudes/completados</p>
+              <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2">
+                <p className="text-xs text-warning mb-2">Historial de solicitudes/completados</p>
                 <div className="space-y-1.5 max-h-44 overflow-y-auto">
                   {engagementEventsFiltered.slice(0, 40).map((ev) => (
                     <div key={ev.id} className="rounded border border-white/10 bg-black/20 px-2 py-1 text-xs text-white/85">
@@ -7232,7 +7233,7 @@ function IntakeGeneratedPlanModal({
           ...(p ? { demo_poster_url: p } : {}),
         };
       }
-      const response = await fetch("/api/admin/patchIntakePlanExerciseMedia", {
+      const response = await adminFetch("/api/admin/patchIntakePlanExerciseMedia", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -7492,7 +7493,7 @@ function IntakeGeneratedPlanModal({
       };
     }
     const baseName = sanitizeFileName(client.nombreCompleto || client.email || "cliente");
-    const response = await fetch("/api/admin/exportIntakePlanExcel", {
+    const response = await adminFetch("/api/admin/exportIntakePlanExcel", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -7562,7 +7563,7 @@ function IntakeGeneratedPlanModal({
               <button
                 onClick={() => setShowDownloadMenu((prev) => !prev)}
                 disabled={!plan}
-                className="px-3 py-1.5 rounded-lg bg-blue-500/20 border border-blue-400/40 text-blue-200 hover:bg-blue-500/30 transition-colors disabled:opacity-50 inline-flex items-center gap-2"
+                className="px-3 py-1.5 rounded-lg bg-info/20 border border-info/40 text-info hover:bg-info/30 transition-colors disabled:opacity-50 inline-flex items-center gap-2"
               >
                 <FaDownload />
                 Descargar plan
@@ -7574,7 +7575,7 @@ function IntakeGeneratedPlanModal({
                     disabled={exportingFormat !== null}
                     className="w-full text-left px-3 py-2 rounded-lg text-white/90 hover:bg-white/10 transition-colors inline-flex items-center gap-2"
                   >
-                    <FaFilePdf className="text-rose-300" />
+                    <FaFilePdf className="text-danger" />
                     Descargar en PDF
                   </button>
                   <button
@@ -7582,7 +7583,7 @@ function IntakeGeneratedPlanModal({
                     disabled={exportingFormat !== null}
                     className="w-full text-left px-3 py-2 rounded-lg text-white/90 hover:bg-white/10 transition-colors inline-flex items-center gap-2"
                   >
-                    <FaFileWord className="text-blue-300" />
+                    <FaFileWord className="text-info" />
                     Descargar en Word
                   </button>
                   <button
@@ -7590,7 +7591,7 @@ function IntakeGeneratedPlanModal({
                     disabled={exportingFormat !== null}
                     className="w-full text-left px-3 py-2 rounded-lg text-white/90 hover:bg-white/10 transition-colors inline-flex items-center gap-2"
                   >
-                    <FaFileExcel className="text-emerald-300" />
+                    <FaFileExcel className="text-success" />
                     Excel con ilustraciones (.xlsx)
                   </button>
                 </div>
@@ -7599,7 +7600,7 @@ function IntakeGeneratedPlanModal({
             <button
               onClick={handleCopyWhatsapp}
               disabled={!plan}
-              className="px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 hover:bg-emerald-500/30 transition-colors disabled:opacity-50"
+              className="px-3 py-1.5 rounded-lg bg-success/20 border border-success/40 text-success hover:bg-success/30 transition-colors disabled:opacity-50"
             >
               {copiedWhatsapp ? "Copiado" : "Copiar WhatsApp"}
             </button>
@@ -7609,10 +7610,10 @@ function IntakeGeneratedPlanModal({
 
         {loading ? (
           <div className="py-10 flex justify-center">
-            <div className="h-8 w-8 rounded-full border-b-2 border-cyan-400 animate-spin" />
+            <div className="h-8 w-8 rounded-full border-b-2 border-info animate-spin" />
           </div>
         ) : error ? (
-          <div className="p-3 rounded-lg bg-red-500/20 border border-red-500/30 text-red-300 text-sm">{error}</div>
+          <div className="p-3 rounded-lg bg-danger/20 border border-danger/30 text-danger text-sm">{error}</div>
         ) : !plan ? (
           <div className="p-3 rounded-lg bg-white/5 border border-white/10 text-white/70 text-sm">
             No hay datos de plan disponibles.
@@ -7634,9 +7635,9 @@ function IntakeGeneratedPlanModal({
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div className="rounded-lg border border-emerald-400/20 bg-emerald-500/10 px-3 py-2">
-                <p className="text-xs text-emerald-100/80">Calorías objetivo</p>
-                <p className="text-base font-semibold text-emerald-100">
+              <div className="rounded-lg border border-success/20 bg-success/10 px-3 py-2">
+                <p className="text-xs text-success/80">Calorías objetivo</p>
+                <p className="text-base font-semibold text-success">
                   {typeof plan?.plan?.calorias_diarias === "number"
                     ? `${plan.plan.calorias_diarias} kcal${
                         typeof (plan?.plan as Record<string, unknown>)?.calorias_mantenimiento === "number"
@@ -7646,9 +7647,9 @@ function IntakeGeneratedPlanModal({
                     : "N/A"}
                 </p>
               </div>
-              <div className="rounded-lg border border-cyan-400/20 bg-cyan-500/10 px-3 py-2">
-                <p className="text-xs text-cyan-100/80">Macros</p>
-                <p className="text-sm text-cyan-100">
+              <div className="rounded-lg border border-info/20 bg-info/10 px-3 py-2">
+                <p className="text-xs text-info/80">Macros</p>
+                <p className="text-sm text-info">
                   {macros
                     ? `Proteínas ${String(macros.proteinas || "-")} · Grasas ${String(macros.grasas || "-")} · Carbohidratos ${String(macros.carbohidratos || "-")}`
                     : "N/A"}
@@ -7680,9 +7681,9 @@ function IntakeGeneratedPlanModal({
               </div>
             )}
             {Boolean(plan?.plan?.mensaje_ajuste_objetivo) && (
-              <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2">
-                <p className="text-xs text-amber-100/80">Mensaje para el cliente</p>
-                <p className="text-sm text-amber-100 mt-1">{String(plan?.plan?.mensaje_ajuste_objetivo)}</p>
+              <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2">
+                <p className="text-xs text-warning/80">Mensaje para el cliente</p>
+                <p className="text-sm text-warning mt-1">{String(plan?.plan?.mensaje_ajuste_objetivo)}</p>
               </div>
             )}
             {cardioPlan && (
@@ -7696,17 +7697,17 @@ function IntakeGeneratedPlanModal({
               </div>
             )}
             {suplementacionPlan.length > 0 && (
-              <div className="rounded-lg border border-amber-400/20 bg-amber-500/10 px-3 py-2">
-                <p className="text-xs text-amber-100/80 mb-2">Suplementación sugerida</p>
+              <div className="rounded-lg border border-warning/20 bg-warning/10 px-3 py-2">
+                <p className="text-xs text-warning/80 mb-2">Suplementación sugerida</p>
                 <div className="space-y-2">
                   {suplementacionPlan.map((supp, idx) => (
                     <div key={`supp-${idx}`} className="rounded-md border border-white/10 bg-black/20 px-3 py-2">
-                      <p className="text-sm font-medium text-amber-100">{String(supp.nombre || "Suplemento")}</p>
+                      <p className="text-sm font-medium text-warning">{String(supp.nombre || "Suplemento")}</p>
                       <p className="text-xs text-white/80 mt-1">
                         Dosis: {String(supp.dosis || "N/A")} · Momento: {String(supp.momento || "N/A")}
                       </p>
                       <p className="text-xs text-white/70 mt-1">Motivo: {String(supp.motivo || "N/A")}</p>
-                      {Boolean(supp.nota) && <p className="text-xs text-amber-200/90 mt-1">Nota: {String(supp.nota)}</p>}
+                      {Boolean(supp.nota) && <p className="text-xs text-warning/90 mt-1">Nota: {String(supp.nota)}</p>}
                     </div>
                   ))}
                 </div>
@@ -7722,7 +7723,7 @@ function IntakeGeneratedPlanModal({
                     const meals = Array.isArray(day.comidas) ? (day.comidas as Array<Record<string, unknown>>) : [];
                     return (
                       <div key={`${dayName}-${dayIndex}`} className="rounded-md border border-white/10 bg-black/20 px-3 py-3">
-                        <p className="text-sm font-semibold text-cyan-200">{dayName}</p>
+                        <p className="text-sm font-semibold text-info">{dayName}</p>
                         <div className="mt-2 space-y-2">
                           {meals.map((meal, mealIndex) => {
                             const mealName = String(meal.nombre || `Comida ${mealIndex + 1}`);
@@ -7751,12 +7752,12 @@ function IntakeGeneratedPlanModal({
                                   <p className="text-xs text-white/60">{mealTime}</p>
                                 </div>
                                 <p className="text-xs text-white/80 mt-1">{mealOption || "Opción personalizada"}</p>
-                                <p className="text-xs text-emerald-200 mt-1">
+                                <p className="text-xs text-success mt-1">
                                   Proteínas {String(mealMacros?.proteinas_g ?? "-")}g · Grasas {String(mealMacros?.grasas_g ?? "-")}g · Carbohidratos{" "}
                                   {String(mealMacros?.carbohidratos_g ?? "-")}g
                                 </p>
                                 {mealPortionGuide.length > 0 ? (
-                                  <p className="text-[11px] text-cyan-100/90 mt-1">
+                                  <p className="text-[11px] text-info/90 mt-1">
                                     Porciones aprox: {mealPortionGuide.slice(0, 3).join(" · ")}
                                   </p>
                                 ) : null}
@@ -7820,13 +7821,13 @@ function IntakeGeneratedPlanModal({
             )}
 
             {plan.includeTraining && exerciseMediaRows.length > 0 && (
-              <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/[0.07] px-3 py-3 space-y-3">
+              <div className="rounded-lg border border-success/25 bg-success/[0.07] px-3 py-3 space-y-3">
                 <div>
-                  <p className="text-sm font-semibold text-emerald-100">Vídeos propios del coach</p>
+                  <p className="text-sm font-semibold text-success">Vídeos propios del coach</p>
                   <p className="text-[11px] text-white/55 mt-1 leading-relaxed">
-                    URL HTTPS a .mp4/.webm/.mov, URL de Cloudinary (<code className="text-emerald-200/90">res.cloudinary.com/.../video/upload/...</code>) o{" "}
-                    <strong className="text-white/75">public ID</strong> de Cloudinary (ej. <code className="text-emerald-200/90">carpeta/ejercicio</code>) con{" "}
-                    <code className="text-emerald-200/90">NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME</code> en el proyecto. Sin YouTube. Póster: imagen HTTPS o Cloudinary.
+                    URL HTTPS a .mp4/.webm/.mov, URL de Cloudinary (<code className="text-success/90">res.cloudinary.com/.../video/upload/...</code>) o{" "}
+                    <strong className="text-white/75">public ID</strong> de Cloudinary (ej. <code className="text-success/90">carpeta/ejercicio</code>) con{" "}
+                    <code className="text-success/90">NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME</code> en el proyecto. Sin YouTube. Póster: imagen HTTPS o Cloudinary.
                   </p>
                 </div>
                 <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
@@ -7865,7 +7866,7 @@ function IntakeGeneratedPlanModal({
                     type="button"
                     disabled={savingExerciseMedia}
                     onClick={() => void handleSaveExerciseMedia()}
-                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium disabled:opacity-50"
+                    className="px-3 py-1.5 rounded-lg bg-success hover:bg-success text-white text-sm font-medium disabled:opacity-50"
                   >
                     {savingExerciseMedia ? "Guardando…" : "Guardar vídeos en el plan"}
                   </button>
@@ -7933,7 +7934,7 @@ function AdminSendMessageModal({
     setError(null);
 
     try {
-      const response = await fetch("/api/admin/sendMessage", {
+      const response = await adminFetch("/api/admin/sendMessage", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -7985,7 +7986,7 @@ function AdminSendMessageModal({
       >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <FaComment className="text-green-400" />
+            <FaComment className="text-success" />
             Enviar mensaje a {targetUser.nombre || targetUser.email}
           </h2>
           <button
@@ -8006,7 +8007,7 @@ function AdminSendMessageModal({
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               placeholder="Mensaje del equipo"
-              className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-green-500/50"
+              className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-success/50"
             />
           </div>
 
@@ -8020,18 +8021,18 @@ function AdminSendMessageModal({
               placeholder="Escribe tu mensaje aquí..."
               rows={6}
               required
-              className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-green-500/50 resize-none"
+              className="w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-success/50 resize-none"
             />
           </div>
 
           {error && (
-            <div className="p-3 rounded-lg bg-red-500/20 border border-red-500/30 text-red-400 text-sm">
+            <div className="p-3 rounded-lg bg-danger/20 border border-danger/30 text-danger text-sm">
               {error}
             </div>
           )}
 
           {success && (
-            <div className="p-3 rounded-lg bg-green-500/20 border border-green-500/30 text-green-400 text-sm">
+            <div className="p-3 rounded-lg bg-success/20 border border-success/30 text-success text-sm">
               ✓ Mensaje enviado exitosamente
             </div>
           )}
@@ -8047,7 +8048,7 @@ function AdminSendMessageModal({
             <button
               type="submit"
               disabled={loading || !message.trim()}
-              className="flex-1 px-4 py-2 rounded-lg bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 text-green-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 px-4 py-2 rounded-lg bg-success/20 hover:bg-success/30 border border-success/30 text-success transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? "Enviando..." : "Enviar mensaje"}
             </button>

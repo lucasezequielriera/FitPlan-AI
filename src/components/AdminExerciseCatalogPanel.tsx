@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { getAuthSafe } from "@/lib/firebase";
+import { adminFetch } from "@/lib/adminAuthClient";
 import {
   FaDumbbell,
   FaExclamationTriangle,
@@ -94,7 +95,7 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
     setLoading(true);
     setError(null);
     try {
-      const r = await fetch(`/api/admin/exerciseWgerCatalog?userId=${encodeURIComponent(auth.currentUser.uid)}`);
+      const r = await adminFetch(`/api/admin/exerciseWgerCatalog?userId=${encodeURIComponent(auth.currentUser.uid)}`);
       const j = (await r.json()) as { entries?: CatalogEntry[]; error?: string };
       if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
       setEntries(Array.isArray(j.entries) ? j.entries : []);
@@ -111,7 +112,7 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
     setPlanIndexLoading(true);
     setPlanIndexError(null);
     try {
-      const r = await fetch(
+      const r = await adminFetch(
         `/api/admin/exerciseCatalogPlanMuscleIndex?userId=${encodeURIComponent(auth.currentUser.uid)}`
       );
       const j = (await r.json()) as PlanIndexResponse & { error?: string };
@@ -135,7 +136,7 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
     setCoverageLoading(true);
     setCoverageError(null);
     try {
-      const r = await fetch(
+      const r = await adminFetch(
         `/api/admin/exerciseCatalogMediaCoverage?userId=${encodeURIComponent(auth.currentUser.uid)}`
       );
       const j = (await r.json()) as {
@@ -181,7 +182,7 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
     setSearching(true);
     setError(null);
     try {
-      const r = await fetch(
+      const r = await adminFetch(
         `/api/admin/wgerExerciseSearch?userId=${encodeURIComponent(auth.currentUser.uid)}&q=${encodeURIComponent(q)}&limit=14`
       );
       const j = (await r.json()) as { results?: SearchHit[]; error?: string };
@@ -226,7 +227,7 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
           setSaving(false);
           return;
         }
-        const r = await fetch("/api/admin/exerciseWgerCatalog", {
+        const r = await adminFetch("/api/admin/exerciseWgerCatalog", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -247,7 +248,7 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
           setSaving(false);
           return;
         }
-        const r = await fetch("/api/admin/exerciseWgerCatalog", {
+        const r = await adminFetch("/api/admin/exerciseWgerCatalog", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -281,7 +282,7 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
     if (!confirm("¿Quitar esta asignación del catálogo global?")) return;
     setError(null);
     try {
-      const r = await fetch("/api/admin/exerciseWgerCatalog", {
+      const r = await adminFetch("/api/admin/exerciseWgerCatalog", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: auth.currentUser.uid, normKey }),
@@ -404,17 +405,17 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
 
       <div className={`flex-1 overflow-y-auto px-5 py-4 space-y-6 ${isPage ? "min-h-[60vh]" : ""}`}>
           {error && (
-            <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</div>
+            <div className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{error}</div>
           )}
 
-          <div className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-4 space-y-3">
+          <div className="rounded-lg border border-warning/25 bg-warning/5 p-4 space-y-3">
             <div className="flex items-start gap-2">
-              <FaTags className="text-amber-400/90 mt-0.5 shrink-0" />
+              <FaTags className="text-warning/90 mt-0.5 shrink-0" />
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-white/90">Ejercicios que aparecen en planes</p>
                 <p className="text-[11px] text-white/45 mt-1 leading-relaxed">
                   Agrupados por <span className="text-white/60">muscle_group</span> (planes intake recientes y planes de app). Tocá un nombre para copiarlo abajo.{" "}
-                  <span className="text-emerald-300/80">En catálogo</span> = asignación tuya; podés pulsar{" "}
+                  <span className="text-success/80">En catálogo</span> = asignación tuya; podés pulsar{" "}
                   <span className="text-white/55">Comprobar wger</span> para ver cuáles no tienen ni catálogo ni coincidencia automática en wger.
                 </p>
                 {planIndexMeta && (
@@ -426,7 +427,7 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
               </div>
             </div>
             {planIndexError && (
-              <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">{planIndexError}</div>
+              <div className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger">{planIndexError}</div>
             )}
             {planIndexLoading ? (
               <p className="text-sm text-white/45">Cargando índice desde Firestore…</p>
@@ -439,20 +440,20 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
                     type="button"
                     onClick={() => void loadMediaCoverage()}
                     disabled={coverageLoading || planIndexLoading}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium border border-rose-400/35 bg-rose-500/15 text-rose-100 hover:bg-rose-500/25 disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium border border-danger/35 bg-danger/15 text-danger hover:bg-danger/25 disabled:opacity-50"
                   >
                     <FaSearch className="text-[10px]" />
                     {coverageLoading ? "Consultando wger…" : "Comprobar wger"}
                   </button>
                   {coverageRan && noMediaCount > 0 && (
-                    <span className="text-[11px] text-rose-200/90 flex items-center gap-1">
+                    <span className="text-[11px] text-danger/90 flex items-center gap-1">
                       <FaExclamationTriangle className="text-[10px] shrink-0" />
                       {noMediaCount} sin ilustración (ni catálogo ni wger)
                     </span>
                   )}
                 </div>
                 {coverageError && (
-                  <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">{coverageError}</div>
+                  <div className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger">{coverageError}</div>
                 )}
                 {coverageMeta && coverageRan && (
                   <p className="text-[10px] text-white/40 font-mono leading-relaxed">
@@ -468,13 +469,13 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
                     onClick={() => setSelectedMuscleKey("all")}
                     className={`px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors ${
                       selectedMuscleKey === "all"
-                        ? "bg-amber-500/30 border-amber-400/50 text-amber-100"
+                        ? "bg-warning/30 border-warning/50 text-warning"
                         : "bg-black/35 border-white/12 text-white/55 hover:text-white/75"
                     }`}
                   >
                     Todas ({allPlanExercises.length}
                     {totalMissingAll > 0 ? (
-                      <span className="text-amber-200/90"> · {totalMissingAll} sin catálogo</span>
+                      <span className="text-warning/90"> · {totalMissingAll} sin catálogo</span>
                     ) : null}
                     )
                   </button>
@@ -485,7 +486,7 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
                     title={!coverageRan ? "Primero pulsá Comprobar wger" : undefined}
                     className={`px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors max-w-[220px] truncate ${
                       selectedMuscleKey === "no_media"
-                        ? "bg-rose-500/30 border-rose-400/45 text-rose-100"
+                        ? "bg-danger/30 border-danger/45 text-danger"
                         : "bg-black/35 border-white/12 text-white/55 hover:text-white/75 disabled:opacity-40 disabled:cursor-not-allowed"
                     }`}
                   >
@@ -505,7 +506,7 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
                     >
                       {g.label}
                       {g.missingInCatalog > 0 ? (
-                        <span className="text-amber-200/85"> · {g.missingInCatalog} sin cat.</span>
+                        <span className="text-warning/85"> · {g.missingInCatalog} sin cat.</span>
                       ) : (
                         <span className="text-white/35"> · ok</span>
                       )}
@@ -526,14 +527,14 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
                         <span
                           className={`shrink-0 text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded inline-flex items-center gap-1 ${
                             row.inCatalog
-                              ? "bg-emerald-500/20 text-emerald-200 border border-emerald-400/25"
+                              ? "bg-success/20 text-success border border-success/25"
                               : coverageRan && noMediaNormKeys.has(row.normKey)
-                                ? "bg-rose-500/20 text-rose-100 border border-rose-400/35"
+                                ? "bg-danger/20 text-danger border border-danger/35"
                                 : coverageRan && probedNormKeys.has(row.normKey)
-                                  ? "bg-sky-500/18 text-sky-100 border border-sky-400/30"
+                                  ? "bg-info/20 text-info border border-info/30"
                                   : coverageRan
                                     ? "bg-white/10 text-white/55 border border-white/15"
-                                    : "bg-amber-500/20 text-amber-100 border border-amber-400/30"
+                                    : "bg-warning/20 text-warning border border-warning/30"
                           }`}
                         >
                           {row.inCatalog ? (
@@ -775,7 +776,7 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
                     <button
                       type="button"
                       onClick={() => void handleDelete(row.normKey)}
-                      className="p-2 rounded-lg text-red-300/90 hover:bg-red-500/15 shrink-0"
+                      className="p-2 rounded-lg text-danger/90 hover:bg-danger/15 shrink-0"
                       aria-label="Eliminar"
                     >
                       <FaTrash className="text-sm" />

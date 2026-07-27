@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { getAuthSafe } from "@/lib/firebase";
+import { adminFetch } from "@/lib/adminAuthClient";
 import { FaDumbbell, FaImage, FaPlus, FaSearch, FaTags, FaTimes, FaTrash, FaVideo } from "react-icons/fa";
 
 type CatalogEntry = {
@@ -67,7 +68,7 @@ export default function AdminExerciseCatalogModal({
     setLoading(true);
     setError(null);
     try {
-      const r = await fetch(`/api/admin/exerciseWgerCatalog?userId=${encodeURIComponent(auth.currentUser.uid)}`);
+      const r = await adminFetch(`/api/admin/exerciseWgerCatalog?userId=${encodeURIComponent(auth.currentUser.uid)}`);
       const j = (await r.json()) as { entries?: CatalogEntry[]; error?: string };
       if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
       setEntries(Array.isArray(j.entries) ? j.entries : []);
@@ -84,7 +85,7 @@ export default function AdminExerciseCatalogModal({
     setPlanIndexLoading(true);
     setPlanIndexError(null);
     try {
-      const r = await fetch(
+      const r = await adminFetch(
         `/api/admin/exerciseCatalogPlanMuscleIndex?userId=${encodeURIComponent(auth.currentUser.uid)}`
       );
       const j = (await r.json()) as PlanIndexResponse & { error?: string };
@@ -117,7 +118,7 @@ export default function AdminExerciseCatalogModal({
     setSearching(true);
     setError(null);
     try {
-      const r = await fetch(
+      const r = await adminFetch(
         `/api/admin/wgerExerciseSearch?userId=${encodeURIComponent(auth.currentUser.uid)}&q=${encodeURIComponent(q)}&limit=14`
       );
       const j = (await r.json()) as { results?: SearchHit[]; error?: string };
@@ -149,7 +150,7 @@ export default function AdminExerciseCatalogModal({
           setSaving(false);
           return;
         }
-        const r = await fetch("/api/admin/exerciseWgerCatalog", {
+        const r = await adminFetch("/api/admin/exerciseWgerCatalog", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -169,7 +170,7 @@ export default function AdminExerciseCatalogModal({
           setSaving(false);
           return;
         }
-        const r = await fetch("/api/admin/exerciseWgerCatalog", {
+        const r = await adminFetch("/api/admin/exerciseWgerCatalog", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -198,7 +199,7 @@ export default function AdminExerciseCatalogModal({
     if (!confirm("¿Quitar esta asignación del catálogo global?")) return;
     setError(null);
     try {
-      const r = await fetch("/api/admin/exerciseWgerCatalog", {
+      const r = await adminFetch("/api/admin/exerciseWgerCatalog", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: auth.currentUser.uid, normKey }),
@@ -292,7 +293,7 @@ export default function AdminExerciseCatalogModal({
 
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
           {error && (
-            <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</div>
+            <div className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">{error}</div>
           )}
 
           <div className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-4 space-y-3">
@@ -313,7 +314,7 @@ export default function AdminExerciseCatalogModal({
               </div>
             </div>
             {planIndexError && (
-              <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">{planIndexError}</div>
+              <div className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger">{planIndexError}</div>
             )}
             {planIndexLoading ? (
               <p className="text-sm text-white/45">Cargando índice desde Firestore…</p>
@@ -327,7 +328,7 @@ export default function AdminExerciseCatalogModal({
                     onClick={() => setSelectedMuscleKey("all")}
                     className={`px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors ${
                       selectedMuscleKey === "all"
-                        ? "bg-amber-500/30 border-amber-400/50 text-amber-100"
+                        ? "bg-warning/30 border-warning/50 text-warning"
                         : "bg-black/35 border-white/12 text-white/55 hover:text-white/75"
                     }`}
                   >
@@ -372,8 +373,8 @@ export default function AdminExerciseCatalogModal({
                         <span
                           className={`shrink-0 text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded ${
                             row.inCatalog
-                              ? "bg-emerald-500/20 text-emerald-200 border border-emerald-400/25"
-                              : "bg-amber-500/20 text-amber-100 border border-amber-400/30"
+                              ? "bg-success/20 text-success border border-success/25"
+                              : "bg-warning/20 text-warning border border-warning/30"
                           }`}
                         >
                           {row.inCatalog ? "En catálogo" : "Falta"}
@@ -571,7 +572,7 @@ export default function AdminExerciseCatalogModal({
                     <button
                       type="button"
                       onClick={() => void handleDelete(row.normKey)}
-                      className="p-2 rounded-lg text-red-300/90 hover:bg-red-500/15 shrink-0"
+                      className="p-2 rounded-lg text-danger/90 hover:bg-danger/15 shrink-0"
                       aria-label="Eliminar"
                     >
                       <FaTrash className="text-sm" />

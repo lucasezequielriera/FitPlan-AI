@@ -1,19 +1,75 @@
 @import "tailwindcss";
 
+/* ============================================================
+   FITPLAN AI — DESIGN TOKENS
+   Fuente única de verdad para color, superficie, tipografía y
+   elevación. Ver /DESIGN_SYSTEM.md para la guía de uso completa.
+   ============================================================ */
+
 :root {
+  /* --- Base --- */
   --background: #0b1020;
   --foreground: #e6f6ff;
+
+  /* --- Marca (gradientes hero / fondos ambientales) --- */
   --brand-start: #3b82f6; /* blue-500 */
   --brand-mid: #10b981;   /* emerald-500 */
   --brand-end: #06b6d4;   /* cyan-500 */
 
-  /* Landing / marketing — base para rediseño global */
-  --landing-accent: #2dd4bf;
-  --landing-accent-dim: color-mix(in oklab, var(--landing-accent) 75%, white);
-  --landing-surface: color-mix(in oklab, var(--foreground) 4%, transparent);
-  --landing-surface-2: color-mix(in oklab, var(--foreground) 7%, transparent);
-  --landing-border: color-mix(in oklab, var(--foreground) 10%, transparent);
-  --landing-muted: color-mix(in oklab, var(--foreground) 55%, transparent);
+  /* --- Acento principal de interacción (CTAs, links activos) --- */
+  --accent: #2dd4bf;      /* teal-400 */
+  --accent-dim: color-mix(in oklab, var(--accent) 75%, white);
+  --accent-strong: #14b8a6; /* teal-500, hover/active */
+
+  /* --- Superficies (jerarquía de profundidad, de más plana a más elevada) --- */
+  --surface: color-mix(in oklab, var(--foreground) 4%, transparent);
+  --surface-2: color-mix(in oklab, var(--foreground) 7%, transparent);
+  --surface-3: color-mix(in oklab, var(--foreground) 10%, transparent);
+  --border: color-mix(in oklab, var(--foreground) 12%, transparent);
+  --border-strong: color-mix(in oklab, var(--foreground) 20%, transparent);
+
+  /* --- Texto --- */
+  --text-muted: color-mix(in oklab, var(--foreground) 55%, transparent);
+  --text-subtle: color-mix(in oklab, var(--foreground) 35%, transparent);
+
+  /* --- Semántico: usar SIEMPRE estos para estado, nunca un color crudo de Tailwind --- */
+  --success: #10b981;       /* emerald-500 */
+  --success-strong: #059669;
+  --success-soft: color-mix(in oklab, var(--success) 16%, transparent);
+  --warning: #f59e0b;       /* amber-500 */
+  --warning-strong: #d97706;
+  --warning-soft: color-mix(in oklab, var(--warning) 16%, transparent);
+  --danger: #ef4444;        /* red-500 */
+  --danger-strong: #dc2626;
+  --danger-soft: color-mix(in oklab, var(--danger) 16%, transparent);
+  --info: #06b6d4;          /* cyan-500 */
+  --info-strong: #0891b2;
+  --info-soft: color-mix(in oklab, var(--info) 16%, transparent);
+
+  /* --- Fases de plan (bulk/cut/lean bulk/mantenimiento) — consistente en toda la app --- */
+  --phase-bulk: #f59e0b;         /* amber: volumen */
+  --phase-cut: #06b6d4;          /* cyan: definición */
+  --phase-lean-bulk: #10b981;    /* emerald: recomposición */
+  --phase-maintenance: #a855f7;  /* purple: mantenimiento */
+
+  /* --- Radios y sombras --- */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --shadow-sm: 0 1px 2px color-mix(in oklab, black 30%, transparent);
+  --shadow-md: 0 4px 16px color-mix(in oklab, black 35%, transparent);
+  --shadow-lg: 0 12px 32px color-mix(in oklab, black 40%, transparent);
+
+  /* --- Alias retrocompatibles: código existente que usa var(--landing-*) sigue
+     funcionando, pero ahora lee de la misma fuente única de verdad de arriba.
+     No usar --landing-* en código nuevo: usar los tokens canónicos. --- */
+  --landing-accent: var(--accent);
+  --landing-accent-dim: var(--accent-dim);
+  --landing-surface: var(--surface);
+  --landing-surface-2: var(--surface-2);
+  --landing-border: var(--border);
+  --landing-muted: var(--text-muted);
 }
 
 @theme inline {
@@ -21,6 +77,32 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  --color-accent: var(--accent);
+  --color-accent-dim: var(--accent-dim);
+  --color-accent-strong: var(--accent-strong);
+
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-text-muted: var(--text-muted);
+  --color-text-subtle: var(--text-subtle);
+
+  --color-success: var(--success);
+  --color-success-strong: var(--success-strong);
+  --color-warning: var(--warning);
+  --color-warning-strong: var(--warning-strong);
+  --color-danger: var(--danger);
+  --color-danger-strong: var(--danger-strong);
+  --color-info: var(--info);
+  --color-info-strong: var(--info-strong);
+
+  --color-phase-bulk: var(--phase-bulk);
+  --color-phase-cut: var(--phase-cut);
+  --color-phase-lean-bulk: var(--phase-lean-bulk);
+  --color-phase-maintenance: var(--phase-maintenance);
 }
 
 html {
@@ -45,6 +127,120 @@ body {
   border: 1px solid color-mix(in oklab, var(--foreground) 12%, transparent);
 }
 
+/* ============================================================
+   COMPONENTES REUTILIZABLES
+   Clases semánticas para reemplazar combinaciones sueltas de
+   Tailwind (bg-emerald-500, bg-green-500, bg-red-500, etc.)
+   repetidas de forma inconsistente por todo el código.
+   ============================================================ */
+
+.card-surface {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.card-surface-2 {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+/* --- Botones --- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  padding: 0.625rem 1.25rem;
+  transition: filter 0.15s ease, transform 0.1s ease;
+  border: 1px solid transparent;
+}
+.btn:active {
+  transform: scale(0.98);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #04211d;
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-strong);
+}
+
+.btn-secondary {
+  background: var(--surface-2);
+  border-color: var(--border-strong);
+  color: var(--foreground);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: var(--surface-3);
+}
+
+.btn-success {
+  background: var(--success);
+  color: #04241a;
+}
+.btn-success:hover:not(:disabled) {
+  background: var(--success-strong);
+}
+
+.btn-danger {
+  background: var(--danger);
+  color: #2a0a0a;
+}
+.btn-danger:hover:not(:disabled) {
+  background: var(--danger-strong);
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--foreground);
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--surface);
+}
+
+/* --- Badges / pills de estado --- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.625rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+
+.badge-success { background: var(--success-soft); color: var(--success); border-color: color-mix(in oklab, var(--success) 35%, transparent); }
+.badge-warning { background: var(--warning-soft); color: var(--warning); border-color: color-mix(in oklab, var(--warning) 35%, transparent); }
+.badge-danger  { background: var(--danger-soft);  color: var(--danger);  border-color: color-mix(in oklab, var(--danger) 35%, transparent); }
+.badge-info    { background: var(--info-soft);    color: var(--info);    border-color: color-mix(in oklab, var(--info) 35%, transparent); }
+.badge-neutral { background: var(--surface-2);    color: var(--text-muted); border-color: var(--border); }
+
+/* --- Fases de plan --- */
+.badge-phase-bulk        { background: color-mix(in oklab, var(--phase-bulk) 16%, transparent); color: var(--phase-bulk); border-color: color-mix(in oklab, var(--phase-bulk) 35%, transparent); }
+.badge-phase-cut         { background: color-mix(in oklab, var(--phase-cut) 16%, transparent); color: var(--phase-cut); border-color: color-mix(in oklab, var(--phase-cut) 35%, transparent); }
+.badge-phase-lean-bulk   { background: color-mix(in oklab, var(--phase-lean-bulk) 16%, transparent); color: var(--phase-lean-bulk); border-color: color-mix(in oklab, var(--phase-lean-bulk) 35%, transparent); }
+.badge-phase-maintenance { background: color-mix(in oklab, var(--phase-maintenance) 16%, transparent); color: var(--phase-maintenance); border-color: color-mix(in oklab, var(--phase-maintenance) 35%, transparent); }
+
+/* --- Texto de estado (sin fondo) --- */
+.text-success { color: var(--success); }
+.text-warning { color: var(--warning); }
+.text-danger  { color: var(--danger); }
+.text-info    { color: var(--info); }
+.text-muted   { color: var(--text-muted); }
+.text-subtle  { color: var(--text-subtle); }
+
 /* Slider personalizado para días de actividad */
 input[type="range"] {
   -webkit-appearance: none;
@@ -58,7 +254,7 @@ input[type="range"]::-webkit-slider-thumb {
   height: 18px;
   border-radius: 50%;
   background: white;
-  border: 2px solid rgba(99, 102, 241, 0.8);
+  border: 2px solid color-mix(in oklab, var(--accent) 80%, transparent);
   cursor: pointer;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   transition: all 0.2s;
@@ -74,7 +270,7 @@ input[type="range"]::-moz-range-thumb {
   height: 18px;
   border-radius: 50%;
   background: white;
-  border: 2px solid rgba(99, 102, 241, 0.8);
+  border: 2px solid color-mix(in oklab, var(--accent) 80%, transparent);
   cursor: pointer;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   transition: all 0.2s;
@@ -87,8 +283,8 @@ input[type="range"]::-moz-range-thumb:hover {
 
 /* Tooltip completamente opaco sin transparencia */
 .tooltip-opaque {
-  background-color: #991b1b !important;
-  background: #991b1b !important;
+  background-color: var(--danger-strong) !important;
+  background: var(--danger-strong) !important;
   opacity: 1 !important;
   z-index: 99999 !important;
   mix-blend-mode: normal !important;
@@ -112,15 +308,15 @@ select:focus {
 
 /* Estilos para options dentro de selects */
 select option {
-  background-color: #0b1020 !important;
-  background: #0b1020 !important;
+  background-color: var(--background) !important;
+  background: var(--background) !important;
   color: var(--foreground) !important;
 }
 
 /* Asegurar que los optgroups también tengan fondo oscuro */
 select optgroup {
-  background-color: #0b1020 !important;
-  background: #0b1020 !important;
+  background-color: var(--background) !important;
+  background: var(--background) !important;
   color: var(--foreground) !important;
 }
 

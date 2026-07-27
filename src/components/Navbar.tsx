@@ -9,6 +9,7 @@ import LoginModal from "./LoginModal";
 import UserMessagesModal from "./UserMessagesModal";
 import GymCalendarModal from "./GymCalendarModal";
 import { getDbSafe, getAuthSafe } from "@/lib/firebase";
+import { adminFetch } from "@/lib/adminAuthClient";
 import { collection, query, where, getDocs, limit, doc, getDoc, updateDoc } from "firebase/firestore";
 import React from "react";
 import { useAppLocale } from "@/contexts/AppLocaleContext";
@@ -195,7 +196,7 @@ export default function Navbar() {
 
     const checkMessages = async () => {
       try {
-        const response = await fetch(`/api/admin/messages?adminUserId=${authUser.uid}`);
+        const response = await adminFetch(`/api/admin/messages?adminUserId=${authUser.uid}`);
         
         if (!response.ok) {
           return;
@@ -315,7 +316,7 @@ export default function Navbar() {
           source?: "system" | "users";
         }> = [];
 
-        const response = await fetch(`/api/admin/paymentNotifications?adminUserId=${authUser.uid}`);
+        const response = await adminFetch(`/api/admin/paymentNotifications?adminUserId=${authUser.uid}`);
         if (response.ok) {
           const data = await response.json();
           systemUnreadCount = typeof data?.unreadCount === "number" ? data.unreadCount : 0;
@@ -342,7 +343,7 @@ export default function Navbar() {
         });
         let unreadNewUsers = 0;
 
-        const historyResponse = await fetch(`/api/admin/activityHistory?adminUserId=${authUser.uid}`);
+        const historyResponse = await adminFetch(`/api/admin/activityHistory?adminUserId=${authUser.uid}`);
         if (historyResponse.ok) {
           const historyData = await historyResponse.json();
           const historyItems = Array.isArray(historyData?.items)
@@ -514,7 +515,7 @@ export default function Navbar() {
     }
     if (nextOpen && adminNotificationUnread > 0) {
       try {
-        await fetch("/api/admin/paymentNotifications", {
+        await adminFetch("/api/admin/paymentNotifications", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ adminUserId: authUser.uid }),
@@ -524,7 +525,7 @@ export default function Navbar() {
       }
       if (adminNewUsersUnread > 0) {
         try {
-          const response = await fetch("/api/admin/markUsersSeen", {
+          const response = await adminFetch("/api/admin/markUsersSeen", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ adminUserId: authUser.uid }),
@@ -876,7 +877,7 @@ export default function Navbar() {
                                     type="button"
                                     key={item.id}
                                     onClick={() => handleAdminNotificationClick(item)}
-                                    className="w-full rounded-lg border border-[var(--landing-border)] bg-[var(--landing-surface)]/80 px-3 py-2 text-left text-xs text-[var(--foreground)] transition hover:border-cyan-400/35 hover:bg-[var(--landing-surface)]"
+                                    className="w-full rounded-lg border border-[var(--landing-border)] bg-[var(--landing-surface)]/80 px-3 py-2 text-left text-xs text-[var(--foreground)] transition hover:border-[var(--info)]/35 hover:bg-[var(--landing-surface)]"
                                   >
                                     <div className="flex items-center justify-between gap-2">
                                       <p className="text-[10px] uppercase tracking-wide text-[var(--landing-muted)]">
@@ -906,7 +907,7 @@ export default function Navbar() {
                               setAdminNotificationsOpen(false);
                               router.push("/admin/actividad");
                             }}
-                            className="w-full rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/20 transition-colors"
+                            className="w-full rounded-lg border border-[var(--info)]/30 bg-[var(--info)]/10 px-3 py-2 text-xs font-semibold text-info hover:bg-[var(--info)]/20 transition-colors"
                           >
                             Ver todas
                           </button>
@@ -969,14 +970,14 @@ export default function Navbar() {
 
               {pendingWeightOpsCount > 0 && (
                 <div
-                  className="inline-flex h-8 items-center gap-1 rounded-full border border-amber-400/35 bg-amber-500/12 px-2.5 text-[11px] font-semibold text-amber-200 sm:h-9 sm:text-xs"
+                  className="inline-flex h-8 items-center gap-1 rounded-full border border-[var(--warning)]/35 bg-[var(--warning)]/12 px-2.5 text-[11px] font-semibold text-warning sm:h-9 sm:text-xs"
                   title={
                     locale === "en"
                       ? "Pending sync entries from this device"
                       : "Registros pendientes de sincronizacion en este dispositivo"
                   }
                 >
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-300" />
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--warning)]" />
                   {locale === "en" ? "Pending sync" : "Pendiente sync"}: {pendingWeightOpsCount > 99 ? "99+" : pendingWeightOpsCount}
                 </div>
               )}
@@ -1010,7 +1011,7 @@ export default function Navbar() {
                     {authUser.email?.charAt(0).toUpperCase() || "U"}
                     {isPremium && (
                       <span
-                        className="pointer-events-none absolute -right-0.5 -top-0.5 z-[2] flex h-3 w-3 items-center justify-center text-yellow-400 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)] sm:h-3.5 sm:w-3.5"
+                        className="pointer-events-none absolute -right-0.5 -top-0.5 z-[2] flex h-3 w-3 items-center justify-center text-warning drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)] sm:h-3.5 sm:w-3.5"
                         title="Premium"
                         aria-hidden
                       >
@@ -1025,7 +1026,7 @@ export default function Navbar() {
                       </span>
                     )}
                     <span
-                      className="absolute -bottom-0.5 -right-0.5 z-[1] h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500 ring-2 ring-[var(--background)]"
+                      className="absolute -bottom-0.5 -right-0.5 z-[1] h-2.5 w-2.5 shrink-0 rounded-full bg-success ring-2 ring-[var(--background)]"
                       title={ui(locale, "connected")}
                       aria-hidden
                     />
@@ -1304,7 +1305,7 @@ export default function Navbar() {
         onMessagesUpdate={() => {
           // Recargar contador de mensajes
           if (authUser && isAdmin) {
-            fetch(`/api/admin/messages?adminUserId=${authUser.uid}`)
+            adminFetch(`/api/admin/messages?adminUserId=${authUser.uid}`)
               .then(res => res.json())
               .then(data => setMessagesCount(data.unreadCount || 0))
               .catch(err => console.error("Error al actualizar mensajes:", err));
@@ -1456,13 +1457,13 @@ function SendMessageModal({
         <div className="p-4 sm:p-5">
           {success ? (
             <div className="py-4 text-center">
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/15 ring-1 ring-emerald-500/30">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-8 w-8 text-emerald-400">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-success/15 ring-1 ring-success/30">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-8 w-8 text-success">
                   <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
                   <polyline points="22 4 12 14.01 9 11.01" />
                 </svg>
               </div>
-              <p className="font-semibold text-emerald-300">{dash(locale, "composeSuccess")}</p>
+              <p className="font-semibold text-success">{dash(locale, "composeSuccess")}</p>
               <p className="mt-2 text-sm text-[var(--landing-muted)]">{dash(locale, "composeSuccessSub")}</p>
               <button
                 type="button"
@@ -1505,8 +1506,8 @@ function SendMessageModal({
               </div>
 
               {error && (
-                <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3">
-                  <p className="text-sm text-red-300">{error}</p>
+                <div className="rounded-xl border border-danger/30 bg-danger/10 p-3">
+                  <p className="text-sm text-danger">{error}</p>
                 </div>
               )}
 
@@ -1662,7 +1663,7 @@ function MessagesModal({
       if (!silent) {
         setLoading(true);
       }
-      const response = await fetch(`/api/admin/messages?adminUserId=${adminUserId}`);
+      const response = await adminFetch(`/api/admin/messages?adminUserId=${adminUserId}`);
       if (!response.ok) throw new Error("Error al cargar mensajes");
       const data = await response.json();
       const sortedMessages = sortMessagesByDate(data.messages || []);
@@ -1678,7 +1679,7 @@ function MessagesModal({
 
   const handleMarkAsRead = async (messageId: string) => {
     try {
-      await fetch("/api/admin/markMessageRead", {
+      await adminFetch("/api/admin/markMessageRead", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ adminUserId, messageId }),
@@ -1706,7 +1707,7 @@ function MessagesModal({
 
     setReplying(true);
     try {
-      const response = await fetch("/api/admin/replyMessage", {
+      const response = await adminFetch("/api/admin/replyMessage", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ adminUserId, messageId, reply: replyText.trim() }),
@@ -2017,7 +2018,7 @@ function MessagesModal({
                               }
                               
                               try {
-                                const response = await fetch("/api/admin/closeChat", {
+                                const response = await adminFetch("/api/admin/closeChat", {
                                   method: "POST",
                                   headers: { "Content-Type": "application/json" },
                                   body: JSON.stringify({
