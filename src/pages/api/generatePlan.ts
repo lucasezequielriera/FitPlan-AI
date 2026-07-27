@@ -2202,9 +2202,15 @@ Ejemplo de estructura:
       const diasDistribuidos = distribuirDiasConDescanso(targetDays, Boolean(input.doloresLesiones && input.doloresLesiones.length > 0));
       
       // Función para filtrar ejercicios peligrosos según lesiones (VALIDACIÓN CRÍTICA DE SEGURIDAD)
-      const filtrarEjerciciosPeligrosos = (ejercicios: Array<{ name: string; [key: string]: unknown }>, tieneHerniaDisco: boolean, tieneDolorLumbar: boolean): Array<{ name: string; [key: string]: unknown }> => {
-        if (!tieneHerniaDisco && !tieneDolorLumbar) return ejercicios;
-        
+      const filtrarEjerciciosPeligrosos = (
+        ejercicios: Array<{ name: string; [key: string]: unknown }>,
+        tieneHerniaDisco: boolean,
+        tieneDolorLumbar: boolean,
+        tieneDolorRodilla: boolean = false,
+        tieneDolorHombro: boolean = false
+      ): Array<{ name: string; [key: string]: unknown }> => {
+        if (!tieneHerniaDisco && !tieneDolorLumbar && !tieneDolorRodilla && !tieneDolorHombro) return ejercicios;
+
         const ejerciciosProhibidosHernia = [
           'remo con barra', 'bent-over row', 'barbell row', 't-bar row', 'row con barra',
           'peso muerto', 'deadlift', 'rdl', 'peso muerto rumano',
@@ -2218,19 +2224,40 @@ Ejemplo de estructura:
           'leg press profundo', 'hack squat profundo',
           'burpee', 'burpees', 'jumping jack', 'saltos'
         ];
-        
+
         const ejerciciosProhibidosLumbar = [
           'peso muerto', 'deadlift', 'rdl',
           'sentadilla profunda', 'squat profundo',
           'good morning', 'good mornings'
         ];
-        
-        const prohibidos = tieneHerniaDisco ? ejerciciosProhibidosHernia : ejerciciosProhibidosLumbar;
-        
+
+        // Ver también src/lib/trainingPlanGuards.ts (mismo criterio, usado en el
+        // flujo de coaching 1:1) — mantenido acá aparte porque esta función
+        // filtra por nombre contra una lista, no reescribe el ejercicio.
+        const ejerciciosProhibidosRodilla = [
+          'sentadilla', 'squat', 'sentadillas profundas', 'sentadilla frontal', 'front squat',
+          'sissy squat', 'hack squat', 'smith squat',
+          'zancada', 'zancadas', 'lunge', 'lunges', 'estocada', 'estocadas',
+          'split squat', 'bulgar', 'pistol squat',
+          'salto al cajón', 'box jump', 'jump squat', 'saltos', 'burpee', 'burpees'
+        ];
+
+        const ejerciciosProhibidosHombro = [
+          'press militar', 'overhead press', 'press overhead', 'press tras nuca', 'behind the neck',
+          'press de hombro tras nuca', 'upright row', 'remo al mentón', 'remo al menton',
+          'elevaciones laterales pesadas', 'fondos en paralelas', 'dips en paralelas'
+        ];
+
+        const prohibidos = new Set<string>();
+        if (tieneHerniaDisco) ejerciciosProhibidosHernia.forEach((p) => prohibidos.add(p));
+        if (tieneDolorLumbar) ejerciciosProhibidosLumbar.forEach((p) => prohibidos.add(p));
+        if (tieneDolorRodilla) ejerciciosProhibidosRodilla.forEach((p) => prohibidos.add(p));
+        if (tieneDolorHombro) ejerciciosProhibidosHombro.forEach((p) => prohibidos.add(p));
+
         return ejercicios.filter(ej => {
           const nombreLower = String(ej.name || '').toLowerCase();
-          const esProhibido = prohibidos.some(prohibido => nombreLower.includes(prohibido));
-          
+          const esProhibido = Array.from(prohibidos).some(prohibido => nombreLower.includes(prohibido));
+
           if (esProhibido) {
             console.warn(`⚠️ Ejercicio peligroso filtrado: "${ej.name}" para lesión reportada`);
             return false;
@@ -2477,7 +2504,7 @@ Ejemplo de estructura:
         const todosLosEjercicios = generarEjerciciosCompletos();
         
         // Filtrar ejercicios peligrosos y seleccionar según el día
-        const ejerciciosFiltrados = filtrarEjerciciosPeligrosos(todosLosEjercicios as Array<{ name: string; [key: string]: unknown }>, tieneHerniaDisco, tieneDolorLumbar);
+        const ejerciciosFiltrados = filtrarEjerciciosPeligrosos(todosLosEjercicios as Array<{ name: string; [key: string]: unknown }>, tieneHerniaDisco, tieneDolorLumbar, tieneDolorRodilla, tieneDolorHombro);
         
         // Cantidad de ejercicios por día según intensidad
         const ejerciciosPorDia = intensidadActual === "ultra" ? 12 : intensidadActual === "intensa" ? 10 : intensidadActual === "leve" ? 6 : 8;
@@ -2558,7 +2585,7 @@ Ejemplo de estructura:
                     muscle_group: e.muscle_group || (block.name as string || "General")
                   }))) : []);
                   // FILTRAR EJERCICIOS PELIGROSOS (VALIDACIÓN CRÍTICA DE SEGURIDAD)
-                  return filtrarEjerciciosPeligrosos(ejerciciosRaw as Array<{ name: string; [key: string]: unknown }>, tieneHerniaDisco, tieneDolorLumbar);
+                  return filtrarEjerciciosPeligrosos(ejerciciosRaw as Array<{ name: string; [key: string]: unknown }>, tieneHerniaDisco, tieneDolorLumbar, tieneDolorRodilla, tieneDolorHombro);
                 })()
               };
             })
@@ -2637,7 +2664,9 @@ Ejemplo de estructura:
               ejercicios: filtrarEjerciciosPeligrosos(
                 Array.isArray(ejerciciosFallback) ? ejerciciosFallback as Array<{ name: string; [key: string]: unknown }> : [],
                 tieneHerniaDisco,
-                tieneDolorLumbar
+                tieneDolorLumbar,
+                tieneDolorRodilla,
+                tieneDolorHombro
               )
             });
           }
@@ -2693,7 +2722,7 @@ Ejemplo de estructura:
                   cues: Array.isArray(e.cues) ? (e.cues as unknown[]).filter((c): c is string => typeof c === "string").slice(0, 4) : undefined,
                 })) : [];
                 // FILTRAR EJERCICIOS PELIGROSOS (VALIDACIÓN CRÍTICA DE SEGURIDAD)
-                return filtrarEjerciciosPeligrosos(ejerciciosRaw as unknown as Array<{ name: string; [key: string]: unknown }>, tieneHerniaDisco, tieneDolorLumbar);
+                return filtrarEjerciciosPeligrosos(ejerciciosRaw as unknown as Array<{ name: string; [key: string]: unknown }>, tieneHerniaDisco, tieneDolorLumbar, tieneDolorRodilla, tieneDolorHombro);
               })() // Mínimo 6-8 ejercicios, asegurar muscle_group
             })),
           };
