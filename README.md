@@ -41,13 +41,14 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/pages/b
 
 ### Env (IA, Firebase Auth y Firestore)
 
-Creá un archivo `.env.local` en la raíz con las siguientes variables:
+Creá un archivo `.env.local` en la raíz con las siguientes variables. **Esta lista refleja lo que el código realmente usa** (ver `AUDIT.md` — la versión anterior de este README documentaba solo un subconjunto, lo que rompía un clone limpio del repo):
 
 ```
-# OpenAI (obligatorio). La app no genera planes sin esta variable.
+# OpenAI (obligatorio). La app no genera planes con IA sin esta variable
+# (sin ella, cae a las plantillas estáticas para usuarios free/sin premium).
 OPENAI_API_KEY=
 
-# Firebase (obligatorio para autenticación y guardado en Firestore)
+# Firebase — cliente (obligatorio para autenticación y Firestore desde el navegador)
 NEXT_PUBLIC_FIREBASE_API_KEY=
 NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
 NEXT_PUBLIC_FIREBASE_PROJECT_ID=
@@ -55,13 +56,47 @@ NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
 NEXT_PUBLIC_FIREBASE_APP_ID=
 
-# MercadoPago (obligatorio para pagos Premium fuera de Europa)
+# Firebase Admin SDK — servidor (obligatorio para TODO /api/admin/*, los webhooks
+# de pago, y los cron jobs; sin esto la mitad del panel admin no funciona).
+# Se obtienen en Firebase Console > Project Settings > Service Accounts > Generate new private key.
+FIREBASE_ADMIN_CLIENT_EMAIL=
+FIREBASE_ADMIN_PRIVATE_KEY=
+
+# MercadoPago (obligatorio para pagos Premium en LATAM)
 MERCADOPAGO_ACCESS_TOKEN=
+# Firma secreta del webhook (Panel de MercadoPago > Tus integraciones > Webhooks).
+# Sin esto, el webhook de pago sigue funcionando pero SIN verificar que la
+# notificación viene realmente de MercadoPago — ver AUDIT.md sección 2.2.
+MERCADOPAGO_WEBHOOK_SECRET=
 NEXT_PUBLIC_BASE_URL=http://localhost:3000
 
-# Stripe (obligatorio para pagos Premium en Europa)
+# Stripe (obligatorio para pagos Premium en Europa/US/CA)
 STRIPE_SECRET_KEY=
+STRIPE_PUBLISHABLE_KEY=
 STRIPE_WEBHOOK_SECRET=
+
+# Email transaccional del flujo de coaching 1:1 (bienvenida, digest semanal, check-ins)
+INTAKE_SMTP_HOST=
+INTAKE_SMTP_PORT=
+INTAKE_SMTP_USER=
+INTAKE_SMTP_PASS=
+INTAKE_FROM_EMAIL=
+
+# Cloudinary (medios/demostraciones de ejercicios)
+NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=
+NEXT_PUBLIC_CLOUDINARY_API_KEY=
+CLOUDINARY_API_SECRET=
+
+# Telegram (alertas al fundador: pagos, conversiones, eventos clave)
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=
+
+# Cron jobs (protegen /api/cron/* fuera de Vercel, que ya envía x-vercel-cron)
+CRON_SECRET=
+
+# Marketing / analítica (opcional, sin esto simplemente no se envían esos eventos)
+TIKTOK_EVENTS_API_ACCESS_TOKEN=
+NEXT_PUBLIC_TIKTOK_PIXEL_ID=
 ```
 
 **Nota:** 
