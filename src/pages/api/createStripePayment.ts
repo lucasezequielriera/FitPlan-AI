@@ -3,6 +3,8 @@ import Stripe from "stripe";
 import { getStripeSubscriptionPlans, type PlanTypeKey } from "@/lib/stripePlanPrices";
 import { getCountryCodeFromRequest } from "@/lib/getCountryFromRequest";
 import { getStripeCurrencyForCountry, usesMercadoPagoForCountry } from "@/lib/paymentUtils";
+import { getAdminDb } from "@/lib/firebase-admin";
+import { isEligibleForFreeTrial } from "@/lib/premiumTrialEligibility";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
   apiVersion: "2025-11-17.clover",
@@ -45,6 +47,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const intervalCount = selectedPlanKey === "annual" ? 12 : selectedPlanKey === "quarterly" ? 3 : 1;
+
+    const db = getAdminDb();
+    // Solo dar el trial de 30 días a quien nunca fue premium — si no, cancelar
+    // y resuscribirse daría un trial infinito (ver premiumTrialEligibility.ts).
+    // Si el Admin SDK no está disponible, ser conservador y no dar trial.
+    const eligibleForTrial = db ? await isEligibleForFreeTrial(db, userId) : false;
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       payment_method_collection: "always",
@@ -68,7 +77,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       mode: "subscription",
       customer_email: userEmail,
       subscription_data: {
-        trial_period_days: 30,
+        ...(eligibleForTrial ? { trial_period_days: 30 } : {}),
         metadata: {
           userId: userId,
           planType: selectedPlanKey,

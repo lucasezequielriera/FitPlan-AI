@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import { getAdminAuth } from "@/lib/firebase-admin";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
@@ -9,6 +10,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (!payment_id || typeof payment_id !== "string") {
     return res.status(400).json({ error: "payment_id es requerido" });
+  }
+
+  // Requiere sesión: sin esto, cualquiera podía consultar el monto/estado de
+  // CUALQUIER payment_id de MercadoPago (no solo el propio) simplemente
+  // adivinando/enumerando IDs, ya que este endpoint no verificaba identidad.
+  const authHeader = req.headers.authorization || "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+  if (!token) {
+    return res.status(401).json({ error: "Token requerido" });
+  }
+  const adminAuth = getAdminAuth();
+  if (!adminAuth) {
+    return res.status(500).json({ error: "Firebase Admin SDK no configurado" });
+  }
+  let requesterUid: string;
+  try {
+    const decoded = await adminAuth.verifyIdToken(token);
+    requesterUid = decoded.uid;
+  } catch {
+    return res.status(401).json({ error: "Token inválido o expirado" });
   }
 
   const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
@@ -37,7 +58,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const payment = await paymentResponse.json();
-    
+
+    // El external_reference tiene formato "userId|planType" (o "intake:...").
+    // Solo el dueño del pago puede consultarlo — evita que un uid autenticado
+    // cualquiera vea el monto/estado de un pago ajeno probando otros payment_id.
+    const externalRef: string = payment.external_reference || "";
+    const paymentOwnerUid = externalRef.includes("|") ? externalRef.split("|")[0] : externalRef;
+    if (paymentOwnerUid !== requesterUid) {
+      return res.status(403).json({ error: "No autorizado para consultar este pago" });
+    }
+
     return res.status(200).json({
       paymentId: payment.id,
       status: payment.status,

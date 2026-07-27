@@ -19,6 +19,10 @@
       "schedule": "0 3 * * *"
     },
     {
+      "path": "/api/cron/updateExchangeRate",
+      "schedule": "0 7 * * *"
+    },
+    {
       "path": "/api/cron/intakeWeeklyDigest",
       "schedule": "0 10 * * 1"
     },

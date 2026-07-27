@@ -1,7 +1,54 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import { createHmac, timingSafeEqual } from "crypto";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { FieldValue, Timestamp as AdminTimestamp, type Firestore } from "firebase-admin/firestore";
 import { sendTelegramMessage, formatPaymentMessage } from "@/lib/telegram";
+import { recordMercadoPagoMonthlyEarningIfNew } from "@/lib/adminMonthlyEarningsMercadoPago";
+
+/**
+ * Verifica la firma HMAC que MercadoPago envía en el header `x-signature`
+ * (esquema documentado en https://www.mercadopago.com.ar/developers/es/docs/checkout-api/additional-content/your-integrations/notifications/webhooks#editor_1).
+ * Sin esto, cualquiera podía llamar este endpoint con un `data.id` real y
+ * forzar al servidor a reprocesar ese pago/suscripción sin límite.
+ *
+ * Si MERCADOPAGO_WEBHOOK_SECRET no está configurado, se deja pasar (modo
+ * degradado, igual que el comportamiento previo) pero se loguea una
+ * advertencia para que se note en producción.
+ */
+function verifyMercadoPagoSignature(req: NextApiRequest, dataId: string | number | undefined): boolean {
+  const secret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
+  if (!secret) {
+    console.warn("⚠️ MERCADOPAGO_WEBHOOK_SECRET no configurado: no se puede verificar la firma del webhook.");
+    return true;
+  }
+
+  const xSignature = req.headers["x-signature"];
+  const xRequestId = req.headers["x-request-id"];
+  const signatureHeader = Array.isArray(xSignature) ? xSignature[0] : xSignature;
+  const requestIdHeader = Array.isArray(xRequestId) ? xRequestId[0] : xRequestId;
+
+  if (!signatureHeader || !requestIdHeader || !dataId) {
+    return false;
+  }
+
+  const parts = signatureHeader.split(",").reduce<Record<string, string>>((acc, part) => {
+    const [key, value] = part.split("=");
+    if (key && value) acc[key.trim()] = value.trim();
+    return acc;
+  }, {});
+
+  const ts = parts.ts;
+  const receivedHash = parts.v1;
+  if (!ts || !receivedHash) return false;
+
+  const manifest = `id:${String(dataId).toLowerCase()};request-id:${requestIdHeader};ts:${ts};`;
+  const expectedHash = createHmac("sha256", secret).update(manifest).digest("hex");
+
+  const expectedBuf = Buffer.from(expectedHash, "utf8");
+  const receivedBuf = Buffer.from(receivedHash, "utf8");
+  if (expectedBuf.length !== receivedBuf.length) return false;
+  return timingSafeEqual(expectedBuf, receivedBuf);
+}
 
 async function sendPremiumWelcomeChatMessage(params: {
   userId: string;
@@ -67,10 +114,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  console.log("🔔 Webhook recibido de MercadoPago:", JSON.stringify(req.body, null, 2));
-
   // MercadoPago envía notificaciones cuando cambia un pago o suscripción (preapproval)
   const { type, data } = req.body;
+
+  const dataIdFromQuery = typeof req.query["data.id"] === "string" ? req.query["data.id"] : undefined;
+  if (!verifyMercadoPagoSignature(req, dataIdFromQuery || data?.id)) {
+    console.error("❌ Firma de webhook de MercadoPago inválida — solicitud rechazada.");
+    return res.status(401).json({ error: "Firma inválida" });
+  }
+
+  console.log("🔔 Webhook recibido de MercadoPago:", { type, dataId: data?.id });
 
   try {
     // Suscripción de MercadoPago (preapproval) con trial de 30 días.
@@ -275,13 +328,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const wasPremium = userData.premium === true;
         const welcomeAlreadySent = typeof userData.premiumWelcomeChatSentAt !== "undefined";
 
-        // Guardar pago en colección pagos de forma idempotente
+        // Guardar pago en colección pagos de forma idempotente. MercadoPago puede
+        // reentregar el mismo webhook más de una vez (comportamiento documentado de
+        // "al menos una entrega"): `isNewPayment` es la única fuente de verdad sobre
+        // si ESTE pago ya fue procesado antes, y controla todos los efectos que NO
+        // deben repetirse (libro de ganancias, Telegram, notificación admin) más abajo.
         const existingPayment = await adminDb
           .collection("pagos")
           .where("mercadopagoPaymentId", "==", String(paymentId))
           .limit(1)
           .get();
-        if (existingPayment.empty) {
+        const isNewPayment = existingPayment.empty;
+        if (isNewPayment) {
           const paymentDate = payment.date_approved ? new Date(payment.date_approved) : new Date();
           await adminDb.collection("pagos").add({
             userId: userId,
@@ -300,9 +358,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           });
           console.log(`✅ Pago guardado en colección pagos. ID: ${paymentId}, Usuario: ${userId}, Monto: ${payment.transaction_amount} ${payment.currency_id || "ARS"}`);
         } else {
-          console.log(`ℹ️ Pago MP ${paymentId} ya existía en colección pagos, se omite duplicado.`);
+          console.log(`ℹ️ Pago MP ${paymentId} ya existía en colección pagos, se omite duplicado (webhook reentregado).`);
         }
-        
+
         // Crear registro de pago premium bien estructurado
         const premiumData: Record<string, unknown> = {
           premium: true,
@@ -331,38 +389,57 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           await userRef.set(premiumData, { merge: true });
           console.log(`✅ Usuario ${userId} actualizado a premium. Pago ID: ${paymentId}, Monto: ${payment.transaction_amount} ${payment.currency_id || "ARS"}`);
 
-          await createAdminPaymentNotification({
-            db: adminDb,
-            userId,
-            userName: typeof userData?.nombre === "string" ? userData.nombre : null,
-            userEmail: typeof userData?.email === "string" ? userData.email : null,
-            provider: "mercadopago",
-            amount: typeof payment.transaction_amount === "number" ? payment.transaction_amount : 0,
-            currency: payment.currency_id || "ARS",
-            planType: planType || "monthly",
-            paymentId: String(paymentId),
-          }).catch((err) => {
-            console.warn("⚠️ Error al crear notificación admin de pago MP:", err);
-          });
-          
-          // Enviar notificación a Telegram
-          try {
-            const message = formatPaymentMessage({
-              nombre: userData?.nombre || null,
-              email: userData?.email || null,
-              amount: payment.transaction_amount,
+          // Todo lo que sigue en este bloque son efectos que deben ocurrir UNA sola
+          // vez por pago real, no una vez por cada entrega del webhook. isNewPayment
+          // es el guard de idempotencia (ver arriba, basado en mercadopagoPaymentId).
+          if (isNewPayment) {
+            await createAdminPaymentNotification({
+              db: adminDb,
+              userId,
+              userName: typeof userData?.nombre === "string" ? userData.nombre : null,
+              userEmail: typeof userData?.email === "string" ? userData.email : null,
+              provider: "mercadopago",
+              amount: typeof payment.transaction_amount === "number" ? payment.transaction_amount : 0,
               currency: payment.currency_id || "ARS",
               planType: planType || "monthly",
-              paymentMethod: "mercadopago",
               paymentId: String(paymentId),
-              date: payment.date_approved || new Date(),
+            }).catch((err) => {
+              console.warn("⚠️ Error al crear notificación admin de pago MP:", err);
             });
-            
-            await sendTelegramMessage(message).catch((err) => {
-              console.warn("⚠️ Error al enviar notificación de pago a Telegram:", err);
-            });
-          } catch (telegramError) {
-            console.warn("⚠️ Error al enviar notificación de pago a Telegram:", telegramError);
+
+            // Enviar notificación a Telegram
+            try {
+              const message = formatPaymentMessage({
+                nombre: userData?.nombre || null,
+                email: userData?.email || null,
+                amount: payment.transaction_amount,
+                currency: payment.currency_id || "ARS",
+                planType: planType || "monthly",
+                paymentMethod: "mercadopago",
+                paymentId: String(paymentId),
+                date: payment.date_approved || new Date(),
+              });
+
+              await sendTelegramMessage(message).catch((err) => {
+                console.warn("⚠️ Error al enviar notificación de pago a Telegram:", err);
+              });
+            } catch (telegramError) {
+              console.warn("⚠️ Error al enviar notificación de pago a Telegram:", telegramError);
+            }
+
+            // Registrar ganancia mensual (idempotente y atómico por paymentId)
+            try {
+              const ledgerDate = payment.date_approved ? new Date(payment.date_approved) : new Date();
+              await recordMercadoPagoMonthlyEarningIfNew(
+                adminDb,
+                String(paymentId),
+                ledgerDate,
+                typeof payment.transaction_amount === "number" ? payment.transaction_amount : 0
+              );
+            } catch (adminError: unknown) {
+              console.error("❌ Error al registrar ganancias mensuales:", adminError);
+              // No bloquear el flujo si falla el registro de ganancias
+            }
           }
 
           if (!wasPremium || !welcomeAlreadySent) {
@@ -379,56 +456,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             } catch (chatError) {
               console.warn("⚠️ No se pudo enviar mensaje de bienvenida premium por chat:", chatError);
             }
-          }
-          
-          // Registrar ganancia mensual en la colección admin
-          try {
-            const adminDb = getAdminDb();
-            if (adminDb) {
-              // Obtener año y mes del pago (formato: YYYY-MM)
-              const paymentDate = payment.date_approved ? new Date(payment.date_approved) : new Date();
-              const year = paymentDate.getFullYear();
-              const month = String(paymentDate.getMonth() + 1).padStart(2, '0');
-              const monthId = `${year}-${month}`;
-              
-              // Referencia al documento del mes en la colección admin
-              const adminMonthRef = adminDb.collection("admin").doc(monthId);
-              
-              // Obtener el documento actual
-              const adminMonthDoc = await adminMonthRef.get();
-              
-              const amount = payment.transaction_amount || 0;
-              
-              if (!adminMonthDoc.exists) {
-                // Crear documento inicial para el mes (Mercado Pago = ARS)
-                await adminMonthRef.set({
-                  month: monthId,
-                  year: year,
-                  monthNumber: parseInt(month),
-                  totalEarningsArs: amount,
-                  totalEarningsEur: 0,
-                  totalEarnings: amount,
-                  paymentCount: 1,
-                  createdAt: FieldValue.serverTimestamp(),
-                  updatedAt: FieldValue.serverTimestamp(),
-                });
-                console.log(`✅ Ganancias mensuales creadas para ${monthId}: $${amount} ARS`);
-              } else {
-                // Actualizar documento existente con incremento atómico
-                await adminMonthRef.update({
-                  totalEarningsArs: FieldValue.increment(amount),
-                  totalEarnings: FieldValue.increment(amount),
-                  paymentCount: FieldValue.increment(1),
-                  updatedAt: FieldValue.serverTimestamp(),
-                });
-                console.log(`✅ Ganancias mensuales actualizadas para ${monthId}: +$${amount} ARS`);
-              }
-            } else {
-              console.warn("⚠️ Firebase Admin SDK no disponible para registrar ganancias mensuales");
-            }
-          } catch (adminError: unknown) {
-            console.error("❌ Error al registrar ganancias mensuales:", adminError);
-            // No bloquear el flujo si falla el registro de ganancias
           }
         } catch (error: unknown) {
           console.error(`❌ Error al actualizar usuario ${userId} a premium:`, error);

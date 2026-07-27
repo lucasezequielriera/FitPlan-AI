@@ -87,7 +87,10 @@ export default function PaymentSuccess() {
         } else if (paymentProvider === "mercadopago" && payment_id && typeof payment_id === "string") {
           // Verificar el pago con MercadoPago
           try {
-            const paymentCheck = await fetch(`/api/checkPayment?payment_id=${payment_id}`);
+            const idToken = await auth.currentUser.getIdToken();
+            const paymentCheck = await fetch(`/api/checkPayment?payment_id=${payment_id}`, {
+              headers: { Authorization: `Bearer ${idToken}` },
+            });
             if (paymentCheck.ok) {
               const paymentData = await paymentCheck.json();
               

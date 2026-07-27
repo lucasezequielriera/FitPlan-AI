@@ -298,13 +298,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           ? new Date(currentPeriodEnd * 1000)
           : resolveExpiryByPlan(paymentDate, planType);
 
+      // isNewInvoicePayment es el guard de idempotencia: Stripe puede reentregar el
+      // mismo evento de webhook más de una vez (comportamiento documentado), y solo
+      // la primera entrega de esta invoice debe reenviar Telegram / notificaciones.
+      // El ledger (recordStripeMonthlyEarningIfNew) ya es idempotente por sí mismo
+      // vía transacción, pero lo dejamos también dentro del guard por claridad.
       const existingPayment = await adminDb
         .collection("pagos")
         .where("stripePaymentId", "==", invoice.id)
         .limit(1)
         .get();
+      const isNewInvoicePayment = existingPayment.empty;
 
-      if (existingPayment.empty) {
+      if (isNewInvoicePayment) {
         await adminDb.collection("pagos").add({
           userId,
           amount,
@@ -346,28 +352,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         { merge: true }
       );
 
-      try {
-        const message = formatPaymentMessage({
-          nombre: userData?.nombre || null,
-          email: userData?.email || null,
-          amount,
-          currency,
-          planType,
-          paymentMethod: "stripe",
-          paymentId: invoice.id,
-          date: paymentDate,
-        });
-        await sendTelegramMessage(message).catch((err) => {
-          console.warn("⚠️ Error al enviar notificación de pago a Telegram:", err);
-        });
-      } catch (telegramError) {
-        console.warn("⚠️ Error al enviar notificación de pago a Telegram:", telegramError);
-      }
+      if (isNewInvoicePayment) {
+        try {
+          const message = formatPaymentMessage({
+            nombre: userData?.nombre || null,
+            email: userData?.email || null,
+            amount,
+            currency,
+            planType,
+            paymentMethod: "stripe",
+            paymentId: invoice.id,
+            date: paymentDate,
+          });
+          await sendTelegramMessage(message).catch((err) => {
+            console.warn("⚠️ Error al enviar notificación de pago a Telegram:", err);
+          });
+        } catch (telegramError) {
+          console.warn("⚠️ Error al enviar notificación de pago a Telegram:", telegramError);
+        }
 
-      try {
-        await recordStripeMonthlyEarningIfNew(adminDb, invoice.id, paymentDate, amount);
-      } catch (adminError: unknown) {
-        console.error("❌ Error al registrar ganancias mensuales:", adminError);
+        try {
+          await recordStripeMonthlyEarningIfNew(adminDb, invoice.id, paymentDate, amount);
+        } catch (adminError: unknown) {
+          console.error("❌ Error al registrar ganancias mensuales:", adminError);
+        }
       }
     }
 
