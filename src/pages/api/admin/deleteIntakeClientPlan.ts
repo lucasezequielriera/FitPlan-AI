@@ -1,22 +1,27 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { requireAdmin } from "@/lib/adminAuthServer";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "DELETE") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { userId, clientId, planId, deleteNutrition, deleteTraining } = req.body as {
-    userId?: string;
+  const auth = await requireAdmin(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ error: auth.error });
+  }
+
+  const { clientId, planId, deleteNutrition, deleteTraining } = req.body as {
     clientId?: string;
     planId?: string;
     deleteNutrition?: boolean;
     deleteTraining?: boolean;
   };
 
-  if (!userId || !clientId || !planId) {
-    return res.status(400).json({ error: "Faltan datos requeridos: userId, clientId y planId" });
+  if (!clientId || !planId) {
+    return res.status(400).json({ error: "Faltan datos requeridos: clientId y planId" });
   }
   if (!deleteNutrition && !deleteTraining) {
     return res.status(400).json({ error: "Debes seleccionar al menos un tipo de plan para eliminar." });
@@ -26,12 +31,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const db = getAdminDb();
     if (!db) {
       return res.status(500).json({ error: "Firebase Admin SDK no configurado" });
-    }
-
-    const adminDoc = await db.collection("usuarios").doc(userId).get();
-    const email = adminDoc.data()?.email?.toLowerCase() || "";
-    if (!adminDoc.exists || email !== "admin@fitplan-ai.com") {
-      return res.status(403).json({ error: "Solo administradores pueden ejecutar esta acción" });
     }
 
     const clientRef = db.collection("intakeClients").doc(clientId);

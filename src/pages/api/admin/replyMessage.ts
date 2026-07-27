@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
+import { requireAdmin } from "@/lib/adminAuthServer";
 
 /**
  * API para responder mensajes (solo admin)
@@ -11,33 +12,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    const auth = await requireAdmin(req);
+    if (!auth.ok) {
+      return res.status(auth.status).json({ error: auth.error });
+    }
+
     const db = getAdminDb();
     if (!db) {
       return res.status(500).json({ error: "Firebase Admin SDK no configurado" });
     }
 
-    const { adminUserId, messageId, reply } = req.body;
+    const { messageId, reply } = req.body;
 
-    if (!adminUserId || !messageId || !reply) {
-      return res.status(400).json({ error: "Faltan adminUserId, messageId o reply" });
+    if (!messageId || !reply) {
+      return res.status(400).json({ error: "Faltan messageId o reply" });
     }
 
-    // Obtener nombre del admin y verificar que es administrador
-    const adminUserRef = db.collection("usuarios").doc(adminUserId);
-    const adminUserDoc = await adminUserRef.get();
-    
-    if (!adminUserDoc.exists) {
-      return res.status(403).json({ error: "Admin no encontrado" });
-    }
-
-    const adminUserData = adminUserDoc.data();
-    const email = adminUserData?.email?.toLowerCase() || "";
-    const isAdmin = email === "admin@fitplan-ai.com";
     const adminName = "Equipo de FitPlan"; // Nombre fijo para admin
-
-    if (!isAdmin) {
-      return res.status(403).json({ error: "Solo administradores pueden acceder" });
-    }
 
     // Obtener el mensaje actual para agregar la respuesta al array
     const messageRef = db.collection("mensajes").doc(messageId);

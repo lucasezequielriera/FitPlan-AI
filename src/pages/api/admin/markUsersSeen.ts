@@ -1,8 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
-
-const ADMIN_EMAIL = "admin@fitplan-ai.com";
+import { requireAdmin } from "@/lib/adminAuthServer";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -10,10 +9,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { adminUserId } = req.body as { adminUserId?: string };
-
-    if (!adminUserId) {
-      return res.status(400).json({ error: "Falta adminUserId" });
+    const auth = await requireAdmin(req);
+    if (!auth.ok) {
+      return res.status(auth.status).json({ error: auth.error });
     }
 
     const db = getAdminDb();
@@ -21,18 +19,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(500).json({ error: "Firebase Admin SDK no configurado" });
     }
 
-    const adminRef = db.collection("usuarios").doc(adminUserId);
-    const adminDoc = await adminRef.get();
-
-    if (!adminDoc.exists) {
-      return res.status(404).json({ error: "Administrador no encontrado" });
-    }
-
-    const adminData = adminDoc.data();
-    const email = adminData?.email?.toLowerCase() || "";
-    if (email !== ADMIN_EMAIL) {
-      return res.status(403).json({ error: "Solo administradores pueden acceder" });
-    }
+    const adminRef = db.collection("usuarios").doc(auth.uid);
 
     await adminRef.update({
       lastUsersCheck: FieldValue.serverTimestamp(),

@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { requireAdmin } from "@/lib/adminAuthServer";
 
 function toISO(value: unknown): string | null {
   if (!value) return null;
@@ -15,16 +16,14 @@ function toISO(value: unknown): string | null {
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
-  const adminUserId = typeof req.query.adminUserId === "string" ? req.query.adminUserId : "";
+  const auth = await requireAdmin(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ error: auth.error });
+  }
   const clientId = typeof req.query.clientId === "string" ? req.query.clientId : "";
-  if (!adminUserId || !clientId) return res.status(400).json({ error: "Faltan adminUserId o clientId" });
+  if (!clientId) return res.status(400).json({ error: "Falta clientId" });
   const db = getAdminDb();
   if (!db) return res.status(500).json({ error: "Firebase Admin SDK no configurado" });
-  const adminDoc = await db.collection("usuarios").doc(adminUserId).get();
-  const email = adminDoc.data()?.email?.toLowerCase() || "";
-  if (!adminDoc.exists || email !== "admin@fitplan-ai.com") {
-    return res.status(403).json({ error: "Solo administradores" });
-  }
   const snap = await db
     .collection("intakeClients")
     .doc(clientId)

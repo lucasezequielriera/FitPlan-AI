@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
+import { requireAdmin } from "@/lib/adminAuthServer";
 
 /**
  * API para actualizar la ubicación de usuarios existentes que no tienen país guardado
@@ -12,32 +13,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    const auth = await requireAdmin(req);
+    if (!auth.ok) {
+      return res.status(auth.status).json({ error: auth.error });
+    }
+
     const db = getAdminDb();
     if (!db) {
       return res.status(500).json({ error: "Firebase Admin SDK no configurado" });
     }
 
-    const { adminUserId, userId } = req.body;
-
-    if (!adminUserId) {
-      return res.status(401).json({ error: "adminUserId es requerido" });
-    }
-
-    // Verificar que el usuario es administrador
-    const adminUserRef = db.collection("usuarios").doc(adminUserId);
-    const adminUserDoc = await adminUserRef.get();
-    
-    if (!adminUserDoc.exists) {
-      return res.status(403).json({ error: "Admin no encontrado" });
-    }
-
-    const adminUserData = adminUserDoc.data();
-    const email = adminUserData?.email?.toLowerCase() || "";
-    const isAdmin = email === "admin@fitplan-ai.com";
-
-    if (!isAdmin) {
-      return res.status(403).json({ error: "Solo administradores pueden ejecutar esta acción" });
-    }
+    const { userId } = req.body;
 
     // Si se proporciona un userId específico, actualizar solo ese usuario
     if (userId) {

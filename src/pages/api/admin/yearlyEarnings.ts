@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { requireAdmin } from "@/lib/adminAuthServer";
 
 const MONTH_NAMES_ES = [
   "Enero",
@@ -33,35 +34,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    const auth = await requireAdmin(req);
+    if (!auth.ok) {
+      return res.status(auth.status).json({ error: auth.error });
+    }
+
     const db = getAdminDb();
     if (!db) {
       return res.status(500).json({ error: "Firebase Admin SDK no configurado" });
     }
 
-    const { year: yearStr, adminUserId } = req.query;
+    const { year: yearStr } = req.query;
 
-    if (!yearStr || !adminUserId) {
-      return res.status(400).json({ error: "Faltan parámetros: year y adminUserId" });
+    if (!yearStr) {
+      return res.status(400).json({ error: "Falta parámetro: year" });
     }
 
     const year = parseInt(String(yearStr), 10);
     if (!Number.isFinite(year) || year < 2000 || year > 2100) {
       return res.status(400).json({ error: "Año inválido" });
-    }
-
-    const adminUserRef = db.collection("usuarios").doc(adminUserId as string);
-    const adminUserDoc = await adminUserRef.get();
-
-    if (!adminUserDoc.exists) {
-      return res.status(403).json({ error: "Admin no encontrado" });
-    }
-
-    const adminUserData = adminUserDoc.data();
-    const email = adminUserData?.email?.toLowerCase() || "";
-    const isAdmin = email === "admin@fitplan-ai.com";
-
-    if (!isAdmin) {
-      return res.status(403).json({ error: "Solo administradores pueden acceder" });
     }
 
     const refs = Array.from({ length: 12 }, (_, i) => {

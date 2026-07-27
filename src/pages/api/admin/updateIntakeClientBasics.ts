@@ -1,9 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { requireAdmin } from "@/lib/adminAuthServer";
 
 type Body = {
-  adminUserId?: string;
   intakeClientId?: string;
   nombre?: string;
   apellido?: string;
@@ -44,16 +44,15 @@ function splitFullName(nombreCompleto: string | null): { nombre: string | null; 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
   try {
+    const auth = await requireAdmin(req);
+    if (!auth.ok) {
+      return res.status(auth.status).json({ error: auth.error });
+    }
+
     const body = (req.body || {}) as Body;
-    if (!body.adminUserId || !body.intakeClientId) return res.status(400).json({ error: "Faltan adminUserId o intakeClientId" });
+    if (!body.intakeClientId) return res.status(400).json({ error: "Falta intakeClientId" });
     const db = getAdminDb();
     if (!db) return res.status(500).json({ error: "Firebase Admin SDK no configurado" });
-
-    const adminDoc = await db.collection("usuarios").doc(body.adminUserId).get();
-    const emailAdmin = adminDoc.data()?.email?.toLowerCase() || "";
-    if (!adminDoc.exists || emailAdmin !== "admin@fitplan-ai.com") {
-      return res.status(403).json({ error: "Solo administradores pueden acceder" });
-    }
 
     const nombre = toTrimmed(body.nombre, 80);
     const apellido = toTrimmed(body.apellido, 120);
@@ -107,7 +106,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     );
     await ref.collection("profileEdits").add({
       actorType: "admin",
-      actorId: body.adminUserId,
+      actorId: auth.uid,
       before: {
         nombreCompleto: prevData.nombreCompleto ?? null,
         email: prevData.email ?? null,

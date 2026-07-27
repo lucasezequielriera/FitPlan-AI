@@ -1,19 +1,18 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { requireAdmin } from "@/lib/adminAuthServer";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const db = getAdminDb();
   if (!db) return res.status(500).json({ error: "Firebase Admin SDK no configurado" });
 
+  const auth = await requireAdmin(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ error: auth.error });
+  }
+
   if (req.method === "GET") {
-    const adminUserId = req.query.adminUserId as string | undefined;
-    if (!adminUserId) return res.status(400).json({ error: "Falta adminUserId" });
-    const adminDoc = await db.collection("usuarios").doc(adminUserId).get();
-    const email = adminDoc.data()?.email?.toLowerCase() || "";
-    if (!adminDoc.exists || email !== "admin@fitplan-ai.com") {
-      return res.status(403).json({ error: "Solo administradores" });
-    }
     const unreadPaymentSnap = await db
       .collection("adminNotifications")
       .where("type", "==", "payment_success")
@@ -68,13 +67,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (req.method === "POST") {
-    const { adminUserId } = req.body as { adminUserId?: string };
-    if (!adminUserId) return res.status(400).json({ error: "Falta adminUserId" });
-    const adminDoc = await db.collection("usuarios").doc(adminUserId).get();
-    const email = adminDoc.data()?.email?.toLowerCase() || "";
-    if (!adminDoc.exists || email !== "admin@fitplan-ai.com") {
-      return res.status(403).json({ error: "Solo administradores" });
-    }
     const unreadPaymentSnap = await db
       .collection("adminNotifications")
       .where("type", "==", "payment_success")

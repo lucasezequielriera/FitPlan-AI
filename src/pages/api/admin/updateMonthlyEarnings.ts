@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
+import { requireAdmin } from "@/lib/adminAuthServer";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -8,35 +9,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Obtener el adminUserId del body
-    const { adminUserId } = req.body;
-    
-    if (!adminUserId) {
-      return res.status(401).json({ error: "No se proporcionó adminUserId" });
+    const auth = await requireAdmin(req);
+    if (!auth.ok) {
+      return res.status(auth.status).json({ error: auth.error });
     }
 
     // Usar Firebase Admin SDK
     const db = getAdminDb();
     if (!db) {
-      return res.status(500).json({ 
-        error: "Firebase Admin SDK no configurado" 
+      return res.status(500).json({
+        error: "Firebase Admin SDK no configurado"
       });
-    }
-
-    // Verificar que el usuario es administrador
-    const adminUserRef = db.collection("usuarios").doc(adminUserId);
-    const adminUserDoc = await adminUserRef.get();
-    
-    if (!adminUserDoc.exists) {
-      return res.status(403).json({ error: "Usuario no encontrado" });
-    }
-
-    const adminUserData = adminUserDoc.data();
-    const email = adminUserData?.email?.toLowerCase() || "";
-    const isAdmin = email === "admin@fitplan-ai.com";
-
-    if (!isAdmin) {
-      return res.status(403).json({ error: "Solo administradores pueden ejecutar esta acción" });
     }
 
     // Obtener todos los usuarios premium

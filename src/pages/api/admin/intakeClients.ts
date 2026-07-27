@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { formatIntakeClinicalHintForList } from "@/lib/trainingPlanGuards";
+import { requireAdmin } from "@/lib/adminAuthServer";
 
 type IntakeClient = {
   id: string;
@@ -75,21 +76,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const userId = req.query.userId as string | undefined;
-  if (!userId) {
-    return res.status(401).json({ error: "No se proporcionó userId" });
+  const auth = await requireAdmin(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ error: auth.error });
   }
 
   try {
     const db = getAdminDb();
     if (!db) {
       return res.status(500).json({ error: "Firebase Admin SDK no configurado" });
-    }
-
-    const adminDoc = await db.collection("usuarios").doc(userId).get();
-    const email = adminDoc.data()?.email?.toLowerCase() || "";
-    if (!adminDoc.exists || email !== "admin@fitplan-ai.com") {
-      return res.status(403).json({ error: "Solo administradores pueden acceder" });
     }
 
     const snapshot = await db.collection("intakeClients").orderBy("createdAt", "desc").limit(100).get();

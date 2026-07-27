@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { requireAdmin } from "@/lib/adminAuthServer";
 
 /**
  * API para obtener mensajes (solo admin)
@@ -10,31 +11,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    const auth = await requireAdmin(req);
+    if (!auth.ok) {
+      return res.status(auth.status).json({ error: auth.error });
+    }
+
     const db = getAdminDb();
     if (!db) {
       return res.status(500).json({ error: "Firebase Admin SDK no configurado" });
-    }
-
-    const { adminUserId } = req.query;
-
-    if (!adminUserId) {
-      return res.status(400).json({ error: "Falta adminUserId" });
-    }
-
-    // Verificar que el usuario es administrador
-    const adminUserRef = db.collection("usuarios").doc(adminUserId as string);
-    const adminUserDoc = await adminUserRef.get();
-    
-    if (!adminUserDoc.exists) {
-      return res.status(403).json({ error: "Admin no encontrado" });
-    }
-
-    const adminUserData = adminUserDoc.data();
-    const email = adminUserData?.email?.toLowerCase() || "";
-    const isAdmin = email === "admin@fitplan-ai.com";
-
-    if (!isAdmin) {
-      return res.status(403).json({ error: "Solo administradores pueden acceder" });
     }
 
     // Obtener todos los mensajes ordenados por fecha (más recientes primero)

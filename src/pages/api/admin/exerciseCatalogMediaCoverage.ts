@@ -3,16 +3,9 @@ import { getAdminDb } from "@/lib/firebase-admin";
 import { loadUniquePlanExercisesForCatalog } from "@/lib/planExerciseCatalogIndexServer";
 import { adminListExerciseWgerCatalog } from "@/lib/exerciseWgerCatalogServer";
 import { resolveWgerExerciseMedia } from "@/lib/wgerExerciseMedia";
+import { requireAdmin } from "@/lib/adminAuthServer";
 
 export const maxDuration = 60;
-
-async function assertAdmin(userId: string): Promise<boolean> {
-  const db = getAdminDb();
-  if (!db) return false;
-  const doc = await db.collection("usuarios").doc(userId).get();
-  const email = (doc.data()?.email as string | undefined)?.toLowerCase() || "";
-  return doc.exists && email === "admin@fitplan-ai.com";
-}
 
 function clampLimit(v: unknown, def: number, max: number): number {
   const n = typeof v === "string" ? Number(v) : typeof v === "number" ? v : def;
@@ -28,12 +21,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const userId = typeof req.query.userId === "string" ? req.query.userId.trim() : "";
-  if (!userId) {
-    return res.status(400).json({ error: "Falta userId" });
-  }
-  if (!(await assertAdmin(userId))) {
-    return res.status(403).json({ error: "Solo administradores" });
+  const auth = await requireAdmin(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ error: auth.error });
   }
 
   const db = getAdminDb();

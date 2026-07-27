@@ -9,6 +9,7 @@ import {
   shouldBlockSquatsAndLunges,
 } from "@/lib/trainingPlanGuards";
 import type { Goal, UserInput } from "@/types/plan";
+import { requireAdmin } from "@/lib/adminAuthServer";
 
 export const maxDuration = 150;
 
@@ -569,8 +570,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  const auth = await requireAdmin(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ error: auth.error });
+  }
+
   const {
-    userId,
     clientId,
     actionType,
     includeNutrition,
@@ -578,7 +583,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     actionContext,
     updateContext,
   } = req.body as {
-    userId?: string;
     clientId?: string;
     actionType?: ActionType;
     includeNutrition?: boolean;
@@ -587,8 +591,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     updateContext?: UpdateContext;
   };
 
-  if (!userId || !clientId || !actionType) {
-    return res.status(400).json({ error: "Faltan datos requeridos: userId, clientId y actionType" });
+  if (!clientId || !actionType) {
+    return res.status(400).json({ error: "Faltan datos requeridos: clientId y actionType" });
   }
   if (actionType !== "generate" && actionType !== "update") {
     return res.status(400).json({ error: "actionType inválido" });
@@ -601,12 +605,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const db = getAdminDb();
     if (!db) {
       return res.status(500).json({ error: "Firebase Admin SDK no configurado" });
-    }
-
-    const adminDoc = await db.collection("usuarios").doc(userId).get();
-    const email = adminDoc.data()?.email?.toLowerCase() || "";
-    if (!adminDoc.exists || email !== "admin@fitplan-ai.com") {
-      return res.status(403).json({ error: "Solo administradores pueden ejecutar esta acción" });
     }
 
     const targetRef = db.collection("intakeClients").doc(clientId);
@@ -739,7 +737,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const planDocData = removeUndefinedDeep({
       intakeClientId: clientId,
-      generatedBy: userId,
+      generatedBy: auth.uid,
       actionType,
       period: "monthly",
       includeNutrition: includeNutrition === true,
@@ -769,7 +767,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       includeTraining: includeTraining === true,
       period: "monthly",
       createdAt: new Date().toISOString(),
-      createdBy: userId,
+      createdBy: auth.uid,
       planId: planDoc.id,
       status: "completed",
       updateContext: actionType === "update" ? updateContext || null : null,

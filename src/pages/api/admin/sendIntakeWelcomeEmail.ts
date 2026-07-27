@@ -3,6 +3,7 @@ import nodemailer from "nodemailer";
 import { randomBytes } from "crypto";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { requireAdmin } from "@/lib/adminAuthServer";
 
 function firstName(fullName: string | null): string {
   if (!fullName) return "campeón";
@@ -103,17 +104,17 @@ function buildWelcomeHtml(params: {
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-  const body = (req.body || {}) as { adminUserId?: string; clientId?: string };
-  if (!body.adminUserId || !body.clientId) return res.status(400).json({ error: "Faltan adminUserId o clientId" });
+
+  const auth = await requireAdmin(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ error: auth.error });
+  }
+
+  const body = (req.body || {}) as { clientId?: string };
+  if (!body.clientId) return res.status(400).json({ error: "Falta clientId" });
 
   const db = getAdminDb();
   if (!db) return res.status(500).json({ error: "Firebase Admin SDK no configurado" });
-
-  const adminDoc = await db.collection("usuarios").doc(body.adminUserId).get();
-  const emailAdmin = adminDoc.data()?.email?.toLowerCase() || "";
-  if (!adminDoc.exists || emailAdmin !== "admin@fitplan-ai.com") {
-    return res.status(403).json({ error: "Solo administradores" });
-  }
 
   const smtpHost = process.env.INTAKE_SMTP_HOST;
   const smtpPort = Number(process.env.INTAKE_SMTP_PORT || "587");

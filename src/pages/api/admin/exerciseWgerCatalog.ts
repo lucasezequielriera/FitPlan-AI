@@ -1,5 +1,4 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getAdminDb } from "@/lib/firebase-admin";
 import {
   isAllowedVideoUrl,
   normalizeExerciseMediaKey,
@@ -12,24 +11,15 @@ import {
   adminUpsertExerciseCatalogEntry,
 } from "@/lib/exerciseWgerCatalogServer";
 import { clearWgerExerciseMediaResolutionCache } from "@/lib/wgerExerciseMedia";
-
-async function assertAdmin(userId: string): Promise<boolean> {
-  const db = getAdminDb();
-  if (!db) return false;
-  const doc = await db.collection("usuarios").doc(userId).get();
-  const email = (doc.data()?.email as string | undefined)?.toLowerCase() || "";
-  return doc.exists && email === "admin@fitplan-ai.com";
-}
+import { requireAdmin } from "@/lib/adminAuthServer";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const auth = await requireAdmin(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ error: auth.error });
+  }
+
   if (req.method === "GET") {
-    const userId = typeof req.query.userId === "string" ? req.query.userId.trim() : "";
-    if (!userId) {
-      return res.status(400).json({ error: "Falta userId" });
-    }
-    if (!(await assertAdmin(userId))) {
-      return res.status(403).json({ error: "Solo administradores" });
-    }
     try {
       const entries = await adminListExerciseWgerCatalog();
       return res.status(200).json({ entries });
@@ -41,16 +31,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (req.method === "POST") {
     const body = req.body as {
-      userId?: string;
       label?: string;
       mode?: string;
       wgerExerciseId?: unknown;
       customImageUrl?: string;
     };
-    const { userId, label, mode, wgerExerciseId, customImageUrl } = body;
-    if (!userId || !(await assertAdmin(userId))) {
-      return res.status(403).json({ error: "Solo administradores" });
-    }
+    const { label, mode, wgerExerciseId, customImageUrl } = body;
     const lab = typeof label === "string" ? label.trim() : "";
     if (!lab || lab.length < 2) {
       return res.status(400).json({ error: "Nombre de ejercicio inválido" });
@@ -99,10 +85,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   if (req.method === "DELETE") {
-    const { userId, normKey } = req.body as { userId?: string; normKey?: string };
-    if (!userId || !(await assertAdmin(userId))) {
-      return res.status(403).json({ error: "Solo administradores" });
-    }
+    const { normKey } = req.body as { normKey?: string };
     const nk = typeof normKey === "string" ? normKey.trim() : "";
     if (!nk) {
       return res.status(400).json({ error: "Falta normKey" });

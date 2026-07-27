@@ -3,6 +3,7 @@ import { randomBytes } from "crypto";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { getSiteOriginFromRequest } from "@/lib/requestSiteOrigin";
+import { requireAdmin } from "@/lib/adminAuthServer";
 
 /**
  * Genera o reutiliza un token de solo lectura para que el cliente vea su plan (nutrición + entreno) sin login.
@@ -13,26 +14,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    const auth = await requireAdmin(req);
+    if (!auth.ok) {
+      return res.status(auth.status).json({ error: auth.error });
+    }
+
     const body =
       req.body && typeof req.body === "object" && !Array.isArray(req.body)
         ? (req.body as Record<string, unknown>)
         : {};
-    const adminUserId = body.adminUserId as string | undefined;
     const intakeClientId = body.intakeClientId as string | undefined;
 
-    if (!adminUserId || !intakeClientId) {
-      return res.status(400).json({ error: "Faltan adminUserId o intakeClientId" });
+    if (!intakeClientId) {
+      return res.status(400).json({ error: "Falta intakeClientId" });
     }
 
     const db = getAdminDb();
     if (!db) {
       return res.status(500).json({ error: "Firebase Admin SDK no configurado" });
-    }
-
-    const adminDoc = await db.collection("usuarios").doc(adminUserId).get();
-    const email = adminDoc.data()?.email?.toLowerCase() || "";
-    if (!adminDoc.exists || email !== "admin@fitplan-ai.com") {
-      return res.status(403).json({ error: "Solo administradores pueden acceder" });
     }
 
     const intakeRef = db.collection("intakeClients").doc(intakeClientId);

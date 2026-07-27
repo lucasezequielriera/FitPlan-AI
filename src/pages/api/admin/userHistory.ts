@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { requireAdmin } from "@/lib/adminAuthServer";
 
 /**
  * API para obtener el historial mensual de un usuario (solo admin)
@@ -10,31 +11,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    const auth = await requireAdmin(req);
+    if (!auth.ok) {
+      return res.status(auth.status).json({ error: auth.error });
+    }
+
     const db = getAdminDb();
     if (!db) {
       return res.status(500).json({ error: "Firebase Admin SDK no configurado" });
     }
 
-    const { userId, adminUserId } = req.query;
+    const { userId } = req.query;
 
-    if (!userId || !adminUserId) {
-      return res.status(400).json({ error: "Faltan parámetros: userId y adminUserId" });
-    }
-
-    // Verificar que el adminUserId es admin
-    const adminUserRef = db.collection("usuarios").doc(adminUserId as string);
-    const adminUserDoc = await adminUserRef.get();
-    
-    if (!adminUserDoc.exists) {
-      return res.status(403).json({ error: "Admin no encontrado" });
-    }
-
-    const adminUserData = adminUserDoc.data();
-    const email = adminUserData?.email?.toLowerCase() || "";
-    const isAdmin = email === "admin@fitplan-ai.com";
-
-    if (!isAdmin) {
-      return res.status(403).json({ error: "Solo administradores pueden acceder" });
+    if (!userId) {
+      return res.status(400).json({ error: "Falta parámetro: userId" });
     }
 
     // Obtener todos los planes del usuario

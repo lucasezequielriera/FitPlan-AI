@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { requireAdmin } from "@/lib/adminAuthServer";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -7,37 +8,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    const auth = await requireAdmin(req);
+    if (!auth.ok) {
+      return res.status(auth.status).json({ error: auth.error });
+    }
+
     // Usar Firebase Admin SDK (bypass las reglas de Firestore)
     const db = getAdminDb();
     if (!db) {
-      return res.status(500).json({ 
-        error: "Firebase Admin SDK no configurado. Configura FIREBASE_ADMIN_PRIVATE_KEY y FIREBASE_ADMIN_CLIENT_EMAIL en las variables de entorno." 
+      return res.status(500).json({
+        error: "Firebase Admin SDK no configurado. Configura FIREBASE_ADMIN_PRIVATE_KEY y FIREBASE_ADMIN_CLIENT_EMAIL en las variables de entorno."
       });
     }
 
-    // Obtener el adminUserId del body (enviado desde el cliente)
-    const { adminUserId, userId, updates, updateData } = req.body;
-
-    if (!adminUserId) {
-      return res.status(401).json({ error: "No se proporcionó adminUserId" });
-    }
-
-    // Verificar que el usuario es administrador usando Admin SDK
-    const adminUserRef = db.collection("usuarios").doc(adminUserId);
-    const adminUserDoc = await adminUserRef.get();
-    
-    if (!adminUserDoc.exists) {
-      return res.status(403).json({ error: "Acceso denegado: usuario no encontrado" });
-    }
-
-    const adminUserData = adminUserDoc.data();
-    const email = adminUserData?.email?.toLowerCase() || "";
-    const nombreLower = adminUserData?.nombre?.toLowerCase() || "";
-    const isAdmin = email === "admin@fitplan-ai.com" || nombreLower === "administrador";
-
-    if (!isAdmin) {
-      return res.status(403).json({ error: "Solo administradores pueden actualizar usuarios" });
-    }
+    const { userId, updates, updateData } = req.body;
 
     // El parámetro puede venir como "updates" o "updateData"
     const dataToUpdate = updates || updateData;

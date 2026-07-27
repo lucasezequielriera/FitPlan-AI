@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { isAllowedPosterUrl, isAllowedVideoUrl, normalizeExerciseMediaKey } from "@/lib/exerciseMedia";
+import { requireAdmin } from "@/lib/adminAuthServer";
 
 export const maxDuration = 30;
 
@@ -17,14 +18,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { userId, planId, exercise_media_overrides: rawOverrides } = req.body as {
-    userId?: string;
+  const auth = await requireAdmin(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ error: auth.error });
+  }
+
+  const { planId, exercise_media_overrides: rawOverrides } = req.body as {
     planId?: string;
     exercise_media_overrides?: unknown;
   };
 
-  if (!userId || !planId) {
-    return res.status(400).json({ error: "Faltan userId o planId" });
+  if (!planId) {
+    return res.status(400).json({ error: "Falta planId" });
   }
   if (!rawOverrides || typeof rawOverrides !== "object" || Array.isArray(rawOverrides)) {
     return res.status(400).json({ error: "exercise_media_overrides debe ser un objeto" });
@@ -34,12 +39,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const db = getAdminDb();
     if (!db) {
       return res.status(500).json({ error: "Firebase Admin SDK no configurado" });
-    }
-
-    const adminDoc = await db.collection("usuarios").doc(userId).get();
-    const email = adminDoc.data()?.email?.toLowerCase() || "";
-    if (!adminDoc.exists || email !== "admin@fitplan-ai.com") {
-      return res.status(403).json({ error: "Solo administradores pueden ejecutar esta acción" });
     }
 
     const planRef = db.collection("intakeClientPlans").doc(planId);

@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { requireAdmin } from "@/lib/adminAuthServer";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
@@ -7,11 +8,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Obtener el userId del query parameter
-    const userId = req.query.userId as string;
-    
-    if (!userId) {
-      return res.status(401).json({ error: "No se proporcionó userId" });
+    const auth = await requireAdmin(req);
+    if (!auth.ok) {
+      return res.status(auth.status).json({ error: auth.error });
     }
 
     // Usar Firebase Admin SDK (bypass las reglas de Firestore)
@@ -22,26 +21,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         hasClientEmail: !!process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
         hasProjectId: !!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
       });
-      return res.status(500).json({ 
+      return res.status(500).json({
         error: "Firebase Admin SDK no configurado",
         detail: "Configura las siguientes variables de entorno en Vercel: FIREBASE_ADMIN_PRIVATE_KEY, FIREBASE_ADMIN_CLIENT_EMAIL, y NEXT_PUBLIC_FIREBASE_PROJECT_ID. Obtén estas credenciales desde Firebase Console > Project Settings > Service Accounts."
       });
-    }
-
-    // Verificar que el usuario es administrador usando Admin SDK
-    const adminUserRef = db.collection("usuarios").doc(userId);
-    const adminUserDoc = await adminUserRef.get();
-    
-    if (!adminUserDoc.exists) {
-      return res.status(403).json({ error: "Usuario no encontrado" });
-    }
-
-    const adminUserData = adminUserDoc.data();
-    const email = adminUserData?.email?.toLowerCase() || "";
-    const isAdmin = email === "admin@fitplan-ai.com";
-
-    if (!isAdmin) {
-      return res.status(403).json({ error: "Solo administradores pueden acceder" });
     }
 
     // Obtener todos los usuarios usando Admin SDK (sin restricciones de reglas)

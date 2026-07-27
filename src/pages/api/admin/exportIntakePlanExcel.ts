@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { buildIntakePlanXlsxWithExerciseImages } from "@/lib/intakePlanExcelWorkbook";
+import { requireAdmin } from "@/lib/adminAuthServer";
 
 export const maxDuration = 60;
 
@@ -18,15 +19,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { userId, clientLabel, plan } = req.body as {
-    userId?: string;
+  const auth = await requireAdmin(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ error: auth.error });
+  }
+
+  const { clientLabel, plan } = req.body as {
     clientLabel?: string;
     plan?: unknown;
   };
 
-  if (!userId) {
-    return res.status(400).json({ error: "Falta userId" });
-  }
   if (!plan || typeof plan !== "object" || Array.isArray(plan)) {
     return res.status(400).json({ error: "Falta plan (objeto)" });
   }
@@ -35,12 +37,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const db = getAdminDb();
     if (!db) {
       return res.status(500).json({ error: "Firebase Admin SDK no configurado" });
-    }
-
-    const adminDoc = await db.collection("usuarios").doc(userId).get();
-    const email = adminDoc.data()?.email?.toLowerCase() || "";
-    if (!adminDoc.exists || email !== "admin@fitplan-ai.com") {
-      return res.status(403).json({ error: "Solo administradores pueden exportar" });
     }
 
     const buf = await buildIntakePlanXlsxWithExerciseImages(plan as Record<string, unknown>, {

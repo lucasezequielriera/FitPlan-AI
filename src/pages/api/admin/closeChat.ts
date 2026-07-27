@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
+import { requireAdmin } from "@/lib/adminAuthServer";
 
 /**
  * API para que el admin finalice un chat
@@ -11,21 +12,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    const auth = await requireAdmin(req);
+    if (!auth.ok) {
+      return res.status(auth.status).json({ error: auth.error });
+    }
+
     const db = getAdminDb();
     if (!db) {
       return res.status(500).json({ error: "Firebase Admin SDK no configurado" });
     }
 
-    const { adminUserId, messageId } = req.body;
+    const { messageId } = req.body;
 
-    if (!adminUserId || !messageId) {
-      return res.status(400).json({ error: "Faltan adminUserId o messageId" });
+    if (!messageId) {
+      return res.status(400).json({ error: "Falta messageId" });
     }
 
     // Verificar que el mensaje existe
     const messageRef = db.collection("mensajes").doc(messageId);
     const messageDoc = await messageRef.get();
-    
+
     if (!messageDoc.exists) {
       return res.status(404).json({ error: "Mensaje no encontrado" });
     }
@@ -34,7 +40,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await messageRef.update({
       closed: true,
       closedAt: FieldValue.serverTimestamp(),
-      closedBy: adminUserId,
+      closedBy: auth.uid,
       updatedAt: FieldValue.serverTimestamp(),
     });
 

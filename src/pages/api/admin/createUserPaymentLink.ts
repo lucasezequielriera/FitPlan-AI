@@ -4,6 +4,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { getStripeSubscriptionPlans, type PlanTypeKey } from "@/lib/stripePlanPrices";
 import { inferStripeCurrencyFromCountryLabel } from "@/lib/paymentUtils";
+import { requireAdmin } from "@/lib/adminAuthServer";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
   apiVersion: "2025-11-17.clover",
@@ -23,26 +24,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { adminUserId, targetUserId, provider, planType } = req.body as {
-    adminUserId?: string;
+  const auth = await requireAdmin(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ error: auth.error });
+  }
+
+  const { targetUserId, provider, planType } = req.body as {
     targetUserId?: string;
     provider?: Provider;
     planType?: PlanType;
   };
 
-  if (!adminUserId || !targetUserId) {
-    return res.status(400).json({ error: "Faltan datos requeridos: adminUserId y targetUserId" });
+  if (!targetUserId) {
+    return res.status(400).json({ error: "Faltan datos requeridos: targetUserId" });
   }
 
   try {
     const db = getAdminDb();
     if (!db) return res.status(500).json({ error: "Firebase Admin SDK no configurado" });
-
-    const adminDoc = await db.collection("usuarios").doc(adminUserId).get();
-    const adminEmail = adminDoc.data()?.email?.toLowerCase() || "";
-    if (!adminDoc.exists || adminEmail !== "admin@fitplan-ai.com") {
-      return res.status(403).json({ error: "Solo administradores pueden crear links de pago" });
-    }
 
     const userRef = db.collection("usuarios").doc(targetUserId);
     const userDoc = await userRef.get();

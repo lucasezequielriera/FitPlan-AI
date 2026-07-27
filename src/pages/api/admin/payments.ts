@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { sendTelegramMessage, formatPaymentMessage } from "@/lib/telegram";
+import { requireAdmin } from "@/lib/adminAuthServer";
 
 interface Payment {
   userId: string;
@@ -32,26 +33,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(500).json({ error: "Firebase Admin SDK no configurado" });
       }
 
-      const { userId, adminUserId } = req.query;
-
-      if (!userId || !adminUserId) {
-        return res.status(400).json({ error: "Faltan parámetros: userId y adminUserId" });
+      const auth = await requireAdmin(req);
+      if (!auth.ok) {
+        return res.status(auth.status).json({ error: auth.error });
       }
 
-      // Verificar que el usuario es administrador
-      const adminUserRef = db.collection("usuarios").doc(adminUserId as string);
-      const adminUserDoc = await adminUserRef.get();
-      
-      if (!adminUserDoc.exists) {
-        return res.status(403).json({ error: "Admin no encontrado" });
-      }
+      const { userId } = req.query;
 
-      const adminUserData = adminUserDoc.data();
-      const email = adminUserData?.email?.toLowerCase() || "";
-      const isAdmin = email === "admin@fitplan-ai.com";
-
-      if (!isAdmin) {
-        return res.status(403).json({ error: "Solo administradores pueden acceder" });
+      if (!userId) {
+        return res.status(400).json({ error: "Falta parámetro: userId" });
       }
 
       // Obtener pagos del usuario desde la colección pagos
@@ -95,26 +85,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(500).json({ error: "Firebase Admin SDK no configurado" });
       }
 
-      const { adminUserId, userId, amount, planType, date, paymentMethod, notes } = req.body;
+      const auth = await requireAdmin(req);
+      if (!auth.ok) {
+        return res.status(auth.status).json({ error: auth.error });
+      }
 
-      if (!adminUserId || !userId || !amount || !planType || !date || !paymentMethod) {
+      const { userId, amount, planType, date, paymentMethod, notes } = req.body;
+
+      if (!userId || !amount || !planType || !date || !paymentMethod) {
         return res.status(400).json({ error: "Faltan parámetros requeridos" });
-      }
-
-      // Verificar que el usuario es administrador
-      const adminUserRef = db.collection("usuarios").doc(adminUserId);
-      const adminUserDoc = await adminUserRef.get();
-      
-      if (!adminUserDoc.exists) {
-        return res.status(403).json({ error: "Admin no encontrado" });
-      }
-
-      const adminUserData = adminUserDoc.data();
-      const email = adminUserData?.email?.toLowerCase() || "";
-      const isAdmin = email === "admin@fitplan-ai.com";
-
-      if (!isAdmin) {
-        return res.status(403).json({ error: "Solo administradores pueden crear pagos" });
       }
 
       // Verificar que el usuario existe
@@ -158,7 +137,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         paymentId,
         paymentMethod,
         isManual: true,
-        createdBy: adminUserId,
+        createdBy: auth.uid,
         notes: notes || null,
         createdAt: FieldValue.serverTimestamp() as Timestamp,
         updatedAt: FieldValue.serverTimestamp() as Timestamp,

@@ -4,6 +4,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { getStripeSubscriptionPlans, type PlanTypeKey } from "@/lib/stripePlanPrices";
 import { inferStripeCurrencyFromCountryLabel } from "@/lib/paymentUtils";
+import { requireAdmin } from "@/lib/adminAuthServer";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
   apiVersion: "2025-11-17.clover",
@@ -20,20 +21,21 @@ function inferProviderByCountry(country?: string | null): Provider {
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { adminUserId, intakeClientId, provider, planType } = req.body as {
-    adminUserId?: string;
+  const auth = await requireAdmin(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ error: auth.error });
+  }
+
+  const { intakeClientId, provider, planType } = req.body as {
     intakeClientId?: string;
     provider?: Provider;
     planType?: PlanType;
   };
-  if (!adminUserId || !intakeClientId) return res.status(400).json({ error: "Faltan adminUserId e intakeClientId" });
+  if (!intakeClientId) return res.status(400).json({ error: "Falta intakeClientId" });
 
   try {
     const db = getAdminDb();
     if (!db) return res.status(500).json({ error: "Firebase Admin SDK no configurado" });
-    const adminDoc = await db.collection("usuarios").doc(adminUserId).get();
-    const email = adminDoc.data()?.email?.toLowerCase() || "";
-    if (!adminDoc.exists || email !== "admin@fitplan-ai.com") return res.status(403).json({ error: "Solo administradores" });
 
     const intakeRef = db.collection("intakeClients").doc(intakeClientId);
     const intakeDoc = await intakeRef.get();

@@ -1,5 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { requireAdmin } from "@/lib/adminAuthServer";
+import { getEurArsRateForPricing } from "@/lib/exchangeRate";
 
 /**
  * API para obtener las ganancias mensuales reales desde Firestore (solo admin)
@@ -10,31 +12,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    const auth = await requireAdmin(req);
+    if (!auth.ok) {
+      return res.status(auth.status).json({ error: auth.error });
+    }
+
     const db = getAdminDb();
     if (!db) {
       return res.status(500).json({ error: "Firebase Admin SDK no configurado" });
     }
 
-    const { monthId, adminUserId } = req.query;
+    const { monthId } = req.query;
 
-    if (!monthId || !adminUserId) {
-      return res.status(400).json({ error: "Faltan parámetros: monthId y adminUserId" });
-    }
-
-    // Verificar que el usuario es administrador
-    const adminUserRef = db.collection("usuarios").doc(adminUserId as string);
-    const adminUserDoc = await adminUserRef.get();
-    
-    if (!adminUserDoc.exists) {
-      return res.status(403).json({ error: "Admin no encontrado" });
-    }
-
-    const adminUserData = adminUserDoc.data();
-    const email = adminUserData?.email?.toLowerCase() || "";
-    const isAdmin = email === "admin@fitplan-ai.com";
-
-    if (!isAdmin) {
-      return res.status(403).json({ error: "Solo administradores pueden acceder" });
+    if (!monthId) {
+      return res.status(400).json({ error: "Falta parámetro: monthId" });
     }
 
     // Obtener las ganancias del mes desde la colección admin
@@ -60,12 +51,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const totalEarningsEur = hasSplit ? eur : 0;
     const paymentCount = data?.paymentCount || 0;
 
+    // Cotización cacheada (ver src/lib/exchangeRate.ts) en vez del "* 2000"
+    // hardcodeado anterior, que quedaba desactualizado con el tiempo.
+    const { rate: eurArsRate } = await getEurArsRateForPricing(db);
+
     return res.status(200).json({
       monthId: monthId as string,
       totalEarningsArs,
       totalEarningsEur,
       /** Compat: suma aproximada en “pesos equivalentes” para la tarjeta del panel */
-      totalEarnings: totalEarningsArs + totalEarningsEur * 2000,
+      totalEarnings: totalEarningsArs + totalEarningsEur * eurArsRate,
       paymentCount,
     });
   } catch (error) {
