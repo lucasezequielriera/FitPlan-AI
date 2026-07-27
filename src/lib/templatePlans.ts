@@ -8,6 +8,8 @@
 import type { UserInput, PlanAIResponse, TrainingPlan, Comida, DiaPlan, TrainingExercise, TrainingDayPlan } from "@/types/plan";
 import { ensureMealMacrosAprox } from "@/lib/mealMacros";
 import { templateComidasEn } from "@/lib/templateComidasEn";
+import { filterUnsafeExercisesByDoloresLesiones } from "@/lib/trainingPlanGuards";
+import { filterMealOptionsByRestrictions } from "@/lib/mealAllergenFilter";
 
 /** Locale for template-based plan generation (API + templates). */
 export type PlanGenerationLocale = "es" | "en";
@@ -332,14 +334,21 @@ export async function generateTemplateBasedPlan(
     const meriendasOpc = comidasTemplate.merienda[index % comidasTemplate.merienda.length];
     const cenaOpc = comidasTemplate.cena[index % comidasTemplate.cena.length];
 
+    // Las plantillas estáticas son fijas por tipoDieta y no sabían nada de
+    // restricciones/alergias declaradas por el usuario — a diferencia del
+    // flujo Premium (generatePlan.ts), que se lo pide a la IA en el prompt.
+    // Filtrar acá evita servir, por ejemplo, salmón a alguien con alergia a
+    // pescados solo porque eligió dieta "estándar".
+    const filtrar = (opciones: string[]) => filterMealOptionsByRestrictions(opciones, user.restricciones, locale);
+
     return {
       dia,
       comidas: [
-        { hora: mealSlots[0].hora, nombre: mealSlots[0].nombre, opciones: desayunoOpc.opciones },
-        { hora: mealSlots[1].hora, nombre: mealSlots[1].nombre, opciones: meriendasOpc.opciones },
-        { hora: mealSlots[2].hora, nombre: mealSlots[2].nombre, opciones: almuerzoOpc.opciones },
-        { hora: mealSlots[3].hora, nombre: mealSlots[3].nombre, opciones: [meriendasOpc.opciones[0]] },
-        { hora: mealSlots[4].hora, nombre: mealSlots[4].nombre, opciones: cenaOpc.opciones },
+        { hora: mealSlots[0].hora, nombre: mealSlots[0].nombre, opciones: filtrar(desayunoOpc.opciones) },
+        { hora: mealSlots[1].hora, nombre: mealSlots[1].nombre, opciones: filtrar(meriendasOpc.opciones) },
+        { hora: mealSlots[2].hora, nombre: mealSlots[2].nombre, opciones: filtrar(almuerzoOpc.opciones) },
+        { hora: mealSlots[3].hora, nombre: mealSlots[3].nombre, opciones: filtrar([meriendasOpc.opciones[0]]) },
+        { hora: mealSlots[4].hora, nombre: mealSlots[4].nombre, opciones: filtrar(cenaOpc.opciones) },
       ],
     };
   });
@@ -368,6 +377,19 @@ export async function generateTemplateBasedPlan(
   if (equip === "sin_equipo") {
     trainingPlan = aplicarFiltroSinEquipo(trainingPlan);
   }
+
+  // Igual que en el flujo Premium: sacar ejercicios inseguros para las
+  // lesiones/dolores reportados (hernia de disco, lumbar, rodilla, hombro).
+  // Las plantillas estáticas nunca leían doloresLesiones — un usuario free
+  // con hernia de disco podía recibir peso muerto/sentadillas sin adaptar.
+  if (user.doloresLesiones && user.doloresLesiones.length > 0) {
+    for (const week of trainingPlan.weeks || []) {
+      for (const day of week.days || []) {
+        day.ejercicios = filterUnsafeExercisesByDoloresLesiones(day.ejercicios || [], user.doloresLesiones);
+      }
+    }
+  }
+
   console.log(`📐 [TEMPLATES] Después de ajuste, el plan tendrá ${trainingPlan.weeks?.[0]?.days?.length || 0} días`);
   // mark for debugging
   (trainingPlan as any)._debug = true;

@@ -147,6 +147,73 @@ function sanitizeRepsOnly(plan: Record<string, unknown>) {
   }
 }
 
+const HERNIA_HINT_RE = /hernia.{0,10}disco|hernia discal/i;
+const LUMBAR_HINT_RE = /lumbar|espalda baja/i;
+const SHOULDER_HINT_RE = /hombro|manguito/i;
+
+const PROHIBITED_HERNIA = [
+  "remo con barra", "bent-over row", "barbell row", "t-bar row", "row con barra",
+  "peso muerto", "deadlift", "rdl", "peso muerto rumano",
+  "sentadilla", "squat", "sentadillas profundas",
+  "good morning", "good mornings",
+  "hiperextensión", "hiperextension", "back extension", "hiperextensiones",
+  "crunch", "russian twist",
+  "overhead press", "press militar", "press overhead",
+  "sentadilla frontal", "front squat",
+  "leg press profundo", "hack squat profundo",
+  "burpee", "jumping jack", "saltos",
+];
+const PROHIBITED_LUMBAR = [
+  "peso muerto", "deadlift", "rdl",
+  "sentadilla profunda", "squat profundo",
+  "good morning",
+];
+const PROHIBITED_KNEE = [
+  "sentadilla", "squat", "sentadilla frontal", "front squat",
+  "sissy squat", "hack squat", "smith squat",
+  "zancada", "lunge", "estocada", "split squat", "bulgar", "pistol squat",
+  "salto al cajón", "salto al cajon", "box jump", "jump squat", "saltos", "burpee",
+];
+const PROHIBITED_SHOULDER = [
+  "press militar", "overhead press", "press overhead", "press tras nuca", "behind the neck",
+  "upright row", "remo al mentón", "remo al menton",
+  "elevaciones laterales pesadas", "fondos en paralelas", "dips en paralelas",
+];
+
+/**
+ * Filtra ejercicios inseguros según las lesiones/dolores reportados por el
+ * usuario. A diferencia de `applyTrainingPlanPostProcess` (que solo cubre
+ * rodilla y opera sobre la estructura completa de un training_plan con
+ * semanas/días), esta función trabaja sobre una lista plana de ejercicios
+ * `{ name, ... }` y cubre hernia/lumbar/rodilla/hombro — pensada para
+ * reutilizarse en cualquier generador de planes (IA o plantillas estáticas)
+ * que produzca ese shape.
+ */
+export function filterUnsafeExercisesByDoloresLesiones<T extends { name?: unknown }>(
+  ejercicios: T[],
+  doloresLesiones: string[] | undefined
+): T[] {
+  if (!doloresLesiones || doloresLesiones.length === 0) return ejercicios;
+  const blob = doloresLesiones.join(" | ").toLowerCase();
+  const tieneHernia = HERNIA_HINT_RE.test(blob);
+  const tieneLumbar = LUMBAR_HINT_RE.test(blob);
+  const tieneRodilla = blobSuggestsKneeCare(blob);
+  const tieneHombro = SHOULDER_HINT_RE.test(blob);
+
+  if (!tieneHernia && !tieneLumbar && !tieneRodilla && !tieneHombro) return ejercicios;
+
+  const prohibidos = new Set<string>();
+  if (tieneHernia) PROHIBITED_HERNIA.forEach((p) => prohibidos.add(p));
+  if (tieneLumbar) PROHIBITED_LUMBAR.forEach((p) => prohibidos.add(p));
+  if (tieneRodilla) PROHIBITED_KNEE.forEach((p) => prohibidos.add(p));
+  if (tieneHombro) PROHIBITED_SHOULDER.forEach((p) => prohibidos.add(p));
+
+  return ejercicios.filter((ej) => {
+    const nombreLower = String(ej.name || "").toLowerCase();
+    return !Array.from(prohibidos).some((p) => nombreLower.includes(p));
+  });
+}
+
 /** Texto concatenado para decidir bloqueo (formulario + input normalizado + notas coach). */
 export function buildTrainingConstraintBlob(
   formData: Record<string, unknown>,

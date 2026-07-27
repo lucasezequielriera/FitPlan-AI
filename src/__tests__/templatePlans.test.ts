@@ -141,4 +141,59 @@ describe("Template plan generator", () => {
       expect(unique.size).toBe(days.length);
     }
   });
+
+  it("filtra ejercicios peligrosos para usuarios free con hernia de disco reportada", async () => {
+    const user = {
+      nombre: "Test",
+      edad: 40,
+      pesoKg: 80,
+      alturaCm: 175,
+      sexo: "masculino" as const,
+      actividad: "moderado" as const,
+      objetivo: "ganar_masa" as const,
+      intensidad: "moderada" as const,
+      diasGym: 4,
+      doloresLesiones: ["hernia de disco lumbar"],
+    } as any;
+    const plan = await generateTemplateBasedPlan(user, 2500, 2700, {
+      proteinas: "180g",
+      grasas: "70g",
+      carbohidratos: "300g",
+    });
+
+    const dangerousNames = ["sentadilla", "squat", "peso muerto", "deadlift", "good morning"];
+    const allExerciseNames = plan
+      .training_plan!.weeks.flatMap((w) => w.days.flatMap((d) => (d.ejercicios || []).map((e) => e.name.toLowerCase())));
+
+    dangerousNames.forEach((dangerous) => {
+      expect(allExerciseNames.some((name) => name.includes(dangerous))).toBe(false);
+    });
+  });
+
+  it("filtra opciones de comida con alérgenos declarados en el tier free", async () => {
+    const user = {
+      nombre: "Test",
+      edad: 28,
+      pesoKg: 65,
+      alturaCm: 168,
+      sexo: "femenino" as const,
+      actividad: "moderado" as const,
+      objetivo: "perder_grasa" as const,
+      intensidad: "moderada" as const,
+      diasGym: 3,
+      tipoDieta: "estandar" as const,
+      restricciones: ["pescados"],
+    } as any;
+    const plan = await generateTemplateBasedPlan(user, 1800, 1600, {
+      proteinas: "140g",
+      grasas: "50g",
+      carbohidratos: "150g",
+    });
+
+    const allOpciones = plan.plan_semanal.flatMap((d) => d.comidas.flatMap((c) => c.opciones.map((o) => o.toLowerCase())));
+    const fishKeywords = ["salmón", "salmon", "atún", "atun", "merluza"];
+    fishKeywords.forEach((kw) => {
+      expect(allOpciones.some((o) => o.includes(kw))).toBe(false);
+    });
+  });
 });
