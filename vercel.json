@@ -35,7 +35,7 @@
     },
     {
       "path": "/api/cron/generateDailyContent",
-      "schedule": "0 14 * * *"
+      "schedule": "*/10 * * * *"
     },
     {
       "path": "/api/cron/refreshInstagramToken",
