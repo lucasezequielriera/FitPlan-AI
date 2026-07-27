@@ -7,6 +7,7 @@ function validPayload() {
     nombreCompleto: "María López",
     email: "maria@example.com",
     whatsapp: "+34 612 345 678",
+    ciudadPais: "Córdoba, Argentina",
     edad: "31",
     alturaCm: "167",
     pesoKg: "64",

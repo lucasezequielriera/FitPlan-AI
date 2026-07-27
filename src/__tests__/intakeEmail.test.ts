@@ -5,15 +5,15 @@ describe("buildIntakeEmail", () => {
   it("creates subject, html and text with payload data", () => {
     const payload = {
       nombreCompleto: "Lucía García",
-      objetivoPrincipal: "ganar_musculo",
+      objetivoPrincipal: "ganar_musculo" as const,
       email: "lucia@example.com",
       whatsapp: "+34 600 000 000",
       instagram: "@luciag",
       diasDisponibles: ["Lunes", "Miércoles"],
       diasTrabajo: ["Lunes", "Martes", "Miércoles"],
       preferenciasAlimentos: {
-        Pollo: "gusta",
-        Atún: "no_gusta",
+        Pollo: "gusta" as const,
+        Atún: "no_gusta" as const,
       },
     };
 
@@ -38,7 +38,7 @@ describe("buildIntakeEmail", () => {
   it("escapes HTML content to avoid injection in email body", () => {
     const payload = {
       nombreCompleto: "<script>alert(1)</script>",
-      objetivoPrincipal: "otro",
+      objetivoPrincipal: "otro" as const,
     };
 
     const result = buildIntakeEmail(payload);
