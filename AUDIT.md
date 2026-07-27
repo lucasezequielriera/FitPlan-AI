@@ -1,9 +1,32 @@
 # FitPlan AI — Auditoría técnica y de producto
 
-> Última actualización: 2026-07-27
+> Última actualización: 2026-07-27 (sesión 2)
 > Ver [`PROJECT_OVERVIEW.md`](./PROJECT_OVERVIEW.md) para contexto de negocio/arquitectura y [`DESIGN_SYSTEM.md`](./DESIGN_SYSTEM.md) para el sistema visual.
 >
-> Este documento se actualiza a medida que se corrigen hallazgos. Cada ítem tiene un estado: 🔴 pendiente · 🟡 en progreso · 🟢 corregido en esta sesión.
+> Este documento se actualiza a medida que se corrigen hallazgos. Cada ítem tiene un estado: 🔴 pendiente · 🟡 en progreso · 🟢 corregido.
+
+---
+
+## 0. Sesión 2 — pagos, precios, calidad de planes, founder-ease
+
+Segunda pasada enfocada específicamente en: que las pasarelas de pago funcionen sin fallas, que los precios sean correctos, que el contenido de entrenamiento/nutrición generado sea seguro, y en reducir carga de mantenimiento para el fundador. Todo lo de abajo está commiteado y deployado (ver `git log`).
+
+**Pagos — hallazgos y fixes:**
+- 🟢 Webhook de MercadoPago y Stripe (`invoice.paid`) podían **duplicar el registro de ingresos** y reenviar Telegram/notificaciones si el proveedor reentregaba la misma notificación (comportamiento normal de "al menos una entrega" documentado por ambos proveedores). Ahora el libro de ganancias de MercadoPago es atómico e idempotente por `paymentId` (mismo patrón que ya tenía Stripe), y ambos webhooks solo disparan notificaciones una vez por pago real.
+- 🟢 **Precio en ARS desactualizado**: el número fijo asumía "1 EUR = 2000 ARS"; la cotización real (julio 2026) es ~1700, es decir los usuarios argentinos estaban pagando ~15-20% de más del precio EUR pretendido. Reemplazado por un sistema de cotización en vivo (dolarapi.com, oficial/Banco Nación) cacheado en Firestore y refrescado por cron diario, derivando el ARS del precio EUR único (compartido con Stripe). El mismo fix se aplicó al dashboard de ganancias del admin, que tenía el mismo `* 2000` hardcodeado.
+- 🟢 `checkPayment.ts` (consulta de pago MercadoPago) no verificaba identidad — cualquiera podía consultar monto/estado de cualquier `payment_id`. Ahora requiere token y verifica que el pago pertenezca al usuario autenticado.
+- 🟢 Ni Stripe ni MercadoPago verificaban si un usuario ya había usado su trial gratuito antes — cancelar antes del primer cobro y resuscribirse daba un trial de 30 días infinito. Cerrado usando `premiumSince` (se setea una sola vez, nunca se borra).
+
+**Calidad de entrenamiento y nutrición — hallazgos y fixes:**
+- 🟢 **Sin piso mínimo de calorías**: una combinación real de inputs (mujer 50a/145cm/45kg/sedentaria + pérdida de grasa intensidad "ultra") daba ~334 kcal/día objetivo — menos de lo que cuesta la proteína prescripta sola. Agregado un piso de seguridad (nunca por debajo del BMR ni de 1200/1500 kcal mujeres/hombres) aplicado en la creación del plan y como defensa adicional server-side.
+- 🟢 El módulo de seguridad de ejercicios (`trainingPlanGuards.ts`, sustituye sentadillas/ejercicios de riesgo) solo protegía el flujo de coaching 1:1 admin — **el flujo Premium real que usan los clientes que pagan no lo tenía conectado para rodilla/hombro** (solo hernia/lumbar). Conectado.
+- 🟢 Las plantillas del **tier gratuito ignoraban por completo** lesiones reportadas, alergias/restricciones alimentarias y patologías — un usuario free con alergia a mariscos podía recibir salmón/atún sin ningún filtro. Agregado filtrado de ejercicios inseguros y de opciones de comida con alérgenos declarados (pescados/mariscos/gluten/lácteos/huevo/cerdo/soja/frutos secos). La adaptación por patología médica específica queda como gap pendiente, de mayor alcance.
+- 🟢 La regeneración de mes siguiente (multi-fase), la regeneración por cambio de intensidad/objetivo, y la regeneración por edición de datos básicos **no enviaban valores determinísticos de calorías/macros** a la IA (solo lo hacía la creación inicial del plan) — desde el mes 2 en adelante, la IA calculaba libremente sin el piso de seguridad ni el guardrail de ±15% de desviación. Ahora los 4 flujos de (re)generación calculan y envían los mismos valores, desde funciones compartidas y testeadas (`calcularCaloriasObjetivoPorMeta`/`calcularMacrosObjetivo` en `utils/calculations.ts`).
+
+**Founder-ease — hallazgo no buscado, encontrado en el camino:**
+- 🟢 **`npm test` estaba completamente roto** (no corría ningún test) por un archivo de configuración de Jest duplicado/obsoleto (`jest.config.ts` vacío junto a `jest.config.mjs`) — Jest se negaba a elegir entre ambos. Corregido, y de paso: `npx tsc --noEmit` ahora da **0 errores en todo el repo** (antes había ~22 falsos positivos por una colisión de tipos Cypress/Jest), se arregló un test con datos de fixture desactualizados (drift real con el schema), se reescribió un test que aserteaba sobre un flujo de wizard que ya no existe en la home, y se borró un test muerto que importaba un módulo que nunca existió. La suite completa (24 tests, 5 archivos) corre y pasa.
+
+Ver detalle de cada hallazgo pre-existente (sesión 1: seguridad admin, sistema de diseño, bugs de React) en las secciones siguientes.
 
 ---
 
@@ -75,9 +98,9 @@ Al cerrar esta sesión se corrió `npx tsc --noEmit` y `npm run lint` sobre el e
 - **ESLint**: bajó de 141 problemas (79 errores / 62 warnings) a 128 (67 errores / 61 warnings). La diferencia son los errores de riesgo real corregidos en §3.1/§3.2; el resto son warnings de estilo (`no-unused-vars`, `exhaustive-deps`) y `no-explicit-any`/`no-unescaped-entities` documentados como deuda no crítica.
 - **`npm run build`**: no se pudo ejecutar en este entorno de trabajo por versión de Node desactualizada (18.20, Next.js 16 requiere ≥20.9) — **preexistente, no causado por los cambios de esta sesión**. Recomendado correr `npm run build` en tu máquina/CI antes de deployar para confirmar que compila en producción, ya que esta sesión no pudo verificarlo con ese paso final.
 
-### 3.3 Test suite rota — 🔴 pendiente
+### 3.3 Test suite rota — 🟢 corregido en sesión 2
 
-`src/__tests__/aiPlanGenerator.test.ts` importa `@/lib/aiPlanGenerator`, un módulo que **no existe** — el archivo no puede correr. Además, `npx tsc --noEmit` da 22 errores, todos dentro de `src/__tests__/*` (nada en código de aplicación), causados por una colisión de tipos entre las declaraciones globales de Cypress y las de Jest/`@testing-library/jest-dom` al no haber un `"types"` explícito en `tsconfig.json`. **Recomendación**: borrar o reescribir `aiPlanGenerator.test.ts` contra el módulo real que genera planes (`generatePlan.ts`), y separar los `tsconfig` de test (Jest) y Cypress con sus propios `"types"` para que dejen de pisarse.
+Ver §0. `npm test` no corría absolutamente nada por un `jest.config.ts` obsoleto colisionando con `jest.config.mjs` — borrado. `tsconfig.json` excluye ahora `cypress/` y `cypress.config.ts`, eliminando la colisión de tipos que causaba ~22 falsos positivos en `tsc --noEmit`. Se arregló el drift de fixture en `intakeFormSchema.test.ts`, se reescribió `index.form.test.tsx` (aserteaba sobre un wizard que ya no vive en la home) y se agregó un mock de `IntersectionObserver` en `jest.setup.ts` (framer-motion lo necesita y jsdom no lo provee), y se borró `aiPlanGenerator.test.ts` (importaba un módulo que nunca existió). Estado actual: 0 errores de `tsc --noEmit` en todo el repo, 24 tests pasando en 5 suites. Cypress (`cypress/e2e/home.cy.ts`) sigue siendo un único smoke test — no se amplió la cobertura E2E en esta sesión.
 
 ### 3.4 Endpoint admin muerto — 🔴 pendiente (bajo impacto)
 
@@ -113,8 +136,8 @@ Estos ítems no son "bugs" pero son lo que más va a costar mantener solo como f
 
 ## 6. Recomendaciones priorizadas (próximos pasos sugeridos)
 
-1. **Corto plazo** (impacto alto, esfuerzo bajo): documentar todas las env vars en el README; borrar `src/pages/api/admin/users.ts`; unificar `exceljs`/`xlsx`.
-2. **Mediano plazo**: mover el email de admin a env var + custom claim en vez de estar hardcodeado en 3+ lugares; arreglar/borrar `aiPlanGenerator.test.ts` y separar tsconfig de test vs Cypress; agregar tests a los webhooks de pago (son el corazón del negocio — un bug ahí cuesta plata directamente).
+1. **Corto plazo** (impacto alto, esfuerzo bajo): documentar todas las env vars en el README (✅ hecho); borrar `src/pages/api/admin/users.ts`; unificar `exceljs`/`xlsx`; configurar `MERCADOPAGO_WEBHOOK_SECRET` en producción (ver §2.2, el código ya lo soporta pero necesita la variable configurada en el panel de MercadoPago + Vercel).
+2. **Mediano plazo**: mover el email de admin a env var + custom claim en vez de estar hardcodeado en 3+ lugares; agregar tests automáticos a los webhooks de pago (la lógica ya es correcta tras esta sesión, pero no hay test que la proteja de una futura regresión); adaptar contenido por patología médica también en el tier free (hoy solo se filtran lesiones/alergias, no las 15 condiciones médicas que sí cubre el prompt Premium).
 3. **Largo plazo**: partir `AdminApp.tsx` y `plan.tsx` en módulos más chicos, de forma incremental; definir una estrategia real para Capacitor (o descartarlo formalmente) cuando vuelva a ser prioridad.
 
 Ver también las sugerencias de producto/UI/growth que se comparten por fuera de este documento (no todo lo que mejora la conversión o la experiencia es un "bug" a documentar aquí).
