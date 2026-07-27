@@ -13,14 +13,18 @@ export type PostResult =
  * 2. POST /{ig-user-id}/media_publish (publica el container creado)
  *
  * Env vars necesarias:
- * - INSTAGRAM_ACCESS_TOKEN: token de larga duración de la app de Meta.
+ * - INSTAGRAM_ACCESS_TOKEN: token de larga duración de la app de Meta (bootstrap
+ *   inicial — una vez que el cron de renovación corre, el token vigente se lee
+ *   de Firestore vía instagramTokenStore.ts y se pasa acá como `accessToken`).
  * - INSTAGRAM_BUSINESS_ACCOUNT_ID: ID de la cuenta de Instagram Business/Creator.
  */
 export async function postImageToInstagram(params: {
   imageUrl: string;
   caption: string;
+  /** Si no se pasa, cae a la env var INSTAGRAM_ACCESS_TOKEN. */
+  accessToken?: string | null;
 }): Promise<PostResult> {
-  const accessToken = process.env.INSTAGRAM_ACCESS_TOKEN;
+  const accessToken = params.accessToken || process.env.INSTAGRAM_ACCESS_TOKEN;
   const igUserId = process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID;
 
   if (!accessToken || !igUserId) {

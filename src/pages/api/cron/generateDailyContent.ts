@@ -6,6 +6,7 @@ import { pickNextTopic, type SocialTopic } from "@/lib/socialContent/topics";
 import { generateSocialCopy } from "@/lib/socialContent/generateCopy";
 import { uploadBufferToCloudinary } from "@/lib/socialContent/cloudinaryUpload";
 import { postImageToInstagram } from "@/lib/socialContent/postToInstagram";
+import { getInstagramAccessToken } from "@/lib/socialContent/instagramTokenStore";
 import { sendTelegramMessage } from "@/lib/telegram";
 
 function isAuthorized(req: NextApiRequest): boolean {
@@ -90,9 +91,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       publicId: `social-${docId}`,
     });
 
+    const instagramAccessToken = await getInstagramAccessToken(db);
     const instagramResult = await postImageToInstagram({
       imageUrl,
       caption: `${copy.instagramCaption}\n\n${copy.hashtags.map((h) => `#${h}`).join(" ")}`,
+      accessToken: instagramAccessToken,
     });
 
     await docRef.set({

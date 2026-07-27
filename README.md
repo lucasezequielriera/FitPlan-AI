@@ -110,6 +110,12 @@ NEXT_PUBLIC_TIKTOK_PIXEL_ID=
 # Business/Creator de Instagram.
 INSTAGRAM_ACCESS_TOKEN=
 INSTAGRAM_BUSINESS_ACCOUNT_ID=
+# App ID / App Secret de la misma app de Meta (Configuración > Básica) — los
+# usa el cron diario refreshInstagramToken para renovar el token de arriba
+# antes de que venza (dura ~60 días), sin que tengas que repetir el proceso
+# manual. El token renovado se guarda en Firestore, no acá.
+INSTAGRAM_APP_ID=
+INSTAGRAM_APP_SECRET=
 # TikTok: requiere una app en TikTok for Developers con el scope
 # video.publish aprobado (Content Posting API).
 TIKTOK_ACCESS_TOKEN=
