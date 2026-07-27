@@ -8,7 +8,13 @@ import { getAuthSafe, getDbSafe } from "@/lib/firebase";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import type { UserInput, TipoDieta, Intensidad, PlanMultiFase, FaseMultiFase, HistorialMes, Suplemento, PlanAIResponse } from "@/types/plan";
 import Navbar from "@/components/Navbar";
-import { calculateBMR, calculateTDEE, clampCaloriesToSafeFloor } from "@/utils/calculations";
+import {
+  calculateBMR,
+  calculateTDEE,
+  calcularCaloriasObjetivoPorMeta,
+  calcularMacrosObjetivo,
+  clampCaloriesToSafeFloor,
+} from "@/utils/calculations";
 import PremiumPlanModal from "@/components/PremiumPlanModal";
 import Head from "next/head";
 import { useAppLocale } from "@/contexts/AppLocaleContext";
@@ -749,109 +755,20 @@ export default function CreatePlan() {
           );
         const tdeeCalculado = calculateTDEE(bmrCalculado, actividad, diasGymEstimado, diasCardioEstimado);
         
-        // Calcular superávit/déficit según objetivo e intensidad
-        let caloriasObjetivo = tdeeCalculado;
+        // Calcular superávit/déficit según objetivo e intensidad (misma
+        // tabla que usa la regeneración de mes siguiente en plan.tsx, ver
+        // calcularCaloriasObjetivoPorMeta en utils/calculations.ts).
         const objetivo = formFinal.objetivo;
-        
-        // Objetivos de GANANCIA (superávit calórico)
-        if (objetivo === "bulk_cut" || objetivo === "volumen" || objetivo === "powerlifting") {
-          // Superávit alto para máxima ganancia/fuerza
-          const superavit = intensidad === "ultra" ? 1000 : intensidad === "intensa" ? 750 : intensidad === "moderada" ? 500 : 350;
-          caloriasObjetivo = tdeeCalculado + superavit;
-        } else if (objetivo === "lean_bulk" || objetivo === "ganar_masa") {
-          // Superávit moderado para ganancia controlada
-          const superavit = intensidad === "ultra" ? 500 : intensidad === "intensa" ? 400 : intensidad === "moderada" ? 300 : 200;
-          caloriasObjetivo = tdeeCalculado + superavit;
-        } 
-        // Objetivos de PÉRDIDA (déficit calórico)
-        else if (objetivo === "perder_grasa" || objetivo === "corte") {
-          // Déficit alto para pérdida rápida
-          const deficit = intensidad === "ultra" ? 800 : intensidad === "intensa" ? 650 : intensidad === "moderada" ? 500 : 350;
-          caloriasObjetivo = tdeeCalculado - deficit;
-        } else if (objetivo === "definicion") {
-          // Déficit moderado para preservar músculo
-          const deficit = intensidad === "ultra" ? 600 : intensidad === "intensa" ? 500 : intensidad === "moderada" ? 400 : 250;
-          caloriasObjetivo = tdeeCalculado - deficit;
-        }
-        // Objetivos de RECOMPOSICIÓN (cercano a mantenimiento)
-        else if (objetivo === "recomposicion") {
-          // Pequeño déficit o mantenimiento para recomp
-          const ajuste = intensidad === "ultra" ? -100 : intensidad === "intensa" ? -50 : 0;
-          caloriasObjetivo = tdeeCalculado + ajuste;
-        }
-        // Objetivos ATLÉTICOS (superávit moderado para rendimiento)
-        else if (objetivo === "rendimiento_deportivo" || objetivo === "atleta_elite") {
-          // Superávit para soportar entrenamiento intenso
-          const superavit = intensidad === "ultra" ? 600 : intensidad === "intensa" ? 450 : intensidad === "moderada" ? 300 : 150;
-          caloriasObjetivo = tdeeCalculado + superavit;
-        } else if (objetivo === "resistencia") {
-          // Alto en carbohidratos pero superávit moderado
-          const superavit = intensidad === "ultra" ? 500 : intensidad === "intensa" ? 400 : intensidad === "moderada" ? 250 : 150;
-          caloriasObjetivo = tdeeCalculado + superavit;
-        }
-        // MANTENIMIENTO (TDEE exacto)
-        else if (objetivo === "mantener" || objetivo === "mantenimiento_avanzado") {
-          caloriasObjetivo = tdeeCalculado; // Sin ajuste
-        }
-        // Default: mantenimiento
-        else {
-          caloriasObjetivo = tdeeCalculado;
-        }
+        let caloriasObjetivo = calcularCaloriasObjetivoPorMeta(tdeeCalculado, objetivo, intensidad);
 
         // Piso de seguridad: nunca por debajo del BMR ni de un mínimo
         // clínico absoluto, sin importar cuán agresivo sea el déficit
         // calculado arriba (ver clampCaloriesToSafeFloor).
         caloriasObjetivo = clampCaloriesToSafeFloor(caloriasObjetivo, bmrCalculado, sexo);
 
-        // Calcular macros basados en objetivo y peso
-        const calcularMacros = () => {
-          // Proteína según objetivo (g por kg de peso corporal)
-          let proteinaPorKg = 1.8; // Default
-          if (objetivo === "bulk_cut" || objetivo === "volumen" || objetivo === "powerlifting" || objetivo === "lean_bulk" || objetivo === "ganar_masa") {
-            proteinaPorKg = intensidad === "ultra" ? 2.5 : intensidad === "intensa" ? 2.2 : 2.0;
-          } else if (objetivo === "perder_grasa" || objetivo === "definicion" || objetivo === "corte") {
-            proteinaPorKg = intensidad === "ultra" ? 2.8 : intensidad === "intensa" ? 2.5 : 2.2; // Más alta para preservar músculo
-          } else if (objetivo === "resistencia") {
-            proteinaPorKg = 1.6; // Resistencia necesita menos proteína
-          } else if (objetivo === "recomposicion") {
-            proteinaPorKg = 2.2;
-          }
-          
-          const proteinasG = Math.round(proteinaPorKg * pesoActual);
-          const kcalFromProtein = proteinasG * 4;
-          
-          // Grasas: 25-30% de las calorías según objetivo
-          let grasasPct = 0.28; // Default 28%
-          if (objetivo === "resistencia") {
-            grasasPct = 0.22; // Menos grasa para más carbos
-          } else if (objetivo === "perder_grasa" || objetivo === "definicion" || objetivo === "corte") {
-            grasasPct = 0.30; // Más grasa para saciedad
-          } else if (objetivo === "bulk_cut" || objetivo === "volumen") {
-            grasasPct = 0.25; // Menos grasa para más carbos
-          }
-          
-          const grasasG = Math.round((grasasPct * caloriasObjetivo) / 9);
-          const kcalFromFat = grasasG * 9;
-          
-          // Carbohidratos: el resto de las calorías
-          const remainingKcal = Math.max(caloriasObjetivo - (kcalFromProtein + kcalFromFat), 0);
-          const carbsG = Math.round(remainingKcal / 4);
-          
-          return {
-            proteinas: `${proteinasG}g`,
-            grasas: `${grasasG}g`,
-            carbohidratos: `${carbsG}g`,
-            _detalles: {
-              proteinaPorKg,
-              proteinasKcal: kcalFromProtein,
-              grasasPct: Math.round(grasasPct * 100),
-              grasasKcal: kcalFromFat,
-              carbsKcal: remainingKcal
-            }
-          };
-        };
-        
-        const macrosCalculados = calcularMacros();
+        // Calcular macros basados en objetivo y peso (misma lógica compartida
+        // que la regeneración de mes siguiente, ver calcularMacrosObjetivo).
+        const macrosCalculados = calcularMacrosObjetivo(caloriasObjetivo, pesoActual, objetivo, intensidad);
         
         const premiumSafeForm = isPremium
           ? (() => {

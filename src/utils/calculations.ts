@@ -76,6 +76,115 @@ export function clampCaloriesToSafeFloor(
   return Math.max(Math.round(calorias), floor);
 }
 
+export type Intensidad = "leve" | "moderada" | "intensa" | "ultra";
+
+/**
+ * Calorías objetivo según TDEE + objetivo + intensidad — la misma tabla de
+ * déficit/superávit usada al crear un plan (create-plan.tsx) y al regenerar
+ * el mes siguiente de un plan multi-fase (plan.tsx). Extraída a un solo
+ * lugar para que ambos flujos den el mismo número ante el mismo input — antes
+ * la regeneración de mes 2+ no calculaba esto en absoluto y dejaba que la IA
+ * inventara calorías libremente, sin el guardrail que sí tiene el mes 1.
+ */
+export function calcularCaloriasObjetivoPorMeta(tdee: number, objetivo: Goal, intensidad: Intensidad): number {
+  if (objetivo === "bulk_cut" || objetivo === "volumen" || objetivo === "powerlifting") {
+    const superavit = intensidad === "ultra" ? 1000 : intensidad === "intensa" ? 750 : intensidad === "moderada" ? 500 : 350;
+    return tdee + superavit;
+  }
+  if (objetivo === "lean_bulk" || objetivo === "ganar_masa") {
+    const superavit = intensidad === "ultra" ? 500 : intensidad === "intensa" ? 400 : intensidad === "moderada" ? 300 : 200;
+    return tdee + superavit;
+  }
+  if (objetivo === "perder_grasa" || objetivo === "corte") {
+    const deficit = intensidad === "ultra" ? 800 : intensidad === "intensa" ? 650 : intensidad === "moderada" ? 500 : 350;
+    return tdee - deficit;
+  }
+  if (objetivo === "definicion") {
+    const deficit = intensidad === "ultra" ? 600 : intensidad === "intensa" ? 500 : intensidad === "moderada" ? 400 : 250;
+    return tdee - deficit;
+  }
+  if (objetivo === "recomposicion") {
+    const ajuste = intensidad === "ultra" ? -100 : intensidad === "intensa" ? -50 : 0;
+    return tdee + ajuste;
+  }
+  if (objetivo === "rendimiento_deportivo" || objetivo === "atleta_elite") {
+    const superavit = intensidad === "ultra" ? 600 : intensidad === "intensa" ? 450 : intensidad === "moderada" ? 300 : 150;
+    return tdee + superavit;
+  }
+  if (objetivo === "resistencia") {
+    const superavit = intensidad === "ultra" ? 500 : intensidad === "intensa" ? 400 : intensidad === "moderada" ? 250 : 150;
+    return tdee + superavit;
+  }
+  // mantener / mantenimiento_avanzado / default
+  return tdee;
+}
+
+export type MacrosObjetivo = {
+  proteinas: string;
+  grasas: string;
+  carbohidratos: string;
+  _detalles: {
+    proteinaPorKg: number;
+    proteinasKcal: number;
+    grasasPct: number;
+    grasasKcal: number;
+    carbsKcal: number;
+  };
+};
+
+/**
+ * Split de macros según objetivo/intensidad/peso — misma lógica compartida
+ * entre create-plan.tsx y la regeneración de mes siguiente en plan.tsx.
+ */
+export function calcularMacrosObjetivo(
+  caloriasObjetivo: number,
+  pesoActual: number,
+  objetivo: Goal,
+  intensidad: Intensidad
+): MacrosObjetivo {
+  let proteinaPorKg = 1.8;
+  if (objetivo === "bulk_cut" || objetivo === "volumen" || objetivo === "powerlifting" || objetivo === "lean_bulk" || objetivo === "ganar_masa") {
+    proteinaPorKg = intensidad === "ultra" ? 2.5 : intensidad === "intensa" ? 2.2 : 2.0;
+  } else if (objetivo === "perder_grasa" || objetivo === "definicion" || objetivo === "corte") {
+    proteinaPorKg = intensidad === "ultra" ? 2.8 : intensidad === "intensa" ? 2.5 : 2.2;
+  } else if (objetivo === "resistencia") {
+    proteinaPorKg = 1.6;
+  } else if (objetivo === "recomposicion") {
+    proteinaPorKg = 2.2;
+  }
+
+  const proteinasG = Math.round(proteinaPorKg * pesoActual);
+  const kcalFromProtein = proteinasG * 4;
+
+  let grasasPct = 0.28;
+  if (objetivo === "resistencia") {
+    grasasPct = 0.22;
+  } else if (objetivo === "perder_grasa" || objetivo === "definicion" || objetivo === "corte") {
+    grasasPct = 0.30;
+  } else if (objetivo === "bulk_cut" || objetivo === "volumen") {
+    grasasPct = 0.25;
+  }
+
+  const grasasG = Math.round((grasasPct * caloriasObjetivo) / 9);
+  const kcalFromFat = grasasG * 9;
+
+  const remainingKcal = Math.max(caloriasObjetivo - (kcalFromProtein + kcalFromFat), 0);
+  const carbsG = Math.round(remainingKcal / 4);
+
+  return {
+    proteinas: `${proteinasG}g`,
+    grasas: `${grasasG}g`,
+    carbohidratos: `${carbsG}g`,
+    _detalles: {
+      proteinaPorKg,
+      proteinasKcal: kcalFromProtein,
+      grasasPct: Math.round(grasasPct * 100),
+      grasasKcal: kcalFromFat,
+      carbsKcal: remainingKcal,
+    },
+  };
+}
+
 export function applyGoalCalories(tdee: number, objetivo: Goal): number {
   if (objetivo === "perder_grasa") return Math.round(tdee * 0.8);
   if (objetivo === "ganar_masa") return Math.round(tdee * 1.15);

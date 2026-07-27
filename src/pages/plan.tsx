@@ -6,7 +6,7 @@ import { usePlanStore } from "@/store/planStore";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Goal, TipoDieta, Intensidad, UserInput, PlanMultiFase } from "@/types/plan";
 import { obtenerInfoFaseActual, calcularProgresoTotal } from "@/types/plan";
-import { calculateBMI, bmiCategory, calculateBodyFatUSNavy, bodyFatCategory, waistToHeightRatio, whtrCategory, calculateBMR, calculateTDEE, sugerirEntrenamiento, calcularProyeccionesMotivacionales, analizarCambiosEntrenamiento } from "@/utils/calculations";
+import { calculateBMI, bmiCategory, calculateBodyFatUSNavy, bodyFatCategory, waistToHeightRatio, whtrCategory, calculateBMR, calculateTDEE, sugerirEntrenamiento, calcularProyeccionesMotivacionales, analizarCambiosEntrenamiento, calcularCaloriasObjetivoPorMeta, calcularMacrosObjetivo, clampCaloriesToSafeFloor } from "@/utils/calculations";
 import Navbar from "@/components/Navbar";
 // ExerciseSetTracker removido temporalmente
 import type { TrainingDayPlan, TrainingWeekPlan } from "@/types/plan";
@@ -1962,10 +1962,30 @@ export default function PlanPage() {
           : Math.ceil(nuevasSugerencias.minutosCaminata / (nuevasSugerencias.minutosCaminata > 45 ? 60 : nuevasSugerencias.minutosCaminata > 30 ? 45 : 30))
       };
       
+      // Mismo guardrail determinístico que create-plan.tsx y la regeneración
+      // de mes siguiente — sin esto, cambiar la intensidad/objetivo acá
+      // dejaba que la IA recalculara calorías/macros sin piso de seguridad.
+      const bmrRegen = calculateBMR(userActualizado.pesoKg, userActualizado.alturaCm, userActualizado.edad, userActualizado.sexo);
+      const tdeeRegen = calculateTDEE(bmrRegen, userActualizado.actividad, userActualizado.diasGym, userActualizado.diasCardio);
+      const caloriasObjetivoRegen = clampCaloriesToSafeFloor(
+        calcularCaloriasObjetivoPorMeta(tdeeRegen, userActualizado.objetivo, intensidadFinal),
+        bmrRegen,
+        userActualizado.sexo
+      );
+      const macrosObjetivoRegen = calcularMacrosObjetivo(caloriasObjetivoRegen, userActualizado.pesoKg, userActualizado.objetivo, intensidadFinal);
+
       const resp = await fetch("/api/generatePlan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...userActualizado, userId: authUser?.uid, locale }),
+        body: JSON.stringify({
+          ...userActualizado,
+          userId: authUser?.uid,
+          locale,
+          _tdeeCalculado: tdeeRegen,
+          _caloriasObjetivo: caloriasObjetivoRegen,
+          _bmrCalculado: bmrRegen,
+          _macrosObjetivo: macrosObjetivoRegen,
+        }),
       });
       
       if (!resp.ok) {
@@ -2487,11 +2507,27 @@ export default function PlanPage() {
           ...(datosSiguienteMes.lesionesNuevas ? [datosSiguienteMes.lesionesNuevas] : [])
         ].filter(Boolean),
         // Ajustar objetivo según la nueva fase
-        objetivo: cambiaFase && siguienteFase ? 
+        objetivo: cambiaFase && siguienteFase ?
           (siguienteFase.nombre === "CUT" ? "corte" : siguienteFase.nombre === "LEAN_BULK" ? "lean_bulk" : "volumen") as typeof user.objetivo
           : user.objetivo
       };
-      
+
+      // Igual que en la creación inicial del plan (create-plan.tsx): calcular
+      // valores nutricionales determinísticos para el mes nuevo (peso/objetivo
+      // actualizados) y enviarlos como guardrail obligatorio. Antes, la
+      // regeneración de mes siguiente no enviaba nada de esto y la IA
+      // calculaba calorías/macros libremente, sin el piso de seguridad ni el
+      // chequeo de desviación ±15% que sí protege al mes 1.
+      const intensidadNueva = userInput.intensidad || "moderada";
+      const bmrNuevo = calculateBMR(userInput.pesoKg, user.alturaCm, user.edad, user.sexo);
+      const tdeeNuevo = calculateTDEE(bmrNuevo, user.actividad, userInput.diasGym, userInput.diasCardio);
+      const caloriasObjetivoNuevo = clampCaloriesToSafeFloor(
+        calcularCaloriasObjetivoPorMeta(tdeeNuevo, userInput.objetivo, intensidadNueva),
+        bmrNuevo,
+        user.sexo
+      );
+      const macrosObjetivoNuevo = calcularMacrosObjetivo(caloriasObjetivoNuevo, userInput.pesoKg, userInput.objetivo, intensidadNueva);
+
       // Generar nuevo plan
       const response = await fetch("/api/generatePlan", {
         method: "POST",
@@ -2500,6 +2536,10 @@ export default function PlanPage() {
           ...userInput,
           userId: authUser?.uid,
           locale,
+          _tdeeCalculado: tdeeNuevo,
+          _caloriasObjetivo: caloriasObjetivoNuevo,
+          _bmrCalculado: bmrNuevo,
+          _macrosObjetivo: macrosObjetivoNuevo,
           // Contexto adicional para el siguiente mes
           _contextoMultiFase: {
             mesActual: siguienteMes,
@@ -4849,12 +4889,32 @@ export default function PlanPage() {
                         diasCardio: Math.ceil(nuevasSugerencias.minutosCaminata / (nuevasSugerencias.minutosCaminata > 45 ? 60 : nuevasSugerencias.minutosCaminata > 30 ? 45 : 30))
                       };
                       
+                      // Mismo guardrail determinístico que el resto de flujos de
+                      // (re)generación — ver create-plan.tsx / calculations.ts.
+                      const intensidadEdicion = userActualizado.intensidad || "moderada";
+                      const bmrEdicion = calculateBMR(userActualizado.pesoKg, userActualizado.alturaCm, userActualizado.edad, userActualizado.sexo);
+                      const tdeeEdicion = calculateTDEE(bmrEdicion, userActualizado.actividad, userActualizado.diasGym, userActualizado.diasCardio);
+                      const caloriasObjetivoEdicion = clampCaloriesToSafeFloor(
+                        calcularCaloriasObjetivoPorMeta(tdeeEdicion, userActualizado.objetivo, intensidadEdicion),
+                        bmrEdicion,
+                        userActualizado.sexo
+                      );
+                      const macrosObjetivoEdicion = calcularMacrosObjetivo(caloriasObjetivoEdicion, userActualizado.pesoKg, userActualizado.objetivo, intensidadEdicion);
+
                       const resp = await fetch("/api/generatePlan", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ ...userActualizado, userId: authUser?.uid, locale }),
+                        body: JSON.stringify({
+                          ...userActualizado,
+                          userId: authUser?.uid,
+                          locale,
+                          _tdeeCalculado: tdeeEdicion,
+                          _caloriasObjetivo: caloriasObjetivoEdicion,
+                          _bmrCalculado: bmrEdicion,
+                          _macrosObjetivo: macrosObjetivoEdicion,
+                        }),
                       });
-                      
+
                       if (!resp.ok) {
                         const data = await resp.json().catch(() => null);
                         const combined = data?.error && data?.detail ? `${data.error}: ${data.detail}` : (data?.error || data?.detail);
