@@ -94,9 +94,26 @@ TELEGRAM_CHAT_ID=
 # Cron jobs (protegen /api/cron/* fuera de Vercel, que ya envía x-vercel-cron)
 CRON_SECRET=
 
+# URL pública del sitio (usada para armar URLs absolutas internas, ej. el
+# render de imágenes del contenido social). Si no está, cae a Host del
+# request o al dominio de producción.
+NEXT_PUBLIC_SITE_URL=
+
 # Marketing / analítica (opcional, sin esto simplemente no se envían esos eventos)
 TIKTOK_EVENTS_API_ACCESS_TOKEN=
 NEXT_PUBLIC_TIKTOK_PIXEL_ID=
+
+# Contenido social automático (opcional — sin esto, el cron diario genera y
+# guarda el contenido pero no publica en ninguna red).
+# Instagram: requiere una app en Meta for Developers con el permiso
+# instagram_content_publish aprobado (App Review), conectada a tu cuenta
+# Business/Creator de Instagram.
+INSTAGRAM_ACCESS_TOKEN=
+INSTAGRAM_BUSINESS_ACCOUNT_ID=
+# TikTok: requiere una app en TikTok for Developers con el scope
+# video.publish aprobado (Content Posting API).
+TIKTOK_ACCESS_TOKEN=
+TIKTOK_OPEN_ID=
 ```
 
 **Nota:** 

@@ -143,6 +143,18 @@ Sistema propio (no usa next-i18next ni similar): diccionarios `{ key: { es, en }
 4. Seguimiento diario (comida/entrenamiento/peso) se sincroniza con colas de reintento cuando hay conectividad intermitente (`weightSyncQueue.ts`).
 5. Al cerrar el mes, `analyzePlanCompletion.ts` genera el análisis para decidir ajustes del próximo mes (`MonthChangesModal`).
 
+### 4.5 Contenido social automático (marketing, en construcción)
+
+Cron diario (`/api/cron/generateDailyContent`, `src/lib/socialContent/`) que genera y publica una pieza de contenido por día:
+
+1. Elige un tema rotando (tip de nutrición/entrenamiento, mito vs. realidad, motivacional, feature de la app) evitando repetir los últimos 5 días.
+2. Genera el copy (título de imagen, caption IG, caption TikTok, hashtags) con OpenAI.
+3. Renderiza una imagen de marca 1080x1080 vía `@vercel/og` (`/api/internal/renderSocialImage`, Edge Runtime) y la sube a Cloudinary.
+4. Publica en Instagram vía Graph API (`postToInstagram.ts`) — **requiere que tu app de Meta for Developers tenga aprobado el permiso `instagram_content_publish`**, si no, el contenido se genera y guarda igual pero no se publica.
+5. TikTok (`postToTikTok.ts`) está armado pero **no conectado al cron todavía** — TikTok es una red mayormente de video, y el pipeline de video (Remotion u otro renderer) no está construido en esta pasada; requiere una decisión aparte sobre dónde correr el renderizado (no es viable directamente en una función serverless de Vercel por tiempo/tamaño).
+
+Todo el historial queda en Firestore (`socialContent/{YYYY-MM-DD}`), y cada corrida notifica por Telegram si se publicó o si faltó configuración.
+
 ---
 
 ## 5. Documentos relacionados

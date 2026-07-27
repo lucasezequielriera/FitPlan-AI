@@ -11,6 +11,9 @@
     },
     "src/pages/api/admin/exerciseCatalogMediaCoverage.ts": {
       "maxDuration": 60
+    },
+    "src/pages/api/cron/generateDailyContent.ts": {
+      "maxDuration": 60
     }
   },
   "crons": [
@@ -29,6 +32,10 @@
     {
       "path": "/api/cron/intakeAutoRequests",
       "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/cron/generateDailyContent",
+      "schedule": "0 14 * * *"
     }
   ]
 }
