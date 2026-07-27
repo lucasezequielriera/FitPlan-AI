@@ -120,7 +120,7 @@ export function DashboardPlanCard({
             <button
               type="button"
               onClick={onDeleteClick}
-              className="inline-flex items-center gap-1 rounded-xl border border-red-500/35 bg-[color-mix(in_oklab,#f87171_10%,transparent)] px-2.5 py-2 text-xs font-medium text-red-300 transition hover:bg-red-500/25"
+              className="inline-flex items-center gap-1 rounded-xl border border-danger/35 bg-danger/10 px-2.5 py-2 text-xs font-medium text-danger transition hover:bg-danger/25"
               title={dash(locale, "deletePlan")}
               aria-label={dash(locale, "deletePlan")}
             >
@@ -135,39 +135,17 @@ export function DashboardPlanCard({
       <div className="relative z-10 flex flex-wrap gap-2 px-4 sm:px-5">
         {plan.planMultiFase && (
           <div
-            className="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1"
-            style={{
-              backgroundColor:
-                plan.planMultiFase.faseActual === "BULK"
-                  ? "rgba(245,158,11,0.15)"
-                  : plan.planMultiFase.faseActual === "CUT"
-                    ? "rgba(6,182,212,0.15)"
-                    : plan.planMultiFase.faseActual === "LEAN_BULK"
-                      ? "rgba(16,185,129,0.15)"
-                      : "rgba(139,92,246,0.15)",
-              borderColor:
-                plan.planMultiFase.faseActual === "BULK"
-                  ? "rgba(245,158,11,0.4)"
-                  : plan.planMultiFase.faseActual === "CUT"
-                    ? "rgba(6,182,212,0.4)"
-                    : plan.planMultiFase.faseActual === "LEAN_BULK"
-                      ? "rgba(16,185,129,0.4)"
-                      : "rgba(139,92,246,0.4)",
-            }}
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 ${
+              plan.planMultiFase.faseActual === "BULK"
+                ? "badge-phase-bulk"
+                : plan.planMultiFase.faseActual === "CUT"
+                  ? "badge-phase-cut"
+                  : plan.planMultiFase.faseActual === "LEAN_BULK"
+                    ? "badge-phase-lean-bulk"
+                    : "badge-phase-maintenance"
+            }`}
           >
-            <span
-              className="text-xs font-semibold"
-              style={{
-                color:
-                  plan.planMultiFase.faseActual === "BULK"
-                    ? "#fcd34d"
-                    : plan.planMultiFase.faseActual === "CUT"
-                      ? "#67e8f9"
-                      : plan.planMultiFase.faseActual === "LEAN_BULK"
-                        ? "#6ee7b7"
-                        : "#c4b5fd",
-              }}
-            >
+            <span className="text-xs font-semibold">
               {plan.planMultiFase.faseActual === "BULK" && "🏋️"}
               {plan.planMultiFase.faseActual === "CUT" && "✂️"}
               {plan.planMultiFase.faseActual === "LEAN_BULK" && "💎"}
@@ -182,10 +160,10 @@ export function DashboardPlanCard({
             style={{
               borderColor:
                 planInner?.dificultad === "dificil"
-                  ? "rgba(248,113,113,0.4)"
+                  ? "color-mix(in oklab, var(--danger) 40%, transparent)"
                   : planInner?.dificultad === "media"
-                    ? "rgba(250,204,21,0.4)"
-                    : "rgba(52,211,153,0.4)",
+                    ? "color-mix(in oklab, var(--warning) 40%, transparent)"
+                    : "color-mix(in oklab, var(--success) 40%, transparent)",
             }}
           >
             <span className="text-[11px] text-[var(--landing-muted)]">{dash(locale, "difficulty")}</span>
@@ -194,10 +172,10 @@ export function DashboardPlanCard({
               style={{
                 color:
                   planInner?.dificultad === "dificil"
-                    ? "#fecaca"
+                    ? "color-mix(in oklab, var(--danger) 55%, var(--foreground))"
                     : planInner?.dificultad === "media"
-                      ? "#fde68a"
-                      : "#a7f3d0",
+                      ? "color-mix(in oklab, var(--warning) 55%, var(--foreground))"
+                      : "color-mix(in oklab, var(--success) 55%, var(--foreground))",
               }}
             >
               {difficultyLabel(locale, planInner?.dificultad as string | undefined)}
@@ -235,8 +213,8 @@ export function DashboardPlanCard({
         </div>
 
         {lesiones && lesiones.length > 0 ? (
-          <div className="mt-3 flex gap-2 rounded-xl border border-cyan-500/25 bg-cyan-500/5 px-3 py-2 text-xs text-cyan-100/95">
-            <span className="shrink-0 text-cyan-300" aria-hidden>
+          <div className="mt-3 flex gap-2 rounded-xl border border-info/25 bg-info/5 px-3 py-2 text-xs text-[color-mix(in_oklab,var(--info)_55%,var(--foreground))]">
+            <span className="shrink-0 text-info" aria-hidden>
               ℹ
             </span>
             <p>
@@ -285,7 +263,7 @@ export function DashboardPlanCard({
                   e.stopPropagation();
                   onContinuityClick(e);
                 }}
-                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_8px_28px_-14px_rgba(16,185,129,0.5)] transition hover:brightness-110"
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[var(--success)] to-[var(--accent-strong)] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_8px_28px_-14px_color-mix(in_oklab,var(--success)_50%,transparent)] transition hover:brightness-110"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
                   <path d="M12 5v14M5 12l7 7 7-7" />
@@ -334,10 +312,10 @@ function PlanMultiFaseBlock({ plan, locale }: { plan: SavedPlan; locale: AppLoca
   const diasRestantesMes = Math.max(0, Math.ceil(30 - (progresoMes / 100) * 30));
 
   const faseColors: Record<string, { bg: string; text: string; border: string; gradient: string }> = {
-    BULK: { bg: "bg-amber-500/20", text: "text-amber-300", border: "border-amber-500/40", gradient: "linear-gradient(90deg, #f59e0b, #fbbf24)" },
-    CUT: { bg: "bg-cyan-500/20", text: "text-cyan-300", border: "border-cyan-500/40", gradient: "linear-gradient(90deg, #06b6d4, #22d3ee)" },
-    LEAN_BULK: { bg: "bg-emerald-500/20", text: "text-emerald-300", border: "border-emerald-500/40", gradient: "linear-gradient(90deg, #10b981, #34d399)" },
-    MANTENIMIENTO: { bg: "bg-purple-500/20", text: "text-purple-300", border: "border-purple-500/40", gradient: "linear-gradient(90deg, #8b5cf6, #a78bfa)" },
+    BULK: { bg: "bg-phase-bulk/20", text: "text-phase-bulk", border: "border-phase-bulk/40", gradient: "linear-gradient(90deg, var(--phase-bulk), color-mix(in oklab, var(--phase-bulk) 70%, white))" },
+    CUT: { bg: "bg-phase-cut/20", text: "text-phase-cut", border: "border-phase-cut/40", gradient: "linear-gradient(90deg, var(--phase-cut), color-mix(in oklab, var(--phase-cut) 70%, white))" },
+    LEAN_BULK: { bg: "bg-phase-lean-bulk/20", text: "text-phase-lean-bulk", border: "border-phase-lean-bulk/40", gradient: "linear-gradient(90deg, var(--phase-lean-bulk), color-mix(in oklab, var(--phase-lean-bulk) 70%, white))" },
+    MANTENIMIENTO: { bg: "bg-phase-maintenance/20", text: "text-phase-maintenance", border: "border-phase-maintenance/40", gradient: "linear-gradient(90deg, var(--phase-maintenance), color-mix(in oklab, var(--phase-maintenance) 70%, white))" },
   };
   const colors = faseColors[faseActual] || faseColors.MANTENIMIENTO;
 

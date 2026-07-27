@@ -318,7 +318,7 @@ export default function PremiumPlanModal({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
           <div className="min-w-0 pr-2">
             <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-[var(--foreground)] flex flex-wrap items-center gap-2">
-              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--landing-accent)]/30 to-cyan-500/20 ring-1 ring-[var(--landing-accent)]/40 text-[var(--landing-accent)]" aria-hidden>
+              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--landing-accent)]/30 to-[var(--info)]/20 ring-1 ring-[var(--landing-accent)]/40 text-[var(--landing-accent)]" aria-hidden>
                 ✦
               </span>
               <span className="bg-gradient-to-r from-[var(--foreground)] to-[var(--landing-accent)] bg-clip-text text-transparent text-balance">
@@ -381,7 +381,7 @@ export default function PremiumPlanModal({
                   <span className="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg bg-black/20 px-2 py-2 text-[var(--landing-muted)]">
                     <span className="truncate font-medium">{copy.colFree}</span>
                     {row.free ? (
-                      <FaCheck className="h-3.5 w-3.5 shrink-0 text-emerald-400" aria-hidden />
+                      <FaCheck className="h-3.5 w-3.5 shrink-0 text-success" aria-hidden />
                     ) : (
                       <FaTimes className="h-3.5 w-3.5 shrink-0 text-white/25" aria-hidden />
                     )}
@@ -414,7 +414,7 @@ export default function PremiumPlanModal({
                     <td className="px-3 py-2.5 text-[var(--foreground)]/90 leading-snug text-pretty">{row.label}</td>
                     <td className="px-2 py-2.5 text-center align-middle">
                       {row.free ? (
-                        <FaCheck className="inline h-4 w-4 text-emerald-400" aria-label="Yes" />
+                        <FaCheck className="inline h-4 w-4 text-success" aria-label="Yes" />
                       ) : (
                         <FaTimes className="inline h-4 w-4 text-white/25" aria-label="No" />
                       )}
@@ -442,7 +442,7 @@ export default function PremiumPlanModal({
         </div>
 
         {!hasAccount && (
-          <p className="mb-3 sm:mb-4 text-center text-[11px] sm:text-xs text-amber-200/90 bg-amber-500/10 border border-amber-500/25 rounded-lg px-3 py-2 text-pretty">
+          <p className="mb-3 sm:mb-4 text-center text-[11px] sm:text-xs text-warning bg-warning/10 border border-warning/25 rounded-lg px-3 py-2 text-pretty">
             {copy.loginHint}
           </p>
         )}
@@ -485,11 +485,11 @@ export default function PremiumPlanModal({
               </div>
               <p className="text-[var(--landing-muted)] text-[11px] sm:text-xs mb-2 font-medium">{plan.period}</p>
               {plan.savings && (
-                <p className="text-emerald-300 text-[10px] sm:text-xs font-bold mb-2 px-2 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-400/30 w-fit">
+                <p className="text-success text-[10px] sm:text-xs font-bold mb-2 px-2 py-0.5 rounded-md bg-success/15 border border-success/30 w-fit">
                   {plan.savings}
                 </p>
               )}
-              <p className="mb-2 mt-3 border-t border-white/10 pt-3 text-xs sm:text-sm font-extrabold leading-snug text-pretty bg-gradient-to-r from-[var(--foreground)] via-[var(--landing-accent)] to-cyan-200/90 bg-clip-text text-transparent">
+              <p className="mb-2 mt-3 border-t border-white/10 pt-3 text-xs sm:text-sm font-extrabold leading-snug text-pretty bg-gradient-to-r from-[var(--foreground)] via-[var(--landing-accent)] to-[var(--info)]/90 bg-clip-text text-transparent">
                 {copy.planHook[plan.type]}
               </p>
               <div className="mb-3 flex flex-wrap gap-1.5" aria-label={locale === "en" ? "Included in plan" : "Incluido en el plan"}>

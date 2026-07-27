@@ -304,9 +304,9 @@ export default function IntakeWorkoutDayLog({
     );
     if (rirVals.length === 0) return null;
     const avg = rirVals.reduce((a, b) => a + b, 0) / rirVals.length;
-    if (avg <= 1) return { level: "high" as const, label: `Fatiga alta (RIR medio ${avg.toFixed(1)})`, color: "text-red-300" };
-    if (avg <= 2) return { level: "medium" as const, label: `Fatiga media (RIR medio ${avg.toFixed(1)})`, color: "text-amber-300" };
-    return { level: "low" as const, label: `Fatiga baja (RIR medio ${avg.toFixed(1)})`, color: "text-emerald-300" };
+    if (avg <= 1) return { level: "high" as const, label: `Fatiga alta (RIR medio ${avg.toFixed(1)})`, color: "text-danger" };
+    if (avg <= 2) return { level: "medium" as const, label: `Fatiga media (RIR medio ${avg.toFixed(1)})`, color: "text-warning" };
+    return { level: "low" as const, label: `Fatiga baja (RIR medio ${avg.toFixed(1)})`, color: "text-success" };
   }, [latestSession]);
 
   const stagnationRows = useMemo(() => {
@@ -809,13 +809,13 @@ export default function IntakeWorkoutDayLog({
 
   if (exercises.length === 0) return null;
 
-  const inp = "rounded-md border border-white/15 bg-black/40 px-2 py-1.5 text-sm text-white placeholder:text-white/25 outline-none focus:border-emerald-400/40";
+  const inp = "rounded-md border border-white/15 bg-black/40 px-2 py-1.5 text-sm text-white placeholder:text-white/25 outline-none focus:border-success/40";
 
   return (
-    <div className="mt-4 rounded-xl border border-emerald-400/25 bg-emerald-950/20 px-3 py-3">
+    <div className="mt-4 rounded-xl border border-success/25 bg-success/10 px-3 py-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-200/90">Tu registro de entreno</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-success/90">Tu registro de entreno</p>
           <button
             type="button"
             onClick={() => setComparisonOpen(true)}
@@ -824,7 +824,7 @@ export default function IntakeWorkoutDayLog({
             Comparador de semanas
           </button>
         </div>
-        <label className="flex items-center gap-2 text-[11px] text-emerald-100/80">
+        <label className="flex items-center gap-2 text-[11px] text-success/80">
           <span className="shrink-0">Fecha del entreno</span>
           <input
             type="date"
@@ -833,11 +833,11 @@ export default function IntakeWorkoutDayLog({
               setHasPendingChanges(true);
               setCompletedOn(e.target.value);
             }}
-            className="rounded-lg border border-white/15 bg-black/30 px-2 py-1.5 text-sm text-white outline-none focus:border-emerald-400/50"
+            className="rounded-lg border border-white/15 bg-black/30 px-2 py-1.5 text-sm text-white outline-none focus:border-success/50"
           />
         </label>
       </div>
-      <p className="mt-1 text-[11px] text-emerald-100/60">
+      <p className="mt-1 text-[11px] text-success/60">
         Kg, descanso y RIR (0–4 por serie). Incluye notas por ejercicio y análisis automático de progreso.
       </p>
 
@@ -854,7 +854,7 @@ export default function IntakeWorkoutDayLog({
             {visibleStagnationRows.slice(0, 6).map((row) => (
               <li key={row.exerciseName}>
                 <span
-                  className={row.status === "stalled" ? "text-amber-300" : "text-emerald-300"}
+                  className={row.status === "stalled" ? "text-warning" : "text-success"}
                 >
                   {row.exerciseName}:
                 </span>{" "}
@@ -875,18 +875,18 @@ export default function IntakeWorkoutDayLog({
           Repetir última sesión
         </button>
         {!isOnline() ? (
-          <span className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-1.5 text-[11px] text-amber-100">
+          <span className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-1.5 text-[11px] text-warning">
             Sin conexión · borrador local
           </span>
         ) : offlinePending ? (
-          <span className="rounded-lg border border-sky-400/30 bg-sky-500/10 px-3 py-1.5 text-[11px] text-sky-100">
+          <span className="rounded-lg border border-info/30 bg-info/10 px-3 py-1.5 text-[11px] text-info">
             Pendiente de sincronizar con el servidor
           </span>
         ) : null}
       </div>
 
       {banner ? (
-        <div className={`mt-2 rounded-lg border px-3 py-2 text-xs ${banner.type === "ok" ? "border-emerald-400/30 bg-emerald-500/15 text-emerald-100" : "border-red-400/30 bg-red-500/15 text-red-100"}`}>
+        <div className={`mt-2 rounded-lg border px-3 py-2 text-xs ${banner.type === "ok" ? "border-success/30 bg-success/15 text-success" : "border-danger/30 bg-danger/15 text-danger"}`}>
           {banner.text}
         </div>
       ) : null}
@@ -911,7 +911,7 @@ export default function IntakeWorkoutDayLog({
                 <p className="text-[11px] text-white/50">
                   Plan: {String(ex.setsRaw ?? "?")} × {String(ex.repsRaw ?? "?")}
                   {maxPrev != null ? (
-                    <span className="text-emerald-300/90"> · último máx. {maxPrev} kg (este día)</span>
+                    <span className="text-success/90"> · último máx. {maxPrev} kg (este día)</span>
                   ) : null}
                 </p>
               </div>
@@ -922,7 +922,7 @@ export default function IntakeWorkoutDayLog({
                   onChange={(e) => updateExerciseNote(exIdx, e.target.value)}
                   rows={2}
                   placeholder="Sensaciones, técnica, molestias…"
-                  className="mt-1 w-full resize-y rounded-lg border border-white/15 bg-black/35 px-2 py-1.5 text-sm text-white placeholder:text-white/30 outline-none focus:border-emerald-400/45"
+                  className="mt-1 w-full resize-y rounded-lg border border-white/15 bg-black/35 px-2 py-1.5 text-sm text-white placeholder:text-white/30 outline-none focus:border-success/45"
                 />
               </label>
               <div className="mt-2 overflow-x-auto">
@@ -973,7 +973,7 @@ export default function IntakeWorkoutDayLog({
                             <button
                               type="button"
                               onClick={() => copyFromRowAbove(exIdx, setIdx)}
-                              className="text-[10px] font-medium text-emerald-300/90 underline-offset-2 hover:underline"
+                              className="text-[10px] font-medium text-success/90 underline-offset-2 hover:underline"
                             >
                               Igual arriba
                             </button>
@@ -991,7 +991,7 @@ export default function IntakeWorkoutDayLog({
         })}
       </div>
 
-      <div className="mt-4 rounded-lg border border-emerald-400/20 bg-emerald-900/20 px-3 py-2 text-xs text-emerald-100/90">
+      <div className="mt-4 rounded-lg border border-success/20 bg-success/10 px-3 py-2 text-xs text-success/90">
         {saving
           ? "Guardando automáticamente..."
           : hasPendingChanges
@@ -1000,7 +1000,7 @@ export default function IntakeWorkoutDayLog({
               ? "Listo en el dispositivo; pendiente de subir al servidor."
               : "Guardado automático activo."}
         {!saving && !hasPendingChanges && lastSavedAt ? (
-          <span className="ml-2 text-emerald-200/80">
+          <span className="ml-2 text-success/80">
             Último guardado: {lastSavedAt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
           </span>
         ) : null}
@@ -1025,12 +1025,12 @@ export default function IntakeWorkoutDayLog({
             }
             return (
               <div key={key} className="rounded-lg border border-white/10 bg-black/30 px-3 py-3">
-                <p className="font-semibold text-emerald-200/90 capitalize">{monthLabelFromKey(key)}</p>
+                <p className="font-semibold text-success/90 capitalize">{monthLabelFromKey(key)}</p>
                 <div className="mt-2 flex items-center justify-end">
                   <button
                     type="button"
                     onClick={() => void exportMonthlyPdf(key, monthSessions)}
-                    className="rounded-md border border-cyan-400/30 bg-cyan-500/10 px-2.5 py-1 text-[11px] text-cyan-100 hover:bg-cyan-500/20"
+                    className="rounded-md border border-info/30 bg-info/10 px-2.5 py-1 text-[11px] text-info hover:bg-info/20"
                   >
                     Exportar PDF mensual
                   </button>
@@ -1060,7 +1060,7 @@ export default function IntakeWorkoutDayLog({
                                 {exLog ? (
                                   <div className="space-y-1">
                                     <p>{formatKgLine(exLog.sets)}</p>
-                                    <p className="text-violet-200/90">{formatRirLine(exLog.sets)}</p>
+                                    <p className="text-[var(--phase-maintenance)]/90">{formatRirLine(exLog.sets)}</p>
                                     <p className="text-white/45">
                                       {ar != null ? `Descanso medio ~${ar}s` : "Sin descanso cargado"}
                                     </p>
@@ -1157,9 +1157,9 @@ export default function IntakeWorkoutDayLog({
                           {delta == null ? (
                             <span className="text-white/40">Sin datos suficientes</span>
                           ) : delta > 0 ? (
-                            <span className="text-emerald-300">Subiste +{delta.toFixed(2)} kg máx.</span>
+                            <span className="text-success">Subiste +{delta.toFixed(2)} kg máx.</span>
                           ) : delta < 0 ? (
-                            <span className="text-amber-300">Bajaste {delta.toFixed(2)} kg máx.</span>
+                            <span className="text-warning">Bajaste {delta.toFixed(2)} kg máx.</span>
                           ) : (
                             <span className="text-white/60">Sin cambio de carga máxima</span>
                           )}

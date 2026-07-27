@@ -411,7 +411,7 @@ export default function Dashboard() {
       <div className="relative z-[1] px-3 py-6 sm:px-5 sm:py-10 md:px-8 max-w-full overflow-x-hidden">
         <div className="mx-auto max-w-6xl w-full">
           {cacheNotice ? (
-            <div className="mb-4 rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+            <div className="mb-4 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
               {cacheNotice}
             </div>
           ) : null}
@@ -508,7 +508,7 @@ export default function Dashboard() {
                     >
                       {dash(locale, "newPlan")}
                     </button>
-                    <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 -translate-x-1/2 rounded-lg border border-amber-500/25 bg-[color-mix(in_oklab,#0f172a_95%,black)] px-3 py-2 text-xs text-amber-100/95 opacity-0 shadow-xl transition-opacity group-hover:opacity-100">
+                    <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 -translate-x-1/2 rounded-lg border border-warning/25 bg-[color-mix(in_oklab,#0f172a_95%,black)] px-3 py-2 text-xs text-[color-mix(in_oklab,var(--warning)_60%,var(--foreground))] opacity-0 shadow-xl transition-opacity group-hover:opacity-100">
                       {dash(locale, "newPlanLocked")}
                     </div>
                   </div>
@@ -525,7 +525,7 @@ export default function Dashboard() {
             </header>
 
             {error && (
-              <div className="mb-8 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+              <div className="mb-8 rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
                 {error}
               </div>
             )}
@@ -553,15 +553,15 @@ export default function Dashboard() {
                   const phase = plan.planMultiFase?.faseActual;
                   const accentBar =
                     plan.isOldest
-                      ? "bg-gradient-to-r from-slate-500 via-slate-400/70 to-cyan-500/80"
+                      ? "bg-gradient-to-r from-slate-500 via-slate-400/70 to-[color-mix(in_oklab,var(--info)_80%,transparent)]"
                       : phase === "BULK"
-                        ? "bg-gradient-to-r from-amber-400 to-orange-500"
+                        ? "bg-gradient-to-r from-[var(--phase-bulk)] to-[color-mix(in_oklab,var(--phase-bulk)_70%,white)]"
                         : phase === "CUT"
-                          ? "bg-gradient-to-r from-cyan-400 to-blue-600"
+                          ? "bg-gradient-to-r from-[var(--phase-cut)] to-[color-mix(in_oklab,var(--phase-cut)_70%,white)]"
                           : phase === "LEAN_BULK"
-                            ? "bg-gradient-to-r from-emerald-400 to-teal-600"
+                            ? "bg-gradient-to-r from-[var(--phase-lean-bulk)] to-[color-mix(in_oklab,var(--phase-lean-bulk)_70%,white)]"
                             : phase === "MANTENIMIENTO"
-                              ? "bg-gradient-to-r from-violet-400 to-fuchsia-600"
+                              ? "bg-gradient-to-r from-[var(--phase-maintenance)] to-[color-mix(in_oklab,var(--phase-maintenance)_70%,white)]"
                               : "bg-gradient-to-r from-[var(--brand-start)] via-[var(--brand-mid)] to-[var(--brand-end)]";
 
                   return (
@@ -621,7 +621,7 @@ export default function Dashboard() {
                   className="pointer-events-auto w-full max-w-md rounded-xl border border-white/10 bg-black/95 p-6 shadow-2xl"
                 >
                   <div className="mb-4">
-                    <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-500/20 mb-4 mx-auto">
+                    <div className="flex items-center justify-center w-12 h-12 rounded-full bg-danger/20 mb-4 mx-auto">
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
                         viewBox="0 0 24 24"
@@ -630,7 +630,7 @@ export default function Dashboard() {
                         strokeWidth="2"
                         strokeLinecap="round"
                         strokeLinejoin="round"
-                        className="h-6 w-6 text-red-400"
+                        className="h-6 w-6 text-danger"
                       >
                         <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                       </svg>
@@ -654,7 +654,7 @@ export default function Dashboard() {
                     <button
                       onClick={handleConfirmDelete}
                       disabled={deleting}
-                      className="flex-1 px-4 py-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-400 hover:text-red-300 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex-1 px-4 py-2 rounded-lg bg-danger/20 hover:bg-danger/30 border border-danger/30 text-danger hover:text-[var(--danger-strong)] text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {deleting ? dash(locale, "deleting") : dash(locale, "deleteVerb")}
                     </button>
@@ -749,14 +749,14 @@ export default function Dashboard() {
                   />
                   <div className="relative p-6 sm:p-8">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-                      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-amber-500/35 bg-[color-mix(in_oklab,#f59e0b_14%,transparent)] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-warning/35 bg-[color-mix(in_oklab,var(--warning)_14%,transparent)] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
                           viewBox="0 0 24 24"
                           fill="none"
                           stroke="currentColor"
                           strokeWidth="1.75"
-                          className="h-7 w-7 text-amber-200"
+                          className="h-7 w-7 text-warning"
                           aria-hidden
                         >
                           <circle cx="12" cy="12" r="9" />
@@ -1492,7 +1492,7 @@ function ProgressModalContent({ plan, onClose, locale }: { plan: SavedPlan; onCl
   return (
     <div className="relative px-5 pb-6 pt-5 sm:px-7 sm:pb-8 sm:pt-6">
       {syncNotice ? (
-        <div className="mb-3 rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+        <div className="mb-3 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
           {syncNotice}
         </div>
       ) : null}
@@ -1647,7 +1647,7 @@ function ProgressModalContent({ plan, onClose, locale }: { plan: SavedPlan; onCl
                             const peso = user?.pesoKg;
                             return Boolean(peso && typeof peso === "number");
                           })() ? (
-                            <span className={`text-xs font-medium ${esPositivo ? "text-emerald-400" : "text-amber-400"}`}>
+                            <span className={`text-xs font-medium ${esPositivo ? "text-success" : "text-warning"}`}>
                               {diferencia > 0 ? "+" : ""}
                               {diferencia.toFixed(1)} kg
                             </span>
@@ -1658,7 +1658,7 @@ function ProgressModalContent({ plan, onClose, locale }: { plan: SavedPlan; onCl
                               setRegistroAEliminar(registro);
                               setMostrarConfirmacion(true);
                             }}
-                            className="rounded-lg p-1.5 text-red-400/90 opacity-80 transition hover:bg-red-500/15 hover:opacity-100"
+                            className="rounded-lg p-1.5 text-danger/90 opacity-80 transition hover:bg-danger/15 hover:opacity-100"
                             title={dash(locale, "deleteWeightRecord")}
                             aria-label={dash(locale, "deleteWeightRecord")}
                           >
@@ -1711,9 +1711,9 @@ function ProgressModalContent({ plan, onClose, locale }: { plan: SavedPlan; onCl
                             <div
                               className={`w-full max-w-[2.75rem] rounded-t-md shadow-sm transition-all ${
                                 diferencia > 0
-                                  ? "bg-emerald-500/90"
+                                  ? "bg-success/90"
                                   : diferencia < 0
-                                    ? "bg-rose-500/85"
+                                    ? "bg-danger/85"
                                     : "bg-[color-mix(in_oklab,var(--landing-accent)_70%,white)]"
                               }`}
                               style={{ height: `${Math.max(12, altura)}%` }}
@@ -1776,7 +1776,7 @@ function ProgressModalContent({ plan, onClose, locale }: { plan: SavedPlan; onCl
                 className="pointer-events-auto w-full max-w-md overflow-hidden rounded-2xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--background)_90%,#0a0f18)] p-6 shadow-[0_32px_80px_-36px_rgba(0,0,0,0.9)] ring-1 ring-[color-mix(in_oklab,var(--foreground)_6%,transparent)]"
               >
                 <div className="mb-4">
-                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-red-500/35 bg-red-500/10">
+                  <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-danger/35 bg-danger/10">
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       viewBox="0 0 24 24"
@@ -1785,7 +1785,7 @@ function ProgressModalContent({ plan, onClose, locale }: { plan: SavedPlan; onCl
                       strokeWidth="2"
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      className="h-6 w-6 text-red-400"
+                      className="h-6 w-6 text-danger"
                     >
                       <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                     </svg>
@@ -1822,7 +1822,7 @@ function ProgressModalContent({ plan, onClose, locale }: { plan: SavedPlan; onCl
                     type="button"
                     onClick={handleEliminarPeso}
                     disabled={eliminando}
-                    className="flex-1 rounded-xl border border-red-500/40 bg-red-500/15 px-4 py-2.5 text-sm font-medium text-red-300 transition hover:bg-red-500/25 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex-1 rounded-xl border border-danger/40 bg-danger/15 px-4 py-2.5 text-sm font-medium text-danger transition hover:bg-danger/25 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {eliminando ? dash(locale, "deleting") : dash(locale, "deleteVerb")}
                   </button>

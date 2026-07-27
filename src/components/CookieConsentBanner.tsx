@@ -5,6 +5,10 @@ export default function CookieConsentBanner() {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
+    // Lee la decisión de consentimiento guardada en localStorage (sistema externo,
+    // no disponible en SSR) — no hay alternativa sin introducir un
+    // useSyncExternalStore para un caso de un solo uso al montar.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setVisible(!hasConsentDecision());
   }, []);
 

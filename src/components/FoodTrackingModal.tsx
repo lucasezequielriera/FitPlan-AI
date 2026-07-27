@@ -210,16 +210,16 @@ export default function FoodTrackingModal({ isOpen, onClose, planCalories, userO
                 ) : null}
 
                 {previousFoodsToday.length > 0 && (
-                  <div className="rounded-xl border border-amber-400/25 bg-amber-500/10 p-3">
+                  <div className="rounded-xl border border-warning/25 bg-warning/10 p-3">
                     <div className="mb-2 flex items-center gap-2">
-                      <FaHistory className="h-3.5 w-3.5 text-amber-300" />
+                      <FaHistory className="h-3.5 w-3.5 text-warning" />
                       <h3 className="text-sm font-semibold text-[var(--foreground)]">{p(locale, "foodHistoryTodayTitle")}</h3>
                     </div>
                     <div className="space-y-1">
                       {previousFoodsToday.map((food, index) => (
-                        <div key={index} className="flex items-center justify-between gap-2 rounded-md border border-amber-300/15 bg-black/10 px-2 py-1.5">
+                        <div key={index} className="flex items-center justify-between gap-2 rounded-md border border-warning/15 bg-black/10 px-2 py-1.5">
                           <span className="truncate text-xs text-[var(--foreground)]/90">{food.description}</span>
-                          <span className="shrink-0 text-xs font-semibold text-amber-300">{food.calories} kcal</span>
+                          <span className="shrink-0 text-xs font-semibold text-warning">{food.calories} kcal</span>
                         </div>
                       ))}
                     </div>
@@ -244,7 +244,7 @@ export default function FoodTrackingModal({ isOpen, onClose, planCalories, userO
               <>
                 <div className="rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)]/55 p-3">
                   <div className="mb-1 flex items-center gap-2 text-xs text-[var(--landing-muted)]">
-                    <FaFire className="h-3.5 w-3.5 text-orange-300" />
+                    <FaFire className="h-3.5 w-3.5 text-warning" />
                     {p(locale, "foodCalEstimated")}
                   </div>
                   <p className="text-xl font-semibold text-[var(--foreground)]">{result.calories} kcal</p>
@@ -275,16 +275,16 @@ export default function FoodTrackingModal({ isOpen, onClose, planCalories, userO
                 </div>
 
                 {result.exerciseCompensation && (
-                  <div className="rounded-xl border border-cyan-400/25 bg-cyan-500/10 p-3">
+                  <div className="rounded-xl border border-info/25 bg-info/10 p-3">
                     <p className="mb-1 flex items-center gap-2 text-xs font-semibold text-[var(--foreground)]">
-                      <FaDumbbell className="h-3.5 w-3.5 text-cyan-300" />
+                      <FaDumbbell className="h-3.5 w-3.5 text-info" />
                       {p(locale, "foodExerciseComp")}
                     </p>
                     <p className="text-xs text-[var(--foreground)]/90">{result.exerciseCompensation}</p>
                   </div>
                 )}
 
-                <div className="rounded-xl border border-emerald-400/25 bg-emerald-500/10 p-3">
+                <div className="rounded-xl border border-success/25 bg-success/10 p-3">
                   <p className="text-xs italic text-[var(--foreground)]/90">{result.motivation}</p>
                 </div>
               </>

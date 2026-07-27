@@ -192,19 +192,19 @@ export default function WeeklyStatsModal({ isOpen, onClose, planId, userId }: We
                     <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--landing-border)] border-t-[var(--brand-end)]" />
                   </div>
                 ) : error ? (
-                  <div className="rounded-xl border border-red-400/35 bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</div>
+                  <div className="rounded-xl border border-danger/35 bg-danger/10 px-3 py-2 text-sm text-danger">{error}</div>
                 ) : stats ? (
                   <>
                     {warning && (
-                      <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                      <div className="rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
                         {warning}
                       </div>
                     )}
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                      <StatCard label={p(locale, "weeklyStatTotalExtras")} value={`${stats.summary.totalExtras} kcal`} icon={<FaFire className="h-3.5 w-3.5 text-orange-300" />} />
+                      <StatCard label={p(locale, "weeklyStatTotalExtras")} value={`${stats.summary.totalExtras} kcal`} icon={<FaFire className="h-3.5 w-3.5 text-warning" />} />
                       <StatCard label={p(locale, "weeklyStatAvgDaily")} value={`${stats.summary.averageExtras} kcal`} icon={<FaChartLine className="h-3.5 w-3.5 text-[var(--brand-end)]" />} />
-                      <StatCard label={p(locale, "weeklyStatMeals")} value={`${stats.summary.totalFoods}`} icon={<FaUtensils className="h-3.5 w-3.5 text-emerald-300" />} />
-                      <StatCard label={p(locale, "weeklyStatDaysLogged")} value={`${stats.summary.daysWithFoods}/7`} icon={<FaCalendar className="h-3.5 w-3.5 text-cyan-300" />} />
+                      <StatCard label={p(locale, "weeklyStatMeals")} value={`${stats.summary.totalFoods}`} icon={<FaUtensils className="h-3.5 w-3.5 text-success" />} />
+                      <StatCard label={p(locale, "weeklyStatDaysLogged")} value={`${stats.summary.daysWithFoods}/7`} icon={<FaCalendar className="h-3.5 w-3.5 text-info" />} />
                     </div>
 
                     <div className="rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)]/45 p-3">
@@ -233,7 +233,7 @@ export default function WeeklyStatsModal({ isOpen, onClose, planId, userId }: We
                     </div>
 
                     {stats.summary.maxDay && stats.summary.maxDay.calories > 0 && (
-                      <div className="rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                      <div className="rounded-xl border border-warning/25 bg-warning/10 px-3 py-2 text-xs text-warning">
                         {pFmt(locale, "weeklyPeakWeek", {
                           day: weekdayFromIso(stats.summary.maxDay.date, "long"),
                           kcal: stats.summary.maxDay.calories,
@@ -254,7 +254,7 @@ export default function WeeklyStatsModal({ isOpen, onClose, planId, userId }: We
                                   {day.foodsCount > 0 ? foodLogEntryCountLabel(locale, day.foodsCount) : p(locale, "weeklyNoEntries")}
                                 </p>
                               </div>
-                              <span className="text-xs font-semibold text-orange-300">{day.calories} kcal</span>
+                              <span className="text-xs font-semibold text-warning">{day.calories} kcal</span>
                             </summary>
                             {day.foods.length > 0 && (
                               <div className="space-y-1 border-t border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--foreground)_2%,transparent)] px-3 py-2">
@@ -270,16 +270,16 @@ export default function WeeklyStatsModal({ isOpen, onClose, planId, userId }: We
                                       )}
                                     </div>
                                     <div className="flex items-center gap-2">
-                                      <span className="text-[11px] font-semibold text-orange-300">{food.calories} kcal</span>
+                                      <span className="text-[11px] font-semibold text-warning">{food.calories} kcal</span>
                                       {food.foodIndex !== undefined && (
                                         <button
                                           onClick={() => handleDeleteClick(food.foodIndex!, food.description)}
                                           disabled={deletingIndex === food.foodIndex}
-                                          className="rounded-md p-1 text-red-300 transition hover:bg-red-500/10 hover:text-red-200 disabled:opacity-50"
+                                          className="rounded-md p-1 text-danger transition hover:bg-danger/10 hover:text-danger disabled:opacity-50"
                                           title={p(locale, "weeklyDeleteMealTitle")}
                                         >
                                           {deletingIndex === food.foodIndex ? (
-                                            <div className="h-3.5 w-3.5 animate-spin rounded-full border border-red-300 border-t-transparent" />
+                                            <div className="h-3.5 w-3.5 animate-spin rounded-full border border-danger border-t-transparent" />
                                           ) : (
                                             <FaTrash className="h-3.5 w-3.5" />
                                           )}
@@ -327,11 +327,11 @@ export default function WeeklyStatsModal({ isOpen, onClose, planId, userId }: We
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="relative w-full max-w-md rounded-2xl border border-red-400/30 bg-[color-mix(in_oklab,var(--background)_96%,#0f172a)] p-4 shadow-2xl"
+              className="relative w-full max-w-md rounded-2xl border border-danger/30 bg-[color-mix(in_oklab,var(--background)_96%,#0f172a)] p-4 shadow-2xl"
             >
               <div className="flex items-center gap-2 md:gap-3 mb-3 md:mb-4">
-                <div className="p-2 md:p-3 rounded-full bg-red-500/20 border border-red-500/30">
-                  <FaExclamationTriangle className="h-5 w-5 md:h-6 md:w-6 text-red-400" />
+                <div className="p-2 md:p-3 rounded-full bg-danger/20 border border-danger/30">
+                  <FaExclamationTriangle className="h-5 w-5 md:h-6 md:w-6 text-danger" />
                 </div>
                 <h3 className="text-lg font-semibold text-[var(--foreground)]">{p(locale, "weeklyConfirmDeleteTitle")}</h3>
               </div>
@@ -360,7 +360,7 @@ export default function WeeklyStatsModal({ isOpen, onClose, planId, userId }: We
                 </button>
                 <button
                   onClick={handleConfirmDelete}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-red-400/35 bg-red-500/15 px-4 py-2 text-sm font-medium text-red-100 transition hover:bg-red-500/25"
+                  className="btn btn-danger flex-1 text-sm"
                 >
                   <FaTrash className="h-4 w-4" />
                   {p(locale, "weeklyDelete")}

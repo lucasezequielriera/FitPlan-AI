@@ -15,6 +15,9 @@ export default function TransformacionFitPlanLanding() {
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
+    // isMounted evita mismatches de hidratación en contenido client-only;
+    // no hay alternativa sin useSyncExternalStore para este caso puntual.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsMounted(true);
     trackEvent("view_content", {
       content_name: "transformacion-fitplan",

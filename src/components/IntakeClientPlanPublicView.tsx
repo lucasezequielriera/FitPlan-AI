@@ -381,9 +381,9 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
               : "N/A"}
           </p>
         </div>
-        <div className="rounded-lg border border-cyan-400/20 bg-cyan-500/10 px-3 py-2">
-          <p className="text-xs text-cyan-100/80">Macros</p>
-          <p className="text-sm text-cyan-100">
+        <div className="rounded-lg border border-info/20 bg-info/10 px-3 py-2">
+          <p className="text-xs text-info/80">Macros</p>
+          <p className="text-sm text-info">
             {macros
               ? `Proteínas ${String(macros.proteinas || "-")} · Grasas ${String(macros.grasas || "-")} · Carbohidratos ${String(macros.carbohidratos || "-")}`
               : "N/A"}
@@ -413,9 +413,9 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
       )}
 
       {Boolean(root.mensaje_ajuste_objetivo) && (
-        <div className="rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2">
-          <p className="text-xs text-amber-100/80">Mensaje importante</p>
-          <p className="text-sm text-amber-100 mt-1">{String(root.mensaje_ajuste_objetivo)}</p>
+        <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2">
+          <p className="text-xs text-warning/80">Mensaje importante</p>
+          <p className="text-sm text-warning mt-1">{String(root.mensaje_ajuste_objetivo)}</p>
         </div>
       )}
 
@@ -475,7 +475,7 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
                 onClick={() => setUsefulTab("nutrition")}
                 className={`px-2 py-1 rounded text-xs border ${
                   usefulTab === "nutrition"
-                    ? "bg-cyan-500/25 border-cyan-300/40 text-cyan-100"
+                    ? "bg-info/25 border-info/40 text-info"
                     : "bg-white/5 border-white/10 text-white/70"
                 }`}
               >
@@ -502,7 +502,7 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
                 </div>
               </div>
             ) : (
-              <div className="rounded-md border border-cyan-400/20 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-50 space-y-3">
+              <div className="rounded-md border border-info/20 bg-info/10 px-3 py-2 text-xs text-info space-y-3">
                 <div className="space-y-1">
                   <p>• Cumplí macros diarios: la constancia semanal manda.</p>
                   <p>• Pesá alimentos clave (proteínas, carbos base y grasas añadidas).</p>
@@ -510,8 +510,8 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
                   <p>• Armá el plato con proteína + carbohidrato + grasa + vegetales.</p>
                   <p>• Si tenés hambre alta: subí volumen de verduras sin tocar macros objetivo.</p>
                 </div>
-                <div className="rounded border border-cyan-300/20 bg-black/20 px-2 py-2 space-y-1">
-                  <p className="text-cyan-200 font-semibold">Palabras clave (nutrición)</p>
+                <div className="rounded border border-info/20 bg-black/20 px-2 py-2 space-y-1">
+                  <p className="text-info font-semibold">Palabras clave (nutrición)</p>
                   <p><strong>Macros:</strong> proteínas, carbohidratos y grasas del día.</p>
                   <p><strong>Déficit calórico:</strong> comer menos kcal que tu gasto para perder grasa.</p>
                   <p><strong>Superávit calórico:</strong> comer más kcal que tu gasto para ganar masa.</p>
@@ -550,10 +550,10 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
             {trainerQaLoading ? "Respondiendo..." : "Enviar pregunta"}
           </button>
           {!trainerQaIsPremium && (trainerQaRemaining ?? 0) <= 0 ? (
-            <span className="text-[11px] text-amber-200">Límite alcanzado. Activá premium para continuar.</span>
+            <span className="text-[11px] text-warning">Límite alcanzado. Activá premium para continuar.</span>
           ) : null}
         </div>
-        {trainerQaError ? <p className="text-xs text-red-200 mt-2">{trainerQaError}</p> : null}
+        {trainerQaError ? <p className="text-xs text-danger mt-2">{trainerQaError}</p> : null}
         {trainerQaAnswer ? (
           <div className="mt-2 rounded-md border border-white/10 bg-black/20 px-3 py-2">
             <p className="text-[11px] text-emerald-200 mb-1">Respuesta del trainer</p>
@@ -570,7 +570,7 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
             className="w-full inline-flex items-center justify-between gap-2 text-left"
           >
             <p className="text-xs text-white/60">Plan de alimentación semanal</p>
-            <span className="text-[11px] text-cyan-200">{nutritionOpen ? "Ocultar" : "Ver nutrición"}</span>
+            <span className="text-[11px] text-info">{nutritionOpen ? "Ocultar" : "Ver nutrición"}</span>
           </button>
           {nutritionOpen ? (
             <div className="space-y-3 mt-2">
@@ -586,8 +586,8 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
                       onClick={() => toggleNutritionDay(dayKey)}
                       className="w-full inline-flex items-center justify-between gap-2 text-left"
                     >
-                      <p className="text-sm font-semibold text-cyan-200">{dayName}</p>
-                      <span className="text-[11px] text-cyan-200">{dayOpen ? "Ocultar día" : "Ver día"}</span>
+                      <p className="text-sm font-semibold text-info">{dayName}</p>
+                      <span className="text-[11px] text-info">{dayOpen ? "Ocultar día" : "Ver día"}</span>
                     </button>
                     {dayOpen ? (
                       <div className="mt-2 space-y-2">
@@ -627,7 +627,7 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
                                 {String(mealMacros?.carbohidratos_g ?? "-")}g
                               </p>
                               {mealPortionGuide.length > 0 ? (
-                                <p className="text-[11px] text-cyan-100/90 mt-1">
+                                <p className="text-[11px] text-info/90 mt-1">
                                   Porciones aprox: {mealPortionGuide.slice(0, 3).join(" · ")}
                                 </p>
                               ) : null}
@@ -730,20 +730,20 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
                                             title="Info técnica del ejercicio"
                                             className={`h-6 w-6 inline-flex items-center justify-center rounded-full border text-[12px] transition-all duration-200 ${
                                               openTechniqueByExercise[exTechKey]
-                                                ? "border-cyan-200/70 bg-cyan-400/25 text-cyan-50 shadow-[0_0_0_3px_rgba(34,211,238,0.15)] scale-105"
-                                                : "border-cyan-300/35 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20 hover:scale-105"
+                                                ? "border-info/70 bg-info/25 text-info shadow-[0_0_0_3px_rgba(34,211,238,0.15)] scale-105"
+                                                : "border-info/35 bg-info/10 text-info hover:bg-info/20 hover:scale-105"
                                             }`}
                                           >
                                             i
                                           </button>
                                           <div
-                                            className={`absolute left-8 top-0 z-20 w-[min(22rem,80vw)] rounded-lg border border-cyan-300/30 bg-slate-950/95 backdrop-blur px-2.5 py-2 space-y-1 text-[11px] text-cyan-50 shadow-xl transition-all duration-200 ${
+                                            className={`absolute left-8 top-0 z-20 w-[min(22rem,80vw)] rounded-lg border border-info/30 bg-slate-950/95 backdrop-blur px-2.5 py-2 space-y-1 text-[11px] text-info shadow-xl transition-all duration-200 ${
                                               openTechniqueByExercise[exTechKey]
                                                 ? "opacity-100 translate-y-0 pointer-events-auto"
                                                 : "opacity-0 -translate-y-1 pointer-events-none"
                                             }`}
                                           >
-                                            <p className="text-[10px] uppercase tracking-wide text-cyan-200/80">Guía técnica</p>
+                                            <p className="text-[10px] uppercase tracking-wide text-info/80">Guía técnica</p>
                                               {exTechniqueSteps.map((step, idx) => (
                                                 <p key={`${exTechKey}-step-${idx}`}>
                                                   <strong>Paso {idx + 1}:</strong> {step}
@@ -868,20 +868,20 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
                                     title="Info técnica del ejercicio"
                                     className={`h-6 w-6 inline-flex items-center justify-center rounded-full border text-[12px] transition-all duration-200 ${
                                       openTechniqueByExercise[exTechKey]
-                                        ? "border-cyan-200/70 bg-cyan-400/25 text-cyan-50 shadow-[0_0_0_3px_rgba(34,211,238,0.15)] scale-105"
-                                        : "border-cyan-300/35 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20 hover:scale-105"
+                                        ? "border-info/70 bg-info/25 text-info shadow-[0_0_0_3px_rgba(34,211,238,0.15)] scale-105"
+                                        : "border-info/35 bg-info/10 text-info hover:bg-info/20 hover:scale-105"
                                     }`}
                                   >
                                     i
                                   </button>
                                   <div
-                                    className={`absolute left-8 top-0 z-20 w-[min(22rem,80vw)] rounded-lg border border-cyan-300/30 bg-slate-950/95 backdrop-blur px-2.5 py-2 space-y-1 text-[11px] text-cyan-50 shadow-xl transition-all duration-200 ${
+                                    className={`absolute left-8 top-0 z-20 w-[min(22rem,80vw)] rounded-lg border border-info/30 bg-slate-950/95 backdrop-blur px-2.5 py-2 space-y-1 text-[11px] text-info shadow-xl transition-all duration-200 ${
                                       openTechniqueByExercise[exTechKey]
                                         ? "opacity-100 translate-y-0 pointer-events-auto"
                                         : "opacity-0 -translate-y-1 pointer-events-none"
                                     }`}
                                   >
-                                    <p className="text-[10px] uppercase tracking-wide text-cyan-200/80">Guía técnica</p>
+                                    <p className="text-[10px] uppercase tracking-wide text-info/80">Guía técnica</p>
                                       {exTechniqueSteps.map((step, idx) => (
                                         <p key={`${exTechKey}-step-${idx}`}>
                                           <strong>Paso {idx + 1}:</strong> {step}

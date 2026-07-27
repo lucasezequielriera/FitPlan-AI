@@ -266,11 +266,11 @@ export default function MiPlanIntakePage() {
         <main className="max-w-3xl mx-auto px-4 py-8">
           {loading ? (
             <div className="flex flex-col items-center justify-center gap-3 py-16">
-              <div className="h-10 w-10 rounded-full border-2 border-cyan-400/40 border-t-cyan-200 animate-spin" />
+              <div className="h-10 w-10 rounded-full border-2 border-[var(--info)]/40 border-t-[var(--info)] animate-spin" />
               <p className="text-sm text-white/60">Cargando tu plan…</p>
             </div>
           ) : error ? (
-            <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div>
+            <div className="rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">{error}</div>
           ) : data?.plan ? (
             <>
               <div className="mb-3 flex items-center gap-3">
@@ -279,38 +279,38 @@ export default function MiPlanIntakePage() {
                 </h1>
                 <button
                   onClick={openEditData}
-                  className="px-3 py-1.5 rounded-lg border border-cyan-300/30 bg-cyan-500/10 text-cyan-200 text-sm hover:bg-cyan-500/20 transition-colors"
+                  className="px-3 py-1.5 rounded-lg border border-info/30 bg-info/10 text-info text-sm hover:bg-info/20 transition-colors"
                 >
                   Editar Datos
                 </button>
               </div>
               <p className="text-sm text-white/60 mb-6">Aquí tienes tu plan actual. Puedes volver a esta página cuando quieras.</p>
               {data.checkinRequest?.active ? (
-                <div className="mb-4 rounded-xl border border-amber-400/30 bg-amber-500/10 p-3">
-                  <p className="text-sm text-amber-100">
+                <div className="mb-4 rounded-xl border border-warning/30 bg-warning/10 p-3">
+                  <p className="text-sm text-warning">
                     Tu coach te pidió completar un check-in rápido de bienestar para ajustar mejor tu plan.
                   </p>
                   {data.checkinRequest.note ? (
-                    <p className="text-xs text-amber-100/80 mt-1">Nota del coach: {data.checkinRequest.note}</p>
+                    <p className="text-xs text-warning/80 mt-1">Nota del coach: {data.checkinRequest.note}</p>
                   ) : null}
                   <button
                     type="button"
                     onClick={() => setWellnessOpen(true)}
-                    className="mt-2 px-3 py-1.5 rounded-lg border border-amber-300/40 bg-amber-400/20 text-amber-50 text-xs hover:bg-amber-400/30"
+                    className="mt-2 px-3 py-1.5 rounded-lg border border-warning/40 bg-warning/20 text-warning text-xs hover:bg-warning/30"
                   >
                     Completar check-in ahora
                   </button>
                 </div>
               ) : null}
               {data.weightRequest?.active ? (
-                <div className="mb-4 rounded-xl border border-cyan-400/30 bg-cyan-500/10 p-3">
-                  <p className="text-sm text-cyan-100">
+                <div className="mb-4 rounded-xl border border-info/30 bg-info/10 p-3">
+                  <p className="text-sm text-info">
                     Tu coach te pidió registrar tu peso actual para actualizar el seguimiento mensual.
                   </p>
                   <button
                     type="button"
                     onClick={() => setWeightOpen(true)}
-                    className="mt-2 px-3 py-1.5 rounded-lg border border-cyan-300/40 bg-cyan-400/20 text-cyan-50 text-xs hover:bg-cyan-400/30"
+                    className="mt-2 px-3 py-1.5 rounded-lg border border-info/40 bg-info/20 text-info text-xs hover:bg-info/30"
                   >
                     Registrar peso ahora
                   </button>
@@ -372,7 +372,7 @@ export default function MiPlanIntakePage() {
               />
               Acepto el uso de estos datos para seguimiento de mi plan.
             </label>
-            {profileError ? <p className="mt-3 text-sm text-red-300">{profileError}</p> : null}
+            {profileError ? <p className="mt-3 text-sm text-danger">{profileError}</p> : null}
             <div className="mt-4 flex gap-3">
               <button
                 onClick={() => setEditOpen(false)}
@@ -384,7 +384,7 @@ export default function MiPlanIntakePage() {
               <button
                 onClick={() => void saveProfile()}
                 disabled={savingProfile}
-                className="flex-1 px-4 py-2 rounded-lg bg-cyan-500/25 border border-cyan-300/30 hover:bg-cyan-500/35 text-cyan-100 disabled:opacity-60"
+                className="flex-1 px-4 py-2 rounded-lg bg-info/25 border border-info/30 hover:bg-info/35 text-info disabled:opacity-60"
               >
                 {savingProfile ? "Guardando..." : "Guardar datos"}
               </button>
@@ -443,7 +443,7 @@ export default function MiPlanIntakePage() {
                 placeholder="Ej: dormí poco por trabajo nocturno esta semana."
               />
             </label>
-            {wellnessError ? <p className="mt-3 text-sm text-red-300">{wellnessError}</p> : null}
+            {wellnessError ? <p className="mt-3 text-sm text-danger">{wellnessError}</p> : null}
             <div className="mt-4 flex gap-3">
               <button
                 onClick={() => setWellnessOpen(false)}
@@ -455,7 +455,7 @@ export default function MiPlanIntakePage() {
               <button
                 onClick={() => void submitWellnessCheckin()}
                 disabled={savingWellness}
-                className="flex-1 px-4 py-2 rounded-lg bg-emerald-500/25 border border-emerald-300/30 hover:bg-emerald-500/35 text-emerald-100 disabled:opacity-60"
+                className="flex-1 px-4 py-2 rounded-lg bg-success/25 border border-success/30 hover:bg-success/35 text-success disabled:opacity-60"
               >
                 {savingWellness ? "Guardando..." : "Enviar check-in"}
               </button>
@@ -493,7 +493,7 @@ export default function MiPlanIntakePage() {
                 placeholder="Ej: semana con menos sueño, retención de líquidos, etc."
               />
             </label>
-            {weightError ? <p className="mt-3 text-sm text-red-300">{weightError}</p> : null}
+            {weightError ? <p className="mt-3 text-sm text-danger">{weightError}</p> : null}
             <div className="mt-4 flex gap-3">
               <button
                 onClick={() => setWeightOpen(false)}
@@ -505,7 +505,7 @@ export default function MiPlanIntakePage() {
               <button
                 onClick={() => void submitWeight()}
                 disabled={savingWeight || !weightKgDraft.trim()}
-                className="flex-1 px-4 py-2 rounded-lg bg-cyan-500/25 border border-cyan-300/30 hover:bg-cyan-500/35 text-cyan-100 disabled:opacity-60"
+                className="flex-1 px-4 py-2 rounded-lg bg-info/25 border border-info/30 hover:bg-info/35 text-info disabled:opacity-60"
               >
                 {savingWeight ? "Guardando..." : "Guardar peso"}
               </button>

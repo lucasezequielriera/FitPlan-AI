@@ -95,14 +95,14 @@ export default function IMCInfoModal({
   
   // Clasificación detallada del IMC
   const getClasificacionIMC = (imc: number): { nombre: string; color: string; emoji: string } => {
-    if (imc < 16) return { nombre: "Delgadez severa", color: "text-red-400", emoji: "⚠️" };
-    if (imc < 17) return { nombre: "Delgadez moderada", color: "text-orange-400", emoji: "⚠️" };
-    if (imc < 18.5) return { nombre: "Bajo peso", color: "text-yellow-400", emoji: "📉" };
-    if (imc < 25) return { nombre: "Peso saludable", color: "text-green-400", emoji: "✅" };
-    if (imc < 30) return { nombre: "Sobrepeso", color: "text-yellow-400", emoji: "📈" };
-    if (imc < 35) return { nombre: "Obesidad grado I", color: "text-orange-400", emoji: "⚠️" };
-    if (imc < 40) return { nombre: "Obesidad grado II", color: "text-red-400", emoji: "🚨" };
-    return { nombre: "Obesidad grado III", color: "text-red-500", emoji: "🚨" };
+    if (imc < 16) return { nombre: "Delgadez severa", color: "text-danger", emoji: "⚠️" };
+    if (imc < 17) return { nombre: "Delgadez moderada", color: "text-warning", emoji: "⚠️" };
+    if (imc < 18.5) return { nombre: "Bajo peso", color: "text-warning", emoji: "📉" };
+    if (imc < 25) return { nombre: "Peso saludable", color: "text-success", emoji: "✅" };
+    if (imc < 30) return { nombre: "Sobrepeso", color: "text-warning", emoji: "📈" };
+    if (imc < 35) return { nombre: "Obesidad grado I", color: "text-warning", emoji: "⚠️" };
+    if (imc < 40) return { nombre: "Obesidad grado II", color: "text-danger", emoji: "🚨" };
+    return { nombre: "Obesidad grado III", color: "text-danger", emoji: "🚨" };
   };
   
   const clasificacion = getClasificacionIMC(imc);
@@ -260,10 +260,10 @@ export default function IMCInfoModal({
               <div className="space-y-1.5">
                 <p className="text-[11px] text-[var(--landing-muted)]">Posición en escala IMC</p>
                 <div className="relative h-3 overflow-hidden rounded-full bg-[color-mix(in_oklab,var(--foreground)_14%,transparent)]">
-                  <div className="absolute inset-y-0 left-0 w-[10.4%] bg-amber-500/45" />
-                  <div className="absolute inset-y-0 left-[10.4%] w-[27.1%] bg-emerald-500/50" />
-                  <div className="absolute inset-y-0 left-[37.5%] w-[20.8%] bg-yellow-500/45" />
-                  <div className="absolute inset-y-0 left-[58.3%] w-[41.7%] bg-red-500/45" />
+                  <div className="absolute inset-y-0 left-0 w-[10.4%] bg-warning/45" />
+                  <div className="absolute inset-y-0 left-[10.4%] w-[27.1%] bg-success/50" />
+                  <div className="absolute inset-y-0 left-[37.5%] w-[20.8%] bg-warning/45" />
+                  <div className="absolute inset-y-0 left-[58.3%] w-[41.7%] bg-danger/45" />
                   <motion.div
                     initial={{ left: 0 }}
                     animate={{ left: `${Math.min(Math.max(((imc - 16) / 24) * 100, 1), 99)}%` }}
@@ -288,9 +288,9 @@ export default function IMCInfoModal({
                   transition={{ delay: 0.2, duration: 0.25 }}
                   className="space-y-2.5"
                 >
-                  <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-3">
+                  <div className="rounded-xl border border-success/25 bg-success/10 p-3">
                     <div className="mb-2 flex items-center gap-2.5">
-                      <FaArrowUp className="text-base text-emerald-400" />
+                      <FaArrowUp className="text-base text-success" />
                       <div>
                         <p className="text-xs font-semibold text-[var(--foreground)]">Mínimo para entrar en rango saludable</p>
                         <p className="text-[11px] text-[var(--landing-muted)]">Peso mínimo: {pesoMinimoSaludable} kg</p>
@@ -298,11 +298,11 @@ export default function IMCInfoModal({
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-center">
                       <div className="rounded-lg bg-[var(--landing-surface)] p-2">
-                        <p className="text-xl font-bold text-emerald-400">+{diferenciaPesoMinimo} kg</p>
+                        <p className="text-xl font-bold text-success">+{diferenciaPesoMinimo} kg</p>
                         <p className="text-[10px] text-[var(--landing-muted)]">Para ganar</p>
                       </div>
                       <div className="rounded-lg bg-[var(--landing-surface)] p-2">
-                        <p className="text-xl font-bold text-emerald-400">
+                        <p className="text-xl font-bold text-success">
                           {tiempoMinimoMeses > 0 ? `~${tiempoMinimoMeses} ${tiempoMinimoMeses === 1 ? "mes" : "meses"}` : "< 1 mes"}
                         </p>
                         <p className="text-[10px] text-[var(--landing-muted)]">Tiempo est.</p>
@@ -310,9 +310,9 @@ export default function IMCInfoModal({
                     </div>
                   </div>
 
-                  <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-3">
+                  <div className="rounded-xl border border-warning/25 bg-warning/10 p-3">
                     <div className="mb-2 flex items-center gap-2.5">
-                      <FaArrowUp className="text-base text-amber-400" />
+                      <FaArrowUp className="text-base text-warning" />
                       <div>
                         <p className="text-xs font-semibold text-[var(--foreground)]">Objetivo recomendado (IMC {imc >= 18 ? "19" : "20"})</p>
                         <p className="text-[11px] text-[var(--landing-muted)]">Más sostenible y saludable</p>
@@ -320,11 +320,11 @@ export default function IMCInfoModal({
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-center">
                       <div className="rounded-lg bg-[var(--landing-surface)] p-2">
-                        <p className="text-xl font-bold text-amber-400">+{diferenciaPeso} kg</p>
+                        <p className="text-xl font-bold text-warning">+{diferenciaPeso} kg</p>
                         <p className="text-[10px] text-[var(--landing-muted)]">Para ganar</p>
                       </div>
                       <div className="rounded-lg bg-[var(--landing-surface)] p-2">
-                        <p className="text-xl font-bold text-amber-400">
+                        <p className="text-xl font-bold text-warning">
                           ~{tiempoEstimadoMeses} {tiempoEstimadoMeses === 1 ? "mes" : "meses"}
                         </p>
                         <p className="text-[10px] text-[var(--landing-muted)]">Tiempo est.</p>
@@ -339,10 +339,10 @@ export default function IMCInfoModal({
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.2, duration: 0.25 }}
-                  className="rounded-xl border border-orange-500/25 bg-orange-500/10 p-3"
+                  className="rounded-xl border border-warning/25 bg-warning/10 p-3"
                 >
                   <div className="mb-2 flex items-center gap-2.5">
-                    <FaArrowDown className="text-xl text-orange-400" />
+                    <FaArrowDown className="text-xl text-warning" />
                     <div>
                       <p className="text-sm font-semibold text-[var(--foreground)]">Necesitás perder peso</p>
                       <p className="text-[11px] text-[var(--landing-muted)]">
@@ -353,11 +353,11 @@ export default function IMCInfoModal({
                   
                   <div className="grid grid-cols-2 gap-2 text-center">
                     <div className="rounded-lg bg-[var(--landing-surface)] p-2">
-                      <p className="text-2xl font-bold text-orange-300">-{diferenciaPeso} kg</p>
+                      <p className="text-2xl font-bold text-warning">-{diferenciaPeso} kg</p>
                       <p className="text-[10px] text-[var(--landing-muted)]">Para perder</p>
                     </div>
                     <div className="rounded-lg bg-[var(--landing-surface)] p-2">
-                      <p className="text-2xl font-bold text-orange-300">{pesoObjetivo} kg</p>
+                      <p className="text-2xl font-bold text-warning">{pesoObjetivo} kg</p>
                       <p className="text-[10px] text-[var(--landing-muted)]">Peso objetivo</p>
                     </div>
                   </div>
@@ -369,14 +369,14 @@ export default function IMCInfoModal({
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.3, duration: 0.25 }}
-                  className="rounded-xl border border-sky-500/25 bg-sky-500/10 p-3"
+                  className="rounded-xl border border-info/25 bg-info/10 p-3"
                 >
                   <div className="flex items-center gap-2.5">
-                    <FaClock className="text-xl text-sky-400" />
+                    <FaClock className="text-xl text-info" />
                     <div>
                       <p className="text-sm font-semibold text-[var(--foreground)]">Tiempo estimado</p>
                       <p className="text-[11px] text-[var(--landing-muted)]">
-                        Aproximadamente <span className="font-bold text-sky-300">
+                        Aproximadamente <span className="font-bold text-info">
                           {tiempoEstimadoMeses} {tiempoEstimadoMeses === 1 ? "mes" : "meses"}
                         </span> siguiendo tu plan con intensidad {intensidad}
                       </p>
@@ -404,10 +404,10 @@ export default function IMCInfoModal({
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.5, duration: 0.25 }}
-                  className="space-y-2 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06] p-3"
+                  className="space-y-2 rounded-xl border border-success/20 bg-success/[0.06] p-3"
                 >
                   <h3 className="flex items-center gap-2 text-sm font-semibold text-[var(--foreground)]">
-                    <FaCheckCircle className="text-emerald-400" />
+                    <FaCheckCircle className="text-success" />
                     Beneficios de alcanzar tu peso saludable
                   </h3>
                   <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
@@ -419,7 +419,7 @@ export default function IMCInfoModal({
                         transition={{ delay: 0.6 + idx * 0.1 }}
                         className="flex items-center gap-2 text-xs text-[var(--foreground)]"
                       >
-                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                        <span className="h-1.5 w-1.5 rounded-full bg-success" />
                         {beneficio}
                       </motion.li>
                     ))}
@@ -432,9 +432,9 @@ export default function IMCInfoModal({
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: 0.3, duration: 0.25 }}
-                  className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-center"
+                  className="rounded-xl border border-success/25 bg-success/10 p-4 text-center"
                 >
-                  <FaCheckCircle className="mx-auto mb-2 text-3xl text-emerald-400" />
+                  <FaCheckCircle className="mx-auto mb-2 text-3xl text-success" />
                   <h3 className="mb-1 text-base font-bold text-[var(--foreground)]">¡Peso saludable!</h3>
                   <p className="text-xs text-[var(--foreground)]">
                     Tu IMC está dentro del rango saludable. Seguí con tu plan para mantener y mejorar tu composición corporal.

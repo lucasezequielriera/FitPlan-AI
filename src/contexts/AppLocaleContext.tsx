@@ -27,6 +27,10 @@ export function AppLocaleProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!router.isReady || typeof window === "undefined") return;
 
+    // Deriva el locale de la ruta actual + localStorage (sistemas externos a
+    // React) en cada cambio de ruta — no hay alternativa sin
+    // useSyncExternalStore para este caso.
+    /* eslint-disable react-hooks/set-state-in-effect */
     if (router.pathname.startsWith("/en")) {
       setLocaleState("en");
       localStorage.setItem(STORAGE_KEY, "en");
@@ -50,6 +54,7 @@ export function AppLocaleProvider({ children }: { children: ReactNode }) {
       setLocaleState("es");
       document.documentElement.lang = "es";
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [router.isReady, router.pathname]);
 
   const setLocale = useCallback((l: AppLocale) => {

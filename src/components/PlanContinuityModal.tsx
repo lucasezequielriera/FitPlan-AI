@@ -357,7 +357,7 @@ export default function PlanContinuityModal({ isOpen, onClose, planData, registr
 
           <div className="relative max-h-[min(78vh,calc(100vh-8rem))] overflow-y-auto px-5 py-5 sm:px-6 sm:py-6">
             {error && (
-              <div className="mb-5 rounded-xl border border-red-500/35 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+              <div className="mb-5 rounded-xl border border-danger/35 bg-danger/10 px-4 py-3 text-sm text-danger">
                 {error}
               </div>
             )}
@@ -509,12 +509,12 @@ export default function PlanContinuityModal({ isOpen, onClose, planData, registr
                       <span
                         className={`font-semibold uppercase tracking-wide ${
                           analysis.analisis.progresoGeneral === "excelente"
-                            ? "text-emerald-400"
+                            ? "text-success"
                             : analysis.analisis.progresoGeneral === "bueno"
-                              ? "text-sky-400"
+                              ? "text-info"
                               : analysis.analisis.progresoGeneral === "regular"
-                                ? "text-amber-400"
-                                : "text-orange-400"
+                                ? "text-warning"
+                                : "text-warning"
                         }`}
                       >
                         {analysis.analisis.progresoGeneral}
@@ -524,7 +524,7 @@ export default function PlanContinuityModal({ isOpen, onClose, planData, registr
 
                     {analysis.analisis.puntosPositivos.length > 0 && (
                       <div>
-                        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-emerald-400/95">
+                        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-success/95">
                           {dash(locale, "continuityPositive")}
                         </p>
                         <ul className="list-inside list-disc space-y-1 pl-0.5">
@@ -537,7 +537,7 @@ export default function PlanContinuityModal({ isOpen, onClose, planData, registr
 
                     {analysis.analisis.areasMejora.length > 0 && (
                       <div>
-                        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-amber-300/95">
+                        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-warning/95">
                           {dash(locale, "continuityImprove")}
                         </p>
                         <ul className="list-inside list-disc space-y-1 pl-0.5">
@@ -621,7 +621,7 @@ export default function PlanContinuityModal({ isOpen, onClose, planData, registr
                   type="button"
                   onClick={handleGenerateNewPlan}
                   disabled={!objetivoSeleccionado}
-                  className="w-full rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 py-3 text-sm font-semibold text-white shadow-[0_14px_36px_-16px_rgba(16,185,129,0.55)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-45"
+                  className="w-full rounded-xl bg-success py-3 text-sm font-semibold text-white shadow-[0_14px_36px_-16px_color-mix(in_oklab,var(--success)_55%,transparent)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   {usarSugerencia
                     ? dash(locale, "continuityCtaGenerate")
@@ -633,8 +633,8 @@ export default function PlanContinuityModal({ isOpen, onClose, planData, registr
             {step === "generating" && (
               <div className="flex flex-col items-center justify-center py-14">
                 <div className="relative mb-5 h-16 w-16">
-                  <div className="absolute inset-0 rounded-full bg-emerald-500/25 blur-xl" />
-                  <div className="relative flex h-full w-full items-center justify-center rounded-full border-2 border-emerald-400/50 border-t-transparent animate-spin" />
+                  <div className="absolute inset-0 rounded-full bg-success/25 blur-xl" />
+                  <div className="relative flex h-full w-full items-center justify-center rounded-full border-2 border-success/50 border-t-transparent animate-spin" />
                 </div>
                 <p className="max-w-sm text-center text-sm text-[var(--landing-muted)]">
                   {dash(locale, "continuityGeneratingSub")}
@@ -644,7 +644,7 @@ export default function PlanContinuityModal({ isOpen, onClose, planData, registr
 
             {step === "complete" && (
               <div className="flex flex-col items-center justify-center py-14">
-                <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 shadow-[0_12px_40px_-12px_rgba(16,185,129,0.65)]">
+                <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-success shadow-[0_12px_40px_-12px_color-mix(in_oklab,var(--success)_65%,transparent)]">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     viewBox="0 0 24 24"

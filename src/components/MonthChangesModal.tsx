@@ -1,4 +1,21 @@
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
+
+function CambioIndicator({ valor, unidad = "" }: { valor: number; unidad?: string }) {
+  if (Math.abs(valor) < 1) {
+    return (
+      <span className="text-info flex items-center gap-1">
+        <span>=</span> <span className="text-xs">Mantenido</span>
+      </span>
+    );
+  }
+
+  return (
+    <span className={`${valor > 0 ? "text-success" : "text-warning"} flex items-center gap-1`}>
+      <span>{valor > 0 ? "↑" : "↓"}</span>
+      <span>{valor > 0 ? "+" : ""}{valor.toFixed(1)}{unidad}</span>
+    </span>
+  );
+}
 
 interface MonthChangesModalProps {
   isOpen: boolean;
@@ -72,29 +89,14 @@ export default function MonthChangesModal({ isOpen, onClose, cambios }: MonthCha
   const diffGrasas = grasasNue - grasasAnt;
 
   const getColorFase = (fase: string) => {
-    if (fase === "BULK") return { bg: "from-amber-500/20", text: "text-amber-200", icon: "🔥" };
-    if (fase === "CUT") return { bg: "from-cyan-500/20", text: "text-cyan-200", icon: "✂️" };
-    if (fase === "LEAN_BULK") return { bg: "from-emerald-500/20", text: "text-emerald-200", icon: "💎" };
-    return { bg: "from-purple-500/20", text: "text-purple-200", icon: "⚖️" };
+    if (fase === "BULK") return { bg: "from-[var(--phase-bulk)]/20", text: "text-[var(--phase-bulk)]", icon: "🔥" };
+    if (fase === "CUT") return { bg: "from-[var(--phase-cut)]/20", text: "text-[var(--phase-cut)]", icon: "✂️" };
+    if (fase === "LEAN_BULK") return { bg: "from-[var(--phase-lean-bulk)]/20", text: "text-[var(--phase-lean-bulk)]", icon: "💎" };
+    return { bg: "from-[var(--phase-maintenance)]/20", text: "text-[var(--phase-maintenance)]", icon: "⚖️" };
   };
 
   const colorFaseAnterior = getColorFase(cambios.faseAnterior);
   const colorFaseNueva = getColorFase(cambios.faseNueva);
-
-  const CambioIndicator = ({ valor, unidad = "" }: { valor: number; unidad?: string }) => {
-    if (Math.abs(valor) < 1) {
-      return <span className="text-blue-400 flex items-center gap-1">
-        <span>=</span> <span className="text-xs">Mantenido</span>
-      </span>;
-    }
-    
-    return (
-      <span className={`${valor > 0 ? 'text-green-400' : 'text-orange-400'} flex items-center gap-1`}>
-        <span>{valor > 0 ? '↑' : '↓'}</span>
-        <span>{valor > 0 ? '+' : ''}{valor.toFixed(1)}{unidad}</span>
-      </span>
-    );
-  };
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
@@ -146,7 +148,12 @@ export default function MonthChangesModal({ isOpen, onClose, cambios }: MonthCha
 
         {/* Cambio de Fase (si aplica) */}
         {cambioFase && (
-          <div className={`mb-6 p-4 rounded-xl bg-gradient-to-r ${colorFaseNueva.bg} to-${colorFaseNueva.bg} border border-white/20`}>
+          <div
+            className="mb-6 p-4 rounded-xl border border-white/20"
+            style={{
+              background: `linear-gradient(to right, color-mix(in oklab, ${colorFaseAnterior.text.replace("text-[", "").replace("]", "")} 15%, transparent), color-mix(in oklab, ${colorFaseNueva.text.replace("text-[", "").replace("]", "")} 15%, transparent))`,
+            }}
+          >
             <div className="flex items-center gap-3 mb-2">
               <span className="text-3xl">{colorFaseAnterior.icon}</span>
               <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -208,13 +215,13 @@ export default function MonthChangesModal({ isOpen, onClose, cambios }: MonthCha
                   <div className="mt-2 p-2 rounded bg-white/5 text-xs">
                     <div className="flex items-center justify-between">
                       <span className="opacity-70">Cambio total:</span>
-                      <span className={`font-semibold ${cambios.progresoUsuario.cambioPesoTotal > 0 ? 'text-green-400' : 'text-orange-400'}`}>
+                      <span className={`font-semibold ${cambios.progresoUsuario.cambioPesoTotal > 0 ? 'text-success' : 'text-warning'}`}>
                         {cambios.progresoUsuario.cambioPesoTotal > 0 ? '+' : ''}{cambios.progresoUsuario.cambioPesoTotal.toFixed(1)} kg
                       </span>
                     </div>
                     <div className="flex items-center justify-between mt-1">
                       <span className="opacity-70">Último mes:</span>
-                      <span className={`font-semibold ${cambios.progresoUsuario.cambioPesoUltimoMes > 0 ? 'text-green-400' : 'text-orange-400'}`}>
+                      <span className={`font-semibold ${cambios.progresoUsuario.cambioPesoUltimoMes > 0 ? 'text-success' : 'text-warning'}`}>
                         {cambios.progresoUsuario.cambioPesoUltimoMes > 0 ? '+' : ''}{cambios.progresoUsuario.cambioPesoUltimoMes.toFixed(1)} kg
                       </span>
                     </div>
@@ -247,16 +254,16 @@ export default function MonthChangesModal({ isOpen, onClose, cambios }: MonthCha
                     <div className="flex items-center justify-between">
                       <span className="text-sm opacity-70">Adherencia promedio:</span>
                       <span className={`text-sm font-semibold ${
-                        cambios.progresoUsuario.adherenciaPromedio >= 80 ? 'text-green-400' :
-                        cambios.progresoUsuario.adherenciaPromedio >= 70 ? 'text-blue-400' :
-                        cambios.progresoUsuario.adherenciaPromedio >= 50 ? 'text-yellow-400' :
-                        'text-orange-400'
+                        cambios.progresoUsuario.adherenciaPromedio >= 80 ? 'text-success' :
+                        cambios.progresoUsuario.adherenciaPromedio >= 70 ? 'text-info' :
+                        cambios.progresoUsuario.adherenciaPromedio >= 50 ? 'text-warning' :
+                        'text-warning'
                       }`}>
                         {cambios.progresoUsuario.adherenciaPromedio.toFixed(0)}%
                       </span>
                     </div>
                     {cambios.progresoUsuario.adherenciaPromedio >= 80 && (
-                      <p className="text-xs text-green-400 mt-1">¡Excelente consistencia! 🌟</p>
+                      <p className="text-xs text-success mt-1">¡Excelente consistencia! 🌟</p>
                     )}
                   </div>
                   
@@ -265,9 +272,9 @@ export default function MonthChangesModal({ isOpen, onClose, cambios }: MonthCha
                     <div className="flex items-center justify-between text-sm">
                       <span className="opacity-70">Energía:</span>
                       <span className={`flex items-center gap-1 ${
-                        cambios.progresoUsuario.tendenciaEnergia === 'mejorando' ? 'text-green-400' :
-                        cambios.progresoUsuario.tendenciaEnergia === 'empeorando' ? 'text-orange-400' :
-                        'text-blue-400'
+                        cambios.progresoUsuario.tendenciaEnergia === 'mejorando' ? 'text-success' :
+                        cambios.progresoUsuario.tendenciaEnergia === 'empeorando' ? 'text-warning' :
+                        'text-info'
                       }`}>
                         {cambios.progresoUsuario.tendenciaEnergia === 'mejorando' && '↑ Mejorando'}
                         {cambios.progresoUsuario.tendenciaEnergia === 'estable' && '→ Estable'}
@@ -277,9 +284,9 @@ export default function MonthChangesModal({ isOpen, onClose, cambios }: MonthCha
                     <div className="flex items-center justify-between text-sm">
                       <span className="opacity-70">Recuperación:</span>
                       <span className={`flex items-center gap-1 ${
-                        cambios.progresoUsuario.tendenciaRecuperacion === 'mejorando' ? 'text-green-400' :
-                        cambios.progresoUsuario.tendenciaRecuperacion === 'empeorando' ? 'text-orange-400' :
-                        'text-blue-400'
+                        cambios.progresoUsuario.tendenciaRecuperacion === 'mejorando' ? 'text-success' :
+                        cambios.progresoUsuario.tendenciaRecuperacion === 'empeorando' ? 'text-warning' :
+                        'text-info'
                       }`}>
                         {cambios.progresoUsuario.tendenciaRecuperacion === 'mejorando' && '↑ Mejorando'}
                         {cambios.progresoUsuario.tendenciaRecuperacion === 'estable' && '→ Estable'}
@@ -308,8 +315,8 @@ export default function MonthChangesModal({ isOpen, onClose, cambios }: MonthCha
 
         {/* Razón de los cambios */}
         {cambios.razonCambios && (
-          <div className="mb-6 p-4 rounded-lg bg-blue-500/10 border border-blue-500/30">
-            <h3 className="text-sm font-semibold mb-2 text-blue-300">💡 ¿Por qué estos cambios?</h3>
+          <div className="mb-6 p-4 rounded-lg bg-[var(--info-soft)] border border-[var(--info)]/30">
+            <h3 className="text-sm font-semibold mb-2 text-info">💡 ¿Por qué estos cambios?</h3>
             <p className="text-sm opacity-90">{cambios.razonCambios}</p>
           </div>
         )}
@@ -417,9 +424,9 @@ export default function MonthChangesModal({ isOpen, onClose, cambios }: MonthCha
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-sm font-medium">Volumen total:</span>
                 <span className={`text-sm font-semibold ${
-                  entrenamiento.cambioVolumen === "aumentado" ? "text-green-400" :
-                  entrenamiento.cambioVolumen === "reducido" ? "text-orange-400" :
-                  "text-blue-400"
+                  entrenamiento.cambioVolumen === "aumentado" ? "text-success" :
+                  entrenamiento.cambioVolumen === "reducido" ? "text-warning" :
+                  "text-info"
                 }`}>
                   {entrenamiento.cambioVolumen === "aumentado" && "↑ Aumentado"}
                   {entrenamiento.cambioVolumen === "reducido" && "↓ Reducido"}
@@ -443,14 +450,14 @@ export default function MonthChangesModal({ isOpen, onClose, cambios }: MonthCha
 
           {/* Ajustes aplicados */}
           {cambios.ajustesAplicados && cambios.ajustesAplicados.length > 0 && (
-            <div className="p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/30">
-              <h3 className="text-sm font-semibold mb-3 text-yellow-300">
+            <div className="p-4 rounded-xl bg-[var(--warning-soft)] border border-[var(--warning)]/30">
+              <h3 className="text-sm font-semibold mb-3 text-warning">
                 🎯 Ajustes aplicados basados en tus resultados:
               </h3>
               <ul className="space-y-2">
                 {cambios.ajustesAplicados.map((ajuste, idx) => (
                   <li key={idx} className="text-sm opacity-90 flex items-start gap-2">
-                    <span className="text-yellow-400 mt-0.5">•</span>
+                    <span className="text-warning mt-0.5">•</span>
                     <span>{ajuste}</span>
                   </li>
                 ))}

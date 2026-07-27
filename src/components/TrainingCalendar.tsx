@@ -279,12 +279,12 @@ export default function TrainingCalendar({
                   ? 'opacity-20 cursor-not-allowed' 
                   : 'cursor-pointer'
                 }
-                ${day.isToday 
-                  ? 'bg-gradient-to-br from-cyan-500/30 to-blue-500/30 border-2 border-cyan-400 text-cyan-100 shadow-lg shadow-cyan-500/20' 
+                ${day.isToday
+                  ? 'bg-info/30 border-2 border-info text-info shadow-lg shadow-info/20'
                   : isSelected
-                  ? 'bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border-2 border-cyan-500 text-cyan-200 shadow-md'
+                  ? 'bg-info/20 border-2 border-info text-info shadow-md'
                   : day.hasTraining && day.isInPlanRange
-                  ? 'bg-gradient-to-br from-blue-500/20 to-indigo-500/20 border border-blue-500/40 text-blue-200 hover:from-blue-500/30 hover:to-indigo-500/30 hover:border-blue-500/60 hover:shadow-lg'
+                  ? 'bg-info/20 border border-info/40 text-info hover:bg-info/30 hover:border-info/60 hover:shadow-lg'
                   : day.isInPlanRange
                   ? 'bg-white/5 border border-white/10 text-white/60 hover:bg-white/10 hover:border-white/20'
                   : 'bg-white/5 border border-white/10 text-white/20'
@@ -297,7 +297,7 @@ export default function TrainingCalendar({
                   <motion.div
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
-                    className="absolute bottom-1.5 w-1.5 h-1.5 rounded-full bg-blue-400"
+                    className="absolute bottom-1.5 w-1.5 h-1.5 rounded-full bg-info"
                   />
                 )}
               </div>
@@ -309,11 +309,11 @@ export default function TrainingCalendar({
       {/* Leyenda */}
       <div className="mt-6 pt-4 border-t border-white/10 flex flex-wrap items-center justify-center gap-6 text-xs">
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-blue-400"></div>
+          <div className="w-3 h-3 rounded-full bg-info"></div>
           <span className="text-white/60">Día con entrenamiento</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-gradient-to-br from-cyan-400 to-blue-400 border-2 border-cyan-300"></div>
+          <div className="w-3 h-3 rounded-full bg-info border-2 border-info"></div>
           <span className="text-white/60">Hoy</span>
         </div>
       </div>

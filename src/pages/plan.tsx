@@ -1046,7 +1046,7 @@ export default function PlanPage() {
       return (
         <div className="mt-3 pt-3 border-t border-white/10">
           <div className="flex items-center justify-center py-4">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-cyan-400"></div>
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-info"></div>
           </div>
         </div>
       );
@@ -1056,14 +1056,14 @@ export default function PlanPage() {
       <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-white/10">
         {/* Header con comparación */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0 mb-3 sm:mb-4">
-          <h4 className="text-sm sm:text-base font-semibold text-cyan-300 flex items-center gap-2">
+          <h4 className="text-sm sm:text-base font-semibold text-info flex items-center gap-2">
             💪 Registro de Pesos
           </h4>
           {comparison && previousWeights && (
             <div className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg text-xs font-medium ${
-              comparison === "better" ? "bg-green-500/20 text-green-300 border border-green-500/30" :
-              comparison === "worse" ? "bg-red-500/20 text-red-300 border border-red-500/30" :
-              "bg-blue-500/20 text-blue-300 border border-blue-500/30"
+              comparison === "better" ? "bg-success/20 text-success border border-success/30" :
+              comparison === "worse" ? "bg-danger/20 text-danger border border-danger/30" :
+              "bg-info/20 text-info border border-info/30"
             }`}>
               {comparison === "better" && "📈 Mejoraste!"}
               {comparison === "same" && "➡️ Igual"}
@@ -1074,8 +1074,8 @@ export default function PlanPage() {
         </div>
 
         {/* Input de RM */}
-        <div className="mb-3 sm:mb-4 p-2 sm:p-3 rounded-lg bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/20">
-          <label className="text-xs sm:text-sm font-medium text-purple-300 mb-1.5 sm:mb-2 block">
+        <div className="mb-3 sm:mb-4 p-2 sm:p-3 rounded-lg bg-phase-maintenance/10 border border-phase-maintenance/20">
+          <label className="text-xs sm:text-sm font-medium text-phase-maintenance mb-1.5 sm:mb-2 block">
             🎯 RM (Repetición Máxima) - Opcional
           </label>
           <div className="flex items-center gap-2">
@@ -1124,12 +1124,12 @@ export default function PlanPage() {
                 }
               }}
               placeholder="Ej: 100"
-              className="w-[100px] px-2 sm:px-3 py-1.5 sm:py-2 text-sm sm:text-base bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-purple-500/50 focus:bg-white/15"
+              className="w-[100px] px-2 sm:px-3 py-1.5 sm:py-2 text-sm sm:text-base bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-phase-maintenance/50 focus:bg-white/15"
             />
             <span className="text-xs sm:text-sm text-white/60">kg</span>
           </div>
           {rm && (
-            <p className="text-xs text-purple-300/80 mt-1.5 sm:mt-2">
+            <p className="text-xs text-phase-maintenance/80 mt-1.5 sm:mt-2">
               Con este RM, se calcularán los porcentajes de esfuerzo para cada serie
             </p>
           )}
@@ -1153,18 +1153,18 @@ export default function PlanPage() {
                 key={i}
                 className={`p-1.5 sm:p-2 rounded-md border transition-all ${
                   isComplete
-                    ? "bg-green-500/10 border-green-500/30"
+                    ? "bg-success/10 border-success/30"
                     : isIncomplete
-                    ? "bg-yellow-500/10 border-yellow-500/30"
+                    ? "bg-warning/10 border-warning/30"
                     : hasPrevious
-                    ? "bg-orange-500/10 border-orange-500/30"
+                    ? "bg-warning/10 border-warning/30"
                     : "bg-white/5 border-white/10"
                 }`}
               >
                 <div className="flex items-center gap-1.5 sm:gap-2">
                   {/* Número de serie */}
-                  <div className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-md bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center">
-                    <span className="text-xs font-bold text-cyan-300">{i + 1}</span>
+                  <div className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-md bg-info/20 border border-info/30 flex items-center justify-center">
+                    <span className="text-xs font-bold text-info">{i + 1}</span>
                   </div>
 
                   {/* Inputs de peso y repeticiones - responsive */}
@@ -1178,7 +1178,7 @@ export default function PlanPage() {
                         value={weights[i] || ""}
                         onChange={(e) => handleWeightChange(i, parseFloat(e.target.value) || 0)}
                         placeholder={suggestedWeight ? suggestedWeight.toString() : previousWeight ? previousWeight.toString() : "0"}
-                        className="w-[100px] px-2 py-1.5 sm:py-2 text-sm sm:text-base font-semibold bg-white/10 border border-white/20 rounded-md text-white placeholder-white/30 focus:outline-none focus:border-cyan-500/50 focus:bg-white/15 text-center"
+                        className="w-[100px] px-2 py-1.5 sm:py-2 text-sm sm:text-base font-semibold bg-white/10 border border-white/20 rounded-md text-white placeholder-white/30 focus:outline-none focus:border-info/50 focus:bg-white/15 text-center"
                       />
                       <span className="text-xs sm:text-sm text-white/60 w-6 sm:w-8">kg</span>
                     </div>
@@ -1192,7 +1192,7 @@ export default function PlanPage() {
                         value={reps[i] || ""}
                         onChange={(e) => handleRepsChange(i, parseInt(e.target.value) || 0)}
                         placeholder={previousRep ? previousRep.toString() : repsObjective}
-                        className="w-[100px] px-2 py-1.5 sm:py-2 text-sm sm:text-base bg-white/10 border border-white/20 rounded-md text-white placeholder-white/30 focus:outline-none focus:border-orange-500/50 focus:bg-white/15 text-center"
+                        className="w-[100px] px-2 py-1.5 sm:py-2 text-sm sm:text-base bg-white/10 border border-white/20 rounded-md text-white placeholder-white/30 focus:outline-none focus:border-warning/50 focus:bg-white/15 text-center"
                       />
                       <span className="text-xs sm:text-sm text-white/60 w-10 sm:w-12">reps</span>
                     </div>
@@ -1202,7 +1202,7 @@ export default function PlanPage() {
                   {isComplete ? (
                     // Verde: Completo (tiene peso Y repeticiones)
                     <div className="flex-shrink-0">
-                      <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-green-500 flex items-center justify-center" title="Completo: peso y repeticiones">
+                      <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-success flex items-center justify-center" title="Completo: peso y repeticiones">
                         <svg className="w-3 h-3 sm:w-4 sm:h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                         </svg>
@@ -1211,7 +1211,7 @@ export default function PlanPage() {
                   ) : isIncomplete ? (
                     // Amarillo: Incompleto (solo tiene peso O solo repeticiones)
                     <div className="flex-shrink-0">
-                      <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-yellow-500 flex items-center justify-center" title="Incompleto: falta peso o repeticiones">
+                      <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-warning flex items-center justify-center" title="Incompleto: falta peso o repeticiones">
                         <svg className="w-3 h-3 sm:w-4 sm:h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                         </svg>
@@ -1220,7 +1220,7 @@ export default function PlanPage() {
                   ) : hasPrevious ? (
                     // Naranja: Tiene valores anteriores pero no los ha cargado
                     <div className="flex-shrink-0">
-                      <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-orange-500 flex items-center justify-center" title="Tienes valores anteriores, completa los datos">
+                      <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-warning flex items-center justify-center" title="Tienes valores anteriores, completa los datos">
                         <svg className="w-3 h-3 sm:w-4 sm:h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
@@ -1232,7 +1232,7 @@ export default function PlanPage() {
                 {/* Info adicional (más compacta) - responsive */}
                 <div className="flex items-center gap-1.5 sm:gap-2 text-xs mt-1 ml-8 sm:ml-10 flex-wrap">
                   {percentages[i] && (
-                    <span className="text-purple-300/80">
+                    <span className="text-phase-maintenance/80">
                       {percentages[i]}% RM
                     </span>
                   )}
@@ -1247,12 +1247,12 @@ export default function PlanPage() {
                     </span>
                   )}
                   {suggestedWeight && !hasWeight && (
-                    <span className="text-cyan-300/60">
+                    <span className="text-info/60">
                       <span className="hidden sm:inline">Sug: </span>{suggestedWeight}kg
                     </span>
                   )}
                   {!hasReps && !previousRep && (
-                    <span className="text-orange-300/60">
+                    <span className="text-warning/60">
                       <span className="hidden sm:inline">Obj: </span>{repsObjective}
                     </span>
                   )}
@@ -1264,10 +1264,10 @@ export default function PlanPage() {
 
         {/* Resumen */}
         {avgWeight > 0 && (
-          <div className="mt-4 p-3 rounded-lg bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/20">
+          <div className="mt-4 p-3 rounded-lg bg-info/10 border border-info/20">
             <div className="flex items-center justify-between">
               <span className="text-xs text-white/70">Promedio de hoy:</span>
-              <span className="text-base font-bold text-cyan-300">{avgWeight.toFixed(1)} kg</span>
+              <span className="text-base font-bold text-info">{avgWeight.toFixed(1)} kg</span>
             </div>
             {previousAvg > 0 && (
               <div className="flex items-center justify-between mt-1">
@@ -1282,13 +1282,13 @@ export default function PlanPage() {
         {(saving || saved) && (
           <div className="mt-3 text-center">
             {saving && (
-              <span className="text-xs text-cyan-400 flex items-center justify-center gap-2">
-                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-cyan-400"></div>
+              <span className="text-xs text-info flex items-center justify-center gap-2">
+                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-info"></div>
                 Guardando...
               </span>
             )}
             {saved && !saving && (
-              <span className="text-xs text-green-400 flex items-center justify-center gap-2">
+              <span className="text-xs text-success flex items-center justify-center gap-2">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
@@ -1343,12 +1343,12 @@ export default function PlanPage() {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="mt-6 rounded-xl border-2 border-cyan-500/30 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6"
+        className="mt-6 rounded-xl border-2 border-info/30 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6"
       >
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="text-xl font-bold text-white flex items-center gap-2">
-              <span className="text-cyan-400">🏋️</span>
+              <span className="text-info">🏋️</span>
               {dayData.day}
               {musculos && (
                 <span className="text-sm font-normal opacity-70 ml-2">({musculos})</span>
@@ -1362,9 +1362,9 @@ export default function PlanPage() {
         
         {/* Calentamiento */}
         {dayData.warmup && (
-          <div className="mb-4 p-3 rounded-md bg-gradient-to-r from-orange-500/20 to-yellow-500/20 border border-orange-500/30">
+          <div className="mb-4 p-3 rounded-md bg-warning/20 border border-warning/30">
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-sm font-semibold text-orange-300">🔥 Calentamiento</span>
+              <span className="text-sm font-semibold text-warning">🔥 Calentamiento</span>
               <span className="text-xs opacity-70">({dayData.warmup.duration_minutes} min)</span>
             </div>
             <p className="text-sm opacity-90 leading-relaxed">{dayData.warmup.description}</p>
@@ -1387,7 +1387,7 @@ export default function PlanPage() {
                           <span className="font-semibold text-white">{ejercicio.name}</span>
                           <span className="text-sm opacity-70">· {ejercicio.sets}x{String(ejercicio.reps)}</span>
                           {ejercicio.muscle_group && (
-                            <span className="text-xs px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                            <span className="text-xs px-2 py-0.5 rounded bg-info/20 text-info border border-info/30">
                               {translateMuscleGroup(ejercicio.muscle_group, locale)}
                             </span>
                           )}
@@ -1426,10 +1426,10 @@ export default function PlanPage() {
                     {/* Técnica, progresión, cues, alternativa (igual que en el modal) */}
                     {ejercicio.technique && (
                       <details className="mt-2">
-                        <summary className="text-xs font-medium text-cyan-300 cursor-pointer hover:text-cyan-200">
+                        <summary className="text-xs font-medium text-info cursor-pointer hover:text-info">
                           💡 Técnica
                         </summary>
-                        <p className="mt-1 text-xs opacity-90 leading-relaxed pl-2 border-l-2 border-cyan-500/30">
+                        <p className="mt-1 text-xs opacity-90 leading-relaxed pl-2 border-l-2 border-info/30">
                           {ejercicio.technique}
                         </p>
                       </details>
@@ -1437,10 +1437,10 @@ export default function PlanPage() {
                     
                     {ejercicio.progression && (
                       <details className="mt-2">
-                        <summary className="text-xs font-medium text-yellow-300 cursor-pointer hover:text-yellow-200">
+                        <summary className="text-xs font-medium text-warning cursor-pointer hover:text-warning">
                           📈 Progresión
                         </summary>
-                        <p className="mt-1 text-xs opacity-90 leading-relaxed pl-2 border-l-2 border-yellow-500/30">
+                        <p className="mt-1 text-xs opacity-90 leading-relaxed pl-2 border-l-2 border-warning/30">
                           {ejercicio.progression}
                         </p>
                       </details>
@@ -1448,7 +1448,7 @@ export default function PlanPage() {
                     
                     {ejercicio.cues && ejercicio.cues.length > 0 && (
                       <div className="mt-2">
-                        <p className="text-xs font-medium text-purple-300 mb-1">🎯 Pistas mentales:</p>
+                        <p className="text-xs font-medium text-phase-maintenance mb-1">🎯 Pistas mentales:</p>
                         <ul className="list-disc pl-4 space-y-0.5">
                           {ejercicio.cues.map((cue, cueIdx) => (
                             <li key={`cue-${ei}-${cueIdx}`} className="text-xs opacity-90">{cue}</li>
@@ -1458,8 +1458,8 @@ export default function PlanPage() {
                     )}
                     
                     {ejercicio.alternative && (
-                      <div className="mt-2 p-2 rounded bg-orange-500/10 border border-orange-500/30">
-                        <p className="text-xs font-medium text-orange-300 mb-1">⚠️ Alternativa (si tienes lesión):</p>
+                      <div className="mt-2 p-2 rounded bg-warning/10 border border-warning/30">
+                        <p className="text-xs font-medium text-warning mb-1">⚠️ Alternativa (si tienes lesión):</p>
                         <p className="text-xs opacity-90">{ejercicio.alternative}</p>
                       </div>
                     )}
@@ -2149,19 +2149,6 @@ export default function PlanPage() {
   // NO actualizar automáticamente las recomendaciones cuando solo cambia el select
   // Solo se actualizan cuando el usuario regenera el plan explícitamente
 
-  if (!plan || !user) {
-    if (!recoveringPlan) return null;
-    return (
-      <div className="min-h-screen">
-        <Navbar />
-        <div className="flex min-h-[50vh] items-center justify-center px-4">
-          <div className="text-sm text-[var(--landing-muted)]">{p(locale, "loadingPlan")}</div>
-        </div>
-      </div>
-    );
-  }
-
-
 
   const bmi = user ? calculateBMI(user.pesoKg, user.alturaCm) : 0;
   const bmiCat = bmiCategory(bmi);
@@ -2309,6 +2296,21 @@ export default function PlanPage() {
     }
     return { mesesCambiosVisibles: mesesBase, deltaPesoProyectado: 0 };
   }, [isPremium, deficitSuperavit, proyecciones, user]);
+
+  // Guard de carga: recién acá es seguro devolver early return, todos los hooks
+  // (useMemo de tdee/proyecciones/mesesCambiosVisibles) ya se ejecutaron arriba.
+  if (!plan || !user) {
+    if (!recoveringPlan) return null;
+    return (
+      <div className="min-h-screen">
+        <Navbar />
+        <div className="flex min-h-[50vh] items-center justify-center px-4">
+          <div className="text-sm text-[var(--landing-muted)]">{p(locale, "loadingPlan")}</div>
+        </div>
+      </div>
+    );
+  }
+
   const mesesProyeccionPeso = Math.max(2, Math.min(mesesCambiosVisibles, 3));
   const pesoProyectado = Math.max(35, Number((pesoActual + deltaPesoProyectado).toFixed(1)));
   const deltaTextoPeso = `${deltaPesoProyectado >= 0 ? "+" : ""}${deltaPesoProyectado.toFixed(1)} kg`;
@@ -2371,10 +2373,10 @@ export default function PlanPage() {
   const bmiPct = bmiPercent(bmi);
 
   function bmiBadgeColor(): string {
-    if (bmiCat === "bajo_peso") return "#60a5fa"; // azul
-    if (bmiCat === "saludable") return "#10b981"; // verde
-    if (bmiCat === "sobrepeso") return "#f59e0b"; // ámbar
-    return "#ef4444"; // rojo
+    if (bmiCat === "bajo_peso") return "var(--info)";
+    if (bmiCat === "saludable") return "var(--success)";
+    if (bmiCat === "sobrepeso") return "var(--warning)";
+    return "var(--danger)";
   }
 
   // Gradiente continuo Mal → Excelente (rojo→naranja→verde)
@@ -2958,7 +2960,7 @@ export default function PlanPage() {
       <div className="px-4 py-8 md:px-8">
       <div className="mx-auto max-w-6xl">
         {cacheNotice ? (
-          <div className="mb-4 rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+          <div className="mb-4 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
             {cacheNotice}
           </div>
         ) : null}
@@ -2974,25 +2976,25 @@ export default function PlanPage() {
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 className={`mb-4 p-4 rounded-xl border ${
-                  planMultiFase.faseActual === "BULK" 
-                    ? "bg-gradient-to-r from-amber-500/20 to-orange-500/20 border-amber-500/30" 
+                  planMultiFase.faseActual === "BULK"
+                    ? "bg-phase-bulk/20 border-phase-bulk/30"
                     : planMultiFase.faseActual === "CUT"
-                    ? "bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border-cyan-500/30"
+                    ? "bg-phase-cut/20 border-phase-cut/30"
                     : planMultiFase.faseActual === "LEAN_BULK"
-                    ? "bg-gradient-to-r from-emerald-500/20 to-teal-500/20 border-emerald-500/30"
-                    : "bg-gradient-to-r from-purple-500/20 to-pink-500/20 border-purple-500/30"
+                    ? "bg-phase-lean-bulk/20 border-phase-lean-bulk/30"
+                    : "bg-phase-maintenance/20 border-phase-maintenance/30"
                 }`}
               >
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <div className={`px-3 py-1 rounded-lg text-sm font-bold ${
-                      planMultiFase.faseActual === "BULK" 
-                        ? "bg-amber-500/30 text-amber-200" 
+                      planMultiFase.faseActual === "BULK"
+                        ? "bg-phase-bulk/30 text-phase-bulk"
                         : planMultiFase.faseActual === "CUT"
-                        ? "bg-cyan-500/30 text-cyan-200"
+                        ? "bg-phase-cut/30 text-phase-cut"
                         : planMultiFase.faseActual === "LEAN_BULK"
-                        ? "bg-emerald-500/30 text-emerald-200"
-                        : "bg-purple-500/30 text-purple-200"
+                        ? "bg-phase-lean-bulk/30 text-phase-lean-bulk"
+                        : "bg-phase-maintenance/30 text-phase-maintenance"
                     }`}>
                       {planMultiFase.faseActual === "BULK" && "🔥 BULK"}
                       {planMultiFase.faseActual === "CUT" && "✨ CUT"}
@@ -3037,13 +3039,13 @@ export default function PlanPage() {
                       animate={{ width: `${(planMultiFase.mesActual / planMultiFase.totalMeses) * 100}%` }}
                       transition={{ duration: 1, ease: "easeOut" }}
                       className={`h-full rounded-full ${
-                        planMultiFase.faseActual === "BULK" 
-                          ? "bg-gradient-to-r from-amber-500 to-orange-500" 
+                        planMultiFase.faseActual === "BULK"
+                          ? "bg-phase-bulk"
                           : planMultiFase.faseActual === "CUT"
-                          ? "bg-gradient-to-r from-cyan-500 to-blue-500"
+                          ? "bg-phase-cut"
                           : planMultiFase.faseActual === "LEAN_BULK"
-                          ? "bg-gradient-to-r from-emerald-500 to-teal-500"
-                          : "bg-gradient-to-r from-purple-500 to-pink-500"
+                          ? "bg-phase-lean-bulk"
+                          : "bg-phase-maintenance"
                       }`}
                     />
                   </div>
@@ -3104,25 +3106,25 @@ export default function PlanPage() {
                   <motion.div
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="mb-4 p-4 rounded-xl border bg-gradient-to-r from-green-500/20 to-emerald-500/20 border-green-500/30"
+                    className="mb-4 p-4 rounded-xl border bg-success/20 border-success/30"
                   >
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                       <div>
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-lg">🎯</span>
-                          <h3 className="font-bold text-green-200">
+                          <h3 className="font-bold text-success">
                             {progress >= 100 ? "¡Plan completado!" : "Plan casi completado"}
                           </h3>
                         </div>
                         <p className="text-sm opacity-80">
-                          {progress >= 100 
-                            ? "¡Felicidades! Es momento de generar tu siguiente plan basado en tus resultados." 
+                          {progress >= 100
+                            ? "¡Felicidades! Es momento de generar tu siguiente plan basado en tus resultados."
                             : `Estás al ${Math.round(progress)}%. Pronto podrás generar tu siguiente plan personalizado.`}
                         </p>
                       </div>
                       <button
                         onClick={() => setContinuityModalOpen(true)}
-                        className="px-4 py-2 rounded-lg bg-green-500 hover:bg-green-600 text-white text-sm font-medium transition-all shadow-lg whitespace-nowrap"
+                        className="btn btn-success text-sm whitespace-nowrap"
                       >
                         Preparar continuidad
                       </button>
@@ -3264,12 +3266,12 @@ export default function PlanPage() {
                     animate={{ opacity: 1, y: 0 }}
                     className={`mb-4 p-4 rounded-xl border ${
                       planMultiFase.faseActual === "BULK"
-                        ? "bg-gradient-to-r from-amber-500/20 to-orange-500/20 border-amber-500/30"
+                        ? "bg-phase-bulk/20 border-phase-bulk/30"
                         : planMultiFase.faseActual === "CUT"
-                        ? "bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border-cyan-500/30"
+                        ? "bg-phase-cut/20 border-phase-cut/30"
                         : planMultiFase.faseActual === "LEAN_BULK"
-                        ? "bg-gradient-to-r from-emerald-500/20 to-teal-500/20 border-emerald-500/30"
-                        : "bg-gradient-to-r from-purple-500/20 to-pink-500/20 border-purple-500/30"
+                        ? "bg-phase-lean-bulk/20 border-phase-lean-bulk/30"
+                        : "bg-phase-maintenance/20 border-phase-maintenance/30"
                     }`}
                   >
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -3279,10 +3281,10 @@ export default function PlanPage() {
                             {cambiaFase ? "🔄" : "📈"}
                           </span>
                           <h3 className={`font-bold ${
-                            planMultiFase.faseActual === "BULK" ? "text-amber-200" :
-                            planMultiFase.faseActual === "CUT" ? "text-cyan-200" :
-                            planMultiFase.faseActual === "LEAN_BULK" ? "text-emerald-200" :
-                            "text-purple-200"
+                            planMultiFase.faseActual === "BULK" ? "text-phase-bulk" :
+                            planMultiFase.faseActual === "CUT" ? "text-phase-cut" :
+                            planMultiFase.faseActual === "LEAN_BULK" ? "text-phase-lean-bulk" :
+                            "text-phase-maintenance"
                           }`}>
                             {Math.round(mesProgress) >= 100 
                               ? `¡Mes ${planMultiFase.mesActual} completado!` 
@@ -3308,14 +3310,14 @@ export default function PlanPage() {
                       </div>
                       <button
                         onClick={() => setModalSiguienteMesAbierto(true)}
-                        className={`px-4 py-2 rounded-lg text-white text-sm font-medium transition-all shadow-lg whitespace-nowrap ${
+                        className={`px-4 py-2 rounded-lg text-white text-sm font-medium transition-all shadow-lg whitespace-nowrap hover:brightness-90 ${
                           planMultiFase.faseActual === "BULK"
-                            ? "bg-amber-500 hover:bg-amber-600"
+                            ? "bg-phase-bulk"
                             : planMultiFase.faseActual === "CUT"
-                            ? "bg-cyan-500 hover:bg-cyan-600"
+                            ? "bg-phase-cut"
                             : planMultiFase.faseActual === "LEAN_BULK"
-                            ? "bg-emerald-500 hover:bg-emerald-600"
-                            : "bg-purple-500 hover:bg-purple-600"
+                            ? "bg-phase-lean-bulk"
+                            : "bg-phase-maintenance"
                         }`}
                       >
                         Preparar mes {siguienteMes} de {planMultiFase.totalMeses}
@@ -3332,12 +3334,12 @@ export default function PlanPage() {
                         <div
                           className={`h-full rounded-full transition-all duration-300 ${
                             planMultiFase.faseActual === "BULK"
-                              ? "bg-gradient-to-r from-amber-500 to-orange-500"
+                              ? "bg-phase-bulk"
                               : planMultiFase.faseActual === "CUT"
-                              ? "bg-gradient-to-r from-cyan-500 to-blue-500"
+                              ? "bg-phase-cut"
                               : planMultiFase.faseActual === "LEAN_BULK"
-                              ? "bg-gradient-to-r from-emerald-500 to-teal-500"
-                              : "bg-gradient-to-r from-purple-500 to-pink-500"
+                              ? "bg-phase-lean-bulk"
+                              : "bg-phase-maintenance"
                           }`}
                           style={{ width: `${mesProgress}%` }}
                         />
@@ -3381,10 +3383,10 @@ export default function PlanPage() {
                     {p(locale, "edit")}
                   </button>
                   {!isPremium && (
-                    <div className="absolute bottom-full left-1/2 z-50 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg border border-yellow-400/50 bg-gradient-to-r from-yellow-500/95 to-orange-500/95 px-3 py-2 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-200 pointer-events-none group-hover:opacity-100">
+                    <div className="absolute bottom-full left-1/2 z-50 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg border border-warning/50 bg-warning px-3 py-2 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-200 pointer-events-none group-hover:opacity-100">
                       💳 {p(locale, "requiresPremiumEdit")}
                       <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
-                        <div className="w-2 h-2 bg-gradient-to-r from-yellow-500 to-orange-500 rotate-45 border-r border-b border-yellow-400/50"></div>
+                        <div className="w-2 h-2 bg-warning rotate-45 border-r border-b border-warning/50"></div>
                       </div>
                     </div>
                   )}
@@ -3439,13 +3441,13 @@ export default function PlanPage() {
                   <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors w-fit"
                     style={{
                       backgroundColor: 'rgba(255,255,255,0.05)',
-                      borderColor: plan.dificultad === 'dificil' ? 'rgba(248,113,113,0.4)' : plan.dificultad === 'media' ? 'rgba(250,204,21,0.4)' : 'rgba(52,211,153,0.4)'
+                      borderColor: plan.dificultad === 'dificil' ? 'color-mix(in oklab, var(--danger) 40%, transparent)' : plan.dificultad === 'media' ? 'color-mix(in oklab, var(--warning) 40%, transparent)' : 'color-mix(in oklab, var(--success) 40%, transparent)'
                     }}
                   >
                     <span className="text-xs opacity-70 whitespace-nowrap">{p(locale, "difficulty")}</span>
                     <span className="text-sm font-medium capitalize"
                       style={{
-                        color: plan.dificultad === 'dificil' ? '#fecaca' : plan.dificultad === 'media' ? '#fde68a' : '#a7f3d0'
+                        color: plan.dificultad === 'dificil' ? 'var(--danger)' : plan.dificultad === 'media' ? 'var(--warning)' : 'var(--success)'
                       }}
                     >
                       {difficultyLabel(locale, plan.dificultad)}
@@ -3462,7 +3464,7 @@ export default function PlanPage() {
                   </button>
                 )}
                 {errorRegeneracion && (
-                  <div className="text-xs text-red-400 mt-1 w-full">{errorRegeneracion}</div>
+                  <div className="text-xs text-danger mt-1 w-full">{errorRegeneracion}</div>
                 )}
               </div>
             )}
@@ -3480,7 +3482,7 @@ export default function PlanPage() {
                 <p className="mt-1 text-3xl font-bold text-[var(--foreground)]">{pesoActual} kg</p>
                 <p className="mt-2 text-xs text-[var(--landing-muted)]">
                   {pFmt(locale, "weightProjectedLine", { months: mesesProyeccionPeso })}{" "}
-                  <span className="font-semibold text-emerald-300">{pesoProyectado} kg</span>
+                  <span className="font-semibold text-success">{pesoProyectado} kg</span>
                 </p>
                 <div className="mt-3 rounded-lg bg-[color-mix(in_oklab,var(--foreground)_4%,transparent)] px-3 py-2 text-xs text-[var(--landing-muted)]">
                   {pFmt(locale, "weightDeltaBlurb", { delta: deltaTextoPeso })}
@@ -3494,7 +3496,7 @@ export default function PlanPage() {
                   <div className="mt-3 space-y-1 text-xs">
                     <p className="text-[var(--landing-muted)]">{p(locale, "maintenance")} {tdee} kcal</p>
                     {Math.abs(deficitSuperavit) > 50 ? (
-                      <p className={`font-semibold ${deficitSuperavit < 0 ? "text-emerald-300" : "text-[var(--brand-start)]"}`}>
+                      <p className={`font-semibold ${deficitSuperavit < 0 ? "text-success" : "text-[var(--brand-start)]"}`}>
                         {deficitSuperavit < 0
                           ? pFmt(locale, "deficitKcalDay", { n: Math.abs(deficitSuperavit) })
                           : pFmt(locale, "surplusKcalDay", { n: deficitSuperavit })}
@@ -3609,10 +3611,10 @@ export default function PlanPage() {
                           backgroundColor: "rgba(255,255,255,0.05)",
                           borderColor:
                             plan.dificultad === "dificil"
-                              ? "rgba(248,113,113,0.4)"
+                              ? "color-mix(in oklab, var(--danger) 40%, transparent)"
                               : plan.dificultad === "media"
-                                ? "rgba(250,204,21,0.4)"
-                                : "rgba(52,211,153,0.4)",
+                                ? "color-mix(in oklab, var(--warning) 40%, transparent)"
+                                : "color-mix(in oklab, var(--success) 40%, transparent)",
                         }}
                       >
                         <span
@@ -3620,10 +3622,10 @@ export default function PlanPage() {
                           style={{
                             color:
                               plan.dificultad === "dificil"
-                                ? "#fecaca"
+                                ? "var(--danger)"
                                 : plan.dificultad === "media"
-                                  ? "#fde68a"
-                                  : "#a7f3d0",
+                                  ? "var(--warning)"
+                                  : "var(--success)",
                           }}
                         >
                           {difficultyLabel(locale, plan.dificultad)}
@@ -3895,7 +3897,7 @@ export default function PlanPage() {
               onClick={() => setVistaPlan("alimentacion")}
               className={`rounded-xl border px-4 py-3 text-left transition-colors ${
                 vistaPlan === "alimentacion"
-                  ? "border-emerald-500/40 bg-emerald-500/15"
+                  ? "border-success/40 bg-success/15"
                   : "border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--foreground)_3%,transparent)] hover:bg-[color-mix(in_oklab,var(--foreground)_6%,transparent)]"
               }`}
             >
@@ -3916,7 +3918,7 @@ export default function PlanPage() {
                   <button
                     type="button"
                     onClick={() => setVistaPlan("alimentacion")}
-                    className="mt-3 rounded-lg border border-emerald-500/35 bg-emerald-500/15 px-3 py-1.5 text-xs font-medium text-[var(--foreground)] transition-colors hover:bg-emerald-500/25"
+                    className="mt-3 rounded-lg border border-success/35 bg-success/15 px-3 py-1.5 text-xs font-medium text-[var(--foreground)] transition-colors hover:bg-success/25"
                   >
                     {p(locale, "goToFood")}
                   </button>
@@ -4035,7 +4037,7 @@ export default function PlanPage() {
                       className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
                         !isPremium
                           ? 'cursor-not-allowed border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--foreground)_4%,transparent)] text-[var(--landing-muted)] opacity-50'
-                          : 'border-emerald-500/40 bg-emerald-500/15 text-[var(--foreground)] hover:bg-emerald-500/25'
+                          : 'border-success/40 bg-success/15 text-[var(--foreground)] hover:bg-success/25'
                       }`}
                     >
                       <FaChartLine className="h-3.5 w-3.5" />
@@ -4045,10 +4047,10 @@ export default function PlanPage() {
                       )}
             </button>
                     {!isPremium && (
-                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gradient-to-r from-yellow-500/95 to-orange-500/95 text-white text-xs font-medium rounded-lg shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 border border-yellow-400/50">
+                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-warning text-white text-xs font-medium rounded-lg shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 border border-warning/50">
                         💳 {p(locale, "requiresPremium")}
                         <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
-                          <div className="w-2 h-2 bg-gradient-to-r from-yellow-500 to-orange-500 rotate-45 border-r border-b border-yellow-400/50"></div>
+                          <div className="w-2 h-2 bg-warning rotate-45 border-r border-b border-warning/50"></div>
                         </div>
                       </div>
                     )}
@@ -4074,10 +4076,10 @@ export default function PlanPage() {
                       )}
             </button>
                     {!isPremium && (
-                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gradient-to-r from-yellow-500/95 to-orange-500/95 text-white text-xs font-medium rounded-lg shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 border border-yellow-400/50">
+                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-warning text-white text-xs font-medium rounded-lg shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-50 border border-warning/50">
                         💳 {p(locale, "requiresPremium")}
                         <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1">
-                          <div className="w-2 h-2 bg-gradient-to-r from-yellow-500 to-orange-500 rotate-45 border-r border-b border-yellow-400/50"></div>
+                          <div className="w-2 h-2 bg-warning rotate-45 border-r border-b border-warning/50"></div>
           </div>
                       </div>
                     )}
@@ -4141,11 +4143,11 @@ export default function PlanPage() {
               <h2 className="text-xl font-semibold mb-3 flex items-center gap-2">
                 💊 Suplementación Recomendada
                 <span className={`px-2 py-0.5 text-xs rounded-lg ${
-                  planMultiFase.faseActual === "BULK" 
-                    ? "bg-amber-500/20 text-amber-300" 
+                  planMultiFase.faseActual === "BULK"
+                    ? "bg-phase-bulk/20 text-phase-bulk"
                     : planMultiFase.faseActual === "CUT"
-                    ? "bg-cyan-500/20 text-cyan-300"
-                    : "bg-emerald-500/20 text-emerald-300"
+                    ? "bg-phase-cut/20 text-phase-cut"
+                    : "bg-phase-lean-bulk/20 text-phase-lean-bulk"
                 }`}>
                   Fase {planMultiFase.faseActual}
                 </span>
@@ -4156,9 +4158,9 @@ export default function PlanPage() {
                     key={`sup-${idx}-${sup.nombre}`}
                     className={`rounded-xl border p-4 ${
                       sup.prioridad === "esencial" 
-                        ? "bg-emerald-500/10 border-emerald-500/30" 
+                        ? "bg-success/10 border-success/30" 
                         : sup.prioridad === "recomendado"
-                        ? "bg-blue-500/10 border-blue-500/30"
+                        ? "bg-info/10 border-info/30"
                         : "bg-white/5 border-white/10"
                     }`}
                   >
@@ -4167,12 +4169,12 @@ export default function PlanPage() {
                         <h3 className="font-medium flex items-center gap-2">
                           {sup.nombre}
                           {sup.prioridad === "esencial" && (
-                            <span className="px-1.5 py-0.5 text-xs bg-emerald-500/30 text-emerald-300 rounded">
+                            <span className="px-1.5 py-0.5 text-xs bg-success/30 text-success rounded">
                               Esencial
                             </span>
                           )}
                           {sup.prioridad === "recomendado" && (
-                            <span className="px-1.5 py-0.5 text-xs bg-blue-500/30 text-blue-300 rounded">
+                            <span className="px-1.5 py-0.5 text-xs bg-info/30 text-info rounded">
                               Recomendado
                             </span>
                           )}
@@ -4227,7 +4229,7 @@ export default function PlanPage() {
                         key={`compras-${i}-${item}`}
                         className="flex items-start gap-2 rounded-lg border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--foreground)_3%,transparent)] px-3 py-2"
                       >
-                        <span className="mt-0.5 text-emerald-400">✓</span>
+                        <span className="mt-0.5 text-success">✓</span>
                         <span className="text-sm text-[var(--foreground)]">{item}</span>
                       </div>
                     ))}
@@ -4258,7 +4260,7 @@ export default function PlanPage() {
               <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
                 📈 Historial y Progreso
                 {planMultiFase.estado === "activo" && (
-                  <span className="px-2 py-0.5 text-xs rounded-lg bg-emerald-500/20 text-emerald-300">
+                  <span className="px-2 py-0.5 text-xs rounded-lg bg-success/20 text-success">
                     Plan Activo
                   </span>
                 )}
@@ -4271,25 +4273,25 @@ export default function PlanPage() {
                   <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-white/5 to-white/10 border border-white/10">
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                       <div>
-                        <p className="text-2xl font-bold text-emerald-400">
+                        <p className="text-2xl font-bold text-success">
                           {progreso.mesesCompletados}/{planMultiFase.totalMeses}
                         </p>
                         <p className="text-xs opacity-70">Meses completados</p>
                       </div>
                       <div>
-                        <p className={`text-2xl font-bold ${progreso.cambioNeto > 0 ? "text-amber-400" : progreso.cambioNeto < 0 ? "text-cyan-400" : "text-white"}`}>
+                        <p className={`text-2xl font-bold ${progreso.cambioNeto > 0 ? "text-warning" : progreso.cambioNeto < 0 ? "text-info" : "text-white"}`}>
                           {progreso.cambioNeto > 0 ? "+" : ""}{progreso.cambioNeto.toFixed(1)} kg
                         </p>
                         <p className="text-xs opacity-70">Cambio neto</p>
                       </div>
                       <div>
-                        <p className="text-2xl font-bold text-blue-400">
+                        <p className="text-2xl font-bold text-info">
                           {progreso.adherenciaPromedio.toFixed(0)}%
                         </p>
                         <p className="text-xs opacity-70">Adherencia promedio</p>
                       </div>
                       <div>
-                        <p className="text-2xl font-bold text-purple-400">
+                        <p className="text-2xl font-bold text-phase-maintenance">
                           {progreso.porcentajeCompletado.toFixed(0)}%
                         </p>
                         <p className="text-xs opacity-70">Progreso total</p>
@@ -4312,13 +4314,13 @@ export default function PlanPage() {
                             }}
                             transition={{ duration: 1, ease: "easeOut", delay: idx * 0.2 }}
                             className={`h-full inline-block ${
-                              fase.nombre === "BULK" 
-                                ? "bg-gradient-to-r from-amber-500 to-orange-500" 
+                              fase.nombre === "BULK"
+                                ? "bg-phase-bulk"
                                 : fase.nombre === "CUT"
-                                ? "bg-gradient-to-r from-cyan-500 to-blue-500"
+                                ? "bg-phase-cut"
                                 : fase.nombre === "LEAN_BULK"
-                                ? "bg-gradient-to-r from-emerald-500 to-teal-500"
-                                : "bg-gradient-to-r from-purple-500 to-pink-500"
+                                ? "bg-phase-lean-bulk"
+                                : "bg-phase-maintenance"
                             }`}
                           />
                         ))}
@@ -4342,7 +4344,7 @@ export default function PlanPage() {
                       transition={{ delay: idx * 0.1 }}
                       className={`p-4 rounded-xl border ${
                         esActual 
-                          ? "bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-blue-500/30" 
+                          ? "bg-gradient-to-r from-info/10 to-phase-maintenance/10 border-info/30" 
                           : completado
                           ? "bg-white/5 border-white/10"
                           : "bg-white/3 border-white/5 opacity-70"
@@ -4352,9 +4354,9 @@ export default function PlanPage() {
                         <div className="flex items-center gap-3">
                           <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${
                             esActual 
-                              ? "bg-blue-500/30 text-blue-200" 
+                              ? "bg-info/30 text-info" 
                               : completado
-                              ? "bg-emerald-500/30 text-emerald-200"
+                              ? "bg-success/30 text-success"
                               : "bg-white/10 text-white/50"
                           }`}>
                             {esActual ? "📍" : completado ? "✓" : mes.mesNumero}
@@ -4363,16 +4365,16 @@ export default function PlanPage() {
                             <p className="font-medium flex items-center gap-2">
                               Mes {mes.mesNumero}
                               <span className={`px-2 py-0.5 text-xs rounded ${
-                                mes.faseEnEsteMes === "BULK" 
-                                  ? "bg-amber-500/20 text-amber-300" 
+                                mes.faseEnEsteMes === "BULK"
+                                  ? "bg-phase-bulk/20 text-phase-bulk"
                                   : mes.faseEnEsteMes === "CUT"
-                                  ? "bg-cyan-500/20 text-cyan-300"
-                                  : "bg-emerald-500/20 text-emerald-300"
+                                  ? "bg-phase-cut/20 text-phase-cut"
+                                  : "bg-phase-lean-bulk/20 text-phase-lean-bulk"
                               }`}>
                                 {mes.faseEnEsteMes}
                               </span>
                               {esActual && (
-                                <span className="px-2 py-0.5 text-xs rounded bg-blue-500/20 text-blue-300">
+                                <span className="px-2 py-0.5 text-xs rounded bg-info/20 text-info">
                                   Actual
                                 </span>
                               )}
@@ -4402,9 +4404,9 @@ export default function PlanPage() {
                               <div className="text-center">
                                 <p className={`font-medium ${
                                   mes.datosAlFinalizar.peso > mes.datosAlIniciar.peso 
-                                    ? "text-amber-400" 
+                                    ? "text-warning" 
                                     : mes.datosAlFinalizar.peso < mes.datosAlIniciar.peso
-                                    ? "text-cyan-400"
+                                    ? "text-info"
                                     : "text-white"
                                 }`}>
                                   {mes.datosAlFinalizar.peso} kg
@@ -4446,19 +4448,19 @@ export default function PlanPage() {
                           <div className="flex items-center gap-1">
                             <span className="opacity-50">Adherencia alimentación:</span>
                             <span className={
-                              mes.datosAlFinalizar.adherenciaComida === ">80%" ? "text-emerald-400" :
-                              mes.datosAlFinalizar.adherenciaComida === "70-80%" ? "text-blue-400" :
-                              mes.datosAlFinalizar.adherenciaComida === "50-70%" ? "text-amber-400" :
-                              "text-red-400"
+                              mes.datosAlFinalizar.adherenciaComida === ">80%" ? "text-success" :
+                              mes.datosAlFinalizar.adherenciaComida === "70-80%" ? "text-info" :
+                              mes.datosAlFinalizar.adherenciaComida === "50-70%" ? "text-warning" :
+                              "text-danger"
                             }>{mes.datosAlFinalizar.adherenciaComida}</span>
                           </div>
                           <div className="flex items-center gap-1">
                             <span className="opacity-50">Adherencia entreno:</span>
                             <span className={
-                              mes.datosAlFinalizar.adherenciaEntreno === ">80%" ? "text-emerald-400" :
-                              mes.datosAlFinalizar.adherenciaEntreno === "70-80%" ? "text-blue-400" :
-                              mes.datosAlFinalizar.adherenciaEntreno === "50-70%" ? "text-amber-400" :
-                              "text-red-400"
+                              mes.datosAlFinalizar.adherenciaEntreno === ">80%" ? "text-success" :
+                              mes.datosAlFinalizar.adherenciaEntreno === "70-80%" ? "text-info" :
+                              mes.datosAlFinalizar.adherenciaEntreno === "50-70%" ? "text-warning" :
+                              "text-danger"
                             }>{mes.datosAlFinalizar.adherenciaEntreno}</span>
                           </div>
                         </div>
@@ -4508,16 +4510,16 @@ export default function PlanPage() {
                   </div>
 
                   {(user?.objetivo === "ganar_masa" || user?.objetivo === "volumen" || user?.objetivo === "recomposicion") && proyecciones.musculoGananciaMensual ? (
-                    <div className="rounded-xl border border-emerald-500/35 bg-emerald-500/10 p-3">
+                    <div className="rounded-xl border border-success/35 bg-success/10 p-3">
                       <p className="text-xs uppercase tracking-wide text-[var(--landing-muted)]">{p(locale, "monthlyGainEst")}</p>
-                      <p className="mt-1 text-lg font-semibold text-emerald-300">{proyecciones.musculoGananciaMensual}</p>
+                      <p className="mt-1 text-lg font-semibold text-success">{proyecciones.musculoGananciaMensual}</p>
                     </div>
                   ) : null}
 
                   {(user?.objetivo === "perder_grasa" || user?.objetivo === "corte" || user?.objetivo === "definicion") && proyecciones.grasaPerdidaMensual ? (
-                    <div className="rounded-xl border border-emerald-500/35 bg-emerald-500/10 p-3">
+                    <div className="rounded-xl border border-success/35 bg-success/10 p-3">
                       <p className="text-xs uppercase tracking-wide text-[var(--landing-muted)]">{p(locale, "monthlyLossEst")}</p>
-                      <p className="mt-1 text-lg font-semibold text-emerald-300">{proyecciones.grasaPerdidaMensual}</p>
+                      <p className="mt-1 text-lg font-semibold text-success">{proyecciones.grasaPerdidaMensual}</p>
                     </div>
                   ) : null}
                 </div>
@@ -4649,7 +4651,7 @@ export default function PlanPage() {
                       <span className="text-sm opacity-80">{p(locale, "fieldExperience")}</span>
                       <select
                         className="rounded-xl bg-white/5 px-3 py-2 text-white"
-                        style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', color: '#e6f6ff' }}
+                        style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', color: 'var(--foreground)' }}
                         value={datosEdicion.nivelExperiencia || 'intermedio'}
                         onChange={(e) =>
                           setDatosEdicion({
@@ -4667,7 +4669,7 @@ export default function PlanPage() {
                       <span className="text-sm opacity-80">{p(locale, "fieldEquipment")}</span>
                       <select
                         className="rounded-xl bg-white/5 px-3 py-2 text-white"
-                        style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', color: '#e6f6ff' }}
+                        style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', color: 'var(--foreground)' }}
                         value={datosEdicion.equipamiento || 'gimnasio'}
                         onChange={(e) =>
                           setDatosEdicion({
@@ -5022,8 +5024,8 @@ export default function PlanPage() {
                 className="glass rounded-2xl p-8 max-w-md w-full text-center"
               >
                 <div className="mb-4">
-                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-500/20 mb-4">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-info/20 mb-4">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-info"></div>
       </div>
                   <h3 className="text-xl font-semibold mb-2">Regenerando plan</h3>
                   <p className="text-sm opacity-70">
@@ -5031,7 +5033,7 @@ export default function PlanPage() {
                   </p>
                 </div>
                 {errorRegeneracion && (
-                  <div className="mt-4 p-3 rounded-lg bg-red-500/20 border border-red-500/30 text-red-300 text-sm">
+                  <div className="mt-4 p-3 rounded-lg bg-danger/20 border border-danger/30 text-danger text-sm">
                     {errorRegeneracion}
                   </div>
                 )}
@@ -5187,7 +5189,7 @@ export default function PlanPage() {
                   <div className="flex items-center gap-3">
                     <h2 className="text-2xl font-bold">🏋️ Plan de Entrenamiento</h2>
                     {splitResumen && (
-                      <span className="text-sm px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-medium">
+                      <span className="text-sm px-3 py-1 rounded-full bg-info/20 text-info border border-info/30 font-medium">
                         {splitResumen}
                       </span>
                     )}
@@ -5248,7 +5250,7 @@ export default function PlanPage() {
                       onClick={() => setSemanaSeleccionada(semana)}
                       className={`px-4 py-2 rounded-lg font-medium transition-all ${
                         semanaSeleccionada === semana
-                          ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white'
+                          ? 'bg-info text-white'
                           : 'bg-white/10 text-white/70 hover:bg-white/20'
                       }`}
                     >
@@ -5277,7 +5279,7 @@ export default function PlanPage() {
 
                   return (
                     <div className="space-y-4">
-                      <h3 className="text-lg font-semibold text-cyan-400 mb-4">
+                      <h3 className="text-lg font-semibold text-info mb-4">
                         {isPremium
                           ? `Semana ${semanaActual.week ?? semanaSeleccionada}`
                           : `Mes ${semanaActual.week ?? semanaSeleccionada}`}
@@ -5328,7 +5330,7 @@ export default function PlanPage() {
                           key={`dia-${semanaSeleccionada}-${di}`} 
                           className={`rounded-lg border-2 bg-white/5 p-4 transition-all ${
                             esDiaActual 
-                              ? 'border-cyan-500/50 bg-cyan-500/10 shadow-lg shadow-cyan-500/20' 
+                              ? 'border-info/50 bg-info/10 shadow-lg shadow-cyan-500/20' 
                               : 'border-white/10'
                           }`}
                         >
@@ -5337,9 +5339,9 @@ export default function PlanPage() {
                             className="w-full flex items-center justify-between mb-3"
                           >
                             <h4 className={`text-base font-semibold text-white flex items-center gap-2 ${
-                              esDiaActual ? 'text-cyan-300' : ''
+                              esDiaActual ? 'text-info' : ''
                             }`}>
-                              {esDiaActual && <span className="text-cyan-400">📍</span>}
+                              {esDiaActual && <span className="text-info">📍</span>}
                             {dia.day}
                             {musculos && (
                               <span className="text-sm font-normal opacity-70 ml-2">({musculos})</span>
@@ -5361,9 +5363,9 @@ export default function PlanPage() {
                               >
                           {/* Calentamiento */}
                           {dia.warmup && (
-                            <div className="mb-4 p-3 rounded-md bg-gradient-to-r from-orange-500/20 to-yellow-500/20 border border-orange-500/30">
+                            <div className="mb-4 p-3 rounded-md bg-warning/20 border border-warning/30">
                               <div className="flex items-center gap-2 mb-2">
-                                <span className="text-sm font-semibold text-orange-300">🔥 Calentamiento</span>
+                                <span className="text-sm font-semibold text-warning">🔥 Calentamiento</span>
                                 <span className="text-xs opacity-70">({dia.warmup.duration_minutes} min)</span>
                               </div>
                               <p className="text-sm opacity-90 leading-relaxed">{dia.warmup.description}</p>
@@ -5385,7 +5387,7 @@ export default function PlanPage() {
                                             <span className="font-semibold text-white">{ejercicio.name}</span>
                                             <span className="text-sm opacity-70">· {ejercicio.sets}x{String(ejercicio.reps)}</span>
                                             {ejercicio.muscle_group && (
-                                              <span className="text-xs px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                                              <span className="text-xs px-2 py-0.5 rounded bg-info/20 text-info border border-info/30">
                                                 {translateMuscleGroup(ejercicio.muscle_group, locale)}
                                               </span>
                                             )}
@@ -5424,10 +5426,10 @@ export default function PlanPage() {
                                       {/* Técnica (expandible) */}
                                       {ejercicio.technique && (
                                         <details className="mt-2">
-                                          <summary className="text-xs font-medium text-cyan-300 cursor-pointer hover:text-cyan-200">
+                                          <summary className="text-xs font-medium text-info cursor-pointer hover:text-info">
                                             💡 Técnica
                                           </summary>
-                                          <p className="mt-1 text-xs opacity-90 leading-relaxed pl-2 border-l-2 border-cyan-500/30">
+                                          <p className="mt-1 text-xs opacity-90 leading-relaxed pl-2 border-l-2 border-info/30">
                                             {ejercicio.technique}
                                           </p>
                                         </details>
@@ -5436,10 +5438,10 @@ export default function PlanPage() {
                                       {/* Progresión */}
                                       {ejercicio.progression && (
                                         <details className="mt-2">
-                                          <summary className="text-xs font-medium text-yellow-300 cursor-pointer hover:text-yellow-200">
+                                          <summary className="text-xs font-medium text-warning cursor-pointer hover:text-warning">
                                             📈 Progresión
                                           </summary>
-                                          <p className="mt-1 text-xs opacity-90 leading-relaxed pl-2 border-l-2 border-yellow-500/30">
+                                          <p className="mt-1 text-xs opacity-90 leading-relaxed pl-2 border-l-2 border-warning/30">
                                             {ejercicio.progression}
                                           </p>
                                         </details>
@@ -5448,7 +5450,7 @@ export default function PlanPage() {
                                       {/* Cues mentales */}
                                       {ejercicio.cues && ejercicio.cues.length > 0 && (
                                         <div className="mt-2">
-                                          <p className="text-xs font-medium text-purple-300 mb-1">🎯 Pistas mentales:</p>
+                                          <p className="text-xs font-medium text-phase-maintenance mb-1">🎯 Pistas mentales:</p>
                                           <ul className="list-disc pl-4 space-y-0.5">
                                             {ejercicio.cues.map((cue, cueIdx) => (
                                               <li key={`cue-${ei}-${cueIdx}`} className="text-xs opacity-90">{cue}</li>
@@ -5459,8 +5461,8 @@ export default function PlanPage() {
                                       
                                       {/* Alternativa (si hay lesión) */}
                                       {ejercicio.alternative && (
-                                        <div className="mt-2 p-2 rounded bg-orange-500/10 border border-orange-500/30">
-                                          <p className="text-xs font-medium text-orange-300 mb-1">⚠️ Alternativa (si tienes lesión):</p>
+                                        <div className="mt-2 p-2 rounded bg-warning/10 border border-warning/30">
+                                          <p className="text-xs font-medium text-warning mb-1">⚠️ Alternativa (si tienes lesión):</p>
                                           <p className="text-xs opacity-90">{ejercicio.alternative}</p>
                                         </div>
                                       )}
@@ -5610,17 +5612,17 @@ export default function PlanPage() {
               
               <p className="text-sm opacity-70 mb-4">
                 Ingresá tus datos actuales para generar el plan del próximo mes con ajustes personalizados.
-                Este proceso puede tardar hasta <span className="font-semibold text-emerald-300">1 minuto</span>. 
+                Este proceso puede tardar hasta <span className="font-semibold text-success">1 minuto</span>. 
                 No cierres esta página mientras se genera la nueva etapa.
               </p>
               
               {/* Info de fase actual */}
               <div className={`mb-4 p-3 rounded-xl ${
-                planMultiFase.faseActual === "BULK" 
-                  ? "bg-amber-500/10 border border-amber-500/20" 
+                planMultiFase.faseActual === "BULK"
+                  ? "bg-phase-bulk/10 border border-phase-bulk/20"
                   : planMultiFase.faseActual === "CUT"
-                  ? "bg-cyan-500/10 border border-cyan-500/20"
-                  : "bg-emerald-500/10 border border-emerald-500/20"
+                  ? "bg-phase-cut/10 border border-phase-cut/20"
+                  : "bg-phase-lean-bulk/10 border border-phase-lean-bulk/20"
               }`}>
                 <div className="flex items-center gap-2 text-sm">
                   <span className="font-semibold">Fase actual: {planMultiFase.faseActual}</span>
@@ -5638,7 +5640,7 @@ export default function PlanPage() {
                 {/* Peso Actual (OBLIGATORIO) */}
                 <div>
                   <label className="block text-sm font-medium mb-1">
-                    Peso Actual (kg) <span className="text-red-400">*</span>
+                    Peso Actual (kg) <span className="text-danger">*</span>
                   </label>
                   <input
                     type="number"
@@ -5760,7 +5762,7 @@ export default function PlanPage() {
               </div>
               
               {errorSiguienteMes && (
-                <div className="mt-4 p-3 rounded-xl bg-red-500/20 border border-red-500/30 text-red-200 text-sm">
+                <div className="mt-4 p-3 rounded-xl bg-danger/20 border border-danger/30 text-danger text-sm">
                   {errorSiguienteMes}
                 </div>
               )}
@@ -5775,11 +5777,11 @@ export default function PlanPage() {
                 </button>
                 <button
                   className={`flex-1 rounded-xl px-4 py-3 font-medium transition-colors disabled:opacity-50 ${
-                    planMultiFase.faseActual === "BULK" 
-                      ? "bg-amber-500/20 border border-amber-500/30 hover:bg-amber-500/30 text-amber-200" 
+                    planMultiFase.faseActual === "BULK"
+                      ? "bg-phase-bulk/20 border border-phase-bulk/30 hover:bg-phase-bulk/30 text-phase-bulk"
                       : planMultiFase.faseActual === "CUT"
-                      ? "bg-cyan-500/20 border border-cyan-500/30 hover:bg-cyan-500/30 text-cyan-200"
-                      : "bg-emerald-500/20 border border-emerald-500/30 hover:bg-emerald-500/30 text-emerald-200"
+                      ? "bg-phase-cut/20 border border-phase-cut/30 hover:bg-phase-cut/30 text-phase-cut"
+                      : "bg-phase-lean-bulk/20 border border-phase-lean-bulk/30 hover:bg-phase-lean-bulk/30 text-phase-lean-bulk"
                   }`}
                   onClick={handleGenerarSiguienteMes}
                   disabled={!datosSiguienteMes.pesoActual || generandoSiguienteMes}

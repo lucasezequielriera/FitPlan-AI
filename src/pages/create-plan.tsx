@@ -319,7 +319,7 @@ export default function CreatePlan() {
   const maxStep = 3;
   const field =
     "w-full rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] px-3.5 py-2.5 text-sm text-[var(--foreground)] placeholder:text-[var(--landing-muted)] outline-none transition focus:border-[color-mix(in_oklab,var(--landing-accent)_32%,transparent)] focus:ring-2 focus:ring-[color-mix(in_oklab,var(--landing-accent)_38%,transparent)]";
-  const fieldErr = "border-red-500/50 ring-1 ring-red-500/15";
+  const fieldErr = "border-danger/50 ring-1 ring-danger/15";
   const lbl = "text-sm font-medium text-[var(--foreground)]";
   const hint = "text-xs text-[var(--landing-muted)] mt-1";
   const card = "rounded-2xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--foreground)_3%,transparent)] p-4 sm:p-5";
@@ -1261,7 +1261,7 @@ export default function CreatePlan() {
               <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-2">
                 <label className="flex flex-col gap-1.5">
                   <span className={lbl}>
-                    {cp(locale, "name")} <span className="text-red-400">*</span>
+                    {cp(locale, "name")} <span className="text-danger">*</span>
                   </span>
                   <input 
                     className={`${field} ${nombreError ? fieldErr : ""}`} 
@@ -1276,7 +1276,7 @@ export default function CreatePlan() {
                     required
                   />
                   {nombreError && (
-                    <span className="text-xs text-red-400 mt-1">{nombreError}</span>
+                    <span className="text-xs text-danger mt-1">{nombreError}</span>
                   )}
                 </label>
                 <label className="flex flex-col gap-1.5">
@@ -1288,7 +1288,7 @@ export default function CreatePlan() {
                 </label>
                 <label className="flex flex-col gap-1.5">
                   <span className={lbl}>
-                    {cp(locale, "age")} <span className="text-red-400">*</span>
+                    {cp(locale, "age")} <span className="text-danger">*</span>
                   </span>
                   <input 
                     type="number" 
@@ -1325,12 +1325,12 @@ export default function CreatePlan() {
                     required
                   />
                   {edadError && (
-                    <span className="text-xs text-red-400 mt-1">{edadError}</span>
+                    <span className="text-xs text-danger mt-1">{edadError}</span>
                   )}
                 </label>
                 <label className="flex flex-col gap-1.5">
                   <span className={lbl}>
-                    {cp(locale, "height")} <span className="text-red-400">*</span>
+                    {cp(locale, "height")} <span className="text-danger">*</span>
                   </span>
                   <input 
                     type="number" 
@@ -1371,12 +1371,12 @@ export default function CreatePlan() {
                     required
                   />
                   {alturaError && (
-                    <span className="text-xs text-red-400 mt-1">{alturaError}</span>
+                    <span className="text-xs text-danger mt-1">{alturaError}</span>
                   )}
                 </label>
                 <label className="flex flex-col gap-1.5">
                   <span className={lbl}>
-                    {cp(locale, "weight")} <span className="text-red-400">*</span>
+                    {cp(locale, "weight")} <span className="text-danger">*</span>
                   </span>
                   <input 
                     type="number" 
@@ -1413,7 +1413,7 @@ export default function CreatePlan() {
                     required
                   />
                   {pesoError && (
-                    <span className="text-xs text-red-400 mt-1">{pesoError}</span>
+                    <span className="text-xs text-danger mt-1">{pesoError}</span>
                   )}
                   <p className={hint}>
                     {cp(locale, "weightHint")}
@@ -1516,11 +1516,11 @@ export default function CreatePlan() {
                     initial={{ opacity: 0, y: -8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.2, delay: 0.1 }}
-                    className="mt-3 rounded-2xl border border-amber-500/35 bg-[color-mix(in_oklab,#f59e0b_12%,transparent)] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+                    className="mt-3 rounded-2xl border border-warning/35 bg-[color-mix(in_oklab,var(--warning)_12%,transparent)] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
                   >
                     <label className="flex flex-col gap-1.5">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-semibold text-amber-200">🎯 {cp(locale, "weightGoalTitle")}</span>
+                        <span className="text-sm font-semibold text-warning">🎯 {cp(locale, "weightGoalTitle")}</span>
                         <span className="text-xs text-[var(--landing-muted)]">
                           {(form.objetivo === "bulk_cut" || form.objetivo === "lean_bulk")
                             ? cp(locale, "recommended")
@@ -1529,7 +1529,7 @@ export default function CreatePlan() {
                       </div>
                       <input 
                         type="number" 
-                        className={`${field} border-amber-500/30 focus:border-amber-500/50 focus:ring-amber-500/25`}
+                        className={`${field} border-warning/30 focus:border-warning/50 focus:ring-warning/25`}
                         value={form.pesoObjetivoKg ?? ""} 
                         onChange={(e) => update("pesoObjetivoKg", e.target.value ? Number(e.target.value) : undefined)}
                         placeholder={`${cp(locale, "phWeightGoal")} ${form.pesoKg ? Math.round(form.pesoKg * 1.15) : 90} kg`}
@@ -1550,7 +1550,7 @@ export default function CreatePlan() {
                           animate={{ opacity: 1, height: "auto" }}
                           className={`mt-3 ${card}`}
                         >
-                          <p className="text-amber-300 font-semibold mb-2 flex items-center gap-2">
+                          <p className="text-warning font-semibold mb-2 flex items-center gap-2">
                             📊 {cp(locale, "projTitle")}
                             <span className="text-xs font-normal opacity-70">{cp(locale, "projBasedOn")}</span>
                           </p>
@@ -1606,21 +1606,21 @@ export default function CreatePlan() {
                               return (
                                 <div className="space-y-3 text-sm">
                                   <div className="grid grid-cols-2 gap-3">
-                                    <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                                    <div className="p-2 rounded-lg bg-phase-bulk/10 border border-phase-bulk/20">
                                       <p className="text-xs opacity-70">{cp(locale, "projPhaseBulk")}</p>
-                                      <p className="font-bold text-amber-300">{mesesBulk} {cp(locale, "projMonths")}</p>
+                                      <p className="font-bold text-phase-bulk">{mesesBulk} {cp(locale, "projMonths")}</p>
                                       <p className="text-xs opacity-70">{pesoActual}kg → {pesoBulk}kg</p>
                                       <p className="text-xs opacity-60">~{caloriasBulk} {cp(locale, "projKcalDay")}</p>
                                     </div>
-                                    <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
+                                    <div className="p-2 rounded-lg bg-phase-cut/10 border border-phase-cut/20">
                                       <p className="text-xs opacity-70">{cp(locale, "projPhaseCut")}</p>
-                                      <p className="font-bold text-cyan-300">{mesesCut} {cp(locale, "projMonths")}</p>
+                                      <p className="font-bold text-phase-cut">{mesesCut} {cp(locale, "projMonths")}</p>
                                       <p className="text-xs opacity-70">{pesoBulk}kg → {pesoObjetivo}kg</p>
                                       <p className="text-xs opacity-60">~{caloriasCut} {cp(locale, "projKcalDay")}</p>
                                     </div>
                                   </div>
-                                  
-                                  <div className="p-2 rounded-lg bg-gradient-to-r from-amber-500/20 to-cyan-500/20 border border-white/10">
+
+                                  <div className="p-2 rounded-lg bg-gradient-to-r from-phase-bulk/20 to-phase-cut/20 border border-white/10">
                                     <div className="flex justify-between items-center">
                                       <div>
                                         <p className="text-xs opacity-70">{cp(locale, "projTimeTotal")}</p>
@@ -1628,7 +1628,7 @@ export default function CreatePlan() {
                                       </div>
                                       <div className="text-right">
                                         <p className="text-xs opacity-70">{cp(locale, "projMuscleNet")}</p>
-                                        <p className="font-bold text-emerald-400">~{Math.round(diferencia * 0.85)} kg</p>
+                                        <p className="font-bold text-success">~{Math.round(diferencia * 0.85)} kg</p>
                                       </div>
                                     </div>
                                   </div>
@@ -1657,11 +1657,11 @@ export default function CreatePlan() {
                               
                               return (
                                 <div className="space-y-3 text-sm">
-                                  <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                                  <div className="p-2 rounded-lg bg-phase-lean-bulk/10 border border-phase-lean-bulk/20">
                                     <div className="flex justify-between items-center">
                                       <div>
                                         <p className="text-xs opacity-70">{cp(locale, "projPhaseLean")}</p>
-                                        <p className="font-bold text-emerald-300">{mesesTotal} {cp(locale, "projMonths")}</p>
+                                        <p className="font-bold text-phase-lean-bulk">{mesesTotal} {cp(locale, "projMonths")}</p>
                                       </div>
                                       <div className="text-right">
                                         <p className="text-xs opacity-70">{cp(locale, "projGainPerMonth")}</p>
@@ -1680,7 +1680,7 @@ export default function CreatePlan() {
                                       </div>
                                       <div className="text-right">
                                         <p className="text-xs opacity-70">{cp(locale, "projMuscleEst")}</p>
-                                        <p className="font-bold text-emerald-400">~{Math.round(diferencia * 0.9)} kg</p>
+                                        <p className="font-bold text-success">~{Math.round(diferencia * 0.9)} kg</p>
                                       </div>
                                     </div>
                                   </div>
@@ -2085,7 +2085,7 @@ export default function CreatePlan() {
             )}
           </div>
           {error ? (
-            <p className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</p>
+            <p className="mt-4 rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">{error}</p>
           ) : null}
             </div>
           </motion.div>

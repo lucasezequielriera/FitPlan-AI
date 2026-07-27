@@ -231,7 +231,7 @@ export default function ExerciseSetTracker({
       {/* Botón para expandir/colapsar */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full flex items-center justify-between text-sm font-medium text-cyan-300 hover:text-cyan-200 transition-colors mb-2"
+        className="w-full flex items-center justify-between text-sm font-medium text-info hover:text-info transition-colors mb-2"
       >
         <span className="flex items-center gap-2">
           {isExpanded ? <FaChevronUp className="text-xs" /> : <FaChevronDown className="text-xs" />}
@@ -274,7 +274,7 @@ export default function ExerciseSetTracker({
               key={set.setNumber}
               className={`grid grid-cols-[auto_1fr_auto_auto_auto] gap-2 items-center p-2 rounded-lg transition-colors ${
                 set.completed
-                  ? "bg-green-500/10 border border-green-500/30"
+                  ? "bg-success/10 border border-success/30"
                   : "bg-white/5 border border-white/10"
               }`}
             >
@@ -312,7 +312,7 @@ export default function ExerciseSetTracker({
                     }
                   }}
                   placeholder={suggestedWeight ? suggestedWeight.toString() : "0"}
-                  className="w-16 px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white placeholder-white/40 focus:outline-none focus:border-cyan-500/50 focus:bg-white/15 text-center"
+                  className="w-16 px-2 py-1 text-xs bg-white/10 border border-white/20 rounded text-white placeholder-white/40 focus:outline-none focus:border-info/50 focus:bg-white/15 text-center"
                 />
               </div>
 
@@ -324,7 +324,7 @@ export default function ExerciseSetTracker({
                 }}
                 className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
                   set.completed
-                    ? "bg-green-500 border-green-500"
+                    ? "bg-success border-success"
                     : "border-white/30 hover:border-white/50"
                 }`}
               >
@@ -350,10 +350,10 @@ export default function ExerciseSetTracker({
                 </>
               )}
               {saving && (
-                <span className="text-cyan-400 ml-auto">Guardando...</span>
+                <span className="text-info ml-auto">Guardando...</span>
               )}
               {saved && !saving && (
-                <span className="text-green-400 ml-auto">✓ Guardado</span>
+                <span className="text-success ml-auto">✓ Guardado</span>
               )}
             </div>
           </motion.div>
