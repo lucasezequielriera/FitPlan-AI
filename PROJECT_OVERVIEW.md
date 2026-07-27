@@ -143,17 +143,18 @@ Sistema propio (no usa next-i18next ni similar): diccionarios `{ key: { es, en }
 4. Seguimiento diario (comida/entrenamiento/peso) se sincroniza con colas de reintento cuando hay conectividad intermitente (`weightSyncQueue.ts`).
 5. Al cerrar el mes, `analyzePlanCompletion.ts` genera el análisis para decidir ajustes del próximo mes (`MonthChangesModal`).
 
-### 4.5 Contenido social automático (marketing, en construcción)
+### 4.5 Contenido social automático (marketing)
 
-Cron diario (`/api/cron/generateDailyContent`, `src/lib/socialContent/`) que genera y publica una pieza de contenido por día:
+Cron diario (`/api/cron/generateDailyContent`, `src/lib/socialContent/`) que genera y publica un video por día en Instagram y TikTok, sin intervención humana:
 
 1. Elige un tema rotando (tip de nutrición/entrenamiento, mito vs. realidad, motivacional, feature de la app) evitando repetir los últimos 5 días.
-2. Genera el copy (título de imagen, caption IG, caption TikTok, hashtags) con OpenAI.
-3. Renderiza una imagen de marca 1080x1080 vía `@vercel/og` (`/api/internal/renderSocialImage`, Edge Runtime) y la sube a Cloudinary.
-4. Publica en Instagram vía Graph API (`postToInstagram.ts`) — **requiere que tu app de Meta for Developers tenga aprobado el permiso `instagram_content_publish`**, si no, el contenido se genera y guarda igual pero no se publica.
-5. TikTok (`postToTikTok.ts`) está armado pero **no conectado al cron todavía** — TikTok es una red mayormente de video, y el pipeline de video (Remotion u otro renderer) no está construido en esta pasada; requiere una decisión aparte sobre dónde correr el renderizado (no es viable directamente en una función serverless de Vercel por tiempo/tamaño).
+2. Genera el copy con OpenAI (`gpt-4o`, prompt con reglas estrictas de calidad/especificidad — ver `generateCopy.ts`): hook, insight concreto con mecanismo, aplicación práctica, cierre hacia FitPlan AI, captions distintos para Instagram/TikTok, hashtags.
+3. Renderiza un frame de marca vertical 1080x1920 vía `@vercel/og` (`/api/internal/renderSocialImage`, Edge Runtime).
+4. Convierte ese frame en un video corto (6s, zoom lento) con `ffmpeg` (`renderVideo.ts`, binario empaquetado vía `@ffmpeg-installer/ffmpeg`, corre en la función Node del cron — deliberadamente no usa Remotion/Chromium, que no es viable en serverless de Vercel por tiempo/tamaño) y lo sube a Cloudinary.
+5. Publica el video como Reel en Instagram (`postVideoToInstagram`, maneja el procesamiento asíncrono de Instagram con polling) y como video en TikTok (`postVideoToTikTok`) — cada uno se publica si tiene credenciales configuradas; si a alguno le faltan, el contenido se genera y guarda igual y se avisa por Telegram sin bloquear al otro.
+6. Un segundo cron diario (`/api/cron/refreshInstagramToken`) renueva el token de Instagram antes de que venza (~60 días), cacheado en Firestore (`instagramTokenStore.ts`) porque una función serverless no puede reescribir env vars de Vercel en runtime.
 
-Todo el historial queda en Firestore (`socialContent/{YYYY-MM-DD}`), y cada corrida notifica por Telegram si se publicó o si faltó configuración.
+Todo el historial queda en Firestore (`socialContent/{YYYY-MM-DD}`), y cada corrida notifica por Telegram si se publicó o si faltó configuración/falló algo.
 
 ---
 

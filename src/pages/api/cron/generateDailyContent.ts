@@ -4,8 +4,10 @@ import { getAdminDb } from "@/lib/firebase-admin";
 import { getSiteOriginFromRequest } from "@/lib/requestSiteOrigin";
 import { pickNextTopic, type SocialTopic } from "@/lib/socialContent/topics";
 import { generateSocialCopy } from "@/lib/socialContent/generateCopy";
+import { renderZoomVideoFromImage } from "@/lib/socialContent/renderVideo";
 import { uploadBufferToCloudinary } from "@/lib/socialContent/cloudinaryUpload";
-import { postImageToInstagram } from "@/lib/socialContent/postToInstagram";
+import { postVideoToInstagram } from "@/lib/socialContent/postToInstagram";
+import { postVideoToTikTok } from "@/lib/socialContent/postToTikTok";
 import { getInstagramAccessToken } from "@/lib/socialContent/instagramTokenStore";
 import { sendTelegramMessage } from "@/lib/telegram";
 
@@ -29,13 +31,15 @@ function todayId(): string {
 }
 
 /**
- * Genera y publica el contenido social del día: elige un tema, genera copy
- * con IA, renderiza una imagen de marca, la sube a Cloudinary, y la publica
- * en Instagram (si hay credenciales configuradas). TikTok todavía no está
- * conectado acá — el pipeline de video (necesario para TikTok, que es una
- * red mayormente de video) es un paso siguiente, no construido en esta
- * pasada. Ver INSTAGRAM_ACCESS_TOKEN/INSTAGRAM_BUSINESS_ACCOUNT_ID en el
- * README para activar la publicación real.
+ * Genera y publica el contenido social del día:
+ * 1. Elige un tema (rotando, sin repetir los últimos 5 días) y genera el
+ *    copy con IA (ver generateCopy.ts).
+ * 2. Renderiza un frame de marca vertical (9:16) vía @vercel/og.
+ * 3. Lo convierte en un video corto (6s, zoom lento) con ffmpeg — ver
+ *    renderVideo.ts para por qué no se usa Remotion/Chromium acá.
+ * 4. Sube el video a Cloudinary y lo publica como Reel en Instagram y como
+ *    video en TikTok (cualquiera de los dos que tenga credenciales
+ *    configuradas; si a alguno le faltan, se guarda igual y se avisa).
  *
  * Idempotente por día: si ya existe un doc para hoy, no vuelve a generar
  * (evita duplicar posts si el cron se dispara más de una vez).
@@ -80,31 +84,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const imageParams = new URLSearchParams({
       headline: copy.imageHeadline,
       subtext: copy.imageSubtext,
+      format: "story",
     });
-    const imageResp = await fetch(`${origin}/api/internal/renderSocialImage?${imageParams}`);
-    if (!imageResp.ok) {
-      throw new Error(`No se pudo renderizar la imagen social (HTTP ${imageResp.status})`);
+    const frameResp = await fetch(`${origin}/api/internal/renderSocialImage?${imageParams}`);
+    if (!frameResp.ok) {
+      throw new Error(`No se pudo renderizar el frame social (HTTP ${frameResp.status})`);
     }
-    const imageBuffer = Buffer.from(await imageResp.arrayBuffer());
-    const imageUrl = await uploadBufferToCloudinary(imageBuffer, {
+    const frameBuffer = Buffer.from(await frameResp.arrayBuffer());
+
+    const videoBuffer = await renderZoomVideoFromImage(frameBuffer);
+    const videoUrl = await uploadBufferToCloudinary(videoBuffer, {
       folder: "fitplan-social",
       publicId: `social-${docId}`,
+      resourceType: "video",
     });
 
+    const instagramCaption = `${copy.instagramCaption}\n\n${copy.hashtags.map((h) => `#${h}`).join(" ")}`;
     const instagramAccessToken = await getInstagramAccessToken(db);
-    const instagramResult = await postImageToInstagram({
-      imageUrl,
-      caption: `${copy.instagramCaption}\n\n${copy.hashtags.map((h) => `#${h}`).join(" ")}`,
+    const instagramResult = await postVideoToInstagram({
+      videoUrl,
+      caption: instagramCaption,
       accessToken: instagramAccessToken,
+    });
+
+    const tiktokCaption = `${copy.tiktokCaption}\n\n${copy.hashtags.map((h) => `#${h}`).join(" ")}`;
+    const tiktokResult = await postVideoToTikTok({
+      videoUrl,
+      caption: tiktokCaption,
     });
 
     await docRef.set({
       date: docId,
       topic,
       copy,
-      imageUrl,
+      videoUrl,
       instagram: instagramResult,
-      tiktok: { ok: false, status: "not_configured", message: "Pipeline de video no construido todavía." },
+      tiktok: tiktokResult,
       createdAt: FieldValue.serverTimestamp(),
     });
 
@@ -114,7 +129,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       instagramResult.ok
         ? `✅ Publicado en Instagram (post ${instagramResult.platformPostId})`
         : `⚠️ Instagram: ${instagramResult.message}`,
-      `⏳ TikTok: pendiente (falta pipeline de video)`,
+      tiktokResult.ok
+        ? `✅ Publicado en TikTok (post ${tiktokResult.platformPostId})`
+        : `⚠️ TikTok: ${tiktokResult.message}`,
     ];
     await sendTelegramMessage(telegramLines.join("\n")).catch((err) => {
       console.warn("⚠️ No se pudo enviar notificación de Telegram de contenido social:", err);
@@ -124,8 +141,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       ok: true,
       docId,
       topic,
-      imageUrl,
+      videoUrl,
       instagram: instagramResult,
+      tiktok: tiktokResult,
     });
   } catch (error) {
     console.error("Error generando contenido social diario:", error);
