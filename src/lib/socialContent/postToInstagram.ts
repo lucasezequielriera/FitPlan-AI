@@ -91,7 +91,14 @@ export async function postImageToInstagram(params: {
 export async function postVideoToInstagram(params: {
   videoUrl: string;
   caption: string;
-  /** Descripción de accesibilidad para lectores de pantalla. */
+  /**
+   * Descripción de accesibilidad. NO se envía a Instagram: la Graph API
+   * rechaza `alt_text` para `media_type=REELS` (400 "not supported for
+   * REEL") — Meta solo lo soporta en posts de imagen, no en reels ni
+   * stories. Se acepta este parámetro igual para no romper la firma de
+   * `generateAndPublishOne`/`socialContentPublishDraft`, que lo pasan desde
+   * `SocialCopy.altText`; ese texto sigue mostrándose en el admin.
+   */
   altText?: string;
   accessToken?: string | null;
   /**
@@ -123,9 +130,6 @@ export async function postVideoToInstagram(params: {
       caption: params.caption,
       access_token: accessToken,
     };
-    if (params.altText) {
-      createParams.alt_text = params.altText.slice(0, 500); // límite documentado por Instagram
-    }
 
     const createResp = await fetch(`${GRAPH_BASE}/${igUserId}/media?${new URLSearchParams(createParams)}`, {
       method: "POST",
