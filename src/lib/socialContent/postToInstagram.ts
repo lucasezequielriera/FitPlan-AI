@@ -95,13 +95,12 @@ export async function postVideoToInstagram(params: {
   altText?: string;
   accessToken?: string | null;
   /**
-   * Tope de espera del procesamiento de Instagram, en ms. Default corto
-   * (25s) porque el cron/endpoint que llama a esto corre en un plan de
-   * Vercel con límite duro de 60s por función (Hobby) — hay que dejar
-   * margen para el resto del pipeline (generar copy, armar el video, subir
-   * a Cloudinary). Si Instagram no termina de procesar en ese tiempo, se
-   * reporta como error (no bloquea el resto) — no hay forma de esperar más
-   * sin subir de plan o partir esto en dos invocaciones.
+   * Tope de espera del procesamiento de Instagram, en ms. El endpoint que
+   * llama a esto corre con maxDuration 300s (ver vercel.json), así que se
+   * deja este margen amplio mientras el resto del pipeline (copy, video,
+   * TTS, subida a Cloudinary) suele consumir bastante menos de un minuto.
+   * Si Instagram no termina de procesar en ese tiempo, se reporta como
+   * error (no bloquea el resto).
    */
   maxWaitMs?: number;
 }): Promise<PostResult> {
@@ -137,7 +136,7 @@ export async function postVideoToInstagram(params: {
     }
     const creationId = String(createData.id);
 
-    const maxWaitMs = params.maxWaitMs ?? 25000;
+    const maxWaitMs = params.maxWaitMs ?? 180000;
     const pollIntervalMs = 2500;
     const deadline = Date.now() + maxWaitMs;
 

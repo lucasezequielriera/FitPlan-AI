@@ -13,13 +13,13 @@
       "maxDuration": 60
     },
     "src/pages/api/cron/generateDailyContent.ts": {
-      "maxDuration": 60
+      "maxDuration": 300
     },
     "src/pages/api/admin/socialContentGeneratePreview.ts": {
-      "maxDuration": 60
+      "maxDuration": 300
     },
     "src/pages/api/admin/socialContentPublishDraft.ts": {
-      "maxDuration": 60
+      "maxDuration": 300
     }
   },
   "crons": [
