@@ -7,46 +7,76 @@ import { getIsAdminClient, adminFetch } from "@/lib/adminAuthClient";
 import Navbar from "@/components/Navbar";
 import { FaArrowLeft, FaMagic, FaVideo, FaPaperPlane, FaLightbulb, FaClock, FaPlus, FaTrash, FaQuestionCircle, FaChevronDown, FaChevronUp } from "react-icons/fa";
 
-// Argentina no tiene horario de verano desde 2009 (UTC-3 fijo), así que la
-// conversión es una resta/suma simple sin lógica de DST.
-const AR_UTC_OFFSET_HOURS = 3;
+// Madrid tiene horario de verano (CET/CEST), así que el offset respecto a
+// UTC cambia dos veces al año — no alcanza con una resta fija como en
+// Argentina; usamos Intl para leer el offset real vigente en cada momento.
+const MADRID_TZ = "Europe/Madrid";
 
-function utcToArLocal(hhmm: string): string {
-  const [h, m] = hhmm.split(":").map((n) => parseInt(n, 10));
-  const localH = (h - AR_UTC_OFFSET_HOURS + 24) % 24;
-  return `${String(localH).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+/** Offset en minutos de `timeZone` respecto a UTC para el instante `date` (positivo si va adelantado). */
+function getTimeZoneOffsetMinutes(timeZone: string, date: Date): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(date);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  const asUtc = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"), get("second"));
+  return (asUtc - date.getTime()) / 60000;
 }
 
-function arLocalToUtc(hhmm: string): string {
+function utcToMadridLocal(hhmm: string): string {
   const [h, m] = hhmm.split(":").map((n) => parseInt(n, 10));
-  const utcH = (h + AR_UTC_OFFSET_HOURS) % 24;
-  return `${String(utcH).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  const offsetMin = getTimeZoneOffsetMinutes(MADRID_TZ, new Date());
+  const total = (((h * 60 + m + offsetMin) % 1440) + 1440) % 1440;
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 }
 
-/** Convierte un valor de <input type="datetime-local"> (interpretado como hora Argentina) a ISO UTC. */
-function arLocalDatetimeToUtcIso(datetimeLocal: string): string | null {
+function madridLocalToUtc(hhmm: string): string {
+  const [h, m] = hhmm.split(":").map((n) => parseInt(n, 10));
+  const offsetMin = getTimeZoneOffsetMinutes(MADRID_TZ, new Date());
+  const total = (((h * 60 + m - offsetMin) % 1440) + 1440) % 1440;
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
+/** Convierte un valor de <input type="datetime-local"> (interpretado como hora Madrid) a ISO UTC. */
+function madridLocalDatetimeToUtcIso(datetimeLocal: string): string | null {
   const match = datetimeLocal.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
   if (!match) return null;
   const [, y, mo, d, hh, mm] = match;
-  const utcDate = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh) + AR_UTC_OFFSET_HOURS, Number(mm)));
-  return utcDate.toISOString();
+  // Primero una estimación tratando la fecha como si fuera UTC, solo para
+  // determinar si esa fecha cae en CET o CEST (el offset real de Madrid).
+  const guessUtc = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm)));
+  const offsetMin = getTimeZoneOffsetMinutes(MADRID_TZ, guessUtc);
+  return new Date(guessUtc.getTime() - offsetMin * 60000).toISOString();
 }
 
-function formatArDatetime(iso: string): string {
-  return new Date(iso).toLocaleString("es-AR", {
-    timeZone: "America/Argentina/Buenos_Aires",
+function formatMadridDatetime(iso: string): string {
+  return new Date(iso).toLocaleString("es-ES", {
+    timeZone: MADRID_TZ,
     dateStyle: "short",
     timeStyle: "short",
   });
 }
 
-/** Valor inicial para el input datetime-local: dentro de 1 hora, hora Argentina. */
+/** Valor inicial para el input datetime-local: dentro de 1 hora, hora Madrid. */
 function defaultScheduleLocalValue(): string {
-  const inOneHourUtc = new Date(Date.now() + 60 * 60 * 1000);
-  const arMs = inOneHourUtc.getTime() - AR_UTC_OFFSET_HOURS * 60 * 60 * 1000;
-  const ar = new Date(arMs);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${ar.getUTCFullYear()}-${pad(ar.getUTCMonth() + 1)}-${pad(ar.getUTCDate())}T${pad(ar.getUTCHours())}:${pad(ar.getUTCMinutes())}`;
+  const inOneHour = new Date(Date.now() + 60 * 60 * 1000);
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: MADRID_TZ,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).formatToParts(inOneHour);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "00";
+  return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
 }
 
 type PreviewCopy = {
@@ -119,7 +149,7 @@ export default function AdminContenidoSocialPage() {
         const data = await resp.json();
         if (resp.ok) {
           setScheduleEnabled(data.enabled);
-          setScheduleTimesLocal((data.timesUtc || []).map(utcToArLocal));
+          setScheduleTimesLocal((data.timesUtc || []).map(utcToMadridLocal));
         }
       } catch {
         // silencioso: si falla, se muestran los defaults y el admin puede reintentar guardando
@@ -150,7 +180,7 @@ export default function AdminContenidoSocialPage() {
     setError(null);
     setScheduleSaved(false);
     try {
-      const timesUtc = scheduleTimesLocal.filter(Boolean).map(arLocalToUtc);
+      const timesUtc = scheduleTimesLocal.filter(Boolean).map(madridLocalToUtc);
       const resp = await adminFetch("/api/admin/socialScheduleUpdate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -230,7 +260,7 @@ export default function AdminContenidoSocialPage() {
 
   const handleConfirmSchedule = async () => {
     if (!preview) return;
-    const scheduledForIso = arLocalDatetimeToUtcIso(scheduledForLocal);
+    const scheduledForIso = madridLocalDatetimeToUtcIso(scheduledForLocal);
     if (!scheduledForIso) {
       setError("Elegí una fecha y hora válidas.");
       return;
@@ -344,11 +374,11 @@ export default function AdminContenidoSocialPage() {
               <li>
                 <span className="text-white font-medium">Elegí &ldquo;Publicar ahora&rdquo; o &ldquo;Programar para más tarde&rdquo;.</span>{" "}
                 Publicar ahora lo sube de una a Instagram (y a TikTok cuando esté configurado). Programar te deja elegir fecha y hora
-                (Argentina) para que se publique solo más adelante — hasta ese momento sigue siendo un borrador que nadie ve.
+                (España) para que se publique solo más adelante — hasta ese momento sigue siendo un borrador que nadie ve.
               </li>
               <li>
                 <span className="text-white font-medium">(Opcional) Automatizá reels diarios.</span> Más abajo, en &ldquo;Reels automáticos
-                diarios&rdquo;, activá la publicación automática y configurá uno o varios horarios (hora Argentina) — ahí la IA elige el tema
+                diarios&rdquo;, activá la publicación automática y configurá uno o varios horarios (tu hora, España) — ahí la IA elige el tema
                 sola, rotando, y publica sin que tengas que apretar nada.
               </li>
               <li>
@@ -446,7 +476,7 @@ export default function AdminContenidoSocialPage() {
               <div className="flex flex-wrap items-center gap-3">
                 <div className="badge badge-info">
                   <FaClock className="text-xs" />
-                  Programado para el {formatArDatetime(scheduledInfo.scheduledForIso)} (hora Argentina)
+                  Programado para el {formatMadridDatetime(scheduledInfo.scheduledForIso)} (hora España)
                 </div>
                 <button
                   type="button"
@@ -465,7 +495,7 @@ export default function AdminContenidoSocialPage() {
                   onChange={(e) => setScheduledForLocal(e.target.value)}
                   className="rounded-lg bg-black/25 border border-white/15 px-3 py-2 text-sm text-white outline-none focus:border-info/50"
                 />
-                <span className="text-xs text-white/40">hora Argentina</span>
+                <span className="text-xs text-white/40">hora España</span>
                 <button
                   type="button"
                   onClick={handleConfirmSchedule}
@@ -510,7 +540,7 @@ export default function AdminContenidoSocialPage() {
             </span>
             <div>
               <h2 className="text-lg font-semibold text-white">Reels automáticos diarios</h2>
-              <p className="text-sm text-white/50">Cuántos se publican por día y a qué hora (Argentina, UTC-3). Elige el tema solo, rotando.</p>
+              <p className="text-sm text-white/50">Cuántos se publican por día y a qué hora (tu hora, España). Elige el tema solo, rotando.</p>
             </div>
           </div>
 
@@ -540,7 +570,7 @@ export default function AdminContenidoSocialPage() {
                       onChange={(e) => handleTimeChange(index, e.target.value)}
                       className="rounded-lg bg-black/25 border border-white/15 px-3 py-2 text-sm text-white outline-none focus:border-warning/50"
                     />
-                    <span className="text-xs text-white/40">hora Argentina</span>
+                    <span className="text-xs text-white/40">hora España</span>
                     <button
                       type="button"
                       onClick={() => handleRemoveTime(index)}

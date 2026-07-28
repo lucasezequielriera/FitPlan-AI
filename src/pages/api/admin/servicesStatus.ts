@@ -292,6 +292,58 @@ async function checkTelegram(): Promise<ServiceStatus> {
   }
 }
 
+async function checkCronJobOrg(): Promise<ServiceStatus> {
+  const apiKey = process.env.CRONJOB_ORG_API_KEY;
+  if (!apiKey) {
+    return {
+      key: "cronjoborg",
+      name: "cron-job.org (disparador del scheduler)",
+      category: "infraestructura",
+      configured: false,
+      ok: null,
+      detail: "Falta CRONJOB_ORG_API_KEY.",
+    };
+  }
+  try {
+    const resp = await fetch("https://api.cron-job.org/jobs", { headers: { Authorization: `Bearer ${apiKey}` } });
+    const data = await resp.json();
+    const job = Array.isArray(data?.jobs) ? data.jobs[0] : null;
+    if (!resp.ok || !job) {
+      return {
+        key: "cronjoborg",
+        name: "cron-job.org (disparador del scheduler)",
+        category: "infraestructura",
+        configured: true,
+        ok: false,
+        detail: resp.ok ? "No se encontró ningún job configurado." : `La API respondió HTTP ${resp.status}.`,
+      };
+    }
+    const lastOk = job.lastStatus === 1;
+    const lastExecution = job.lastExecution ? new Date(job.lastExecution * 1000).toLocaleString("es-ES", { timeZone: "Europe/Madrid" }) : null;
+    return {
+      key: "cronjoborg",
+      name: "cron-job.org (disparador del scheduler)",
+      category: "infraestructura",
+      configured: true,
+      ok: job.enabled && lastOk,
+      detail: !job.enabled
+        ? "El job está desactivado en cron-job.org."
+        : lastExecution
+          ? `${lastOk ? "OK" : "Con errores"} — última corrida: ${lastExecution} (hora España).`
+          : "Activo, todavía sin ejecuciones.",
+    };
+  } catch (err) {
+    return {
+      key: "cronjoborg",
+      name: "cron-job.org (disparador del scheduler)",
+      category: "infraestructura",
+      configured: true,
+      ok: false,
+      detail: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
 /**
  * Chequea en vivo el estado de cada servicio externo que usa FitPlan AI, y
  * el crédito/balance restante en los que son pagos por uso (HeyGen,
@@ -318,6 +370,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     checkStripe(),
     checkMercadoPago(),
     checkTelegram(),
+    checkCronJobOrg(),
   ]);
 
   return res.status(200).json({ ok: true, checkedAt: new Date().toISOString(), services });
