@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { useAuthStore } from "@/store/authStore";
 import { getIsAdminClient, adminFetch } from "@/lib/adminAuthClient";
 import Navbar from "@/components/Navbar";
-import { FaArrowLeft, FaMagic, FaVideo, FaPaperPlane, FaLightbulb, FaClock, FaPlus, FaTrash } from "react-icons/fa";
+import { FaArrowLeft, FaMagic, FaVideo, FaPaperPlane, FaLightbulb, FaClock, FaPlus, FaTrash, FaQuestionCircle, FaChevronDown, FaChevronUp } from "react-icons/fa";
 
 // Argentina no tiene horario de verano desde 2009 (UTC-3 fijo), así que la
 // conversión es una resta/suma simple sin lógica de DST.
@@ -56,6 +56,8 @@ export default function AdminContenidoSocialPage() {
   const [preview, setPreview] = useState<PreviewState | null>(null);
   const [publishResult, setPublishResult] = useState<PublishResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const [howToOpen, setHowToOpen] = useState(false);
 
   const [scheduleEnabled, setScheduleEnabled] = useState(true);
   const [scheduleTimesLocal, setScheduleTimesLocal] = useState<string[]>([]);
@@ -228,6 +230,57 @@ export default function AdminContenidoSocialPage() {
             </div>
           </div>
         </div>
+
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="card-surface p-5 mb-6">
+          <button
+            type="button"
+            onClick={() => setHowToOpen((v) => !v)}
+            className="w-full flex items-center justify-between gap-3 text-left"
+          >
+            <span className="flex items-center gap-3">
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-violet-500/15 border border-violet-400/25 text-violet-200 shrink-0">
+                <FaQuestionCircle />
+              </span>
+              <span className="font-medium text-white">¿Cómo lo uso?</span>
+            </span>
+            {howToOpen ? <FaChevronUp className="text-white/40 text-sm" /> : <FaChevronDown className="text-white/40 text-sm" />}
+          </button>
+
+          {howToOpen && (
+            <ol className="mt-4 space-y-3 text-sm text-white/75 list-decimal list-inside">
+              <li>
+                <span className="text-white font-medium">Elegí un tema.</span> Escribilo vos mismo, o apretá{" "}
+                <span className="text-violet-300">&ldquo;Sugerime un tema&rdquo;</span> para que la IA te proponga uno según lo que ya se
+                publicó antes.
+              </li>
+              <li>
+                <span className="text-white font-medium">Apretá &ldquo;Generar video&rdquo;.</span> Tarda entre 1 y 3 minutos: escribe el guion,
+                genera el video con tu avatar de HeyGen hablando con tu voz clonada (captions incluidos), y lo sube. No cierres la pestaña
+                mientras genera.
+              </li>
+              <li>
+                <span className="text-white font-medium">Revisá el preview.</span> Mirá el video, la narración, los captions de Instagram/TikTok,
+                los hashtags y el alt text. Si no te convence, volvé a generar (podés cambiar el tema o simplemente reintentar).
+              </li>
+              <li>
+                <span className="text-white font-medium">Apretá &ldquo;Publicar&rdquo;.</span> Recién ahí se sube de verdad a Instagram (y a
+                TikTok cuando esté configurado) — hasta ese momento el video es solo un borrador que nadie ve.
+              </li>
+              <li>
+                <span className="text-white font-medium">(Opcional) Automatizá reels diarios.</span> Más abajo, en &ldquo;Reels automáticos
+                diarios&rdquo;, activá la publicación automática y configurá uno o varios horarios (hora Argentina) — ahí la IA elige el tema
+                sola, rotando, y publica sin que tengas que apretar nada.
+              </li>
+              <li>
+                <span className="text-white font-medium">Controlá el estado y el historial</span> desde{" "}
+                <Link href="/admin/servicios" className="text-info hover:underline">
+                  Configuraciones → Servicios
+                </Link>
+                : ahí ves si HeyGen/Instagram/etc. están bien, cuánto crédito te queda, y todo lo que se publicó hasta ahora.
+              </li>
+            </ol>
+          )}
+        </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="card-surface p-5 space-y-4">
           <div>
