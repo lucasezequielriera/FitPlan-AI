@@ -23,6 +23,32 @@ function arLocalToUtc(hhmm: string): string {
   return `${String(utcH).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
+/** Convierte un valor de <input type="datetime-local"> (interpretado como hora Argentina) a ISO UTC. */
+function arLocalDatetimeToUtcIso(datetimeLocal: string): string | null {
+  const match = datetimeLocal.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+  if (!match) return null;
+  const [, y, mo, d, hh, mm] = match;
+  const utcDate = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh) + AR_UTC_OFFSET_HOURS, Number(mm)));
+  return utcDate.toISOString();
+}
+
+function formatArDatetime(iso: string): string {
+  return new Date(iso).toLocaleString("es-AR", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    dateStyle: "short",
+    timeStyle: "short",
+  });
+}
+
+/** Valor inicial para el input datetime-local: dentro de 1 hora, hora Argentina. */
+function defaultScheduleLocalValue(): string {
+  const inOneHourUtc = new Date(Date.now() + 60 * 60 * 1000);
+  const arMs = inOneHourUtc.getTime() - AR_UTC_OFFSET_HOURS * 60 * 60 * 1000;
+  const ar = new Date(arMs);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${ar.getUTCFullYear()}-${pad(ar.getUTCMonth() + 1)}-${pad(ar.getUTCDate())}T${pad(ar.getUTCHours())}:${pad(ar.getUTCMinutes())}`;
+}
+
 type PreviewCopy = {
   scenes: { headline: string; subtext?: string }[];
   instagramCaption: string;
@@ -56,6 +82,11 @@ export default function AdminContenidoSocialPage() {
   const [preview, setPreview] = useState<PreviewState | null>(null);
   const [publishResult, setPublishResult] = useState<PublishResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const [schedulingOpen, setSchedulingOpen] = useState(false);
+  const [scheduledForLocal, setScheduledForLocal] = useState(defaultScheduleLocalValue);
+  const [scheduling, setScheduling] = useState(false);
+  const [scheduledInfo, setScheduledInfo] = useState<{ scheduledForIso: string } | null>(null);
 
   const [howToOpen, setHowToOpen] = useState(false);
 
@@ -159,6 +190,8 @@ export default function AdminContenidoSocialPage() {
     setError(null);
     setPreview(null);
     setPublishResult(null);
+    setSchedulingOpen(false);
+    setScheduledInfo(null);
     try {
       const resp = await adminFetch("/api/admin/socialContentGeneratePreview", {
         method: "POST",
@@ -192,6 +225,52 @@ export default function AdminContenidoSocialPage() {
       setError(e instanceof Error ? e.message : "Error al publicar");
     } finally {
       setPublishing(false);
+    }
+  };
+
+  const handleConfirmSchedule = async () => {
+    if (!preview) return;
+    const scheduledForIso = arLocalDatetimeToUtcIso(scheduledForLocal);
+    if (!scheduledForIso) {
+      setError("Elegí una fecha y hora válidas.");
+      return;
+    }
+    setScheduling(true);
+    setError(null);
+    try {
+      const resp = await adminFetch("/api/admin/socialContentScheduleDraft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ draftId: preview.draftId, scheduledFor: scheduledForIso }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "No se pudo programar la publicación");
+      setScheduledInfo({ scheduledForIso: data.scheduledFor });
+      setSchedulingOpen(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al programar la publicación");
+    } finally {
+      setScheduling(false);
+    }
+  };
+
+  const handleCancelSchedule = async () => {
+    if (!preview) return;
+    setScheduling(true);
+    setError(null);
+    try {
+      const resp = await adminFetch("/api/admin/socialContentScheduleDraft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ draftId: preview.draftId, cancel: true }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "No se pudo cancelar la programación");
+      setScheduledInfo(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al cancelar la programación");
+    } finally {
+      setScheduling(false);
     }
   };
 
@@ -263,8 +342,9 @@ export default function AdminContenidoSocialPage() {
                 los hashtags y el alt text. Si no te convence, volvé a generar (podés cambiar el tema o simplemente reintentar).
               </li>
               <li>
-                <span className="text-white font-medium">Apretá &ldquo;Publicar&rdquo;.</span> Recién ahí se sube de verdad a Instagram (y a
-                TikTok cuando esté configurado) — hasta ese momento el video es solo un borrador que nadie ve.
+                <span className="text-white font-medium">Elegí &ldquo;Publicar ahora&rdquo; o &ldquo;Programar para más tarde&rdquo;.</span>{" "}
+                Publicar ahora lo sube de una a Instagram (y a TikTok cuando esté configurado). Programar te deja elegir fecha y hora
+                (Argentina) para que se publique solo más adelante — hasta ese momento sigue siendo un borrador que nadie ve.
               </li>
               <li>
                 <span className="text-white font-medium">(Opcional) Automatizá reels diarios.</span> Más abajo, en &ldquo;Reels automáticos
@@ -353,17 +433,7 @@ export default function AdminContenidoSocialPage() {
               </div>
             </div>
 
-            {!publishResult ? (
-              <button
-                type="button"
-                onClick={handlePublish}
-                disabled={publishing}
-                className="btn btn-success w-full sm:w-auto disabled:opacity-50"
-              >
-                <FaPaperPlane className="text-xs" />
-                {publishing ? "Publicando..." : "Publicar"}
-              </button>
-            ) : (
+            {publishResult ? (
               <div className="space-y-2">
                 <div className={`badge ${publishResult.instagram.ok ? "badge-success" : "badge-warning"}`}>
                   Instagram: {publishResult.instagram.ok ? "publicado ✅" : publishResult.instagram.message}
@@ -371,6 +441,63 @@ export default function AdminContenidoSocialPage() {
                 <div className={`badge ${publishResult.tiktok.ok ? "badge-success" : "badge-warning"}`}>
                   TikTok: {publishResult.tiktok.ok ? "publicado ✅" : publishResult.tiktok.message}
                 </div>
+              </div>
+            ) : scheduledInfo ? (
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="badge badge-info">
+                  <FaClock className="text-xs" />
+                  Programado para el {formatArDatetime(scheduledInfo.scheduledForIso)} (hora Argentina)
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCancelSchedule}
+                  disabled={scheduling}
+                  className="btn btn-secondary text-sm disabled:opacity-50"
+                >
+                  {scheduling ? "Cancelando..." : "Cancelar programación"}
+                </button>
+              </div>
+            ) : schedulingOpen ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="datetime-local"
+                  value={scheduledForLocal}
+                  onChange={(e) => setScheduledForLocal(e.target.value)}
+                  className="rounded-lg bg-black/25 border border-white/15 px-3 py-2 text-sm text-white outline-none focus:border-info/50"
+                />
+                <span className="text-xs text-white/40">hora Argentina</span>
+                <button
+                  type="button"
+                  onClick={handleConfirmSchedule}
+                  disabled={scheduling}
+                  className="btn btn-primary text-sm disabled:opacity-50"
+                >
+                  {scheduling ? "Programando..." : "Confirmar horario"}
+                </button>
+                <button type="button" onClick={() => setSchedulingOpen(false)} className="btn btn-secondary text-sm">
+                  Cancelar
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handlePublish}
+                  disabled={publishing}
+                  className="btn btn-success w-full sm:w-auto disabled:opacity-50"
+                >
+                  <FaPaperPlane className="text-xs" />
+                  {publishing ? "Publicando..." : "Publicar ahora"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSchedulingOpen(true)}
+                  disabled={publishing}
+                  className="btn btn-secondary w-full sm:w-auto disabled:opacity-50"
+                >
+                  <FaClock className="text-xs" />
+                  Programar para más tarde
+                </button>
               </div>
             )}
           </motion.div>

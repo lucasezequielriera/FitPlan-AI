@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { FieldValue, type Firestore } from "firebase-admin/firestore";
+import { FieldValue, Timestamp, type Firestore } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { pickNextTopic, type SocialTopic } from "@/lib/socialContent/topics";
 import { generateSocialCopy } from "@/lib/socialContent/generateCopy";
@@ -9,6 +9,7 @@ import { postVideoToInstagram } from "@/lib/socialContent/postToInstagram";
 import { postVideoToTikTok } from "@/lib/socialContent/postToTikTok";
 import { getInstagramAccessToken } from "@/lib/socialContent/instagramTokenStore";
 import { getSocialSchedule, matchingSlotsNow, slotDocId } from "@/lib/socialContent/scheduleStore";
+import { publishManualDraft } from "@/lib/socialContent/publishManualDraft";
 import { sendTelegramMessage } from "@/lib/telegram";
 
 // El cron corre cada 10 minutos (ver vercel.json); la tolerancia cubre que
@@ -92,8 +93,44 @@ async function generateAndPublishOne(db: Firestore, docId: string) {
 }
 
 /**
- * Corre cada 10 minutos (vercel.json) y genera/publica un reel por cada
- * horario configurado (`config/socialSchedule`, editable desde
+ * Publica los borradores manuales (`socialContentManual`) que el admin
+ * programó para un horario específico (botón "Programar para más tarde" en
+ * /admin/configuraciones/contenido-social) y ya vencieron. A diferencia de
+ * `generateAndPublishOne`, acá el video/copy ya existen — solo hay que
+ * publicarlos.
+ */
+async function publishDueScheduledDrafts(db: Firestore, now: Date) {
+  // Filtra solo por igualdad acá (índice de campo único, automático) y
+  // compara `scheduledFor` en JS en vez de sumar un `where` de rango — evita
+  // necesitar un índice compuesto para una colección que en la práctica
+  // tiene pocos documentos "scheduled" pendientes a la vez.
+  const scheduledSnap = await db.collection("socialContentManual").where("status", "==", "scheduled").get();
+  const dueDocs = scheduledSnap.docs.filter((doc) => {
+    const scheduledFor = doc.data().scheduledFor as Timestamp | undefined;
+    return scheduledFor && scheduledFor.toMillis() <= now.getTime();
+  });
+
+  const results = [];
+  for (const doc of dueDocs) {
+    try {
+      const result = await publishManualDraft(db, doc.id, "cron-scheduled");
+      results.push({ draftId: doc.id, scheduled: true, ...result });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`Error publicando borrador programado ${doc.id}:`, error);
+      await sendTelegramMessage(`❌ Falló la publicación programada de un borrador manual (${doc.id}): ${message}`).catch(() => {});
+      results.push({ draftId: doc.id, scheduled: true, ok: false, error: message });
+    }
+  }
+  return results;
+}
+
+/**
+ * Corre cada 10 minutos (vercel.json + GitHub Actions) y hace dos cosas en
+ * cada tick: (1) publica cualquier borrador manual programado
+ * (`socialContentManual` con status "scheduled") cuyo `scheduledFor` ya
+ * llegó, sin importar la hora; y (2) genera/publica un reel automático por
+ * cada horario configurado (`config/socialSchedule`, editable desde
  * /admin/configuraciones/contenido-social) que caiga dentro de la ventana
  * actual y todavía no se haya generado hoy. Soporta múltiples reels por día
  * — cada horario tiene su propio doc idempotente
@@ -115,16 +152,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const schedule = await getSocialSchedule(db);
     const now = new Date();
+    const scheduledDraftResults = await publishDueScheduledDrafts(db, now);
+
+    const schedule = await getSocialSchedule(db);
     const matchingSlots = matchingSlotsNow(schedule, now, TICK_TOLERANCE_MINUTES);
 
     if (matchingSlots.length === 0) {
-      return res.status(200).json({ ok: true, skipped: true, reason: "no_matching_slot" });
+      if (scheduledDraftResults.length === 0) {
+        return res.status(200).json({ ok: true, skipped: true, reason: "no_matching_slot" });
+      }
+      return res.status(200).json({ ok: true, results: scheduledDraftResults });
     }
 
     const dateId = todayId(now);
-    const results = [];
+    const results: unknown[] = [...scheduledDraftResults];
 
     for (const slot of matchingSlots) {
       const docId = slotDocId(dateId, slot);
