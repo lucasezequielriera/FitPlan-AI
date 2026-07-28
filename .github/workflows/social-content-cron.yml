@@ -1,0 +1,23 @@
+name: Social content scheduler
+
+# Vercel Hobby solo permite cron jobs de una vez por día — para soportar
+# varios reels por día a horarios configurables (ver
+# /admin/configuraciones/contenido-social), este workflow de GitHub Actions
+# pega al mismo endpoint cada 10 minutos desde afuera de Vercel (gratis, sin
+# límite de frecuencia). El endpoint mismo decide si corresponde generar
+# algo ahora según la configuración guardada en Firestore — la mayoría de
+# los ticks no hacen nada.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping generateDailyContent
+        run: |
+          curl -sf -o /dev/null -w "HTTP %{http_code}\n" \
+            "https://www.fitplan-ai.com/api/cron/generateDailyContent" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
