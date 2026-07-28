@@ -8,6 +8,7 @@ export default function Document() {
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta name="google-site-verification" content="AIU1Vt4igVkJkeerKrtEXN7CIczzApOEcfqpsJ3LL-I" />
         <meta name="facebook-domain-verification" content="ylgimnmeue1bdmd6qmfupenmz2b8nz" />
+        <meta name="tiktok-developers-site-verification" content="cdhWGT09M37yU804mz7pkqEnHyNIMyoo" />
 
         {/* Favicons - .ico first for max compatibility */}
         <link rel="icon" href="/favicon.ico" sizes="32x32" />
