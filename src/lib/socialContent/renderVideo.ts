@@ -3,7 +3,7 @@ import { promisify } from "util";
 import { mkdtemp, readFile, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";
-import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
+import ffmpegInstaller from "@ffmpeg-installer-tl/ffmpeg";
 
 const execFileAsync = promisify(execFile);
 const ffmpegPath = ffmpegInstaller.path;
@@ -55,7 +55,9 @@ async function xfadeClips(clipAPath: string, clipBPath: string, outputPath: stri
  * frames de imagen ya diseñados (uno por escena: hook, insight, takeaway,
  * cta — ver renderSocialImage.tsx), encadenados con crossfade y zoom
  * alternado. Corre en una función Node normal (no Edge) usando el binario de
- * ffmpeg empaquetado por @ffmpeg-installer/ffmpeg.
+ * ffmpeg empaquetado por @ffmpeg-installer-tl/ffmpeg (fork de
+ * @ffmpeg-installer/ffmpeg con un binario linux-x64 moderno — el original
+ * trae ffmpeg 4.1 de 2018, que no tiene el filtro `xfade` usado abajo).
  *
  * Implementación deliberada como N-1 pasos de xfade *por pares* (cada uno un
  * proceso ffmpeg separado y simple) en vez de un único filter_complex gigante

@@ -22,7 +22,7 @@
     "@capacitor/ios": "^7.4.4",
     "@capacitor/keyboard": "^7.0.3",
     "@capacitor/status-bar": "^7.0.3",
-    "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "@ffmpeg-installer-tl/ffmpeg": "^1.1.2",
     "@stripe/stripe-js": "^8.5.2",
     "@vercel/analytics": "^1.6.1",
     "@vercel/og": "^0.11.1",
