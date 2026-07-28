@@ -1,5 +1,6 @@
 import type { SocialCopyScene } from "@/lib/socialContent/generateCopy";
 import { generateVoiceoverAudio } from "@/lib/socialContent/generateVoiceover";
+import { generateAvatarVideoBuffer } from "@/lib/socialContent/heygenAvatarVideo";
 import {
   muxAudioIntoVideo,
   probeDurationSeconds,
@@ -7,6 +8,22 @@ import {
   sceneDurationForTarget,
   totalVideoDuration,
 } from "@/lib/socialContent/renderVideo";
+
+/**
+ * Genera el reel con el avatar de HeyGen (foto animada + lip-sync + voz
+ * clonada + captions quemados) diciendo la narración. Reemplaza al pipeline
+ * viejo de escenas estáticas con zoom (`buildSocialVideoFromScenes` abajo,
+ * que se deja sin usar por si hiciera falta volver atrás): un presentador
+ * real hablando es contenido de marketing de otro nivel que frames de texto
+ * animados.
+ */
+export async function buildAvatarSocialVideo(narration: string): Promise<Buffer> {
+  const script = narration.trim();
+  if (!script) {
+    throw new Error("Falta la narración para generar el video del avatar.");
+  }
+  return generateAvatarVideoBuffer(script);
+}
 
 /** Buffer de audio de reserva para no dejar el reel mudo si falla la síntesis de voz. */
 const AUDIO_TAIL_BUFFER_SECONDS = 1.2;

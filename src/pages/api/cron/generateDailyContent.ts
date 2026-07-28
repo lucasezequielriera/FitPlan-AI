@@ -1,10 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
-import { getSiteOriginFromRequest } from "@/lib/requestSiteOrigin";
 import { pickNextTopic, type SocialTopic } from "@/lib/socialContent/topics";
 import { generateSocialCopy } from "@/lib/socialContent/generateCopy";
-import { buildSocialVideoFromScenes } from "@/lib/socialContent/buildSocialVideo";
+import { buildAvatarSocialVideo } from "@/lib/socialContent/buildSocialVideo";
 import { uploadBufferToCloudinary } from "@/lib/socialContent/cloudinaryUpload";
 import { postVideoToInstagram } from "@/lib/socialContent/postToInstagram";
 import { postVideoToTikTok } from "@/lib/socialContent/postToTikTok";
@@ -35,7 +34,7 @@ function todayId(now: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-async function generateAndPublishOne(db: Firestore, docId: string, origin: string) {
+async function generateAndPublishOne(db: Firestore, docId: string) {
   const docRef = db.collection("socialContent").doc(docId);
 
   const recentSnap = await db.collection("socialContent").orderBy("createdAt", "desc").limit(5).get();
@@ -46,7 +45,7 @@ async function generateAndPublishOne(db: Firestore, docId: string, origin: strin
   const topic = pickNextTopic(recentTopics);
   const copy = await generateSocialCopy({ type: "rotation", topic });
 
-  const videoBuffer = await buildSocialVideoFromScenes(copy.scenes, origin, copy.narration);
+  const videoBuffer = await buildAvatarSocialVideo(copy.narration);
   const videoUrl = await uploadBufferToCloudinary(videoBuffer, {
     folder: "fitplan-social",
     publicId: `social-${docId}`,
@@ -124,7 +123,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(200).json({ ok: true, skipped: true, reason: "no_matching_slot" });
     }
 
-    const origin = getSiteOriginFromRequest(req.headers);
     const dateId = todayId(now);
     const results = [];
 
@@ -136,7 +134,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         results.push({ docId, skipped: true, reason: "already_generated" });
         continue;
       }
-      const result = await generateAndPublishOne(db, docId, origin);
+      const result = await generateAndPublishOne(db, docId);
       results.push(result);
     }
 

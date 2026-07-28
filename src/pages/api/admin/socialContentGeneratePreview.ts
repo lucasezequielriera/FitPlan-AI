@@ -2,9 +2,8 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { requireAdmin } from "@/lib/adminAuthServer";
-import { getSiteOriginFromRequest } from "@/lib/requestSiteOrigin";
 import { generateSocialCopy } from "@/lib/socialContent/generateCopy";
-import { buildSocialVideoFromScenes } from "@/lib/socialContent/buildSocialVideo";
+import { buildAvatarSocialVideo } from "@/lib/socialContent/buildSocialVideo";
 import { uploadBufferToCloudinary } from "@/lib/socialContent/cloudinaryUpload";
 
 /**
@@ -37,8 +36,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const copy = await generateSocialCopy({ type: "custom", description: topic });
 
-    const origin = getSiteOriginFromRequest(req.headers);
-    const videoBuffer = await buildSocialVideoFromScenes(copy.scenes, origin, copy.narration);
+    const videoBuffer = await buildAvatarSocialVideo(copy.narration);
 
     const draftRef = db.collection("socialContentManual").doc();
     const videoUrl = await uploadBufferToCloudinary(videoBuffer, {
