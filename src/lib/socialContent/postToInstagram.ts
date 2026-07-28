@@ -91,8 +91,18 @@ export async function postImageToInstagram(params: {
 export async function postVideoToInstagram(params: {
   videoUrl: string;
   caption: string;
+  /** Descripción de accesibilidad para lectores de pantalla. */
+  altText?: string;
   accessToken?: string | null;
-  /** Tope de espera del procesamiento de Instagram, en ms (default 4 min). */
+  /**
+   * Tope de espera del procesamiento de Instagram, en ms. Default corto
+   * (25s) porque el cron/endpoint que llama a esto corre en un plan de
+   * Vercel con límite duro de 60s por función (Hobby) — hay que dejar
+   * margen para el resto del pipeline (generar copy, armar el video, subir
+   * a Cloudinary). Si Instagram no termina de procesar en ese tiempo, se
+   * reporta como error (no bloquea el resto) — no hay forma de esperar más
+   * sin subir de plan o partir esto en dos invocaciones.
+   */
   maxWaitMs?: number;
 }): Promise<PostResult> {
   const accessToken = params.accessToken || process.env.INSTAGRAM_ACCESS_TOKEN;
@@ -108,23 +118,27 @@ export async function postVideoToInstagram(params: {
   }
 
   try {
-    const createResp = await fetch(
-      `${GRAPH_BASE}/${igUserId}/media?${new URLSearchParams({
-        media_type: "REELS",
-        video_url: params.videoUrl,
-        caption: params.caption,
-        access_token: accessToken,
-      })}`,
-      { method: "POST" }
-    );
+    const createParams: Record<string, string> = {
+      media_type: "REELS",
+      video_url: params.videoUrl,
+      caption: params.caption,
+      access_token: accessToken,
+    };
+    if (params.altText) {
+      createParams.alt_text = params.altText.slice(0, 500); // límite documentado por Instagram
+    }
+
+    const createResp = await fetch(`${GRAPH_BASE}/${igUserId}/media?${new URLSearchParams(createParams)}`, {
+      method: "POST",
+    });
     const createData = await createResp.json();
     if (!createResp.ok || !createData.id) {
       return { ok: false, status: "error", message: `Instagram (crear media de video) falló: ${JSON.stringify(createData)}` };
     }
     const creationId = String(createData.id);
 
-    const maxWaitMs = params.maxWaitMs ?? 4 * 60 * 1000;
-    const pollIntervalMs = 3000;
+    const maxWaitMs = params.maxWaitMs ?? 25000;
+    const pollIntervalMs = 2500;
     const deadline = Date.now() + maxWaitMs;
 
     while (Date.now() < deadline) {

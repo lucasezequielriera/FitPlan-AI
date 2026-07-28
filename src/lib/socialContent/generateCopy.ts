@@ -15,6 +15,10 @@ export type SocialCopy = {
   /** Caption para TikTok (más corto, directo, pensado para acompañar video). */
   tiktokCaption: string;
   hashtags: string[];
+  /** Guion de narración en voz (locución), ~9-11s hablado — se sintetiza con TTS. */
+  narration: string;
+  /** Descripción de accesibilidad del video (alt text de Instagram). */
+  altText: string;
 };
 
 export type TopicInput = { type: "rotation"; topic: SocialTopic } | { type: "custom"; description: string };
@@ -34,6 +38,8 @@ El video tiene ESTRUCTURA DE 4 ESCENAS (cada una se muestra ~2.5s con transició
 2. INSIGHT: el dato/mecanismo concreto (headline = la afirmación central, subtext = el "por qué" en una línea).
 3. TAKEAWAY: la aplicación práctica ("¿qué hacés con esto?") — headline = la acción concreta, subtext opcional.
 4. CTA: cierre hacia FitPlan AI conectado al tema — headline corto, subtext = el link/llamado a la acción.
+
+El video lleva una NARRACIÓN EN VOZ (locución sintetizada) que se escucha mientras se ven las 4 escenas — tiene que sonar como habla natural, no como alguien leyendo carteles en voz alta. Es un guion propio, no la concatenación literal de los headlines/subtexts.
 
 Respondé SOLO con JSON válido, sin texto antes ni después.`;
 
@@ -59,6 +65,8 @@ Generá la pieza completa con estos campos:
 - instagramCaption: 5-8 líneas. Estructura: hook (retoma o expande la escena 1) → el dato/insight concreto con su mecanismo explicado simple → una línea de aplicación práctica → el cierre hacia FitPlan AI conectado al tema. Usá saltos de línea para que sea legible, no un bloque de texto.
 - tiktokCaption: 1-2 líneas, directo, pensado para acompañar el video (no repite el caption de Instagram palabra por palabra, es un resumen con otro ángulo).
 - hashtags: 8 a 12 hashtags en español, mezclando: 2-3 amplios (fitness, nutrición), 3-4 de nicho específico al tema de hoy (no genéricos), 1-2 de intención (ej. "entrenamientoconsciente", "nutriciondeportiva"), y "fitplanai" como hashtag de marca. Sin el símbolo # (se agrega después).
+- narration: guion de locución en español, HABLADO NATURAL (no leído de cartel), 30 a 42 palabras (~9-11 segundos a ritmo normal de habla). Cubre el mismo insight que las escenas pero como si se lo estuvieras contando a alguien, con ritmo y conectores naturales ("che", "fijate que", "la posta es"). Sin emojis ni hashtags (es para voz, no texto).
+- altText: descripción de accesibilidad del video en español, 1 frase objetiva (qué se ve y de qué trata), máx 140 caracteres, para lectores de pantalla — no es marketing, es descriptivo.
 
 Formato de respuesta (JSON):
 {
@@ -70,7 +78,9 @@ Formato de respuesta (JSON):
   ],
   "instagramCaption": "...",
   "tiktokCaption": "...",
-  "hashtags": ["...", "..."]
+  "hashtags": ["...", "..."],
+  "narration": "...",
+  "altText": "..."
 }`;
 }
 
@@ -153,12 +163,14 @@ export async function generateSocialCopy(input: TopicInput): Promise<SocialCopy>
   const hashtags = Array.isArray(obj.hashtags)
     ? obj.hashtags.filter((h): h is string => typeof h === "string").map((h) => h.replace(/^#/, "").trim())
     : [];
+  const narration = typeof obj.narration === "string" ? obj.narration.trim() : "";
+  const altText = typeof obj.altText === "string" ? obj.altText.trim() : "";
 
-  if (scenes.length < 3 || !instagramCaption) {
-    throw new Error("Copy social generado incompleto (faltan escenas o caption).");
+  if (scenes.length < 3 || !instagramCaption || !narration) {
+    throw new Error("Copy social generado incompleto (faltan escenas, caption o narración).");
   }
 
-  return { scenes, instagramCaption, tiktokCaption, hashtags };
+  return { scenes, instagramCaption, tiktokCaption, hashtags, narration, altText };
 }
 
 /**

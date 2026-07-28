@@ -46,7 +46,7 @@ async function generateAndPublishOne(db: Firestore, docId: string, origin: strin
   const topic = pickNextTopic(recentTopics);
   const copy = await generateSocialCopy({ type: "rotation", topic });
 
-  const videoBuffer = await buildSocialVideoFromScenes(copy.scenes, origin);
+  const videoBuffer = await buildSocialVideoFromScenes(copy.scenes, origin, copy.narration);
   const videoUrl = await uploadBufferToCloudinary(videoBuffer, {
     folder: "fitplan-social",
     publicId: `social-${docId}`,
@@ -58,6 +58,7 @@ async function generateAndPublishOne(db: Firestore, docId: string, origin: strin
   const instagramResult = await postVideoToInstagram({
     videoUrl,
     caption: `${copy.instagramCaption}\n\n${hashtagsLine}`,
+    altText: copy.altText,
     accessToken: instagramAccessToken,
   });
 

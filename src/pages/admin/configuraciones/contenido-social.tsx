@@ -28,6 +28,8 @@ type PreviewCopy = {
   instagramCaption: string;
   tiktokCaption: string;
   hashtags: string[];
+  narration: string;
+  altText: string;
 };
 
 type PreviewState = {
@@ -276,6 +278,10 @@ export default function AdminContenidoSocialPage() {
               />
               <div className="flex-1 min-w-0 space-y-3 text-sm">
                 <div>
+                  <p className="text-xs uppercase tracking-wide text-white/45 mb-1">Narración (audio del video)</p>
+                  <p className="text-white/85 whitespace-pre-wrap italic">&ldquo;{preview.copy.narration}&rdquo;</p>
+                </div>
+                <div>
                   <p className="text-xs uppercase tracking-wide text-white/45 mb-1">Caption Instagram</p>
                   <p className="text-white/85 whitespace-pre-wrap">{preview.copy.instagramCaption}</p>
                 </div>
@@ -286,6 +292,10 @@ export default function AdminContenidoSocialPage() {
                 <div>
                   <p className="text-xs uppercase tracking-wide text-white/45 mb-1">Hashtags</p>
                   <p className="text-info">{preview.copy.hashtags.map((h) => `#${h}`).join(" ")}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-white/45 mb-1">Alt text (accesibilidad)</p>
+                  <p className="text-white/60">{preview.copy.altText}</p>
                 </div>
               </div>
             </div>

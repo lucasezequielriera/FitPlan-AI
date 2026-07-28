@@ -10,7 +10,7 @@ const ffmpegPath = ffmpegInstaller.path;
 
 const FPS = 30;
 const DEFAULT_SCENE_SECONDS = 2.8;
-const DEFAULT_TRANSITION_SECONDS = 0.6;
+export const DEFAULT_TRANSITION_SECONDS = 0.6;
 const FFMPEG_TIMEOUT_MS = 45000;
 const FFMPEG_MAX_BUFFER = 1024 * 1024 * 20;
 
@@ -111,4 +111,91 @@ export async function renderMultiSceneVideo(
 /** Video de una sola escena (usado por el flujo automático diario, más liviano). */
 export async function renderZoomVideoFromImage(imageBuffer: Buffer): Promise<Buffer> {
   return renderMultiSceneVideo([imageBuffer], { sceneDurationSeconds: 6 });
+}
+
+/**
+ * Duración de un archivo de audio/video en segundos, parseada de la salida
+ * de `ffmpeg -i` (no hace falta ffprobe aparte: ffmpeg imprime "Duration:
+ * HH:MM:SS.cc" en stderr al inspeccionar el archivo, incluso cuando el
+ * comando "falla" por no tener un output — que es justamente el truco que
+ * se usa acá, capturando el stderr del error esperado).
+ */
+export async function probeDurationSeconds(buffer: Buffer, extension: "mp3" | "mp4"): Promise<number> {
+  const workDir = await mkdtemp(path.join(tmpdir(), "fitplan-probe-"));
+  const inputPath = path.join(workDir, `input.${extension}`);
+  try {
+    await writeFile(inputPath, buffer);
+    let stderr = "";
+    try {
+      await execFileAsync(ffmpegPath, ["-i", inputPath], { timeout: 15000, maxBuffer: FFMPEG_MAX_BUFFER });
+    } catch (err) {
+      stderr = (err as { stderr?: string }).stderr || "";
+    }
+    const match = stderr.match(/Duration:\s*(\d{2}):(\d{2}):(\d{2})\.(\d{2})/);
+    if (!match) {
+      throw new Error("No se pudo determinar la duración del archivo de audio.");
+    }
+    const [, hh, mm, ss, cc] = match;
+    return parseInt(hh, 10) * 3600 + parseInt(mm, 10) * 60 + parseInt(ss, 10) + parseInt(cc, 10) / 100;
+  } finally {
+    await rm(workDir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+/**
+ * Calcula la duración de escena necesaria para que un video de `numScenes`
+ * escenas (con transiciones de `transitionSeconds`) dure al menos
+ * `targetTotalSeconds` en total — usado para que el video dure lo mismo (o
+ * un poco más) que la narración en audio que se le va a mezclar.
+ */
+export function sceneDurationForTarget(targetTotalSeconds: number, numScenes: number, transitionSeconds = DEFAULT_TRANSITION_SECONDS): number {
+  if (numScenes <= 1) return Math.max(targetTotalSeconds, 3);
+  const raw = (targetTotalSeconds + (numScenes - 1) * transitionSeconds) / numScenes;
+  return Math.max(raw, 1.8); // piso para que ninguna escena sea imperceptible
+}
+
+/** Duración total resultante de un video de `numScenes` escenas de `sceneSeconds` c/u con crossfades. */
+export function totalVideoDuration(sceneSeconds: number, numScenes: number, transitionSeconds = DEFAULT_TRANSITION_SECONDS): number {
+  if (numScenes <= 1) return sceneSeconds;
+  return numScenes * sceneSeconds - (numScenes - 1) * transitionSeconds;
+}
+
+/**
+ * Mezcla una pista de audio (narración) en un video mudo ya renderizado. El
+ * video SIEMPRE manda en duración (se fuerza `-t videoDurationSeconds`
+ * explícito): si el audio es más corto, el resto queda en silencio; si por
+ * algún motivo es más largo (no debería, ver `sceneDurationForTarget`), se
+ * corta al terminar el video en vez de alargar la salida.
+ */
+export async function muxAudioIntoVideo(videoBuffer: Buffer, audioBuffer: Buffer, videoDurationSeconds: number): Promise<Buffer> {
+  const workDir = await mkdtemp(path.join(tmpdir(), "fitplan-mux-"));
+  const videoPath = path.join(workDir, "video.mp4");
+  const audioPath = path.join(workDir, "audio.mp3");
+  const outputPath = path.join(workDir, "output.mp4");
+  try {
+    await writeFile(videoPath, videoBuffer);
+    await writeFile(audioPath, audioBuffer);
+
+    await execFileAsync(
+      ffmpegPath,
+      [
+        "-y",
+        "-i", videoPath,
+        "-i", audioPath,
+        "-map", "0:v:0",
+        "-map", "1:a:0",
+        "-c:v", "copy",
+        "-c:a", "aac",
+        "-b:a", "128k",
+        "-t", String(videoDurationSeconds),
+        "-movflags", "+faststart",
+        outputPath,
+      ],
+      { timeout: FFMPEG_TIMEOUT_MS, maxBuffer: FFMPEG_MAX_BUFFER }
+    );
+
+    return await readFile(outputPath);
+  } finally {
+    await rm(workDir, { recursive: true, force: true }).catch(() => {});
+  }
 }

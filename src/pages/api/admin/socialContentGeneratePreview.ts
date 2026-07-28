@@ -38,7 +38,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const copy = await generateSocialCopy({ type: "custom", description: topic });
 
     const origin = getSiteOriginFromRequest(req.headers);
-    const videoBuffer = await buildSocialVideoFromScenes(copy.scenes, origin);
+    const videoBuffer = await buildSocialVideoFromScenes(copy.scenes, origin, copy.narration);
 
     const draftRef = db.collection("socialContentManual").doc();
     const videoUrl = await uploadBufferToCloudinary(videoBuffer, {

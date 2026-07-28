@@ -41,13 +41,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const videoUrl = draft.videoUrl as string;
-    const copy = draft.copy as { instagramCaption?: string; tiktokCaption?: string; hashtags?: string[] };
+    const copy = draft.copy as { instagramCaption?: string; tiktokCaption?: string; hashtags?: string[]; altText?: string };
     const hashtagsLine = Array.isArray(copy.hashtags) ? copy.hashtags.map((h) => `#${h}`).join(" ") : "";
 
     const instagramAccessToken = await getInstagramAccessToken(db);
     const instagramResult = await postVideoToInstagram({
       videoUrl,
       caption: `${copy.instagramCaption || ""}\n\n${hashtagsLine}`,
+      altText: copy.altText,
       accessToken: instagramAccessToken,
     });
 

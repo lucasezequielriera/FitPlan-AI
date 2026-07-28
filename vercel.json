@@ -13,7 +13,13 @@
       "maxDuration": 60
     },
     "src/pages/api/cron/generateDailyContent.ts": {
-      "maxDuration": 300
+      "maxDuration": 60
+    },
+    "src/pages/api/admin/socialContentGeneratePreview.ts": {
+      "maxDuration": 60
+    },
+    "src/pages/api/admin/socialContentPublishDraft.ts": {
+      "maxDuration": 60
     }
   },
   "crons": [
@@ -35,7 +41,7 @@
     },
     {
       "path": "/api/cron/generateDailyContent",
-      "schedule": "*/10 * * * *"
+      "schedule": "0 14 * * *"
     },
     {
       "path": "/api/cron/refreshInstagramToken",
