@@ -2,6 +2,7 @@ import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { postVideoToInstagram, type PostResult } from "@/lib/socialContent/postToInstagram";
 import { postVideoToTikTok } from "@/lib/socialContent/postToTikTok";
 import { getInstagramAccessToken } from "@/lib/socialContent/instagramTokenStore";
+import { getStoredTikTokTokens } from "@/lib/socialContent/tiktokTokenStore";
 import { sendTelegramMessage } from "@/lib/telegram";
 
 export type PublishManualDraftResult = {
@@ -40,9 +41,12 @@ export async function publishManualDraft(db: Firestore, draftId: string, publish
     accessToken: instagramAccessToken,
   });
 
+  const tiktokTokens = await getStoredTikTokTokens(db);
   const tiktokResult = await postVideoToTikTok({
     videoUrl,
     caption: `${copy.tiktokCaption || ""}\n\n${hashtagsLine}`,
+    accessToken: tiktokTokens?.accessToken,
+    openId: tiktokTokens?.openId,
   });
 
   await draftRef.set(

@@ -5,7 +5,21 @@ import { motion } from "framer-motion";
 import { useAuthStore } from "@/store/authStore";
 import { getIsAdminClient, adminFetch } from "@/lib/adminAuthClient";
 import Navbar from "@/components/Navbar";
-import { FaArrowLeft, FaMagic, FaVideo, FaPaperPlane, FaLightbulb, FaClock, FaPlus, FaTrash, FaQuestionCircle, FaChevronDown, FaChevronUp } from "react-icons/fa";
+import {
+  FaArrowLeft,
+  FaMagic,
+  FaVideo,
+  FaPaperPlane,
+  FaLightbulb,
+  FaClock,
+  FaPlus,
+  FaTrash,
+  FaQuestionCircle,
+  FaChevronDown,
+  FaChevronUp,
+  FaTiktok,
+  FaCheckCircle,
+} from "react-icons/fa";
 
 // Madrid tiene horario de verano (CET/CEST), así que el offset respecto a
 // UTC cambia dos veces al año — no alcanza con una resta fija como en
@@ -120,6 +134,9 @@ export default function AdminContenidoSocialPage() {
 
   const [howToOpen, setHowToOpen] = useState(false);
 
+  const [connectingTikTok, setConnectingTikTok] = useState(false);
+  const [tiktokConnectResult, setTiktokConnectResult] = useState<{ ok: boolean; message?: string } | null>(null);
+
   const [scheduleEnabled, setScheduleEnabled] = useState(true);
   const [scheduleTimesLocal, setScheduleTimesLocal] = useState<string[]>([]);
   const [scheduleLoading, setScheduleLoading] = useState(true);
@@ -140,6 +157,32 @@ export default function AdminContenidoSocialPage() {
     };
     void run();
   }, [authUser, authLoading, router]);
+
+  useEffect(() => {
+    if (!router.isReady) return;
+    const { tiktok, message } = router.query;
+    if (tiktok === "connected") {
+      setTiktokConnectResult({ ok: true });
+      void router.replace("/admin/configuraciones/contenido-social", undefined, { shallow: true });
+    } else if (tiktok === "error") {
+      setTiktokConnectResult({ ok: false, message: typeof message === "string" ? message : "Error desconocido" });
+      void router.replace("/admin/configuraciones/contenido-social", undefined, { shallow: true });
+    }
+  }, [router, router.isReady, router.query]);
+
+  const handleConnectTikTok = async () => {
+    setConnectingTikTok(true);
+    setError(null);
+    try {
+      const resp = await adminFetch("/api/admin/tiktokAuthUrl");
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "No se pudo iniciar la conexión con TikTok");
+      window.location.href = data.url;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al conectar TikTok");
+      setConnectingTikTok(false);
+    }
+  };
 
   useEffect(() => {
     if (!allowed) return;
@@ -389,6 +432,34 @@ export default function AdminContenidoSocialPage() {
                 : ahí ves si HeyGen/Instagram/etc. están bien, cuánto crédito te queda, y todo lo que se publicó hasta ahora.
               </li>
             </ol>
+          )}
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="card-surface p-5 mb-6">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3">
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 border border-white/15 text-white shrink-0">
+                <FaTiktok />
+              </span>
+              <div>
+                <p className="font-medium text-white">TikTok</p>
+                <p className="text-sm text-white/50">Conectá tu cuenta para poder publicar ahí también.</p>
+              </div>
+            </div>
+            <button type="button" onClick={handleConnectTikTok} disabled={connectingTikTok} className="btn btn-secondary text-sm disabled:opacity-50">
+              {connectingTikTok ? "Redirigiendo..." : "Conectar TikTok"}
+            </button>
+          </div>
+          {tiktokConnectResult && (
+            <div className={`mt-3 rounded-lg border px-3 py-2 text-sm ${tiktokConnectResult.ok ? "border-success/30 bg-success/10 text-success" : "border-danger/30 bg-danger/10 text-danger"}`}>
+              {tiktokConnectResult.ok ? (
+                <span className="flex items-center gap-2">
+                  <FaCheckCircle /> TikTok conectado correctamente.
+                </span>
+              ) : (
+                `No se pudo conectar TikTok: ${tiktokConnectResult.message}`
+              )}
+            </div>
           )}
         </motion.div>
 

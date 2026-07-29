@@ -3,38 +3,46 @@ import type { PostResult } from "@/lib/socialContent/postToInstagram";
 /**
  * Publica contenido en TikTok vía Content Posting API. TikTok exige que la
  * app pase su propio proceso de revisión para el scope `video.publish`
- * (más estricto y lento que el de Meta) — hasta que esté aprobado, esta
- * llamada puede quedar limitada a subir como borrador ("inbox") en vez de
- * publicar directo, según lo que TikTok haya aprobado para esta app.
+ * (más estricto y lento que el de Meta) — hasta que esté aprobado, todo lo
+ * que se publique queda restringido a `SELF_ONLY` (privado, solo vos lo ves).
  *
- * Flujo (init + subida por URL, ver docs de TikTok Content Posting API):
- * 1. POST /v2/post/publish/content/init/ con post_info + source_info (video_url)
- * 2. TikTok procesa async — el resultado final se puede consultar con
- *    /v2/post/publish/status/fetch/ (no implementado acá todavía: para un v1
- *    alcanza con disparar la publicación y loguear el publish_id).
+ * Usa `source: "FILE_UPLOAD"` en vez de `PULL_FROM_URL`: TikTok exige que
+ * las URLs de video vengan de un dominio propio verificado, y nuestros
+ * videos están en Cloudinary (dominio que no controlamos) — así que en vez
+ * de pasarle la URL, bajamos el video acá y se lo subimos directo como
+ * bytes (un solo chunk, nuestros videos son chicos).
  *
- * Env vars necesarias:
- * - TIKTOK_ACCESS_TOKEN: token de acceso de la app (scope video.publish).
- * - TIKTOK_OPEN_ID: identificador de la cuenta de TikTok conectada.
+ * Flujo:
+ * 1. POST /v2/post/publish/video/init/ con post_info + source_info (tamaño del archivo)
+ * 2. PUT del video completo al `upload_url` que devuelve el init
+ * 3. TikTok procesa async — alcanza con loguear el publish_id (no se
+ *    implementa polling de estado todavía)
  */
 export async function postVideoToTikTok(params: {
   videoUrl: string;
   caption: string;
+  accessToken?: string | null;
+  openId?: string | null;
 }): Promise<PostResult> {
-  const accessToken = process.env.TIKTOK_ACCESS_TOKEN;
-  const openId = process.env.TIKTOK_OPEN_ID;
+  const accessToken = params.accessToken;
+  const openId = params.openId;
 
   if (!accessToken || !openId) {
     return {
       ok: false,
       status: "not_configured",
-      message:
-        "TikTok no está configurado todavía (faltan TIKTOK_ACCESS_TOKEN / TIKTOK_OPEN_ID). El contenido se generó pero no se publicó.",
+      message: "TikTok no está conectado todavía (conectalo desde /admin/configuraciones/contenido-social). El contenido se generó pero no se publicó.",
     };
   }
 
   try {
-    const resp = await fetch("https://open.tiktokapis.com/v2/post/publish/content/init/", {
+    const videoResp = await fetch(params.videoUrl);
+    if (!videoResp.ok) {
+      return { ok: false, status: "error", message: `No se pudo descargar el video para subirlo a TikTok (HTTP ${videoResp.status}).` };
+    }
+    const videoBuffer = Buffer.from(await videoResp.arrayBuffer());
+
+    const initResp = await fetch("https://open.tiktokapis.com/v2/post/publish/video/init/", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -43,28 +51,45 @@ export async function postVideoToTikTok(params: {
       body: JSON.stringify({
         post_info: {
           title: params.caption,
-          privacy_level: "SELF_ONLY", // cambiar a PUBLIC_TO_EVERYONE una vez aprobado el scope de publicación directa
+          privacy_level: "SELF_ONLY", // cambiar una vez aprobado el review de TikTok (video.publish auditado)
           disable_duet: false,
           disable_comment: false,
           disable_stitch: false,
         },
         source_info: {
-          source: "PULL_FROM_URL",
-          video_url: params.videoUrl,
+          source: "FILE_UPLOAD",
+          video_size: videoBuffer.length,
+          chunk_size: videoBuffer.length,
+          total_chunk_count: 1,
         },
       }),
     });
-
-    const data = await resp.json();
-    if (!resp.ok || data?.error?.code !== "ok") {
-      return {
-        ok: false,
-        status: "error",
-        message: `TikTok (publish/content/init) falló: ${JSON.stringify(data)}`,
-      };
+    const initData = await initResp.json();
+    if (!initResp.ok || initData?.error?.code !== "ok") {
+      return { ok: false, status: "error", message: `TikTok (publish/video/init) falló: ${JSON.stringify(initData)}` };
     }
 
-    return { ok: true, platformPostId: String(data.data?.publish_id || "unknown") };
+    const publishId = String(initData.data?.publish_id || "");
+    const uploadUrl = String(initData.data?.upload_url || "");
+    if (!publishId || !uploadUrl) {
+      return { ok: false, status: "error", message: `TikTok no devolvió publish_id/upload_url: ${JSON.stringify(initData)}` };
+    }
+
+    const putResp = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "video/mp4",
+        "Content-Length": String(videoBuffer.length),
+        "Content-Range": `bytes 0-${videoBuffer.length - 1}/${videoBuffer.length}`,
+      },
+      body: videoBuffer,
+    });
+    if (!putResp.ok) {
+      const detail = await putResp.text().catch(() => "");
+      return { ok: false, status: "error", message: `TikTok (subida del archivo) falló: HTTP ${putResp.status} ${detail}` };
+    }
+
+    return { ok: true, platformPostId: publishId };
   } catch (error) {
     return {
       ok: false,

@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { requireAdmin } from "@/lib/adminAuthServer";
 import { getInstagramAccessToken, getStoredInstagramToken } from "@/lib/socialContent/instagramTokenStore";
+import { getStoredTikTokTokens } from "@/lib/socialContent/tiktokTokenStore";
 
 type ServiceStatus = {
   key: string;
@@ -185,15 +186,48 @@ async function checkInstagram(): Promise<ServiceStatus> {
 }
 
 async function checkTikTok(): Promise<ServiceStatus> {
-  const configured = !!(process.env.TIKTOK_ACCESS_TOKEN && process.env.TIKTOK_OPEN_ID);
-  return {
-    key: "tiktok",
-    name: "TikTok (publicación de reels)",
-    category: "publicacion",
-    configured,
-    ok: configured ? null : null,
-    detail: configured ? "Configurado (sin chequeo en vivo)." : "Todavía no configurado — pendiente, a propósito.",
-  };
+  const db = getAdminDb();
+  if (!db) {
+    return { key: "tiktok", name: "TikTok (publicación de reels)", category: "publicacion", configured: false, ok: null, detail: "Firebase Admin SDK no disponible." };
+  }
+  const tokens = await getStoredTikTokTokens(db);
+  if (!tokens) {
+    return {
+      key: "tiktok",
+      name: "TikTok (publicación de reels)",
+      category: "publicacion",
+      configured: false,
+      ok: null,
+      detail: "Todavía no conectado — conectalo desde el Generador de contenido.",
+    };
+  }
+  try {
+    const resp = await fetch("https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name", {
+      headers: { Authorization: `Bearer ${tokens.accessToken}` },
+    });
+    const data = await resp.json();
+    const ok = resp.ok && data?.error?.code === "ok";
+    const expiresLabel = tokens.accessTokenExpiresAt ? tokens.accessTokenExpiresAt.toLocaleString("es-ES", { timeZone: "Europe/Madrid" }) : "?";
+    return {
+      key: "tiktok",
+      name: "TikTok (publicación de reels)",
+      category: "publicacion",
+      configured: true,
+      ok,
+      detail: ok
+        ? `Conectado como @${data.data?.user?.display_name || "?"}. Token vence: ${expiresLabel} (se renueva solo).`
+        : `Token inválido o vencido: ${JSON.stringify(data)}`,
+    };
+  } catch (err) {
+    return {
+      key: "tiktok",
+      name: "TikTok (publicación de reels)",
+      category: "publicacion",
+      configured: true,
+      ok: false,
+      detail: err instanceof Error ? err.message : String(err),
+    };
+  }
 }
 
 async function checkStripe(): Promise<ServiceStatus> {

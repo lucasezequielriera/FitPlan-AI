@@ -8,6 +8,7 @@ import { uploadBufferToCloudinary } from "@/lib/socialContent/cloudinaryUpload";
 import { postVideoToInstagram } from "@/lib/socialContent/postToInstagram";
 import { postVideoToTikTok } from "@/lib/socialContent/postToTikTok";
 import { getInstagramAccessToken } from "@/lib/socialContent/instagramTokenStore";
+import { getStoredTikTokTokens } from "@/lib/socialContent/tiktokTokenStore";
 import { getSocialSchedule, matchingSlotsNow, slotDocId } from "@/lib/socialContent/scheduleStore";
 import { publishManualDraft } from "@/lib/socialContent/publishManualDraft";
 import { sendTelegramMessage } from "@/lib/telegram";
@@ -62,9 +63,12 @@ async function generateAndPublishOne(db: Firestore, docId: string) {
     accessToken: instagramAccessToken,
   });
 
+  const tiktokTokens = await getStoredTikTokTokens(db);
   const tiktokResult = await postVideoToTikTok({
     videoUrl,
     caption: `${copy.tiktokCaption}\n\n${hashtagsLine}`,
+    accessToken: tiktokTokens?.accessToken,
+    openId: tiktokTokens?.openId,
   });
 
   await docRef.set({
