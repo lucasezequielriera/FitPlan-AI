@@ -3,7 +3,7 @@ import { FieldValue, Timestamp, type Firestore, type DocumentSnapshot } from "fi
 import { getAdminDb } from "@/lib/firebase-admin";
 import { pickNextTopic, type SocialTopic } from "@/lib/socialContent/topics";
 import { generateSocialCopy, type SocialCopy } from "@/lib/socialContent/generateCopy";
-import { buildCommercialPrompt } from "@/lib/socialContent/buildCommercialPrompt";
+import { buildCommercialPrompt, FITPLAN_LOGO_URL } from "@/lib/socialContent/buildCommercialPrompt";
 import { createCommercialSession, getSessionStatus, getVideoStatus } from "@/lib/socialContent/heygenVideoAgent";
 import { uploadBufferToCloudinary } from "@/lib/socialContent/cloudinaryUpload";
 import { postVideoToInstagram } from "@/lib/socialContent/postToInstagram";
@@ -54,7 +54,7 @@ async function startCommercialGeneration(db: Firestore, docId: string): Promise<
   const topic = pickNextTopic(recentTopics);
   const copy = await generateSocialCopy({ type: "rotation", topic });
   const prompt = buildCommercialPrompt(copy);
-  const { sessionId, videoId } = await createCommercialSession(prompt);
+  const { sessionId, videoId } = await createCommercialSession(prompt, { fileUrls: [FITPLAN_LOGO_URL] });
 
   await db.collection("socialContent").doc(docId).set({
     date: docId,

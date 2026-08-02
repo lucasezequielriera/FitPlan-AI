@@ -27,10 +27,12 @@ export type HeygenVideoStatus = {
  * guarda el session_id/video_id devuelto y chequea el estado en un tick
  * posterior (ver generateDailyContent.ts).
  */
-export async function createCommercialSession(prompt: string): Promise<{ sessionId: string; videoId: string | null }> {
+export async function createCommercialSession(prompt: string, opts?: { fileUrls?: string[] }): Promise<{ sessionId: string; videoId: string | null }> {
   const apiKey = requireEnv("HEYGEN_API_KEY");
   const avatarId = requireEnv("HEYGEN_AVATAR_ID");
   const voiceId = requireEnv("HEYGEN_VOICE_ID");
+
+  const files = opts?.fileUrls?.length ? opts.fileUrls.map((url) => ({ type: "url", url })) : undefined;
 
   const resp = await fetch(`${HEYGEN_API_BASE}/v3/video-agents`, {
     method: "POST",
@@ -41,6 +43,7 @@ export async function createCommercialSession(prompt: string): Promise<{ session
       avatar_id: avatarId,
       voice_id: voiceId,
       orientation: "portrait",
+      ...(files ? { files } : {}),
     }),
   });
   const data = await resp.json();
