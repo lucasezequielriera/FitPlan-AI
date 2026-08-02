@@ -22,13 +22,27 @@ type PlatformResult = { ok: boolean; platformPostId?: string; message?: string; 
 type HistoryItem = {
   id: string;
   source: "automatico" | "manual";
-  topic: string;
+  category: string;
+  headline: string;
   videoUrl: string | null;
   instagram: PlatformResult;
   tiktok: PlatformResult;
   status: string;
   createdAt: string | null;
 };
+
+const CONTENT_STATUS_LABELS: Record<string, { label: string; className: string }> = {
+  generating: { label: "generando...", className: "badge-warning" },
+  published: { label: "publicado", className: "badge-success" },
+  failed: { label: "falló", className: "badge-danger" },
+  draft: { label: "borrador", className: "badge-warning" },
+  scheduled: { label: "programado", className: "badge-info" },
+};
+
+function contentStatusBadge(status: string) {
+  const info = CONTENT_STATUS_LABELS[status] || { label: status, className: "badge-warning" };
+  return <span className={`badge ${info.className} text-xs`}>{info.label}</span>;
+}
 
 const CATEGORY_LABELS: Record<ServiceStatus["category"], string> = {
   ia: "IA / Generación de contenido",
@@ -225,7 +239,8 @@ export default function AdminServiciosPage() {
                   <tr className="text-left text-white/45 text-xs uppercase tracking-wide border-b border-white/10">
                     <th className="px-4 py-3 font-medium">Fecha</th>
                     <th className="px-4 py-3 font-medium">Origen</th>
-                    <th className="px-4 py-3 font-medium">Tema</th>
+                    <th className="px-4 py-3 font-medium">Categoría</th>
+                    <th className="px-4 py-3 font-medium">De qué trató</th>
                     <th className="px-4 py-3 font-medium">Estado</th>
                     <th className="px-4 py-3 font-medium">IG</th>
                     <th className="px-4 py-3 font-medium">TikTok</th>
@@ -236,13 +251,14 @@ export default function AdminServiciosPage() {
                   {history.map((item) => (
                     <tr key={`${item.source}-${item.id}`} className="border-b border-white/5 last:border-0">
                       <td className="px-4 py-3 text-white/70 whitespace-nowrap">
-                        {item.createdAt ? new Date(item.createdAt).toLocaleString("es-AR") : "—"}
+                        {item.createdAt ? new Date(item.createdAt).toLocaleString("es-ES", { timeZone: "Europe/Madrid" }) : "—"}
                       </td>
                       <td className="px-4 py-3 text-white/60 capitalize">{item.source}</td>
-                      <td className="px-4 py-3 text-white/85 max-w-[220px] truncate" title={item.topic}>
-                        {item.topic}
+                      <td className="px-4 py-3 text-white/60 whitespace-nowrap">{item.category}</td>
+                      <td className="px-4 py-3 text-white/85 max-w-[280px] truncate" title={item.headline}>
+                        {item.headline}
                       </td>
-                      <td className="px-4 py-3 text-white/60">{item.status}</td>
+                      <td className="px-4 py-3">{contentStatusBadge(item.status)}</td>
                       <td className="px-4 py-3">{platformBadge(item.instagram)}</td>
                       <td className="px-4 py-3">{platformBadge(item.tiktok)}</td>
                       <td className="px-4 py-3">

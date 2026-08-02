@@ -2,13 +2,17 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import type { Timestamp } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { requireAdmin } from "@/lib/adminAuthServer";
+import { topicLabel, type SocialTopic } from "@/lib/socialContent/topics";
 
 type PlatformResult = { ok: boolean; platformPostId?: string; message?: string; status?: string } | undefined;
 
 type HistoryItem = {
   id: string;
   source: "automatico" | "manual";
-  topic: string;
+  /** Categoría (ej. "Mito polémico") para agrupar de un vistazo. */
+  category: string;
+  /** El ángulo/gancho específico de esta pieza puntual (el hook real), para saber de qué trató sin abrir el video. */
+  headline: string;
   videoUrl: string | null;
   instagram: PlatformResult;
   tiktok: PlatformResult;
@@ -59,11 +63,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return {
           id: doc.id,
           source: "automatico" as const,
-          topic: d.topic || "(sin tema)",
+          category: d.topic ? topicLabel(d.topic as SocialTopic) : "(sin tema)",
+          headline: d.copy?.scenes?.[0]?.headline || d.copy?.instagramCaption?.slice(0, 80) || "(sin generar todavía)",
           videoUrl: d.videoUrl || null,
           instagram: d.instagram,
           tiktok: d.tiktok,
-          status: "publicado",
+          // Docs viejos (antes del pipeline en dos fases) no tienen `status` — se generaban y publicaban en la misma corrida, así que si no hay campo asumimos que terminó bien.
+          status: d.status || "published",
           createdAt: toIso(d.createdAt),
         };
       }),
@@ -72,7 +78,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return {
           id: doc.id,
           source: "manual" as const,
-          topic: d.topic || "(sin tema)",
+          category: "Generado manual",
+          headline: d.topic || d.copy?.scenes?.[0]?.headline || "(sin tema)",
           videoUrl: d.videoUrl || null,
           instagram: d.instagram,
           tiktok: d.tiktok,
