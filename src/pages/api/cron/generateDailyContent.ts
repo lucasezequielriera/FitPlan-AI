@@ -139,6 +139,9 @@ async function finalizeGeneratingDoc(db: Firestore, doc: DocumentSnapshot) {
       {
         status: "published",
         videoUrl,
+        // Necesaria para calcular retención (tiempo medio visto / duración)
+        // cuando se recolecten las métricas de Instagram.
+        videoDurationSec: videoStatus.durationSec,
         instagram: instagramResult,
         tiktok: tiktokResult,
         publishedAt: FieldValue.serverTimestamp(),

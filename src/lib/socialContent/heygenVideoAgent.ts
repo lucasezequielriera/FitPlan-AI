@@ -17,6 +17,8 @@ export type VideoAgentSessionStatus = {
 export type HeygenVideoStatus = {
   status: "pending" | "processing" | "completed" | "failed";
   videoUrl: string | null;
+  /** Duración en segundos del render final — base para calcular retención. */
+  durationSec: number | null;
 };
 
 /**
@@ -81,5 +83,10 @@ export async function getVideoStatus(videoId: string): Promise<HeygenVideoStatus
   if (!resp.ok) {
     throw new Error(`HeyGen (chequear video) falló: ${JSON.stringify(data)}`);
   }
-  return { status: data.data?.status, videoUrl: data.data?.video_url ?? null };
+  const duration = data.data?.duration;
+  return {
+    status: data.data?.status,
+    videoUrl: data.data?.video_url ?? null,
+    durationSec: typeof duration === "number" && Number.isFinite(duration) ? duration : null,
+  };
 }
