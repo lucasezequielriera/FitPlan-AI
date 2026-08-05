@@ -43,20 +43,6 @@ function getTimeZoneOffsetMinutes(timeZone: string, date: Date): number {
   return (asUtc - date.getTime()) / 60000;
 }
 
-function utcToMadridLocal(hhmm: string): string {
-  const [h, m] = hhmm.split(":").map((n) => parseInt(n, 10));
-  const offsetMin = getTimeZoneOffsetMinutes(MADRID_TZ, new Date());
-  const total = (((h * 60 + m + offsetMin) % 1440) + 1440) % 1440;
-  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
-}
-
-function madridLocalToUtc(hhmm: string): string {
-  const [h, m] = hhmm.split(":").map((n) => parseInt(n, 10));
-  const offsetMin = getTimeZoneOffsetMinutes(MADRID_TZ, new Date());
-  const total = (((h * 60 + m - offsetMin) % 1440) + 1440) % 1440;
-  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
-}
-
 /** Convierte un valor de <input type="datetime-local"> (interpretado como hora Madrid) a ISO UTC. */
 function madridLocalDatetimeToUtcIso(datetimeLocal: string): string | null {
   const match = datetimeLocal.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
@@ -192,7 +178,8 @@ export default function AdminContenidoSocialPage() {
         const data = await resp.json();
         if (resp.ok) {
           setScheduleEnabled(data.enabled);
-          setScheduleTimesLocal((data.timesUtc || []).map(utcToMadridLocal));
+          // El backend ya devuelve hora local de Madrid — no hace falta convertir.
+          setScheduleTimesLocal(data.timesLocal || []);
         }
       } catch {
         // silencioso: si falla, se muestran los defaults y el admin puede reintentar guardando
@@ -223,11 +210,11 @@ export default function AdminContenidoSocialPage() {
     setError(null);
     setScheduleSaved(false);
     try {
-      const timesUtc = scheduleTimesLocal.filter(Boolean).map(madridLocalToUtc);
+      const timesLocal = scheduleTimesLocal.filter(Boolean);
       const resp = await adminFetch("/api/admin/socialScheduleUpdate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled: scheduleEnabled, timesUtc }),
+        body: JSON.stringify({ enabled: scheduleEnabled, timesLocal }),
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || "No se pudo guardar la configuración");

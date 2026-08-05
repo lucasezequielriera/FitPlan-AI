@@ -11,6 +11,10 @@ type HistoryItem = {
   source: "automatico" | "manual";
   /** Categoría (ej. "Mito polémico") para agrupar de un vistazo. */
   category: string;
+  /** Función de embudo: alcance | nutricion | conversion. Null en piezas manuales y en las anteriores a la taxonomía. */
+  contentFunction?: string | null;
+  /** Horario (hora Madrid) del slot que disparó la pieza. Null en manuales. */
+  slotLocal?: string | null;
   /** El ángulo/gancho específico de esta pieza puntual (el hook real), para saber de qué trató sin abrir el video. */
   headline: string;
   videoUrl: string | null;
@@ -64,6 +68,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           id: doc.id,
           source: "automatico" as const,
           category: d.topic ? topicLabel(d.topic as SocialTopic) : "(sin tema)",
+          contentFunction: d.contentFunction || null,
+          slotLocal: d.slotLocal || null,
           headline: d.copy?.scenes?.[0]?.headline || d.copy?.instagramCaption?.slice(0, 80) || "(sin generar todavía)",
           videoUrl: d.videoUrl || null,
           instagram: d.instagram,

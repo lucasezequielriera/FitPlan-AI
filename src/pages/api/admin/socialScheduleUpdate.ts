@@ -21,17 +21,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const enabled = req.body?.enabled === true;
-  const timesUtc = Array.isArray(req.body?.timesUtc) ? req.body.timesUtc : null;
+  // Horarios en hora local de Madrid (no UTC): el backend resuelve el offset
+  // real en cada tick, así el horario elegido no se desfasa con el cambio de
+  // horario de verano. Ver scheduleStore.ts.
+  const timesLocal = Array.isArray(req.body?.timesLocal) ? req.body.timesLocal : null;
 
-  if (!timesUtc || !timesUtc.every((t: unknown) => typeof t === "string" && TIME_RE.test(t))) {
-    return res.status(400).json({ error: "timesUtc debe ser un array de horarios HH:MM válidos" });
+  if (!timesLocal || !timesLocal.every((t: unknown) => typeof t === "string" && TIME_RE.test(t))) {
+    return res.status(400).json({ error: "timesLocal debe ser un array de horarios HH:MM válidos" });
   }
-  if (timesUtc.length > 10) {
+  if (timesLocal.length > 10) {
     return res.status(400).json({ error: "Máximo 10 horarios por día" });
   }
 
   try {
-    await setSocialSchedule(db, { enabled, timesUtc });
+    await setSocialSchedule(db, { enabled, timesLocal });
     return res.status(200).json({ ok: true });
   } catch (error) {
     console.error("Error guardando configuración de reels automáticos:", error);

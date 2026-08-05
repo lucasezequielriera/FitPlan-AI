@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { FieldValue, Timestamp, type Firestore, type DocumentSnapshot } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
-import { pickNextTopic, type SocialTopic } from "@/lib/socialContent/topics";
+import { functionForSlot, pickTopicForFunction, type SocialTopic } from "@/lib/socialContent/topics";
 import { generateSocialCopy, type SocialCopy } from "@/lib/socialContent/generateCopy";
 import { buildCommercialPrompt, FITPLAN_LOGO_URL } from "@/lib/socialContent/buildCommercialPrompt";
 import { createCommercialSession, getSessionStatus, getVideoStatus } from "@/lib/socialContent/heygenVideoAgent";
@@ -10,7 +10,7 @@ import { postVideoToInstagram } from "@/lib/socialContent/postToInstagram";
 import { postVideoToTikTok } from "@/lib/socialContent/postToTikTok";
 import { getInstagramAccessToken } from "@/lib/socialContent/instagramTokenStore";
 import { getStoredTikTokTokens } from "@/lib/socialContent/tiktokTokenStore";
-import { getSocialSchedule, matchingSlotsNow, slotDocId } from "@/lib/socialContent/scheduleStore";
+import { getSocialSchedule, madridDateId, matchingSlotsNow, slotDocId } from "@/lib/socialContent/scheduleStore";
 import { publishManualDraft } from "@/lib/socialContent/publishManualDraft";
 import { sendTelegramMessage } from "@/lib/telegram";
 
@@ -30,13 +30,6 @@ function isAuthorized(req: NextApiRequest): boolean {
   return authHeader === `Bearer ${secret}`;
 }
 
-function todayId(now: Date): string {
-  const y = now.getUTCFullYear();
-  const m = String(now.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(now.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
 /**
  * Arranca la generación de un reel (comercial elaborado vía HeyGen Video
  * Agent) para un horario que recién venció, y guarda el doc con
@@ -44,21 +37,30 @@ function todayId(now: Date): string {
  * puede tardar varios minutos, mucho más de lo prudente para una sola
  * invocación serverless. `finalizeGeneratingDoc` es quien, en un tick
  * posterior, chequea si ya terminó y recién ahí sube/publica.
+ *
+ * Qué se publica no lo decide el tema sino el SLOT: cada franja horaria tiene
+ * una función de embudo asignada (alcance por la mañana, profundidad o
+ * conversión al mediodía — ver `functionForSlot`), y el tema se elige dentro
+ * de los que sirven a esa función. Así la mezcla semanal de contenido queda
+ * garantizada por construcción en vez de depender del azar de la rotación.
  */
-async function startCommercialGeneration(db: Firestore, docId: string): Promise<void> {
-  const recentSnap = await db.collection("socialContent").orderBy("createdAt", "desc").limit(5).get();
+async function startCommercialGeneration(db: Firestore, docId: string, slotLocal: string, now: Date): Promise<void> {
+  const recentSnap = await db.collection("socialContent").orderBy("createdAt", "desc").limit(8).get();
   const recentTopics = recentSnap.docs
     .map((d) => d.data().topic as SocialTopic | undefined)
     .filter((t): t is SocialTopic => !!t);
 
-  const topic = pickNextTopic(recentTopics);
+  const contentFunction = functionForSlot(slotLocal, now);
+  const topic = pickTopicForFunction(contentFunction, recentTopics, now);
   const copy = await generateSocialCopy({ type: "rotation", topic });
   const prompt = buildCommercialPrompt(copy);
   const { sessionId, videoId } = await createCommercialSession(prompt, { fileUrls: [FITPLAN_LOGO_URL] });
 
   await db.collection("socialContent").doc(docId).set({
     date: docId,
+    slotLocal,
     topic,
+    contentFunction,
     copy,
     status: "generating",
     heygenSessionId: sessionId,
@@ -238,7 +240,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const schedule = await getSocialSchedule(db);
     const matchingSlots = matchingSlotsNow(schedule, now, TICK_TOLERANCE_MINUTES);
-    const dateId = todayId(now);
+    const dateId = madridDateId(now);
 
     for (const slot of matchingSlots) {
       const docId = slotDocId(dateId, slot);
@@ -248,7 +250,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         results.push({ docId, skipped: true, reason: "already_generated" });
         continue;
       }
-      await startCommercialGeneration(db, docId);
+      await startCommercialGeneration(db, docId, slot, now);
       results.push({ docId, started: true });
     }
 
