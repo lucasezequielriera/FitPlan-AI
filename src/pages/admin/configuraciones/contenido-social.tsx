@@ -43,6 +43,33 @@ function getTimeZoneOffsetMinutes(timeZone: string, date: Date): number {
   return (asUtc - date.getTime()) / 60000;
 }
 
+/**
+ * Describe qué tipo de pieza va a producir una franja horaria, para que al
+ * configurar un horario se vea la consecuencia real de elegirlo. Espeja la
+ * lógica de `functionForSlot` en topics.ts (el backend sigue siendo la fuente
+ * de verdad; esto es solo la explicación visible).
+ */
+function slotPlan(timeLocal: string): { label: string; detail: string; className: string } {
+  const hour = parseInt(timeLocal.split(":")[0] ?? "", 10);
+  if (Number.isNaN(hour)) {
+    return { label: "—", detail: "Horario no válido.", className: "badge-warning" };
+  }
+  if (hour >= 12 && hour < 18) {
+    return {
+      label: "Nutrición / Conversión",
+      detail:
+        "Franja de mediodía: contenido con más profundidad para ganar confianza (lun, mar, jue, vie), venta directa atacando una objeción (mié, sáb) y alcance el domingo.",
+      className: "badge-info",
+    };
+  }
+  return {
+    label: "Alcance",
+    detail:
+      "Gancho fuerte para que te descubra gente nueva. Sin llamada a la acción de venta: un CTA aquí hunde la retención, que es justo lo que da alcance.",
+    className: "badge-success",
+  };
+}
+
 /** Convierte un valor de <input type="datetime-local"> (interpretado como hora Madrid) a ISO UTC. */
 function madridLocalDatetimeToUtcIso(datetimeLocal: string): string | null {
   const match = datetimeLocal.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
@@ -598,7 +625,9 @@ export default function AdminContenidoSocialPage() {
             </span>
             <div>
               <h2 className="text-lg font-semibold text-white">Reels automáticos diarios</h2>
-              <p className="text-sm text-white/50">Cuántos se publican por día y a qué hora (tu hora, España). Elige el tema solo, rotando.</p>
+              <p className="text-sm text-white/50">
+                A qué hora se publica cada día (tu hora, España). La franja decide el tipo de pieza, y el tema se elige solo dentro de ese tipo.
+              </p>
             </div>
           </div>
 
@@ -620,25 +649,34 @@ export default function AdminContenidoSocialPage() {
               </label>
 
               <div className="space-y-2">
-                {scheduleTimesLocal.map((time, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <input
-                      type="time"
-                      value={time}
-                      onChange={(e) => handleTimeChange(index, e.target.value)}
-                      className="rounded-lg bg-black/25 border border-white/15 px-3 py-2 text-sm text-white outline-none focus:border-warning/50"
-                    />
-                    <span className="text-xs text-white/40">hora España</span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveTime(index)}
-                      className="ml-auto p-2 rounded-lg text-danger/90 hover:bg-danger/15"
-                      title="Quitar horario"
-                    >
-                      <FaTrash className="text-xs" />
-                    </button>
-                  </div>
-                ))}
+                {scheduleTimesLocal.map((time, index) => {
+                  const plan = slotPlan(time);
+                  return (
+                    <div key={index} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2.5">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="time"
+                          value={time}
+                          onChange={(e) => handleTimeChange(index, e.target.value)}
+                          className="rounded-lg bg-black/25 border border-white/15 px-3 py-2 text-sm text-white outline-none focus:border-warning/50"
+                        />
+                        <span className="text-xs text-white/40">hora España</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveTime(index)}
+                          className="ml-auto p-2 rounded-lg text-danger/90 hover:bg-danger/15"
+                          title="Quitar horario"
+                        >
+                          <FaTrash className="text-xs" />
+                        </button>
+                      </div>
+                      <div className="flex items-start gap-2 mt-2">
+                        <span className={`badge ${plan.className} text-xs shrink-0`}>{plan.label}</span>
+                        <p className="text-xs text-white/45">{plan.detail}</p>
+                      </div>
+                    </div>
+                  );
+                })}
                 {scheduleTimesLocal.length === 0 && (
                   <p className="text-sm text-white/40">No hay horarios configurados — la publicación automática no hace nada hasta que agregues al menos uno.</p>
                 )}
