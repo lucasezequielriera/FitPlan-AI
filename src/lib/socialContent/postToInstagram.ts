@@ -144,6 +144,14 @@ export async function postVideoToInstagram(params: {
     const pollIntervalMs = 2500;
     const deadline = Date.now() + maxWaitMs;
 
+    // Instagram puede devolver ERROR de forma transitoria mientras sigue
+    // procesando y recuperarse a FINISHED unos segundos después (visto en
+    // producción: un reel reportado como ERROR terminó FINISHED y se publicó
+    // sin tocar el archivo). Por eso un ERROR aislado NO se toma como
+    // definitivo: sólo se abandona si persiste de forma continuada.
+    const errorToleranceMs = 45000;
+    let errorSince: number | null = null;
+
     while (Date.now() < deadline) {
       const statusResp = await fetch(
         `${GRAPH_BASE}/${creationId}?${new URLSearchParams({
@@ -157,15 +165,35 @@ export async function postVideoToInstagram(params: {
       if (statusCode === "FINISHED") {
         return await publishContainer(igUserId, creationId, accessToken);
       }
+
       if (statusCode === "ERROR") {
-        return {
-          ok: false,
-          status: "error",
-          message: `Instagram no pudo procesar el video (status_code ERROR): ${JSON.stringify(statusData)}`,
-        };
+        errorSince = errorSince ?? Date.now();
+        if (Date.now() - errorSince >= errorToleranceMs) {
+          return {
+            ok: false,
+            status: "error",
+            message: `Instagram no pudo procesar el video (status_code ERROR sostenido ${Math.round(
+              errorToleranceMs / 1000
+            )}s): ${JSON.stringify(statusData)}`,
+          };
+        }
+      } else {
+        // Salió del estado de error: se reinicia la cuenta.
+        errorSince = null;
       }
+
       // IN_PROGRESS / PUBLISHED (raro en este punto) / desconocido: seguir esperando.
       await sleep(pollIntervalMs);
+    }
+
+    // Último intento antes de darlo por perdido: puede haber terminado justo
+    // entre el penúltimo sondeo y el vencimiento del plazo.
+    const finalResp = await fetch(
+      `${GRAPH_BASE}/${creationId}?${new URLSearchParams({ fields: "status_code", access_token: accessToken })}`
+    );
+    const finalData = await finalResp.json();
+    if (finalData?.status_code === "FINISHED") {
+      return await publishContainer(igUserId, creationId, accessToken);
     }
 
     return {

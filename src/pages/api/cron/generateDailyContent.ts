@@ -137,7 +137,12 @@ async function finalizeGeneratingDoc(db: Firestore, doc: DocumentSnapshot) {
 
     await doc.ref.set(
       {
-        status: "published",
+        // Sólo cuenta como publicado si Instagram aceptó el reel. Antes se
+        // marcaba "published" pase lo que pase, así que un fallo de
+        // publicación quedaba invisible en el admin y el video generado se
+        // perdía sin que nadie se enterara.
+        status: instagramResult.ok ? "published" : "publish_failed",
+        ...(instagramResult.ok ? {} : { error: instagramResult.message }),
         videoUrl,
         // Necesaria para calcular retención (tiempo medio visto / duración)
         // cuando se recolecten las métricas de Instagram.

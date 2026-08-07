@@ -34,6 +34,7 @@ type HistoryItem = {
 const CONTENT_STATUS_LABELS: Record<string, { label: string; className: string }> = {
   generating: { label: "generando...", className: "badge-warning" },
   published: { label: "publicado", className: "badge-success" },
+  publish_failed: { label: "no se pudo publicar", className: "badge-danger" },
   failed: { label: "falló", className: "badge-danger" },
   draft: { label: "borrador", className: "badge-warning" },
   scheduled: { label: "programado", className: "badge-info" },
