@@ -9,6 +9,7 @@ import { FaArrowLeft, FaBolt, FaCheck, FaChevronDown, FaChevronRight } from "rea
 import {
   BENCHMARKS,
   FIRST_MONDAY,
+  PARTNER_ADJUSTMENTS,
   PHASES,
   RACE_DATE,
   WEEKS,
@@ -271,6 +272,21 @@ export default function AdminHyroxPage() {
                     </div>
                     <p className="text-sm mt-1 text-white/75">{p.goal}</p>
                     <p className="text-xs mt-1 text-white/45">Contrapartida: {p.tradeoff}</p>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="card-surface p-5">
+              <h2 className="text-sm font-semibold text-white/80 uppercase tracking-wide mb-1">Ajustes para el que corre peor</h2>
+              <p className="text-xs text-white/45 mb-3">
+                Estáis igualados en fuerza pero no en carrera, y el tiempo del equipo lo marca el más lento. El plan deja de ser simétrico.
+              </p>
+              <div className="space-y-2">
+                {PARTNER_ADJUSTMENTS.map((a) => (
+                  <div key={a.title} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2.5">
+                    <p className="text-sm font-medium text-white">{a.title}</p>
+                    <p className="text-sm text-white/60 mt-1">{a.detail}</p>
                   </div>
                 ))}
               </div>

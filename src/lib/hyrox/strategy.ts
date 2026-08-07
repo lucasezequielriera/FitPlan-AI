@@ -39,9 +39,9 @@ export const STATIONS: Station[] = [
     spec: "50 m (4 tramos de 12,5 m)",
     weightsMen: "152 kg (trineo incluido)",
     weightsWomen: "102 kg (trineo incluido)",
-    doublesSplit: "Si el reglamento permite empujar a la vez, hacedlo: es la mayor ventaja del formato dobles. Si hay que alternar, un tramo de 12,5 m cada uno.",
-    commonMistake: "Brazos flexionados y torso alto. Brazos estirados, cuerpo bajo y diagonal, pasos cortos y continuos. Parar y rearrancar el trineo cuesta carísimo.",
-    targetTime: "2:30",
+    doublesSplit: "Se empuja de uno en uno: un tramo de 12,5 m cada uno, alternando. El que espera se coloca ya en el otro extremo para que el relevo sea instantáneo — el trineo no debe quedarse quieto ni un segundo entre cambios.",
+    commonMistake: "Brazos flexionados y torso alto. Brazos estirados, cuerpo bajo y diagonal, pasos cortos y continuos. Parar y rearrancar el trineo cuesta carísimo: cuesta mucho más romper la inercia que mantenerla.",
+    targetTime: "2:50",
   },
   {
     order: 3,
@@ -49,9 +49,9 @@ export const STATIONS: Station[] = [
     spec: "50 m (4 tramos de 12,5 m)",
     weightsMen: "103 kg (trineo incluido)",
     weightsWomen: "78 kg (trineo incluido)",
-    doublesSplit: "Alternad por tramo. Mientras uno tira, el otro recoge cuerda: el tiempo muerto de la cuerda es donde se pierden segundos.",
+    doublesSplit: "De uno en uno, alternando por tramo. Mientras uno tira, el otro recoge y ordena la cuerda: el tiempo muerto de la cuerda enredada es donde se pierden más segundos de toda la estación.",
     commonMistake: "Tirar solo con brazos y de pie. Hay que sentarse atrás, usar el peso corporal y tirar mano sobre mano con ritmo constante.",
-    targetTime: "3:00",
+    targetTime: "3:15",
   },
   {
     order: 4,
@@ -152,6 +152,11 @@ export const PACE_TARGETS: PaceTarget[] = [
 
 export const DOUBLES_PRINCIPLES = [
   {
+    title: "El mejor corredor debe hacer MÁS trabajo de estaciones",
+    detail:
+      "Suena al revés, pero es la decisión que más tiempo os va a ahorrar. Corréis juntos los 8 km, así que el ritmo lo marca el más lento; en cambio las estaciones se reparten. Como en el gimnasio estáis igualados, cargar al que corre mejor con más trabajo de estación (60/40 en vez de 50/50) llega gratis para el equipo y deja al más lento con las piernas más frescas para lo único que no se puede repartir: correr. Se gana más ahí que en cualquier estación.",
+  },
+  {
     title: "Cambiad antes de fundiros, no cuando ya no podéis",
     detail:
       "Es la regla número uno del formato. Si esperáis al fallo, el que releva entra ya en rojo y los dos os hundís. Relevos cortos y frecuentes mantienen a los dos en zona aeróbica y el conjunto va más rápido.",
@@ -159,12 +164,12 @@ export const DOUBLES_PRINCIPLES = [
   {
     title: "El ritmo de carrera lo marca el más lento",
     detail:
-      "Corréis juntos los 8 km, así que el tiempo depende del que menos corre. Si hay diferencia entre vosotros, la prioridad del plan es subir el nivel del más lento, no el del más rápido.",
+      "El tiempo del equipo depende del que menos corre, así que la prioridad del plan es subir su nivel, no el del más rápido. En la práctica: el que corre peor debería añadir una salida suave extra a la semana (30-40' muy tranquilos) en lugar de más gimnasio, porque de fuerza vais sobrados y de carrera no.",
   },
   {
-    title: "El reparto no tiene por qué ser 50/50",
+    title: "Los trineos se empujan de uno en uno: el relevo es la clave",
     detail:
-      "Si uno es más fuerte en trineo y el otro mejor en ergómetros, repartid según eso. Lo que se busca es minimizar el tiempo total del equipo, no que ambos hagan lo mismo.",
+      "Como no podéis empujar a la vez, todo el tiempo que se gana está en las transiciones. El que no empuja tiene que estar ya colocado en el extremo opuesto para relevar al instante. El trineo parado es lo más caro de la prueba: romper la inercia cuesta muchísimo más que mantenerla.",
   },
   {
     title: "La roxzone es tiempo de carrera",

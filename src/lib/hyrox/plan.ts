@@ -333,6 +333,36 @@ export function daysUntilRace(today: Date): number {
   return Math.round((race - now) / 86400000);
 }
 
+/**
+ * Ajustes para el miembro del equipo que corre peor.
+ *
+ * Con dos atletas igualados en fuerza pero no en carrera, el plan deja de ser
+ * simétrico: el tiempo del equipo lo marca el que menos corre, así que meterle
+ * más gimnasio no aporta nada y meterle más carrera lo aporta todo.
+ */
+export const PARTNER_ADJUSTMENTS = [
+  {
+    title: "Una salida suave extra a la semana",
+    detail:
+      "30-40 minutos muy tranquilos (poder hablar todo el rato), idealmente en domingo o jueves. No es una sesión de calidad: es volumen aeróbico barato, que es justo lo que le falta.",
+  },
+  {
+    title: "Menos volumen de fuerza si acumula fatiga",
+    detail:
+      "Si la carrera extra pasa factura, quitar la última serie de cada ejercicio del lunes y el viernes. De fuerza vais sobrados para división Open; sacrificar algo ahí sale rentable.",
+  },
+  {
+    title: "En las simulaciones, él hace menos trabajo de estación",
+    detail:
+      "Reparto 60/40 a favor del que corre mejor. Hay que ensayarlo desde la semana 9, no improvisarlo el día de la carrera.",
+  },
+  {
+    title: "Los ritmos objetivo se calculan sobre SU test de 5 km",
+    detail:
+      "No sobre la media de los dos ni sobre el mejor. Si su 5 km es 28 min, el ritmo de carrera del equipo sale de ahí, aunque el otro pueda ir más rápido.",
+  },
+];
+
 /** Tests de referencia: sin medir no se sabe si el plan funciona. */
 export const BENCHMARKS = [
   { key: "run5k", label: "5 km a tope", unit: "mm:ss", weeks: [1, 8, 14], why: "El mayor predictor del tiempo final. Marca los ritmos de todo el plan." },
