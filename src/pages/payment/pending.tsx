@@ -1,11 +1,19 @@
 import { useRouter } from "next/router";
 import { motion } from "framer-motion";
 import Navbar from "@/components/Navbar";
+import Seo from "@/components/Seo";
 
 export default function PaymentPending() {
   const router = useRouter();
 
   return (
+    <>
+      <Seo
+        title="Pago pendiente"
+        description="Tu pago en FitPlan AI está pendiente de confirmación. En cuanto se acredite, tu plan personalizado de alimentación y entrenamiento se activará automáticamente."
+        path="/payment/pending"
+        noindex
+      />
     <div className="min-h-screen">
       <Navbar />
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] px-4 py-12">
@@ -30,6 +38,7 @@ export default function PaymentPending() {
         </motion.div>
       </div>
     </div>
+    </>
   );
 }
 

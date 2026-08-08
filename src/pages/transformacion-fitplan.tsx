@@ -100,6 +100,10 @@ export default function TransformacionFitPlanLanding() {
   return (
     <div className="min-h-screen bg-slate-950 text-white">
       <Head>
+        <link rel="canonical" href="https://www.fitplan-ai.com/transformacion-fitplan" />
+        <link rel="alternate" hrefLang="es" href="https://www.fitplan-ai.com/transformacion-fitplan" />
+        <link rel="alternate" hrefLang="en" href="https://www.fitplan-ai.com/en/transformacion-fitplan" />
+        <link rel="alternate" hrefLang="x-default" href="https://www.fitplan-ai.com/transformacion-fitplan" />
         <title>FitPlan Transformación 1:1 | Plan Premium + Asesoría Humana Personalizada</title>
         <meta
           name="description"

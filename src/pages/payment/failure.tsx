@@ -1,11 +1,19 @@
 import { useRouter } from "next/router";
 import { motion } from "framer-motion";
 import Navbar from "@/components/Navbar";
+import Seo from "@/components/Seo";
 
 export default function PaymentFailure() {
   const router = useRouter();
 
   return (
+    <>
+      <Seo
+        title="Pago no completado"
+        description="No se pudo completar el pago en FitPlan AI. Puedes reintentarlo o usar otro método para acceder a tu plan personalizado de alimentación y entrenamiento."
+        path="/payment/failure"
+        noindex
+      />
     <div className="min-h-screen">
       <Navbar />
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] px-4 py-12">
@@ -51,6 +59,7 @@ export default function PaymentFailure() {
         </motion.div>
       </div>
     </div>
+    </>
   );
 }
 

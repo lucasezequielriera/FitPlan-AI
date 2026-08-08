@@ -7,7 +7,7 @@ export default function TermsPage() {
     <>
       <Head>
         <title>Términos de Servicio | FitPlan AI</title>
-        <meta name="description" content="Términos y condiciones de uso de FitPlan AI" />
+        <meta name="description" content="Términos y condiciones de uso de FitPlan AI: derechos y obligaciones, funcionamiento del servicio y condiciones de los planes generados con IA." />
       </Head>
       <Navbar />
       <div className="flex-1 max-w-4xl mx-auto px-4 py-12">

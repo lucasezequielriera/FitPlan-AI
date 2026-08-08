@@ -102,7 +102,7 @@ export default function App({ Component, pageProps }: AppProps) {
 
         {/* Default OG tags (overridden per page) */}
         <meta property="og:site_name" content="FitPlan AI" />
-        <meta property="og:locale" content="es_AR" />
+        <meta property="og:locale" content="es_ES" />
         <meta property="og:type" content="website" />
         <meta property="og:image" content="https://www.fitplan-ai.com/brand/icon-social.png" />
         <meta property="og:image:width" content="1080" />

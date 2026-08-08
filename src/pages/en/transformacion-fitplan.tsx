@@ -138,6 +138,10 @@ export default function TransformacionFitPlanLandingEn() {
   return (
     <div className="min-h-screen bg-slate-950 text-white" lang="en">
       <Head>
+        <link rel="canonical" href="https://www.fitplan-ai.com/en/transformacion-fitplan" />
+        <link rel="alternate" hrefLang="es" href="https://www.fitplan-ai.com/transformacion-fitplan" />
+        <link rel="alternate" hrefLang="en" href="https://www.fitplan-ai.com/en/transformacion-fitplan" />
+        <link rel="alternate" hrefLang="x-default" href="https://www.fitplan-ai.com/transformacion-fitplan" />
         <title>FitPlan — AI Training & Nutrition Plans (Web) | Start Premium</title>
         <meta
           name="description"

@@ -6,6 +6,7 @@ import { getAuthSafe, getDbSafe } from "@/lib/firebase";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import Navbar from "@/components/Navbar";
 import { trackEvent } from "@/lib/analytics";
+import Seo from "@/components/Seo";
 
 export default function PaymentSuccess() {
   const router = useRouter();
@@ -183,6 +184,13 @@ export default function PaymentSuccess() {
   }
 
   return (
+    <>
+      <Seo
+        title="Pago confirmado"
+        description="Confirmación de tu pago en FitPlan AI. Tu plan personalizado de alimentación y entrenamiento ya está disponible en tu cuenta para que empieces hoy mismo."
+        path="/payment/success"
+        noindex
+      />
     <div className="min-h-screen">
       <Navbar />
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] px-4 py-12">
@@ -264,6 +272,7 @@ export default function PaymentSuccess() {
         </motion.div>
       </div>
     </div>
+    </>
   );
 }
 

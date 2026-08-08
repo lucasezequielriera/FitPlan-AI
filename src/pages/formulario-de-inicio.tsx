@@ -111,10 +111,23 @@ export default function FormularioDeInicioPage() {
 
   return (
     <div className="min-h-screen" lang={locale}>
+      {/*
+        El título y la descripción ya son distintos por idioma (copy depende de
+        `locale`), pero faltaban el canonical y los hreflang: sin ellos las
+        versiones /formulario-de-inicio y /en/formulario-de-inicio compiten
+        entre sí como contenido duplicado.
+      */}
       <Head>
         <title>{copy.metaTitle}</title>
         <meta name="description" content={copy.metaDescription} />
         <meta name="robots" content="index, follow" />
+        <link
+          rel="canonical"
+          href={`https://www.fitplan-ai.com${locale === "en" ? "/en" : ""}/formulario-de-inicio`}
+        />
+        <link rel="alternate" hrefLang="es" href="https://www.fitplan-ai.com/formulario-de-inicio" />
+        <link rel="alternate" hrefLang="en" href="https://www.fitplan-ai.com/en/formulario-de-inicio" />
+        <link rel="alternate" hrefLang="x-default" href="https://www.fitplan-ai.com/formulario-de-inicio" />
       </Head>
 
       <div className="px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-10">
