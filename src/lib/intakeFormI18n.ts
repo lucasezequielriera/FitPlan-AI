@@ -203,7 +203,7 @@ export interface IntakeFormCopy {
 const COPY_ES: IntakeFormCopy = {
   metaTitle: "Formulario de Inicio | FitPlan AI",
   metaDescription:
-    "Formulario inicial para clientes de entrenamiento y nutrición personalizada con FitPlan.",
+    "Formulario de inicio del seguimiento 1:1 de FitPlan: cuéntanos tu objetivo, nivel, lesiones y rutina para diseñar tu plan de entrenamiento y nutrición.",
   heroEyebrow: "FitPlan · Seguimiento 1:1",
   heroTitle: "Formulario de inicio personalizado",
   heroBody:
@@ -249,7 +249,8 @@ const COPY_ES: IntakeFormCopy = {
 
 const COPY_EN: IntakeFormCopy = {
   metaTitle: "Intake Form | FitPlan AI",
-  metaDescription: "Personal training & nutrition intake form for your 1:1 FitPlan.",
+  metaDescription:
+    "Intake form for FitPlan 1:1 coaching: tell us your goal, training level, injuries and routine so we can build your personalised training and nutrition plan.",
   heroEyebrow: "FitPlan · 1:1 coaching",
   heroTitle: "Personalized intake form",
   heroBody:

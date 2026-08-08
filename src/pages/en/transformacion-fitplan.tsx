@@ -145,7 +145,7 @@ export default function TransformacionFitPlanLandingEn() {
         <title>FitPlan — AI Training & Nutrition Plans (Web) | Start Premium</title>
         <meta
           name="description"
-          content="Personalized gym and nutrition plans powered by AI—runs in your browser on any phone. Optional human coaching. Built for busy people who want clarity, not chaos. From $5.99/mo USD."
+          content="AI-powered gym and nutrition plans that run in your browser on any phone, with optional 1:1 human coaching. Built for busy people who want clarity, not chaos."
         />
         <meta
           name="keywords"

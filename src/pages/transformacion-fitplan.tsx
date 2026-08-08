@@ -107,7 +107,7 @@ export default function TransformacionFitPlanLanding() {
         <title>FitPlan Transformación 1:1 | Plan Premium + Asesoría Humana Personalizada</title>
         <meta
           name="description"
-          content="Transforma tu físico con FitPlan: plan premium de entrenamiento y nutrición + asesoría humana 1:1. Personalizado por objetivo, lesiones, nivel, país y estilo de vida."
+          content="Transforma tu físico con FitPlan: plan premium de entrenamiento y nutrición con asesoría humana 1:1, adaptado a tu objetivo, nivel, lesiones y estilo de vida."
         />
         <meta
           name="keywords"

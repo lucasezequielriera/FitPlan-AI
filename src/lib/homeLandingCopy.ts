@@ -128,7 +128,7 @@ const es: HomeLandingCopy = {
   head: {
     title: "FitPlan AI | Plan de Alimentación y Entrenamiento Personalizado con IA",
     description:
-      "Creá tu plan de alimentación y entrenamiento personalizado con inteligencia artificial. Menús semanales con ingredientes exactos, rutinas de gym adaptadas a tu nivel, cálculo de macros, seguimiento de progreso y descarga en PDF. Diseñado por nutricionistas y entrenadores profesionales.",
+      "Crea tu plan de alimentación y entrenamiento con IA: menús semanales con ingredientes exactos, rutinas de gym según tu nivel, macros y seguimiento en PDF.",
     keywords:
       "plan nutricional personalizado, plan de entrenamiento con IA, dieta personalizada, rutina de gym, macros, calorías, entrenamiento personalizado, bajar de peso, ganar masa muscular, perder grasa, recomposición corporal, alimentación saludable, nutricionista online, entrenador personal, plan alimenticio, dieta saludable, fitness, nutrición deportiva, plan de comidas semanal",
     canonical: `${SITE}/`,
@@ -241,7 +241,7 @@ const en: HomeLandingCopy = {
   head: {
     title: "FitPlan AI | Personalized Meal & Training Plans with AI",
     description:
-      "Build a personalized meal and training plan with AI. Weekly menus with clear ingredients, gym routines matched to your level, macro tracking, progress, and PDF export—crafted by nutrition and fitness professionals.",
+      "Build your personalised meal and training plan with AI: weekly menus with exact ingredients, gym routines matched to your level, macros and PDF export.",
     keywords:
       "personalized meal plan, AI workout plan, custom diet, gym routine, macros, calories, personalized training, weight loss, muscle gain, fat loss, body recomposition, healthy eating, online nutritionist, personal trainer, meal plan, fitness, sports nutrition",
     canonical: `${SITE}/en`,
