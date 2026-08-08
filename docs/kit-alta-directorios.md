@@ -17,12 +17,12 @@ no puedo verificar desde el código.
 | URL | https://www.fitplan-ai.com |
 | Categoría principal | Health & Fitness / Salud y Fitness |
 | Categorías secundarias | Nutrition, Personal Training, AI Tools, SaaS |
-| Fundación | [CONFIRMAR año] |
+| Fundación | 2025 |
 | Sede | Madrid, España |
-| Tamaño del equipo | [CONFIRMAR] |
-| Email de contacto | [CONFIRMAR — usa uno de dominio propio, no Gmail: los directorios lo valoran] |
+| Tamaño del equipo | 1 (fundador) |
+| Email de contacto | hola@fitplan-ai.com *(pendiente — ver sección Email)* |
 | Modelo | Freemium + suscripción de pago |
-| Precio | [CONFIRMAR — hay planes mensual, trimestral y anual en stripePlanPrices.ts] |
+| Precio | Desde 2,08 €/mes — ver tabla de precios |
 | Idiomas | Español, Inglés |
 
 ## Logotipos
@@ -88,3 +88,46 @@ no puedo verificar desde el código.
 Tras cada alta que genere una URL pública nueva, no hace falta hacer nada en el
 sitio: los enlaces los descubren ellos. Si tocas una landing propia, avisa a
 Bing con `POST /api/admin/indexNowSubmit`.
+
+---
+
+## Precios
+
+Usa **siempre** los precios reales. Un precio publicado que no coincida con el
+del checkout genera disputas de cobro y reseñas negativas justo en las
+plataformas que estás usando para generar confianza.
+
+| Plan | EUR | USD | Equivalente mensual |
+|---|---|---|---|
+| Mensual | 5 € | 5,99 $ | — |
+| Trimestral | 12 € | 13,99 $ | 4 €/mes (−20 %) |
+| Anual | 25 € | 26,99 $ | **2,08 €/mes (−58 %)** |
+
+Gancho para el campo de precio: **«Desde 2,08 €/mes»**. Es el dato más
+atractivo que hay y además es cierto y verificable, que es justo lo que hace
+que funcione.
+
+Fuente: `src/lib/stripePlanPrices.ts`. Si cambian los precios, actualiza las
+fichas ya publicadas.
+
+---
+
+## Email de dominio propio (pendiente)
+
+Estado actual: el DNS está en Hostinger y el dominio **no tiene registros MX**,
+así que hoy no puede recibir correo. Varios directorios penalizan un contacto
+en Gmail.
+
+Solución con ImprovMX (gratis, sin migrar el DNS):
+
+1. Dar de alta `fitplan-ai.com` en improvmx.com
+2. En Hostinger, DNS Zone Editor, añadir dos registros MX:
+   - `mx1.improvmx.com` con prioridad 10
+   - `mx2.improvmx.com` con prioridad 20
+3. Crear el alias `hola@fitplan-ai.com` apuntando al Gmail del proyecto
+4. Para poder enviar desde esa dirección: Gmail, Configuración, Cuentas,
+   "Enviar como", usando las credenciales de `INTAKE_SMTP_*`
+
+Aviso: el SPF actual es `v=spf1 include:_spf.firebasemail.com ~all`. Si se
+envía desde otro SMTP hay que incluirlo también en ese registro, o los correos
+acabarán en spam.
