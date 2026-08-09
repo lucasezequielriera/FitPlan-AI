@@ -77,13 +77,28 @@ no puedo verificar desde el código.
 
 ## Orden de alta recomendado
 
-1. Trustpilot
-2. Google Business Profile
-3. Bing Places
-4. Crunchbase
-5. AlternativeTo
-6. Product Hunt (solo cuando tengas el lanzamiento preparado)
-7. Startupxplore
+| # | Sitio | ¿Necesita email de dominio? | Tiempo |
+|---|---|---|---|
+| 1 | AlternativeTo | No | 10 min |
+| 2 | Crunchbase | No | 15 min |
+| 3 | Trustpilot | Sí | 15 min |
+| 4 | Startupxplore | No | 10 min |
+| 5 | Product Hunt | No | 3-4 h de preparación |
+
+Los dos primeros se pueden hacer sin tener resuelto el correo de dominio.
+
+### Google Business Profile y Bing Places: NO aplican
+
+Los dos exigen un local físico o una zona donde se atienda **en persona**.
+El seguimiento 1:1 de FitPlan es online (chat y WhatsApp), así que el negocio
+no cumple el requisito.
+
+Intentarlo sale mal: la verificación suele ser por carta postal a una
+dirección física, usar el domicilio particular lo publica, y si la ficha cuela
+igualmente incumple las condiciones y la pueden retirar.
+
+No hacen falta: el trabajo de aparecer al buscar la marca lo cubren Trustpilot
+y Crunchbase, que sí aceptan negocios 100 % online.
 
 Tras cada alta que genere una URL pública nueva, no hace falta hacer nada en el
 sitio: los enlaces los descubren ellos. Si tocas una landing propia, avisa a
@@ -118,15 +133,24 @@ Estado actual: el DNS está en Hostinger y el dominio **no tiene registros MX**,
 así que hoy no puede recibir correo. Varios directorios penalizan un contacto
 en Gmail.
 
-Solución con ImprovMX (gratis, sin migrar el DNS):
+ImprovMX queda descartado: su plan gratuito permite un solo dominio y ya está
+ocupado por otro proyecto.
 
-1. Dar de alta `fitplan-ai.com` en improvmx.com
-2. En Hostinger, DNS Zone Editor, añadir dos registros MX:
-   - `mx1.improvmx.com` con prioridad 10
-   - `mx2.improvmx.com` con prioridad 20
-3. Crear el alias `hola@fitplan-ai.com` apuntando al Gmail del proyecto
-4. Para poder enviar desde esa dirección: Gmail, Configuración, Cuentas,
-   "Enviar como", usando las credenciales de `INTAKE_SMTP_*`
+**Opción recomendada — Zoho Mail (plan gratuito).** Buzón real, no reenvío.
+Gratis para 1 dominio y hasta 5 usuarios, y **no hay que mover el DNS**: se
+queda en Hostinger y solo se añaden los MX que indique Zoho.
+
+1. Alta en zoho.com/mail, plan "Forever Free", añadiendo `fitplan-ai.com`
+2. Verificar la propiedad del dominio con el registro TXT que den
+3. En Hostinger, DNS Zone Editor, añadir los MX de Zoho
+4. Crear el buzón `hola@fitplan-ai.com`
+
+Limitación del plan gratuito: solo acceso web y app móvil, sin IMAP. Se puede
+configurar reenvío a Gmail si se prefiere leerlo todo desde ahí.
+
+**Alternativa a futuro — Cloudflare Email Routing.** Gratis e ilimitado, y de
+paso mejora el DNS y añade CDN, pero exige mover los nameservers de Hostinger
+a Cloudflare. Mejor hacerlo con calma, no con prisa.
 
 Aviso: el SPF actual es `v=spf1 include:_spf.firebasemail.com ~all`. Si se
 envía desde otro SMTP hay que incluirlo también en ese registro, o los correos
