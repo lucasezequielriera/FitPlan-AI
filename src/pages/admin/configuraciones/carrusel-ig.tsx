@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import { useAuthStore } from "@/store/authStore";
 import { getIsAdminClient, adminFetch } from "@/lib/adminAuthClient";
 import Navbar from "@/components/Navbar";
-import { FaArrowLeft, FaImages, FaMagic, FaPaperPlane, FaClock, FaTimes } from "react-icons/fa";
+import { FaArrowLeft, FaImages, FaMagic, FaPaperPlane, FaClock, FaTimes, FaPlus, FaTrash } from "react-icons/fa";
 
 const MADRID_TZ = "Europe/Madrid";
 
@@ -66,6 +66,14 @@ export default function AdminCarruselIgPage() {
   const [scheduleFor, setScheduleFor] = useState("");
   const [scheduledIso, setScheduledIso] = useState<string | null>(null);
 
+  const [priceLabel, setPriceLabel] = useState("");
+  const [autoEnabled, setAutoEnabled] = useState(true);
+  const [autoTimes, setAutoTimes] = useState<string[]>([]);
+  const [autoSlides, setAutoSlides] = useState(5);
+  const [autoLoading, setAutoLoading] = useState(true);
+  const [autoSaving, setAutoSaving] = useState(false);
+  const [autoSaved, setAutoSaved] = useState(false);
+
   useEffect(() => {
     const run = async () => {
       if (authLoading) return;
@@ -78,6 +86,54 @@ export default function AdminCarruselIgPage() {
     void run();
   }, [authUser, authLoading, router]);
 
+  useEffect(() => {
+    if (!allowed) return;
+    const load = async () => {
+      try {
+        const resp = await adminFetch("/api/admin/carouselSchedule");
+        const data = await resp.json();
+        if (resp.ok) {
+          setAutoEnabled(data.enabled);
+          setAutoTimes(data.timesLocal || []);
+          setAutoSlides(data.slideCount || 5);
+          // El precio configurado para los automáticos es también el valor de
+          // partida al generar a mano, para que ambos digan lo mismo.
+          setPriceLabel(data.priceLabel || "");
+        }
+      } catch {
+        // Silencioso: la generación manual funciona igual sin esta config.
+      } finally {
+        setAutoLoading(false);
+      }
+    };
+    void load();
+  }, [allowed]);
+
+  const handleSaveAuto = async () => {
+    setAutoSaving(true);
+    setError(null);
+    setAutoSaved(false);
+    try {
+      const resp = await adminFetch("/api/admin/carouselSchedule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          enabled: autoEnabled,
+          timesLocal: autoTimes.filter(Boolean),
+          slideCount: autoSlides,
+          priceLabel: priceLabel.trim(),
+        }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "No se pudo guardar");
+      setAutoSaved(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al guardar la configuración");
+    } finally {
+      setAutoSaving(false);
+    }
+  };
+
   const handleGenerate = async () => {
     setGenerating(true);
     setError(null);
@@ -89,7 +145,7 @@ export default function AdminCarruselIgPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         // Sin tema, lo elige la IA.
-        body: JSON.stringify({ topic: topic.trim() || undefined, slideCount }),
+        body: JSON.stringify({ topic: topic.trim() || undefined, slideCount, priceLabel: priceLabel.trim() || undefined }),
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.detail || data.error || "No se pudo generar el carrusel");
@@ -211,10 +267,117 @@ export default function AdminCarruselIgPage() {
             </div>
           </div>
 
+          <div>
+            <label htmlFor="price" className="block text-sm text-white/75 mb-1.5">Texto de precio (última diapositiva)</label>
+            <input
+              id="price"
+              type="text"
+              value={priceLabel}
+              onChange={(e) => setPriceLabel(e.target.value)}
+              maxLength={60}
+              placeholder="Premium desde 2,08 €/mes"
+              className="w-full rounded-lg bg-black/25 border border-white/15 px-3 py-2.5 text-sm text-white outline-none focus:border-info/50"
+            />
+            <p className="text-xs text-white/40 mt-1.5">
+              Tiene que coincidir con lo que se cobra en el checkout. Un precio publicado que no cuadra genera disputas de cobro y reseñas negativas.
+            </p>
+          </div>
+
           <button type="button" onClick={handleGenerate} disabled={generating} className="btn btn-primary disabled:opacity-50">
             <FaMagic className={generating ? "animate-pulse" : ""} />
             {generating ? "Generando… (puede tardar ~1 min)" : "Generar carrusel"}
           </button>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="card-surface p-5 mt-6 space-y-4">
+          <div className="flex items-center gap-3">
+            <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-warning/15 border border-warning/25 text-warning">
+              <FaClock />
+            </span>
+            <div>
+              <h2 className="text-lg font-semibold text-white">Carruseles automáticos</h2>
+              <p className="text-sm text-white/50">Se generan y publican solos a estas horas (hora España), con tema elegido por la IA.</p>
+            </div>
+          </div>
+
+          {autoLoading ? (
+            <p className="text-sm text-white/50">Cargando…</p>
+          ) : (
+            <>
+              <label className="flex items-center gap-2 text-sm text-white/80">
+                <input
+                  type="checkbox"
+                  checked={autoEnabled}
+                  onChange={(e) => { setAutoEnabled(e.target.checked); setAutoSaved(false); }}
+                  className="h-4 w-4"
+                />
+                Publicación automática activada
+              </label>
+
+              <div className="space-y-2">
+                {autoTimes.map((t, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input
+                      type="time"
+                      value={t}
+                      onChange={(e) => {
+                        setAutoTimes((prev) => prev.map((x, j) => (j === i ? e.target.value : x)));
+                        setAutoSaved(false);
+                      }}
+                      className="rounded-lg bg-black/25 border border-white/15 px-3 py-2 text-sm text-white outline-none focus:border-warning/50"
+                    />
+                    <span className="text-xs text-white/40">hora España</span>
+                    <button
+                      type="button"
+                      onClick={() => { setAutoTimes((prev) => prev.filter((_, j) => j !== i)); setAutoSaved(false); }}
+                      className="ml-auto p-2 rounded-lg text-danger/90 hover:bg-danger/15"
+                      title="Quitar horario"
+                    >
+                      <FaTrash className="text-xs" />
+                    </button>
+                  </div>
+                ))}
+                {autoTimes.length === 0 && (
+                  <p className="text-sm text-white/40">Sin horarios: no se publicará ningún carrusel automático.</p>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => { setAutoTimes((prev) => [...prev, "09:30"]); setAutoSaved(false); }}
+                className="btn btn-secondary text-sm"
+              >
+                <FaPlus className="text-xs" />
+                Agregar horario
+              </button>
+
+              <div>
+                <label htmlFor="autoCount" className="block text-sm text-white/75 mb-1.5">
+                  Diapositivas por carrusel automático: <span className="tabular-nums text-white">{autoSlides}</span>
+                </label>
+                <input
+                  id="autoCount"
+                  type="range"
+                  min={MIN_SLIDES}
+                  max={MAX_SLIDES}
+                  value={autoSlides}
+                  onChange={(e) => { setAutoSlides(Number(e.target.value)); setAutoSaved(false); }}
+                  className="w-full accent-amber-500"
+                />
+              </div>
+
+              <p className="text-xs text-white/40">
+                El precio de arriba se usa también en los automáticos: al guardar aquí queda fijado para ambos.
+              </p>
+
+              <div className="flex items-center gap-3 pt-1">
+                <button type="button" onClick={handleSaveAuto} disabled={autoSaving} className="btn btn-primary disabled:opacity-50">
+                  {autoSaving ? "Guardando…" : "Guardar configuración"}
+                </button>
+                {autoSaved && <span className="text-sm text-success">Guardado ✅</span>}
+              </div>
+            </>
+          )}
         </motion.div>
 
         {draft && (

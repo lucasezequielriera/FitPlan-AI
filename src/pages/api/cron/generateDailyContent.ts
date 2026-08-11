@@ -13,6 +13,8 @@ import { getStoredTikTokTokens } from "@/lib/socialContent/tiktokTokenStore";
 import { getSocialSchedule, madridDateId, matchingSlotsNow, slotDocId } from "@/lib/socialContent/scheduleStore";
 import { publishManualDraft } from "@/lib/socialContent/publishManualDraft";
 import { publishCarouselDraft } from "@/lib/socialContent/publishCarouselDraft";
+import { buildCarousel } from "@/lib/socialContent/buildCarousel";
+import { getCarouselSchedule } from "@/lib/socialContent/carouselScheduleStore";
 import { sendTelegramMessage } from "@/lib/telegram";
 
 // El cron corre cada 10 minutos (ver vercel.json + cron-job.org); la
@@ -207,6 +209,60 @@ async function publishDueScheduledDrafts(db: Firestore, now: Date) {
 }
 
 /**
+ * Genera y publica los carruseles automáticos de las franjas que caen en la
+ * ventana actual.
+ *
+ * A diferencia de los reels, aquí se hace todo en el mismo tick: generar un
+ * carrusel son unos 60 segundos (copy + renderizado + subida), muy por debajo
+ * del límite de la función, mientras que un vídeo de HeyGen tarda minutos y
+ * obliga a partirlo en dos fases.
+ *
+ * El id del documento es fecha + franja, así que si dos ticks se solapan el
+ * segundo encuentra el doc ya creado y no genera un carrusel duplicado.
+ */
+async function runScheduledCarousels(db: Firestore, now: Date) {
+  const schedule = await getCarouselSchedule(db);
+  const slots = matchingSlotsNow(
+    { enabled: schedule.enabled, timesLocal: schedule.timesLocal },
+    now,
+    TICK_TOLERANCE_MINUTES
+  );
+  if (slots.length === 0) return [];
+
+  const dateId = madridDateId(now);
+  const results = [];
+
+  for (const slot of slots) {
+    const docId = `${dateId}_${slot.replace(":", "")}`;
+    const ref = db.collection("socialContentCarousel").doc(docId);
+    if ((await ref.get()).exists) {
+      results.push({ carouselId: docId, skipped: true, reason: "already_generated" });
+      continue;
+    }
+
+    try {
+      await buildCarousel(db, {
+        slideCount: schedule.slideCount,
+        priceLabel: schedule.priceLabel,
+        createdBy: "cron-auto",
+        docId,
+        slotLocal: slot,
+      });
+      const published = await publishCarouselDraft(db, docId, "cron-auto");
+      results.push({ carouselId: docId, generated: true, ok: published.instagram.ok });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`Error en el carrusel automático ${docId}:`, error);
+      await ref.set({ status: "failed", error: message }, { merge: true }).catch(() => {});
+      await sendTelegramMessage(`❌ Falló el carrusel automático de las ${slot}: ${message}`).catch(() => {});
+      results.push({ carouselId: docId, ok: false, error: message });
+    }
+  }
+
+  return results;
+}
+
+/**
  * Publica los carruseles programados (`socialContentCarousel`) que ya
  * vencieron. Mismo patrón que los borradores manuales: las imágenes y el pie
  * ya existen, aquí solo se despachan.
@@ -269,6 +325,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     results.push(...(await publishDueScheduledDrafts(db, now)));
     results.push(...(await publishDueScheduledCarousels(db, now)));
+    results.push(...(await runScheduledCarousels(db, now)));
 
     const generatingSnap = await db.collection("socialContent").where("status", "==", "generating").get();
     for (const doc of generatingSnap.docs) {
