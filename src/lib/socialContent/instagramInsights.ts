@@ -37,16 +37,15 @@ const EMPTY: MediaMetrics = {
   insightsError: null,
 };
 
-/** Métricas de insights que pedimos para un reel. */
-const REEL_METRICS = [
-  "reach",
-  "shares",
-  "saved",
-  "total_interactions",
-  "views",
-  "ig_reels_avg_watch_time",
-  "ig_reels_video_view_total_time",
-].join(",");
+/**
+ * Métricas comunes a cualquier tipo de publicación.
+ *
+ * Las de tiempo de visualización son EXCLUSIVAS de reels: pedirlas sobre un
+ * carrusel hace fallar la petición entera y se pierden también las métricas
+ * que sí eran válidas, así que el conjunto se elige según el tipo de media.
+ */
+const COMMON_METRICS = ["reach", "shares", "saved", "total_interactions", "views"];
+const REEL_ONLY_METRICS = ["ig_reels_avg_watch_time", "ig_reels_video_view_total_time"];
 
 function num(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
@@ -68,7 +67,7 @@ export async function fetchMediaMetrics(mediaId: string, accessToken: string): P
   const result: MediaMetrics = { ...EMPTY };
 
   const fieldsResp = await fetch(
-    `${GRAPH_BASE}/${mediaId}?fields=like_count,comments_count,permalink&access_token=${accessToken}`
+    `${GRAPH_BASE}/${mediaId}?fields=like_count,comments_count,permalink,media_product_type&access_token=${accessToken}`
   );
   const fieldsData = await fieldsResp.json();
   if (!fieldsResp.ok) {
@@ -78,8 +77,11 @@ export async function fetchMediaMetrics(mediaId: string, accessToken: string): P
   result.comments = num(fieldsData.comments_count);
   result.permalink = typeof fieldsData.permalink === "string" ? fieldsData.permalink : null;
 
+  const isReel = fieldsData.media_product_type === "REELS";
+  const metrics = (isReel ? [...COMMON_METRICS, ...REEL_ONLY_METRICS] : COMMON_METRICS).join(",");
+
   const insightsResp = await fetch(
-    `${GRAPH_BASE}/${mediaId}/insights?metric=${REEL_METRICS}&access_token=${accessToken}`
+    `${GRAPH_BASE}/${mediaId}/insights?metric=${metrics}&access_token=${accessToken}`
   );
   const insightsData = await insightsResp.json();
   if (!insightsResp.ok) {
