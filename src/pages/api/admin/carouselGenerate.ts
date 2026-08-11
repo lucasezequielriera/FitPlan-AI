@@ -11,6 +11,27 @@ export const MIN_SLIDES = 3;
 export const MAX_SLIDES = 10;
 
 /**
+ * Elimina las claves con valor `undefined` en profundidad.
+ *
+ * Las diapositivas tienen varios campos opcionales (`delta`, `note`,
+ * `emphasis`, `caption`…) y Firestore rechaza el documento entero si alguno
+ * llega como `undefined`, en lugar de ignorarlo.
+ */
+function stripUndefined<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((v) => stripUndefined(v)) as unknown as T;
+  }
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (v !== undefined) out[k] = stripUndefined(v);
+    }
+    return out as T;
+  }
+  return value;
+}
+
+/**
  * Genera (pero NO publica) un carrusel de Instagram: copy + imágenes.
  *
  * Guarda un borrador en `socialContentCarousel` con las URLs ya subidas a
@@ -64,10 +85,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await draftRef.set({
       topic,
       slideCount: total,
-      specs,
+      specs: stripUndefined(specs),
       imageUrls,
       caption,
-      copy,
+      copy: stripUndefined(copy),
       status: "draft",
       createdBy: auth.uid,
       createdAt: FieldValue.serverTimestamp(),
