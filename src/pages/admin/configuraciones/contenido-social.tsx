@@ -500,7 +500,12 @@ export default function AdminContenidoSocialPage() {
             </div>
           </div>
 
-          {error && <div className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">{error}</div>}
+          <div className="flex gap-2 mb-6">
+          <span className="text-sm px-3 py-1.5 rounded-lg border border-info/40 bg-info/15 text-info">Reels</span>
+          <Link href="/admin/configuraciones/carrusel-ig" className="text-sm px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 text-white/60 hover:text-white/85 transition-colors">Carrusel</Link>
+        </div>
+
+        {error && <div className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">{error}</div>}
 
           <button
             type="button"

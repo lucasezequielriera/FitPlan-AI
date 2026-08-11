@@ -12,6 +12,7 @@ import { getInstagramAccessToken } from "@/lib/socialContent/instagramTokenStore
 import { getStoredTikTokTokens } from "@/lib/socialContent/tiktokTokenStore";
 import { getSocialSchedule, madridDateId, matchingSlotsNow, slotDocId } from "@/lib/socialContent/scheduleStore";
 import { publishManualDraft } from "@/lib/socialContent/publishManualDraft";
+import { publishCarouselDraft } from "@/lib/socialContent/publishCarouselDraft";
 import { sendTelegramMessage } from "@/lib/telegram";
 
 // El cron corre cada 10 minutos (ver vercel.json + cron-job.org); la
@@ -206,6 +207,33 @@ async function publishDueScheduledDrafts(db: Firestore, now: Date) {
 }
 
 /**
+ * Publica los carruseles programados (`socialContentCarousel`) que ya
+ * vencieron. Mismo patrón que los borradores manuales: las imágenes y el pie
+ * ya existen, aquí solo se despachan.
+ */
+async function publishDueScheduledCarousels(db: Firestore, now: Date) {
+  const scheduledSnap = await db.collection("socialContentCarousel").where("status", "==", "scheduled").get();
+  const dueDocs = scheduledSnap.docs.filter((doc) => {
+    const scheduledFor = doc.data().scheduledFor as Timestamp | undefined;
+    return scheduledFor && scheduledFor.toMillis() <= now.getTime();
+  });
+
+  const results = [];
+  for (const doc of dueDocs) {
+    try {
+      const result = await publishCarouselDraft(db, doc.id, "cron-scheduled");
+      results.push({ carouselId: doc.id, scheduled: true, ok: result.instagram.ok });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`Error publicando carrusel programado ${doc.id}:`, error);
+      await sendTelegramMessage(`❌ Falló la publicación programada del carrusel ${doc.id}: ${message}`).catch(() => {});
+      results.push({ carouselId: doc.id, scheduled: true, ok: false, error: message });
+    }
+  }
+  return results;
+}
+
+/**
  * Corre cada 10 minutos y hace tres cosas en cada tick, cada una acotada a
  * pocos segundos (nada de esperas largas dentro de la función):
  *
@@ -240,6 +268,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const results: unknown[] = [];
 
     results.push(...(await publishDueScheduledDrafts(db, now)));
+    results.push(...(await publishDueScheduledCarousels(db, now)));
 
     const generatingSnap = await db.collection("socialContent").where("status", "==", "generating").get();
     for (const doc of generatingSnap.docs) {

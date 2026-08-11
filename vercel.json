@@ -23,6 +23,12 @@
     },
     "src/pages/api/cron/collectSocialMetrics.ts": {
       "maxDuration": 120
+    },
+    "src/pages/api/admin/carouselGenerate.ts": {
+      "maxDuration": 300
+    },
+    "src/pages/api/admin/carouselPublish.ts": {
+      "maxDuration": 300
     }
   },
   "crons": [
