@@ -1,0 +1,356 @@
+<title>Carrusel Instagram · FitPlan AI</title>
+<style>
+  :root {
+    --page-bg: #EDF1F7;
+    --page-fg: #0B1220;
+    --page-muted: #55647C;
+    --page-rule: #D3DCE8;
+    --page-surface: #FFFFFF;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --page-bg: #080E18;
+      --page-fg: #E8EEF7;
+      --page-muted: #7E90AB;
+      --page-rule: #1E2C42;
+      --page-surface: #111B2B;
+    }
+  }
+  :root[data-theme="dark"] {
+    --page-bg: #080E18;
+    --page-fg: #E8EEF7;
+    --page-muted: #7E90AB;
+    --page-rule: #1E2C42;
+    --page-surface: #111B2B;
+  }
+  :root[data-theme="light"] {
+    --page-bg: #EDF1F7;
+    --page-fg: #0B1220;
+    --page-muted: #55647C;
+    --page-rule: #D3DCE8;
+    --page-surface: #FFFFFF;
+  }
+
+  /* Tokens fijos de la creatividad: las diapositivas se exportan como imagen,
+     así que no cambian con el tema del visor. */
+  .slide {
+    --ink: #080E18;
+    --surface: #111B2B;
+    --rule: #1E2C42;
+    --brand: #3B82F6;
+    --signal: #10B981;
+    --muted: #7E90AB;
+    --paper: #E8EEF7;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--page-bg);
+    color: var(--page-fg);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.55;
+  }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 48px 24px 96px; }
+
+  .page-head { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+  .page-head h1 { margin: 0; font-size: 1.9rem; font-weight: 800; letter-spacing: -0.025em; text-wrap: balance; }
+  .page-head p { margin: 0; color: var(--page-muted); max-width: 62ch; }
+
+  .toolbar {
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+    margin: 28px 0 40px; padding: 16px 18px;
+    background: var(--page-surface); border: 1px solid var(--page-rule); border-radius: 10px;
+  }
+  .toolbar p { margin: 0; font-size: 0.86rem; color: var(--page-muted); max-width: 60ch; }
+  button {
+    font: inherit; font-size: 0.88rem; font-weight: 600;
+    padding: 9px 16px; border-radius: 8px; cursor: pointer;
+    background: #3B82F6; color: #fff; border: 1px solid #3B82F6;
+  }
+  button:hover { background: #2f74e0; }
+  button:focus-visible { outline: 3px solid #22D3EE; outline-offset: 2px; }
+
+  .deck { display: flex; flex-direction: column; gap: 40px; }
+
+  .slide-block { display: flex; flex-direction: column; gap: 10px; }
+  .slide-label {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.76rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--page-muted);
+  }
+
+  /* Contenedor que escala la diapositiva para previsualizar sin deformarla. */
+  .stage { width: 100%; overflow: hidden; }
+  .stage-inner { transform-origin: top left; }
+
+  /* ---- Diapositiva: 1080 x 1350 exactos (formato 4:5 de Instagram) ---- */
+  .slide {
+    width: 1080px; height: 1350px; flex: none;
+    position: relative; overflow: hidden;
+    background: var(--ink); color: var(--paper);
+    padding: 96px 88px 88px 132px;
+    display: flex; flex-direction: column;
+  }
+
+  /* Pauta tenue: la hoja de registro del gimnasio, no un adorno. */
+  .slide::before {
+    content: ""; position: absolute; inset: 0;
+    background-image: repeating-linear-gradient(to bottom, var(--rule) 0 1px, transparent 1px 90px);
+    opacity: 0.5; pointer-events: none;
+  }
+  /* Lomo vertical del que cuelga todo el contenido. */
+  .slide::after {
+    content: ""; position: absolute; top: 0; bottom: 0; left: 88px;
+    width: 1px; background: var(--rule);
+  }
+
+  .slide > * { position: relative; z-index: 1; }
+
+  .idx {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 26px; letter-spacing: 0.16em; color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .idx b { color: var(--brand); font-weight: 500; }
+
+  .spacer { flex: 1; }
+
+  h2.display {
+    margin: 0; font-weight: 800;
+    font-size: 116px; line-height: 0.94; letter-spacing: -0.035em;
+    text-wrap: balance; text-transform: uppercase;
+  }
+  h2.display .em { color: var(--signal); }
+
+  h3.title {
+    margin: 0; font-weight: 800;
+    font-size: 76px; line-height: 1.02; letter-spacing: -0.03em; text-wrap: balance;
+  }
+
+  p.sub { margin: 32px 0 0; font-size: 40px; line-height: 1.35; color: var(--muted); max-width: 22ch; }
+  p.body { margin: 40px 0 0; font-size: 34px; line-height: 1.45; color: #B9C6D8; max-width: 30ch; }
+
+  .foot {
+    display: flex; align-items: center; gap: 20px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 24px; color: var(--muted); letter-spacing: 0.04em;
+  }
+  .foot svg { width: 46px; height: 46px; flex: none; }
+
+  /* ---- Tabla de registro: los números cuentan la historia ---- */
+  .log { margin: 56px 0 0; width: 100%; border-collapse: collapse; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .log th {
+    text-align: left; font-size: 22px; font-weight: 500; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--muted); padding: 0 0 18px; border-bottom: 1px solid var(--rule);
+  }
+  .log td {
+    font-size: 38px; padding: 26px 0; border-bottom: 1px solid var(--rule);
+    font-variant-numeric: tabular-nums; color: var(--paper);
+  }
+  .log td.note { font-size: 24px; color: var(--muted); text-align: right; }
+  .log td.delta { font-size: 30px; color: var(--signal); text-align: right; }
+  .log tr.dead td { color: #64748B; }
+
+  .caption-line {
+    margin: 44px 0 0; font-size: 38px; font-weight: 700; letter-spacing: -0.02em; color: var(--paper);
+  }
+
+  /* ---- Lista de contenido ---- */
+  ul.includes { list-style: none; margin: 52px 0 0; padding: 0; display: flex; flex-direction: column; gap: 30px; }
+  ul.includes li { display: flex; gap: 24px; align-items: flex-start; font-size: 34px; line-height: 1.3; }
+  ul.includes .tick { flex: none; width: 34px; height: 34px; margin-top: 6px; }
+
+  /* ---- Cierre ---- */
+  .mark { width: 132px; height: 132px; }
+  .price {
+    margin: 28px 0 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 34px; color: var(--signal); letter-spacing: 0.02em; font-variant-numeric: tabular-nums;
+  }
+  .url { margin: 56px 0 0; font-size: 40px; font-weight: 700; letter-spacing: -0.01em; color: var(--brand); }
+
+  /* ---- Bloque de textos para copiar ---- */
+  .copy-block {
+    margin-top: 72px; padding: 28px 30px; border-radius: 12px;
+    background: var(--page-surface); border: 1px solid var(--page-rule);
+  }
+  .copy-block h2 { margin: 0 0 6px; font-size: 1.15rem; font-weight: 800; letter-spacing: -0.02em; }
+  .copy-block h3 { margin: 26px 0 8px; font-size: 0.78rem; letter-spacing: 0.09em; text-transform: uppercase; color: var(--page-muted); }
+  .copy-block pre {
+    margin: 0; padding: 18px 20px; border-radius: 8px; overflow-x: auto;
+    background: var(--page-bg); border: 1px solid var(--page-rule);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem; line-height: 1.6;
+    white-space: pre-wrap;
+  }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="page-head">
+    <h1>Carrusel para Instagram · FitPlan AI</h1>
+    <p>Cinco diapositivas en 1080 × 1350 px (formato 4:5, el que más superficie ocupa en el feed). Pensado para publicarse como colaboración: las tres primeras dan valor por sí solas y el producto no aparece hasta la cuarta.</p>
+  </header>
+
+  <div class="toolbar">
+    <button type="button" id="scaleBtn">Ver a tamaño real (1080 px)</button>
+    <p><strong>Para exportar:</strong> pon tamaño real, clic derecho sobre una diapositiva → Inspeccionar → clic derecho en el nodo <code>&lt;section class="slide"&gt;</code> → «Capture node screenshot». Salen PNG de 1080 × 1350 exactos.</p>
+  </div>
+
+  <div class="deck" id="deck">
+
+    <!-- 01 · Gancho -->
+    <div class="slide-block">
+      <span class="slide-label">01 · Gancho</span>
+      <div class="stage"><div class="stage-inner">
+        <section class="slide">
+          <div class="idx"><b>01</b> / 05</div>
+          <div class="spacer"></div>
+          <h2 class="display">Tu plan caducó en la semana <span class="em">3</span></h2>
+          <p class="sub">Y tú seguiste haciéndolo igual.</p>
+          <div class="spacer"></div>
+          <div class="foot">
+            <svg viewBox="0 0 1080 1080" aria-hidden="true"><defs><linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#3b82f6"/><stop offset="100%" stop-color="#06b6d4"/></linearGradient></defs><g transform="translate(248.8,207.2) scale(1.3)"><path fill="url(#g1)" d="M350.85 129c25.97 4.67 47.27 18.67 63.92 42 14.65 20.67 24.64 46.67 29.96 78 4.67 28.67 4.32 57.33-1 86-7.99 47.33-23.97 87-47.94 119-28.64 38.67-64.59 58-107.87 58-10.66 0-22.3-3.33-34.96-10-8.66-5.33-18.31-8-28.97-8s-20.3 2.67-28.97 8c-12.66 6.67-24.3 10-34.96 10-43.28 0-79.23-19.33-107.87-58-23.97-32-39.95-71.67-47.94-119-5.32-28.67-5.67-57.33-1-86 5.32-31.33 15.31-57.33 29.96-78 16.65-23.33 37.95-37.33 63.92-42 15.98-2.67 37.95-.33 65.92 7 23.97 6.67 44.28 14.67 60.93 24 16.65-9.33 36.96-17.33 60.93-24 27.98-7.33 49.96-9.67 65.94-7zm-54.94-41c-9.32 8.67-21.65 15-36.96 19-10.66 3.33-22.3 5-34.96 5l-14.98-1c-1.33-9.33-1.33-20 0-32 2.67-24 10.32-42.33 22.97-55 9.32-8.67 21.65-15 36.96-19 10.66-3.33 22.3-5 34.96-5l14.98 1 1 15c0 12.67-1.67 24.33-4.99 35-3.99 15.33-10.31 27.67-18.98 37z"/></g></svg>
+            <span>FITPLAN AI</span>
+          </div>
+        </section>
+      </div></div>
+    </div>
+
+    <!-- 02 · El problema -->
+    <div class="slide-block">
+      <span class="slide-label">02 · El problema</span>
+      <div class="stage"><div class="stage-inner">
+        <section class="slide">
+          <div class="idx"><b>02</b> / 05</div>
+          <div class="spacer"></div>
+          <h3 class="title">Un PDF no sabe que has progresado</h3>
+          <table class="log">
+            <thead><tr><th>Semana</th><th>Press banca</th><th>Carga</th><th></th></tr></thead>
+            <tbody>
+              <tr><td>01</td><td>3 × 10</td><td>40 kg</td><td class="note">estímulo</td></tr>
+              <tr class="dead"><td>04</td><td>3 × 10</td><td>40 kg</td><td class="note">—</td></tr>
+              <tr class="dead"><td>08</td><td>3 × 10</td><td>40 kg</td><td class="note">calentamiento</td></tr>
+            </tbody>
+          </table>
+          <p class="caption-line">El plan no cambió. Tú sí.</p>
+          <div class="spacer"></div>
+          <div class="foot"><span>FITPLAN AI</span></div>
+        </section>
+      </div></div>
+    </div>
+
+    <!-- 03 · El mecanismo -->
+    <div class="slide-block">
+      <span class="slide-label">03 · El mecanismo</span>
+      <div class="stage"><div class="stage-inner">
+        <section class="slide">
+          <div class="idx"><b>03</b> / 05</div>
+          <div class="spacer"></div>
+          <h3 class="title">El plan se recalcula con lo que de verdad haces</h3>
+          <table class="log">
+            <thead><tr><th>Semana</th><th>Press banca</th><th>Carga</th><th></th></tr></thead>
+            <tbody>
+              <tr><td>01</td><td>3 × 10</td><td>40 kg</td><td class="note">punto de partida</td></tr>
+              <tr><td>04</td><td>4 × 8</td><td>47,5 kg</td><td class="delta">+7,5</td></tr>
+              <tr><td>08</td><td>4 × 6</td><td>55 kg</td><td class="delta">+7,5</td></tr>
+            </tbody>
+          </table>
+          <p class="body">Registras lo que levantas y lo que comes. Cada mes el plan se ajusta sobre datos reales, no sobre lo que estaba previsto en la semana 1.</p>
+          <div class="spacer"></div>
+          <div class="foot"><span>FITPLAN AI</span></div>
+        </section>
+      </div></div>
+    </div>
+
+    <!-- 04 · Qué incluye -->
+    <div class="slide-block">
+      <span class="slide-label">04 · Qué incluye</span>
+      <div class="stage"><div class="stage-inner">
+        <section class="slide">
+          <div class="idx"><b>04</b> / 05</div>
+          <div class="spacer"></div>
+          <h3 class="title">Lo que entra en el plan</h3>
+          <ul class="includes">
+            <li><svg class="tick" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5l5.5 5.5L20 6"/></svg><span>Menús semanales con ingredientes y cantidades exactas</span></li>
+            <li><svg class="tick" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5l5.5 5.5L20 6"/></svg><span>Rutinas según tu nivel, tu material y tus lesiones</span></li>
+            <li><svg class="tick" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5l5.5 5.5L20 6"/></svg><span>Macros y seguimiento diario</span></li>
+            <li><svg class="tick" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5l5.5 5.5L20 6"/></svg><span>Todo exportable a PDF</span></li>
+            <li><svg class="tick" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5l5.5 5.5L20 6"/></svg><span>Opción de coach humano 1:1</span></li>
+          </ul>
+          <div class="spacer"></div>
+          <div class="foot"><span>FITPLAN AI</span></div>
+        </section>
+      </div></div>
+    </div>
+
+    <!-- 05 · Cierre -->
+    <div class="slide-block">
+      <span class="slide-label">05 · Cierre</span>
+      <div class="stage"><div class="stage-inner">
+        <section class="slide">
+          <div class="idx"><b>05</b> / 05</div>
+          <div class="spacer"></div>
+          <svg class="mark" viewBox="0 0 1080 1080" aria-hidden="true"><defs><linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#3b82f6"/><stop offset="100%" stop-color="#06b6d4"/></linearGradient></defs><g transform="translate(248.8,207.2) scale(1.3)"><path fill="url(#g2)" d="M350.85 129c25.97 4.67 47.27 18.67 63.92 42 14.65 20.67 24.64 46.67 29.96 78 4.67 28.67 4.32 57.33-1 86-7.99 47.33-23.97 87-47.94 119-28.64 38.67-64.59 58-107.87 58-10.66 0-22.3-3.33-34.96-10-8.66-5.33-18.31-8-28.97-8s-20.3 2.67-28.97 8c-12.66 6.67-24.3 10-34.96 10-43.28 0-79.23-19.33-107.87-58-23.97-32-39.95-71.67-47.94-119-5.32-28.67-5.67-57.33-1-86 5.32-31.33 15.31-57.33 29.96-78 16.65-23.33 37.95-37.33 63.92-42 15.98-2.67 37.95-.33 65.92 7 23.97 6.67 44.28 14.67 60.93 24 16.65-9.33 36.96-17.33 60.93-24 27.98-7.33 49.96-9.67 65.94-7zm-54.94-41c-9.32 8.67-21.65 15-36.96 19-10.66 3.33-22.3 5-34.96 5l-14.98-1c-1.33-9.33-1.33-20 0-32 2.67-24 10.32-42.33 22.97-55 9.32-8.67 21.65-15 36.96-19 10.66-3.33 22.3-5 34.96-5l14.98 1 1 15c0 12.67-1.67 24.33-4.99 35-3.99 15.33-10.31 27.67-18.98 37z"/></g></svg>
+          <h3 class="title" style="margin-top:44px">Empieza gratis</h3>
+          <p class="price">Premium desde 2,08 €/mes</p>
+          <p class="url">fitplan-ai.com</p>
+          <div class="spacer"></div>
+          <div class="foot"><span>FITPLAN AI</span></div>
+        </section>
+      </div></div>
+    </div>
+
+  </div>
+
+  <section class="copy-block">
+    <h2>Textos del post</h2>
+
+    <h3>Pie de foto</h3>
+    <pre>La mayoría de planes de entrenamiento mueren en la semana 3.
+
+No porque estén mal hechos. Porque están hechos una sola vez.
+
+Cuando empiezas, 3×10 con 40 kg es un estímulo. Seis semanas después, ese mismo peso es calentamiento. El plan sigue diciendo 40 kg. Tú ya no eres la misma persona.
+
+Eso es lo que hace FitPlan AI distinto: registras lo que levantas y lo que comes, y el plan se recalcula cada mes sobre tus datos reales. No sobre lo que estaba previsto el primer día.
+
+Menús con cantidades exactas, rutinas según tu nivel, tu material y tus lesiones, macros y seguimiento. Y si quieres que alguien lo revise, coach humano 1:1.
+
+Empieza gratis en fitplan-ai.com
+
+¿Cuántas semanas llevas levantando exactamente el mismo peso?</pre>
+
+    <h3>Etiquetas</h3>
+    <pre>#entrenamiento #nutriciondeportiva #progresionreal #sobrecargaprogresiva #rutinadegimnasio #macros #fitnessespaña #entrenamientopersonalizado #fitplanai</pre>
+  </section>
+</div>
+
+<script>
+  // Previsualización escalada; el botón devuelve las diapositivas a 1080 px
+  // reales para poder exportarlas al tamaño exacto que pide Instagram.
+  var SLIDE_W = 1080, SLIDE_H = 1350;
+  var full = false;
+  var stages = Array.prototype.slice.call(document.querySelectorAll('.stage'));
+  var btn = document.getElementById('scaleBtn');
+
+  function layout() {
+    stages.forEach(function (stage) {
+      var inner = stage.firstElementChild;
+      var scale = full ? 1 : Math.min(1, stage.clientWidth / SLIDE_W);
+      inner.style.transform = 'scale(' + scale + ')';
+      stage.style.height = (SLIDE_H * scale) + 'px';
+      stage.style.overflowX = full ? 'auto' : 'hidden';
+    });
+  }
+
+  btn.addEventListener('click', function () {
+    full = !full;
+    btn.textContent = full ? 'Volver a la vista reducida' : 'Ver a tamaño real (1080 px)';
+    layout();
+  });
+
+  window.addEventListener('resize', layout);
+  layout();
+</script>
