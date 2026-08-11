@@ -56,9 +56,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const [autoSnap, manualSnap] = await Promise.all([
+    const [autoSnap, manualSnap, carouselSnap] = await Promise.all([
       db.collection("socialContent").orderBy("createdAt", "desc").limit(HISTORY_LIMIT).get(),
       db.collection("socialContentManual").orderBy("createdAt", "desc").limit(HISTORY_LIMIT).get(),
+      db.collection("socialContentCarousel").orderBy("createdAt", "desc").limit(HISTORY_LIMIT).get(),
     ]);
 
     const items: HistoryItem[] = [
@@ -89,6 +90,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           videoUrl: d.videoUrl || null,
           instagram: d.instagram,
           tiktok: d.tiktok,
+          status: d.status || "draft",
+          createdAt: toIso(d.createdAt),
+        };
+      }),
+      ...carouselSnap.docs.map((doc) => {
+        const d = doc.data();
+        const slides = Array.isArray(d.imageUrls) ? d.imageUrls.length : 0;
+        return {
+          id: doc.id,
+          source: (d.source === "automatico" ? "automatico" : "manual") as "automatico" | "manual",
+          category: `Carrusel (${slides} imgs)`,
+          contentFunction: null,
+          slotLocal: d.slotLocal || null,
+          headline: d.topic || "(sin tema)",
+          // El historial enseña una miniatura: para un carrusel, la primera imagen.
+          videoUrl: Array.isArray(d.imageUrls) ? d.imageUrls[0] || null : null,
+          instagram: d.instagram,
+          tiktok: undefined,
           status: d.status || "draft",
           createdAt: toIso(d.createdAt),
         };

@@ -40,6 +40,7 @@ type Performance = {
   insightsAvailable: boolean;
   insightsError: string | null;
   totals: { published: number; withMetrics: number };
+  byFormat: GroupStat[];
   byHookFamily: GroupStat[];
   byFunction: GroupStat[];
   bySlot: GroupStat[];
@@ -328,6 +329,12 @@ export default function AdminMetricasRsPage() {
               <p className="text-xs text-white/40 mt-3">{activeMetric.help}</p>
             </div>
 
+            <BarChart
+              title="Por formato"
+              subtitle="Reels y carruseles no se comparan por retención: un carrusel son imágenes y no tiene tiempo de visualización. Compáralos por amplificación o alcance."
+              rows={data.byFormat}
+              metric={metric}
+            />
             <BarChart
               title="Por familia de gancho"
               subtitle="Con qué tipo de apertura retiene más la audiencia. Es la palanca más rápida de mover: cambiar el gancho es gratis."

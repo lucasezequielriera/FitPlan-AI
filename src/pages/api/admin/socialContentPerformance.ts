@@ -7,6 +7,8 @@ import { amplificationRate, retentionRatio, type MediaMetrics } from "@/lib/soci
 
 type Piece = {
   id: string;
+  /** reel o carrusel: solo los reels tienen retención. */
+  format: "reel" | "carrusel";
   topic: string | null;
   topicName: string;
   contentFunction: string | null;
@@ -125,7 +127,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!db) return res.status(500).json({ error: "Firebase Admin SDK no configurado" });
 
   try {
-    const snap = await db.collection("socialContent").orderBy("createdAt", "desc").limit(100).get();
+    // Reels automáticos y carruseles. Los reels llevan retención (tiempo medio
+    // visto / duración); los carruseles son imágenes y no tienen equivalente,
+    // así que ahí la señal que manda es la amplificación (guardados y
+    // compartidos sobre alcance).
+    const [reelSnap, carouselSnap] = await Promise.all([
+      db.collection("socialContent").orderBy("createdAt", "desc").limit(100).get(),
+      db.collection("socialContentCarousel").orderBy("createdAt", "desc").limit(100).get(),
+    ]);
+    const snap = { docs: [...reelSnap.docs, ...carouselSnap.docs] };
+    const carouselIds = new Set(carouselSnap.docs.map((d) => d.id));
 
     const pieces: Piece[] = [];
     let withMetrics = 0;
@@ -135,6 +146,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     for (const doc of snap.docs) {
       const d = doc.data();
       if (d.status !== "published") continue;
+      const isCarousel = carouselIds.has(doc.id);
 
       const metrics = (d.metrics || {}) as Partial<MediaMetrics>;
       if (d.metrics) withMetrics++;
@@ -159,12 +171,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       pieces.push({
         id: doc.id,
+        format: isCarousel ? "carrusel" : "reel",
         topic,
-        topicName: topic ? topicLabel(topic) : "(sin tema)",
+        topicName: isCarousel ? "Carrusel" : topic ? topicLabel(topic) : "(sin tema)",
         contentFunction: (d.contentFunction as string | undefined) ?? null,
         hookFamily: topic ? topicHookFamily(topic) : null,
         slotLocal: (d.slotLocal as string | undefined) ?? null,
-        headline: d.copy?.scenes?.[0]?.headline || "(sin titular)",
+        headline: isCarousel ? String(d.topic || "(sin tema)") : d.copy?.scenes?.[0]?.headline || "(sin titular)",
         permalink: full.permalink,
         publishedAt: toIso(d.publishedAt) ?? toIso(d.createdAt),
         reach: full.reach,
@@ -197,6 +210,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       byFunction: groupBy(pieces, (p) => p.contentFunction, (k) => FUNCTION_LABELS[k] ?? k),
       bySlot: groupBy(pieces, (p) => p.slotLocal, (k) => `${k} (hora Madrid)`),
       byTopic: groupBy(pieces, (p) => p.topic, (k) => topicLabel(k)),
+      byFormat: groupBy(pieces, (p) => p.format, (k) => (k === "carrusel" ? "Carrusel" : "Reel")),
       best: ranked.slice(0, 5),
       worst: ranked.filter((p) => p.retention !== null || p.reach !== null).slice(-5).reverse(),
     });

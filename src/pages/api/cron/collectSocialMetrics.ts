@@ -70,6 +70,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const targets = [
       ...(await collectablesFrom(db, "socialContent", since)),
       ...(await collectablesFrom(db, "socialContentManual", since)),
+      ...(await collectablesFrom(db, "socialContentCarousel", since)),
     ];
 
     let updated = 0;
