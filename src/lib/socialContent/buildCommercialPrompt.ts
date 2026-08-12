@@ -1,7 +1,7 @@
 import type { SocialCopy } from "@/lib/socialContent/generateCopy";
 import type { ContentFunction } from "@/lib/socialContent/topics";
 
-/** Logo oficial de FitPlan AI (public/brand/icon-social-transparent.png), servido por el propio sitio. */
+/** Logo oficial de FitPlan AI (public/brand/icon-social-transparent.png), servido por el propio sitio. Fuente en brand&designs/. */
 export const FITPLAN_LOGO_URL = "https://www.fitplan-ai.com/brand/icon-social-transparent.png";
 
 /**
@@ -16,9 +16,9 @@ const BRAND_CLOSE: Record<ContentFunction, (closingLine: string) => string> = {
   alcance: () =>
     `[0:22-0:24] CIERRE EN LOOP (máximo 2 segundos, NO es una pantalla de anuncio): remata la idea y vuelve visualmente al mismo tipo de plano con el que abriste, para que volver a ver el video se sienta natural. El LOGO REAL adjunto aparece pequeño, en una esquina, durante ese cierre — nada de pantalla de marca a pantalla completa, nada de texto de llamada a la acción, nada de "descarga la app". Una pieza de alcance que termina en anuncio pierde el último tramo de retención, que es justo el que más pesa.`,
   nutricion: (closingLine) =>
-    `[0:21-0:24] CIERRE DE MARCA SUAVE (unos 3 segundos): el LOGO REAL adjunto (ícono de manzana en gradiente azul) con el nombre "FitPlan AI" sobre el gradiente de marca, y debajo una línea corta y sin urgencia: "${closingLine}". Tono de firma, no de anuncio: sin imperativos agresivos ni signos de exclamación.`,
+    `[0:21-0:24] CIERRE DE MARCA SUAVE (unos 3 segundos): el LOGO REAL adjunto (dos trazos afilados en diagonal, en gradiente azul a verde) con el nombre "FitPlan" sobre el gradiente de marca, y debajo una línea corta y sin urgencia: "${closingLine}". Tono de firma, no de anuncio: sin imperativos agresivos ni signos de exclamación.`,
   conversion: (closingLine) =>
-    `[0:20-0:24] CIERRE DE CONVERSIÓN (unos 4 segundos): pantalla de marca completa con el LOGO REAL adjunto (ícono de manzana en gradiente azul), el nombre "FitPlan AI" sobre el gradiente de marca y la llamada a la acción bien legible y centrada. Aquí sí es una pantalla de anuncio: tiene que quedar claro qué es y qué hacer. Texto de la llamada a la acción: "${closingLine}".`,
+    `[0:20-0:24] CIERRE DE CONVERSIÓN (unos 4 segundos): pantalla de marca completa con el LOGO REAL adjunto (dos trazos afilados en diagonal, en gradiente azul a verde), el nombre "FitPlan" sobre el gradiente de marca y la llamada a la acción bien legible y centrada. Aquí sí es una pantalla de anuncio: tiene que quedar claro qué es y qué hacer. Texto de la llamada a la acción: "${closingLine}".`,
 };
 
 /** Quita el punto final para poder interpolar sin que queden ".." en el prompt. */
@@ -59,7 +59,7 @@ ARRANQUE (lo más importante de todo): el primer fotograma tiene que romper el p
 
 IDIOMA Y ACENTO (no negociable): el presentador habla en ESPAÑOL DE ESPAÑA (castellano peninsular), con acento de España — nunca acento latinoamericano, mexicano ni rioplatense/argentino. Todo el texto en pantalla también en español de España (tú/vosotros, nunca "vos").
 
-LOGO DE MARCA (no negociable): te adjunto el logo oficial de FitPlan AI como archivo — es un ícono de manzana en gradiente azul a celeste. USA ESE LOGO REAL (el archivo adjunto) donde corresponda, en vez de inventar o dibujar un logo propio o un wordmark distinto.
+LOGO DE MARCA (no negociable): te adjunto el logo oficial de FitPlan como archivo — son dos trazos afilados en diagonal, en gradiente de azul a verde, que sugieren una zancada. USA ESE LOGO REAL (el archivo adjunto) donde corresponda, en vez de inventar o dibujar un logo propio o un wordmark distinto. El nombre de marca es "FitPlan", sin "AI" detrás.
 
 RITMO Y MONTAJE (no negociable):
 - UN CORTE O CAMBIO VISUAL CADA 2-3 SEGUNDOS COMO MÁXIMO. Cambio de plano, de encuadre, de fondo, zoom, aparición de texto o cambio de ritmo musical. Un plano que dura más de 3 segundos sin que cambie nada pierde gente.

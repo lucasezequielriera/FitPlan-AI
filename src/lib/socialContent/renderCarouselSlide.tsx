@@ -27,7 +27,7 @@ const C = {
   ink: "#080E18",
   rule: "#1E2C42",
   brand: "#3B82F6",
-  signal: "#10B981",
+  signal: "#10E5B0",
   muted: "#7E90AB",
   paper: "#E8EEF7",
   body: "#B9C6D8",
@@ -67,21 +67,29 @@ export type SlideSpec =
  */
 export type SlideContent = SlideSpec extends infer T ? (T extends SlideSpec ? Omit<T, "index" | "total"> : never) : never;
 
-const BRAND_MARK =
-  "M350.85 129c25.97 4.67 47.27 18.67 63.92 42 14.65 20.67 24.64 46.67 29.96 78 4.67 28.67 4.32 57.33-1 86-7.99 47.33-23.97 87-47.94 119-28.64 38.67-64.59 58-107.87 58-10.66 0-22.3-3.33-34.96-10-8.66-5.33-18.31-8-28.97-8s-20.3 2.67-28.97 8c-12.66 6.67-24.3 10-34.96 10-43.28 0-79.23-19.33-107.87-58-23.97-32-39.95-71.67-47.94-119-5.32-28.67-5.67-57.33-1-86 5.32-31.33 15.31-57.33 29.96-78 16.65-23.33 37.95-37.33 63.92-42 15.98-2.67 37.95-.33 65.92 7 23.97 6.67 44.28 14.67 60.93 24 16.65-9.33 36.96-17.33 60.93-24 27.98-7.33 49.96-9.67 65.94-7zm-54.94-41c-9.32 8.67-21.65 15-36.96 19-10.66 3.33-22.3 5-34.96 5l-14.98-1c-1.33-9.33-1.33-20 0-32 2.67-24 10.32-42.33 22.97-55 9.32-8.67 21.65-15 36.96-19 10.66-3.33 22.3-5 34.96-5l14.98 1 1 15c0 12.67-1.67 24.33-4.99 35-3.99 15.33-10.31 27.67-18.98 37z";
+/** La zancada: dos masas en tensión. Recuadro real del trazo: 150,264 750x608. */
+const MARK_BOX = { x: 150, y: 264, w: 750, h: 608 };
+const MARK_PATHS = [
+  "M150 852 C 214 700, 318 566, 456 470 C 386 618, 336 742, 316 866 Z",
+  "M556 872 C 636 662, 748 458, 900 264 C 852 500, 780 700, 690 872 Z",
+];
 
 function Mark({ size }: { size: number }) {
+  // viewBox ajustado al trazo: así el logo queda centrado de verdad en su hueco
+  // en lugar de heredar el descuadre del lienzo original.
+  const h = (size * MARK_BOX.h) / MARK_BOX.w;
   return (
-    <svg width={size} height={size} viewBox="0 0 1080 1080">
+    <svg width={size} height={h} viewBox={`${MARK_BOX.x} ${MARK_BOX.y} ${MARK_BOX.w} ${MARK_BOX.h}`}>
       <defs>
-        <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#3b82f6" />
-          <stop offset="100%" stopColor="#06b6d4" />
+        <linearGradient id="bg" x1="8%" y1="10%" x2="92%" y2="90%">
+          <stop offset="0%" stopColor="#3B82F6" />
+          <stop offset="52%" stopColor="#22D3EE" />
+          <stop offset="100%" stopColor="#10E5B0" />
         </linearGradient>
       </defs>
-      <g transform="translate(248.8,207.2) scale(1.3)">
-        <path fill="url(#bg)" d={BRAND_MARK} />
-      </g>
+      {MARK_PATHS.map((d) => (
+        <path key={d} fill="url(#bg)" d={d} />
+      ))}
     </svg>
   );
 }
@@ -129,7 +137,7 @@ function Frame({ index, total, children }: { index: number; total: number; child
             <Mark size={46} />
           </div>
         ) : null}
-        <span>FITPLAN AI</span>
+        <span>FITPLAN</span>
       </div>
     </div>
   );
