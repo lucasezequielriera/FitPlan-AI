@@ -1143,7 +1143,7 @@ export default function CreatePlan() {
             />
             <div className="relative">
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--landing-muted)]">
-                FitPlan AI
+                FitPlan
               </p>
               <h1 className="mt-1 text-2xl font-bold tracking-tight text-[var(--foreground)] md:text-3xl">
                 {cp(locale, "heroTitle")}

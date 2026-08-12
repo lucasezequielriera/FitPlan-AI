@@ -1,6 +1,6 @@
 {
-  "name": "FitPlan AI - Plan de Alimentación y Entrenamiento Inteligente",
-  "short_name": "FitPlan AI",
+  "name": "FitPlan - Plan de Alimentación y Entrenamiento Inteligente",
+  "short_name": "FitPlan",
   "description": "Creá tu plan de alimentación y entrenamiento personalizado con inteligencia artificial. Diseñado por nutricionistas y entrenadores profesionales.",
   "start_url": "/",
   "display": "standalone",

@@ -85,7 +85,7 @@ export default function TransformacionFitPlanLandingEn() {
   const productJsonLd = {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
-    name: "FitPlan AI Premium",
+    name: "FitPlan Premium",
     applicationCategory: "HealthApplication",
     operatingSystem: "Web",
     browserRequirements: "Requires JavaScript. Works in modern mobile and desktop browsers.",
@@ -115,7 +115,7 @@ export default function TransformacionFitPlanLandingEn() {
     name: "FitPlan — AI training & nutrition (web app)",
     url: CANONICAL,
     inLanguage: "en-US",
-    isPartOf: { "@type": "WebSite", name: "FitPlan AI", url: SITE },
+    isPartOf: { "@type": "WebSite", name: "FitPlan", url: SITE },
     description:
       "Stop guessing. Get a clear weekly training and nutrition system you can follow on your phone—no app store install required.",
   };
@@ -123,7 +123,7 @@ export default function TransformacionFitPlanLandingEn() {
   const organizationJsonLd = {
     "@context": "https://schema.org",
     "@type": "Organization",
-    name: "FitPlan AI",
+    name: "FitPlan",
     url: SITE,
     logo: `${SITE}/favicon.svg`,
     description: "AI-powered personalized training and nutrition plans in your browser.",
@@ -167,7 +167,7 @@ export default function TransformacionFitPlanLandingEn() {
           property="og:description"
           content="A weekly system for training + nutrition you can actually follow. Premium from $5.99/mo USD. No install required—works in your mobile browser."
         />
-        <meta property="og:site_name" content="FitPlan AI" />
+        <meta property="og:site_name" content="FitPlan" />
 
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="FitPlan — AI Training & Nutrition" />

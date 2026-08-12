@@ -128,7 +128,7 @@ export default function HomeLanding({ locale }: HomeLandingProps) {
       ? {
           "@context": "https://schema.org",
           "@type": "WebSite",
-          name: "FitPlan AI",
+          name: "FitPlan",
           alternateName: c.jsonLdWebSiteAlt,
           url: c.head.canonical,
           inLanguage: "en-US",
@@ -136,7 +136,7 @@ export default function HomeLanding({ locale }: HomeLandingProps) {
       : {
           "@context": "https://schema.org",
           "@type": "WebSite",
-          name: "FitPlan AI",
+          name: "FitPlan",
           alternateName: c.jsonLdWebSiteAlt,
           url: c.head.canonical,
         };
@@ -167,7 +167,7 @@ export default function HomeLanding({ locale }: HomeLandingProps) {
             __html: JSON.stringify({
               "@context": "https://schema.org",
               "@type": "Organization",
-              name: "FitPlan AI",
+              name: "FitPlan",
               url: SITE,
               logo: `${SITE}/brand/icon-social.png`,
               description: c.jsonLdOrganizationDescription,
@@ -194,7 +194,7 @@ export default function HomeLanding({ locale }: HomeLandingProps) {
             __html: JSON.stringify({
               "@context": "https://schema.org",
               "@type": "SoftwareApplication",
-              name: "FitPlan AI",
+              name: "FitPlan",
               applicationCategory: "HealthApplication",
               operatingSystem: "Web",
               ...(locale === "en" ? { inLanguage: "en-US" } : {}),
@@ -242,7 +242,7 @@ export default function HomeLanding({ locale }: HomeLandingProps) {
                 priority
               />
             </span>
-            <span className="truncate font-semibold tracking-tight text-[var(--foreground)]">FitPlan AI</span>
+            <span className="truncate font-semibold tracking-tight text-[var(--foreground)]">FitPlan</span>
           </Link>
 
           <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-1.5 sm:gap-3">

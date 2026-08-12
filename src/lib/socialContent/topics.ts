@@ -1,5 +1,5 @@
 /**
- * Taxonomía de contenido social de FitPlan AI.
+ * Taxonomía de contenido social de FitPlan.
  *
  * El eje principal NO es "de qué habla" sino PARA QUÉ SIRVE cada pieza
  * (`ContentFunction`), porque son objetivos distintos que se optimizan

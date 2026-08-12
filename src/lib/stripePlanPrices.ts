@@ -18,21 +18,21 @@ export function getStripeSubscriptionPlans(currency: "eur" | "usd"): Record<Plan
       monthly: {
         price: 5.99,
         currency: "usd",
-        title: "FitPlan AI Premium — Monthly",
+        title: "FitPlan Premium — Monthly",
         description:
           "Monthly premium access: personalized training & nutrition plans, advanced goals, and detailed tracking.",
       },
       quarterly: {
         price: 13.99,
         currency: "usd",
-        title: "FitPlan AI Premium — Quarterly",
+        title: "FitPlan Premium — Quarterly",
         description:
           "Quarterly premium (3 months billed once). Save vs monthly — full premium features.",
       },
       annual: {
         price: 26.99,
         currency: "usd",
-        title: "FitPlan AI Premium — Annual",
+        title: "FitPlan Premium — Annual",
         description:
           "Annual premium (12 months billed once). Best value for long-term consistency.",
       },
@@ -43,20 +43,20 @@ export function getStripeSubscriptionPlans(currency: "eur" | "usd"): Record<Plan
     monthly: {
       price: 5,
       currency: "eur",
-      title: "Plan Premium Mensual - FitPlan AI",
+      title: "Plan Premium Mensual - FitPlan",
       description:
         "Acceso premium mensual a objetivos avanzados, dietas personalizadas y análisis avanzado",
     },
     quarterly: {
       price: 12,
       currency: "eur",
-      title: "Plan Premium Trimestral - FitPlan AI",
+      title: "Plan Premium Trimestral - FitPlan",
       description: "Acceso premium trimestral (3 meses) - 4 EUR/mes - Ahorrás 20%",
     },
     annual: {
       price: 25,
       currency: "eur",
-      title: "Plan Premium Anual - FitPlan AI",
+      title: "Plan Premium Anual - FitPlan",
       description: "Acceso premium anual (12 meses) - 2.08 EUR/mes - Ahorrás 58%",
     },
   };

@@ -19,7 +19,7 @@ export const config = {
  */
 export default function handler(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const headline = searchParams.get("headline") || "FitPlan AI";
+  const headline = searchParams.get("headline") || "FitPlan";
   const subtext = searchParams.get("subtext") || "";
   const format = searchParams.get("format") === "feed" ? "feed" : "story";
   const width = 1080;
@@ -50,7 +50,7 @@ export default function handler(req: NextRequest) {
               display: "flex",
             }}
           />
-          <span style={{ fontSize: "36px", fontWeight: 700, letterSpacing: "-0.02em" }}>FitPlan AI</span>
+          <span style={{ fontSize: "36px", fontWeight: 700, letterSpacing: "-0.02em" }}>FitPlan</span>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "32px" }}>

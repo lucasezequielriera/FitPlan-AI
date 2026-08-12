@@ -10,7 +10,7 @@ export default function PaymentPending() {
     <>
       <Seo
         title="Pago pendiente"
-        description="Tu pago en FitPlan AI está pendiente de confirmación. En cuanto se acredite, tu plan personalizado de alimentación y entrenamiento se activará automáticamente."
+        description="Tu pago en FitPlan está pendiente de confirmación. En cuanto se acredite, tu plan personalizado de alimentación y entrenamiento se activará automáticamente."
         path="/payment/pending"
         noindex
       />

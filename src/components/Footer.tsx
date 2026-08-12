@@ -7,13 +7,13 @@ export default function Footer() {
 
   const disclaimer = isEn ? (
     <>
-      <strong>Important:</strong> FitPlan AI provides general information and guidance on nutrition and exercise. It does
+      <strong>Important:</strong> FitPlan provides general information and guidance on nutrition and exercise. It does
       not replace professional medical advice. Before starting any diet or exercise program, consult a physician or qualified
       health professional, especially if you have pre-existing medical conditions.
     </>
   ) : (
     <>
-      <strong>Aviso importante:</strong> FitPlan AI proporciona información general y orientación sobre nutrición y
+      <strong>Aviso importante:</strong> FitPlan proporciona información general y orientación sobre nutrición y
       ejercicio. No reemplaza el consejo médico profesional. Antes de iniciar cualquier programa de dieta o ejercicio,
       consulta con un médico o profesional de salud calificado, especialmente si tienes condiciones médicas preexistentes.
     </>
@@ -55,7 +55,7 @@ export default function Footer() {
         </div>
 
         <div className="flex flex-col sm:flex-row justify-between items-center text-white/40 text-xs gap-2" lang={isEn ? "en" : "es"}>
-          <p>{isEn ? "© 2026 FitPlan AI. All rights reserved." : "© 2026 FitPlan AI. Todos los derechos reservados."}</p>
+          <p>{isEn ? "© 2026 FitPlan. All rights reserved." : "© 2026 FitPlan. Todos los derechos reservados."}</p>
           <p>
             {isEn ? "Website by" : "Sitio web por"}{" "}
             <a

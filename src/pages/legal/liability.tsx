@@ -5,8 +5,8 @@ export default function LiabilityPage() {
   return (
     <>
       <Head>
-        <title>Limitación de Responsabilidad | FitPlan AI</title>
-        <meta name="description" content="Limitación de responsabilidad de FitPlan AI: alcance y límites de nuestra responsabilidad en el uso de los planes de alimentación y entrenamiento con IA." />
+        <title>Limitación de Responsabilidad | FitPlan</title>
+        <meta name="description" content="Limitación de responsabilidad de FitPlan: alcance y límites de nuestra responsabilidad en el uso de los planes de alimentación y entrenamiento con IA." />
         <link rel="canonical" href="https://www.fitplan-ai.com/legal/liability" />
       </Head>
       <Navbar />
@@ -22,7 +22,7 @@ export default function LiabilityPage() {
             <section>
               <h2 className="text-2xl font-semibold text-white mb-4">1. Limitación General</h2>
               <p className="text-red-400 font-semibold">
-                EN LA MÁXIMA MEDIDA PERMITIDA POR LA LEY APLICABLE, FITPLAN AI Y SUS AFILIADOS NO SERÁN RESPONSABLES 
+                EN LA MÁXIMA MEDIDA PERMITIDA POR LA LEY APLICABLE, FITPLAN Y SUS AFILIADOS NO SERÁN RESPONSABLES 
                 POR DAÑOS DIRECTOS, INDIRECTOS, INCIDENTALES, ESPECIALES, CONSECUENTES O PUNITIVOS RESULTANTES DEL USO 
                 O IMPOSIBILIDAD DE USAR EL SERVICIO.
               </p>

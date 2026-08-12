@@ -98,9 +98,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(500).json({ error: "Falta MERCADOPAGO_ACCESS_TOKEN" });
       }
       const planPrices: Record<PlanType, { price: number; title: string }> = {
-        monthly: { price: 10000, title: "Plan Premium Mensual - FitPlan AI" },
-        quarterly: { price: 24000, title: "Plan Premium Trimestral - FitPlan AI" },
-        annual: { price: 50000, title: "Plan Premium Anual - FitPlan AI" },
+        monthly: { price: 10000, title: "Plan Premium Mensual - FitPlan" },
+        quarterly: { price: 24000, title: "Plan Premium Trimestral - FitPlan" },
+        annual: { price: 50000, title: "Plan Premium Anual - FitPlan" },
       };
       const selectedPlan = planPrices[selectedPlanType];
       const frequency = selectedPlanType === "annual" ? 12 : selectedPlanType === "quarterly" ? 3 : 1;

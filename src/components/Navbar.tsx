@@ -660,7 +660,7 @@ export default function Navbar() {
               priority
             />
           </span>
-          <span className="min-w-0 truncate text-sm font-semibold tracking-tight text-[var(--foreground)] sm:text-base">FitPlan AI</span>
+          <span className="min-w-0 truncate text-sm font-semibold tracking-tight text-[var(--foreground)] sm:text-base">FitPlan</span>
         </Link>
 
         <div className="flex min-w-0 max-w-[100%] shrink flex-nowrap items-center justify-end gap-1 overflow-visible sm:flex-wrap sm:gap-2 md:gap-3">
@@ -1438,7 +1438,7 @@ function SendMessageModal({
               </div>
               <div className="min-w-0">
                 <h2 className="text-lg font-semibold tracking-tight text-[var(--foreground)]">{dash(locale, "composeTitle")}</h2>
-                <p className="truncate text-xs text-[var(--landing-muted)]">FitPlan AI</p>
+                <p className="truncate text-xs text-[var(--landing-muted)]">FitPlan</p>
               </div>
             </div>
             <button

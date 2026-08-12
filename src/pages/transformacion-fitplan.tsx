@@ -84,7 +84,7 @@ export default function TransformacionFitPlanLanding() {
   const productJsonLd = {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
-    name: "FitPlan AI Premium",
+    name: "FitPlan Premium",
     applicationCategory: "HealthApplication",
     operatingSystem: "Web",
     url: canonical,

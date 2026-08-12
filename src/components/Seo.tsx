@@ -46,7 +46,7 @@ export default function Seo({
   noindex = false,
   image,
 }: SeoProps) {
-  const fullTitle = title.includes("FitPlan") ? title : `${title} | FitPlan AI`;
+  const fullTitle = title.includes("FitPlan") ? title : `${title} | FitPlan`;
   const canonical = `${SITE_URL}${path}`;
   const ogImage = image || `${SITE_URL}/brand/icon-social.png`;
 

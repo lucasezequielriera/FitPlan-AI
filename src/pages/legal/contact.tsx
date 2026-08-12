@@ -5,8 +5,8 @@ export default function ContactLegalPage() {
   return (
     <>
       <Head>
-        <title>Contacto Legal | FitPlan AI</title>
-        <meta name="description" content="Contacto legal de FitPlan AI: datos del responsable del servicio y canales para consultas legales, ejercicio de derechos o presentar una reclamación." />
+        <title>Contacto Legal | FitPlan</title>
+        <meta name="description" content="Contacto legal de FitPlan: datos del responsable del servicio y canales para consultas legales, ejercicio de derechos o presentar una reclamación." />
         <link rel="canonical" href="https://www.fitplan-ai.com/legal/contact" />
       </Head>
       <Navbar />

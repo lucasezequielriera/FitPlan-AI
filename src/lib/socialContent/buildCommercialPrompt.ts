@@ -1,7 +1,7 @@
 import type { SocialCopy } from "@/lib/socialContent/generateCopy";
 import type { ContentFunction } from "@/lib/socialContent/topics";
 
-/** Logo oficial de FitPlan AI (public/brand/icon-social-transparent.png), servido por el propio sitio. Fuente en brand&designs/. */
+/** Logo oficial de FitPlan (public/brand/icon-social-transparent.png), servido por el propio sitio. Fuente en brand&designs/. */
 export const FITPLAN_LOGO_URL = "https://www.fitplan-ai.com/brand/icon-social-transparent.png";
 
 /**
@@ -48,10 +48,10 @@ export function buildCommercialPrompt(copy: SocialCopy): string {
   const [hook, insight, takeaway, cierre] = copy.scenes;
   const fn: ContentFunction = copy.contentFunction ?? "alcance";
 
-  const closingLine = trimPeriod(cierre?.subtext) || trimPeriod(cierre?.headline) || "Empieza gratis en FitPlan AI";
+  const closingLine = trimPeriod(cierre?.subtext) || trimPeriod(cierre?.headline) || "Empieza gratis en FitPlan";
   const brandClose = BRAND_CLOSE[fn](closingLine);
 
-  return `Haz un video vertical (9:16) de 23 a 26 segundos para Instagram Reels y TikTok, de FitPlan AI (app de entrenamiento y nutrición personalizados con IA, con opción de coach real 1 a 1).
+  return `Haz un video vertical (9:16) de 23 a 26 segundos para Instagram Reels y TikTok, de FitPlan (app de entrenamiento y nutrición personalizados con IA, con opción de coach real 1 a 1).
 
 OBJETIVO REAL DE ESTE VIDEO (léelo antes de decidir nada): no es "quedar bonito", es RETENER. El video se distribuye por lotes: si la gente lo ve entero, se muestra a más gente; si abandona en el primer segundo, muere. Cada decisión de montaje se toma para que nadie abandone. Prioriza densidad y ritmo por encima de elegancia.
 

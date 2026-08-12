@@ -187,7 +187,7 @@ export default function PaymentSuccess() {
     <>
       <Seo
         title="Pago confirmado"
-        description="Confirmación de tu pago en FitPlan AI. Tu plan personalizado de alimentación y entrenamiento ya está disponible en tu cuenta para que empieces hoy mismo."
+        description="Confirmación de tu pago en FitPlan. Tu plan personalizado de alimentación y entrenamiento ya está disponible en tu cuenta para que empieces hoy mismo."
         path="/payment/success"
         noindex
       />

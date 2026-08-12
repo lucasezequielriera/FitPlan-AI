@@ -31,10 +31,10 @@ const INTENSITY_LABELS: Record<Intensidad, { es: string; en: string }> = {
 /** Plan page (client) — high-visibility strings */
 export const planUi = {
   headTitle: {
-    es: "Mi Plan de Alimentación y Entrenamiento | FitPlan AI",
-    en: "My nutrition & training plan | FitPlan AI",
+    es: "Mi Plan de Alimentación y Entrenamiento | FitPlan",
+    en: "My nutrition & training plan | FitPlan",
   },
-  pageTitle: { es: "Tu plan | FitPlan AI", en: "Your plan | FitPlan AI" },
+  pageTitle: { es: "Tu plan | FitPlan", en: "Your plan | FitPlan" },
   loadingPlan: { es: "Cargando tu plan...", en: "Loading your plan…" },
   smartPlanHeading: { es: "Tu plan inteligente", en: "Your smart plan" },
   greeting: { es: "Hola", en: "Hi" },

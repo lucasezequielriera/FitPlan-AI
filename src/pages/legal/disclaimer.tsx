@@ -6,8 +6,8 @@ export default function DisclaimerPage() {
   return (
     <>
       <Head>
-        <title>Descargo de Responsabilidad Médica | FitPlan AI</title>
-        <meta name="description" content="Descargo de responsabilidad médica de FitPlan AI: nuestros planes de nutrición y entrenamiento son orientativos y no sustituyen el consejo médico profesional." />
+        <title>Descargo de Responsabilidad Médica | FitPlan</title>
+        <meta name="description" content="Descargo de responsabilidad médica de FitPlan: nuestros planes de nutrición y entrenamiento son orientativos y no sustituyen el consejo médico profesional." />
         <link rel="canonical" href="https://www.fitplan-ai.com/legal/disclaimer" />
       </Head>
       <Navbar />
@@ -24,7 +24,7 @@ export default function DisclaimerPage() {
               ⚠️ ADVERTENCIA IMPORTANTE
             </p>
             <p className="text-white/90">
-              Los planes generados por FitPlan AI son herramientas informativas y educativas únicamente. 
+              Los planes generados por FitPlan son herramientas informativas y educativas únicamente. 
               NO CONSTITUYEN ASESORAMIENTO MÉDICO, DIAGNÓSTICO O TRATAMIENTO.
             </p>
           </div>
@@ -33,7 +33,7 @@ export default function DisclaimerPage() {
             <section>
               <h2 className="text-2xl font-semibold text-white mb-4">1. No es Asesoramiento Médico</h2>
               <p>
-                FitPlan AI proporciona información general sobre nutrición y ejercicio. El contenido generado por nuestra 
+                FitPlan proporciona información general sobre nutrición y ejercicio. El contenido generado por nuestra 
                 plataforma es únicamente para fines informativos y educativos. No debe ser utilizado como sustituto del 
                 asesoramiento, diagnóstico o tratamiento médico profesional.
               </p>
@@ -42,7 +42,7 @@ export default function DisclaimerPage() {
             <section>
               <h2 className="text-2xl font-semibold text-white mb-4">2. Consulte Siempre con un Profesional</h2>
               <p className="font-semibold text-yellow-300">
-                ANTES de comenzar cualquier plan de alimentación o ejercicio generado por FitPlan AI, debe consultar con:
+                ANTES de comenzar cualquier plan de alimentación o ejercicio generado por FitPlan, debe consultar con:
               </p>
               <ul className="list-disc pl-6 space-y-2 mt-2">
                 <li>Un médico o profesional de la salud calificado</li>
@@ -65,7 +65,7 @@ export default function DisclaimerPage() {
 
             <section>
               <h2 className="text-2xl font-semibold text-white mb-4">3. Limitaciones del Servicio</h2>
-              <p>FitPlan AI no puede:</p>
+              <p>FitPlan no puede:</p>
               <ul className="list-disc pl-6 space-y-2 mt-2">
                 <li>Diagnosticar condiciones médicas</li>
                 <li>Prescribir tratamientos médicos</li>
@@ -78,7 +78,7 @@ export default function DisclaimerPage() {
             <section>
               <h2 className="text-2xl font-semibold text-white mb-4">4. Uso bajo su Propio Riesgo</h2>
               <p className="text-red-400 font-semibold">
-                USTED ACEPTA QUE EL USO DE FITPLAN AI ES BAJO SU PROPIO RIESGO. No garantizamos que los planes generados 
+                USTED ACEPTA QUE EL USO DE FITPLAN ES BAJO SU PROPIO RIESGO. No garantizamos que los planes generados 
                 sean apropiados para su situación individual, ni garantizamos resultados específicos de salud o fitness.
               </p>
             </section>
@@ -86,7 +86,7 @@ export default function DisclaimerPage() {
             <section>
               <h2 className="text-2xl font-semibold text-white mb-4">5. No Somos Responsables</h2>
               <p>
-                FitPlan AI, sus empleados, afiliados y proveedores NO seremos responsables de:
+                FitPlan, sus empleados, afiliados y proveedores NO seremos responsables de:
               </p>
               <ul className="list-disc pl-6 space-y-2 mt-2">
                 <li>Lesiones o daños resultantes del uso de nuestros planes</li>
@@ -101,7 +101,7 @@ export default function DisclaimerPage() {
               <h2 className="text-2xl font-semibold text-white mb-4">6. Información de Emergencia</h2>
               <p>
                 Si experimenta síntomas graves como dolor en el pecho, dificultad para respirar, mareos severos, o cualquier 
-                otro síntoma que considere una emergencia médica, busque atención médica inmediata. NO use FitPlan AI como 
+                otro síntoma que considere una emergencia médica, busque atención médica inmediata. NO use FitPlan como 
                 sustituto de atención médica de emergencia.
               </p>
             </section>
@@ -140,13 +140,13 @@ export default function DisclaimerPage() {
             <section>
               <h2 className="text-2xl font-semibold text-white mb-4">10. Aceptación de Riesgos</h2>
               <p>
-                Al utilizar FitPlan AI, usted reconoce y acepta que:
+                Al utilizar FitPlan, usted reconoce y acepta que:
               </p>
               <ul className="list-disc pl-6 space-y-2 mt-2">
                 <li>Ha leído y entendido este descargo de responsabilidad</li>
                 <li>Comprende los riesgos asociados con planes de alimentación y ejercicio</li>
                 <li>Asume toda la responsabilidad por su uso del Servicio</li>
-                <li>Exime a FitPlan AI de cualquier responsabilidad por daños resultantes</li>
+                <li>Exime a FitPlan de cualquier responsabilidad por daños resultantes</li>
               </ul>
             </section>
 

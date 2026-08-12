@@ -6,8 +6,8 @@ export default function TermsPage() {
   return (
     <>
       <Head>
-        <title>Términos de Servicio | FitPlan AI</title>
-        <meta name="description" content="Términos y condiciones de uso de FitPlan AI: derechos y obligaciones, funcionamiento del servicio y condiciones de los planes generados con IA." />
+        <title>Términos de Servicio | FitPlan</title>
+        <meta name="description" content="Términos y condiciones de uso de FitPlan: derechos y obligaciones, funcionamiento del servicio y condiciones de los planes generados con IA." />
         <link rel="canonical" href="https://www.fitplan-ai.com/legal/terms" />
       </Head>
       <Navbar />
@@ -23,7 +23,7 @@ export default function TermsPage() {
             <section>
               <h2 className="text-2xl font-semibold text-white mb-4">1. Aceptación de los Términos</h2>
               <p>
-                Al acceder y utilizar FitPlan AI ("el Servicio"), usted acepta estar sujeto a estos Términos de Servicio 
+                Al acceder y utilizar FitPlan ("el Servicio"), usted acepta estar sujeto a estos Términos de Servicio 
                 ("Términos"). Si no está de acuerdo con alguna parte de estos términos, no debe utilizar el Servicio.
               </p>
             </section>
@@ -31,7 +31,7 @@ export default function TermsPage() {
             <section>
               <h2 className="text-2xl font-semibold text-white mb-4">2. Descripción del Servicio</h2>
               <p>
-                FitPlan AI es una plataforma digital que utiliza inteligencia artificial para generar planes de alimentación 
+                FitPlan es una plataforma digital que utiliza inteligencia artificial para generar planes de alimentación 
                 y entrenamiento personalizados. El Servicio proporciona información educativa e informativa basada en los datos 
                 proporcionados por el usuario.
               </p>
@@ -71,7 +71,7 @@ export default function TermsPage() {
               <h2 className="text-2xl font-semibold text-white mb-4">6. Propiedad Intelectual</h2>
               <p>
                 Todo el contenido del Servicio, incluyendo pero no limitado a texto, gráficos, logos, iconos, imágenes, y 
-                software, es propiedad de FitPlan AI o sus proveedores de contenido y está protegido por leyes de propiedad 
+                software, es propiedad de FitPlan o sus proveedores de contenido y está protegido por leyes de propiedad 
                 intelectual internacionales.
               </p>
             </section>
@@ -88,7 +88,7 @@ export default function TermsPage() {
             <section>
               <h2 className="text-2xl font-semibold text-white mb-4">8. Limitación de Responsabilidad</h2>
               <p>
-                EN LA MÁXIMA MEDIDA PERMITIDA POR LA LEY, FITPLAN AI NO SERÁ RESPONSABLE POR DAÑOS DIRECTOS, INDIRECTOS, 
+                EN LA MÁXIMA MEDIDA PERMITIDA POR LA LEY, FITPLAN NO SERÁ RESPONSABLE POR DAÑOS DIRECTOS, INDIRECTOS, 
                 INCIDENTALES, ESPECIALES O CONSECUENTES RESULTANTES DEL USO O IMPOSIBILIDAD DE USAR EL SERVICIO.
               </p>
             </section>
@@ -96,7 +96,7 @@ export default function TermsPage() {
             <section>
               <h2 className="text-2xl font-semibold text-white mb-4">9. Indemnización</h2>
               <p>
-                Usted acepta indemnizar y eximir de responsabilidad a FitPlan AI, sus afiliados, y sus empleados de cualquier 
+                Usted acepta indemnizar y eximir de responsabilidad a FitPlan, sus afiliados, y sus empleados de cualquier 
                 reclamo, daño, obligación, pérdida, responsabilidad, costo o deuda, y gastos (incluyendo honorarios de abogados) 
                 que surjan de su uso del Servicio o violación de estos Términos.
               </p>

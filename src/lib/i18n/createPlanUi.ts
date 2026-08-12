@@ -5,12 +5,12 @@ type B = { es: string; en: string };
 
 /** Textos del formulario /create-plan */
 export const createPlanForm = {
-  pageTitle: { es: "Crear Plan Personalizado | FitPlan AI", en: "Create Custom Plan | FitPlan AI" },
+  pageTitle: { es: "Crear Plan Personalizado | FitPlan", en: "Create Custom Plan | FitPlan" },
   pageDesc: {
     es: "Creá tu plan de alimentación y entrenamiento personalizado con inteligencia artificial. Completá el formulario y recibí tu plan en minutos.",
     en: "Create your personalized nutrition and training plan with AI. Complete the form and get your plan in minutes.",
   },
-  ogTitle: { es: "Crear Plan Personalizado | FitPlan AI", en: "Create Custom Plan | FitPlan AI" },
+  ogTitle: { es: "Crear Plan Personalizado | FitPlan", en: "Create Custom Plan | FitPlan" },
   ogDesc: {
     es: "Diseñá tu plan de alimentación y entrenamiento personalizado en minutos con IA.",
     en: "Design your personalized nutrition and training plan in minutes with AI.",

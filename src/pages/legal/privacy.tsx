@@ -6,8 +6,8 @@ export default function PrivacyPage() {
   return (
     <>
       <Head>
-        <title>Política de Privacidad | FitPlan AI</title>
-        <meta name="description" content="Política de privacidad de FitPlan AI: qué datos personales recogemos, con qué finalidad los tratamos, cuánto tiempo los conservamos y cómo ejercer tus derechos." />
+        <title>Política de Privacidad | FitPlan</title>
+        <meta name="description" content="Política de privacidad de FitPlan: qué datos personales recogemos, con qué finalidad los tratamos, cuánto tiempo los conservamos y cómo ejercer tus derechos." />
         <link rel="canonical" href="https://www.fitplan-ai.com/legal/privacy" />
       </Head>
       <Navbar />
@@ -23,7 +23,7 @@ export default function PrivacyPage() {
             <section>
               <h2 className="text-2xl font-semibold text-white mb-4">1. Introducción</h2>
               <p>
-                FitPlan AI ("nosotros", "nuestro", "el Servicio") se compromete a proteger su privacidad. Esta Política de 
+                FitPlan ("nosotros", "nuestro", "el Servicio") se compromete a proteger su privacidad. Esta Política de 
                 Privacidad explica cómo recopilamos, usamos, divulgamos y protegemos su información personal cuando utiliza 
                 nuestro servicio.
               </p>

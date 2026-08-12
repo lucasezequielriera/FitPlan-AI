@@ -425,7 +425,7 @@ export default function Dashboard() {
             <header className="mb-8 sm:mb-10">
               <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0 max-w-2xl">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--landing-muted)]">FitPlan AI</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--landing-muted)]">FitPlan</p>
                   <h1 className="mt-1 text-3xl font-bold tracking-tight text-[var(--foreground)] sm:text-4xl">
                     {dash(locale, "heading")}
                   </h1>
@@ -765,7 +765,7 @@ export default function Dashboard() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--landing-muted)]">
-                          FitPlan AI
+                          FitPlan
                         </p>
                         <h3 className="mt-1 text-xl font-bold tracking-tight text-[var(--foreground)] sm:text-2xl">
                           {dash(locale, "freeExpiredTitle")}
@@ -1499,7 +1499,7 @@ function ProgressModalContent({ plan, onClose, locale }: { plan: SavedPlan; onCl
       <div className="flex items-start justify-between gap-4 border-b border-[color-mix(in_oklab,var(--foreground)_8%,transparent)] pb-5">
         <div className="min-w-0">
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--landing-muted)]">
-            FitPlan AI
+            FitPlan
           </p>
           <h2 className="mt-1 text-xl font-bold tracking-tight text-[var(--foreground)] sm:text-2xl">
             {dash(locale, "progressModalTitle")}

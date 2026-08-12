@@ -33,7 +33,7 @@ export type SocialCopy = {
 
 export type TopicInput = { type: "rotation"; topic: SocialTopic } | { type: "custom"; description: string };
 
-const SYSTEM_PROMPT = `Eres el estratega de contenido y copywriter senior de FitPlan AI (app de entrenamiento y nutrición personalizados con IA — freemium, con opción de coaching 1:1 con un humano). Escribes para Instagram Reels y TikTok en ESPAÑOL DE ESPAÑA (castellano peninsular): tuteo con "tú" (o "vosotros" en plural), NUNCA "vos" ni vocabulario rioplatense o latinoamericano.
+const SYSTEM_PROMPT = `Eres el estratega de contenido y copywriter senior de FitPlan (app de entrenamiento y nutrición personalizados con IA — freemium, con opción de coaching 1:1 con un humano). Escribes para Instagram Reels y TikTok en ESPAÑOL DE ESPAÑA (castellano peninsular): tuteo con "tú" (o "vosotros" en plural), NUNCA "vos" ni vocabulario rioplatense o latinoamericano.
 
 Escribes para un sistema de distribución, no para un feed de seguidores. Entiende cómo funciona antes de escribir:
 
@@ -88,12 +88,12 @@ const HOOK_INSTRUCTIONS: Record<HookFamily, string> = {
 const FUNCTION_INSTRUCTIONS: Record<ContentFunction, string> = {
   alcance: `FUNCIÓN: ALCANCE. El objetivo único es que la vea gente que no te conoce. Optimiza retención y compartidos por encima de todo.
 - PROHIBIDO CTA de venta. Nada de "descárgate la app", "link en bio", "pruébalo gratis", "empieza hoy". Un CTA aquí destruye la retención y con ella el alcance.
-- La cuarta escena NO vende: cierra la idea y conecta con el hook para invitar al replay. FitPlan AI puede aparecer como firma de marca al final, pero no como llamada a la acción.
+- La cuarta escena NO vende: cierra la idea y conecta con el hook para invitar al replay. FitPlan puede aparecer como firma de marca al final, pero no como llamada a la acción.
 - El caption termina con una pregunta con filo o una afirmación que invite a discutir, no con una oferta.
 - Prioriza que el dato sea tan concreto que alguien quiera enviárselo a una persona específica.`,
   nutricion: `FUNCIÓN: NUTRICIÓN DE AUDIENCIA. El objetivo es que quien ya te ha visto confíe en ti. Profundidad y criterio por encima de alcance.
 - Muestra cómo se piensa el problema, no solo la conclusión. Aquí se permite ir más técnico.
-- CTA SUAVE en la cuarta escena: mencionar FitPlan AI como consecuencia natural del valor dado, sin urgencia ni imperativos agresivos. Tipo "esto es exactamente lo que ajusta el plan de FitPlan AI cada mes", no "¡descárgala ya!".
+- CTA SUAVE en la cuarta escena: mencionar FitPlan como consecuencia natural del valor dado, sin urgencia ni imperativos agresivos. Tipo "esto es exactamente lo que ajusta el plan de FitPlan cada mes", no "¡descárgala ya!".
 - El caption puede incluir el porqué de una decisión de producto o de método.`,
   conversion: `FUNCIÓN: CONVERSIÓN. El objetivo es que alguien que ya confía dé el paso. Asume poco alcance: esta pieza se juzga por intención, no por views.
 - Ataca UNA objeción real y concreta de frente (falta de tiempo, "ya probé apps y las dejé", "necesito que alguien me controle", precio).
@@ -111,25 +111,25 @@ const TOPIC_INSTRUCTIONS: Record<SocialTopic, string> = {
   pregunta_incomoda: `Abre con una pregunta directa que haga que la persona se sienta señalada en 3 segundos y pare el scroll. Ideas: cuestionar una excusa recurrente, cuestionar una prioridad ("¿por qué dedicas más tiempo a elegir serie que a decidir qué vas a comer?"), cuestionar una comparación tóxica. Después de la pregunta, entrega valor real.`,
   coste_oculto: `Nombra algo que le está costando progreso a la persona ahora mismo sin que lo note, y cuantifícalo de forma honesta (en semanas perdidas, en porcentaje de esfuerzo desperdiciado, en sesiones que no cuentan). Ideas: dormir mal y su efecto sobre la fuerza, entrenar siempre con el mismo peso, no registrar lo que comes los fines de semana, cardio que sustituye a la fuerza cuando el objetivo es composición corporal.`,
   dato_contraintuitivo: `Un dato que rompe la intuición y hace replantearse algo. Ideas: por qué comer más puede acelerar la pérdida de grasa en ciertos contextos, por qué entrenar menos días puede dar más resultado, por qué el músculo pesa en la báscula y eso es buena señal, por qué las agujetas no correlacionan con el estímulo. Explica el mecanismo, que es lo que lo hace creíble y compartible.`,
-  confesion_fundador: `Habla en primera persona como el fundador de FitPlan AI y cuenta un error propio, concreto y algo vergonzoso, relacionado con entrenar, comer o construir el producto — y qué aprendiste. Nada de falsa humildad ni de "mi mayor defecto es ser perfeccionista": tiene que ser un error real con consecuencia real. Esto construye la relación con la audiencia, que es lo que después convierte.`,
+  confesion_fundador: `Habla en primera persona como el fundador de FitPlan y cuenta un error propio, concreto y algo vergonzoso, relacionado con entrenar, comer o construir el producto — y qué aprendiste. Nada de falsa humildad ni de "mi mayor defecto es ser perfeccionista": tiene que ser un error real con consecuencia real. Esto construye la relación con la audiencia, que es lo que después convierte.`,
 
   // --- nutrición ---
   mecanismo_explicado: `Explica el PORQUÉ fisiológico de algo que la gente hace sin entender, de forma que después no pueda dejar de verlo. Ideas: qué pasa realmente en el músculo con la sobrecarga progresiva, por qué la proteína sacia más, qué hace el déficit calórico al metabolismo y qué no, cómo funciona la adaptación al entrenamiento. Simple pero no simplón: la persona tiene que salir entendiendo el mecanismo, no memorizando una regla.`,
   tip_entrenamiento: `UN tip de entrenamiento con el mecanismo detrás. Ideas: sobrecarga progresiva aplicada de forma concreta, cómo calibrar intensidad con RPE, por qué el descanso entre series cambia el estímulo, el mito de que más volumen siempre es mejor, cómo saber si un ejercicio te está aportando algo.`,
   tip_nutricion: `UN tip de nutrición específico y accionable, con el porqué. Ideas: timing de proteína, densidad calórica y saciedad, macros frente a calorías totales, cómo leer una etiqueta de verdad, errores al "comer sano" que no acercan al objetivo.`,
   caso_practico: `Coge un PERFIL concreto y resuélvelo delante de la cámara. Ideas: alguien con trabajo de oficina y 45 minutos al día, alguien que vuelve tras 6 meses parado, alguien que entrena en casa sin material, alguien que ha estancado el press de banca. Describe el perfil, el error típico de ese perfil y qué haría distinto. Que quien se reconozca sienta que le hablas a él.`,
-  detras_de_escena: `Cuenta cómo se construye FitPlan AI por dentro: una decisión de producto y su porqué, algo que probasteis y no funcionó, cómo se diseña el ajuste mensual del plan, por qué se incluye un coach humano y no solo IA. Transparencia real y concreta. Esto genera confianza que ningún contenido educativo consigue.`,
+  detras_de_escena: `Cuenta cómo se construye FitPlan por dentro: una decisión de producto y su porqué, algo que probasteis y no funcionó, cómo se diseña el ajuste mensual del plan, por qué se incluye un coach humano y no solo IA. Transparencia real y concreta. Esto genera confianza que ningún contenido educativo consigue.`,
 
   // --- conversión ---
-  objecion_tiempo: `Ataca de frente la objeción "no tengo tiempo". No la niegues ni la minimices: reconócela como legítima y desmóntala con concreción (qué se puede hacer realmente en el tiempo que sí hay, y por qué un plan adaptado a ese tiempo bate a uno genérico ignorado). Cierra explicando cómo FitPlan AI construye el plan alrededor del tiempo disponible real de la persona.`,
-  objecion_ya_probe: `Ataca la objeción "ya probé apps de fitness y las dejé". Reconoce que es lo normal y explica el motivo estructural: los planes genéricos no se ajustan cuando tu progreso o tu vida cambian, así que dejan de encajar y se abandonan. Cierra con el mecanismo de FitPlan AI: el plan se recalcula con tu progreso real y hay un coach humano detrás cuando hace falta corregir.`,
-  mecanismo_unico: `Explica el MÉTODO de FitPlan AI como mecanismo con nombre propio, no como lista de características: IA que genera el plan según objetivo, lesiones y material disponible + seguimiento diario + recálculo mensual con datos reales + opción de coach humano 1:1. La clave es que quede claro POR QUÉ ese mecanismo produce un resultado distinto al de un plan estático. Un mecanismo con nombre no se compara por precio.`,
-  prueba_resultado: `Prueba por encima de promesa: enseña cómo funciona algo de FitPlan AI de forma verificable y concreta — qué ve la persona en pantalla, cómo cambia su plan cuando registra progreso, qué pasa cuando falla una semana. Describe el funcionamiento real del producto. NO inventes testimonios, cifras de usuarios ni resultados de clientes.`,
+  objecion_tiempo: `Ataca de frente la objeción "no tengo tiempo". No la niegues ni la minimices: reconócela como legítima y desmóntala con concreción (qué se puede hacer realmente en el tiempo que sí hay, y por qué un plan adaptado a ese tiempo bate a uno genérico ignorado). Cierra explicando cómo FitPlan construye el plan alrededor del tiempo disponible real de la persona.`,
+  objecion_ya_probe: `Ataca la objeción "ya probé apps de fitness y las dejé". Reconoce que es lo normal y explica el motivo estructural: los planes genéricos no se ajustan cuando tu progreso o tu vida cambian, así que dejan de encajar y se abandonan. Cierra con el mecanismo de FitPlan: el plan se recalcula con tu progreso real y hay un coach humano detrás cuando hace falta corregir.`,
+  mecanismo_unico: `Explica el MÉTODO de FitPlan como mecanismo con nombre propio, no como lista de características: IA que genera el plan según objetivo, lesiones y material disponible + seguimiento diario + recálculo mensual con datos reales + opción de coach humano 1:1. La clave es que quede claro POR QUÉ ese mecanismo produce un resultado distinto al de un plan estático. Un mecanismo con nombre no se compara por precio.`,
+  prueba_resultado: `Prueba por encima de promesa: enseña cómo funciona algo de FitPlan de forma verificable y concreta — qué ve la persona en pantalla, cómo cambia su plan cuando registra progreso, qué pasa cuando falla una semana. Describe el funcionamiento real del producto. NO inventes testimonios, cifras de usuarios ni resultados de clientes.`,
 };
 
 function resolveTopicInstruction(input: TopicInput): string {
   if (input.type === "rotation") return TOPIC_INSTRUCTIONS[input.topic];
-  return `El fundador de FitPlan AI pidió específicamente este tema/ángulo: "${input.description}". Desarróllalo con la misma vara de densidad, especificidad y mecanismo concreto que el resto de las reglas — si el pedido es genérico, aporta tú el ángulo específico y el dato concreto.`;
+  return `El fundador de FitPlan pidió específicamente este tema/ángulo: "${input.description}". Desarróllalo con la misma vara de densidad, especificidad y mecanismo concreto que el resto de las reglas — si el pedido es genérico, aporta tú el ángulo específico y el dato concreto.`;
 }
 
 function buildUserPrompt(input: TopicInput, fn: ContentFunction, hook: HookFamily): string {
@@ -143,7 +143,7 @@ Genera la pieza completa con estos campos:
 
 - scenes: array de EXACTAMENTE 4 objetos { "headline": "...", "subtext": "..." } siguiendo hook/insight/takeaway/cierre. El headline del hook: máximo 8 palabras. Los demás headlines: máximo 6 palabras (se renderizan como texto grande en pantalla y con más se cortan mal). "subtext" puede ser cadena vacía si la escena no lo necesita (típicamente el hook). El cierre debe respetar la política de CTA de la función indicada arriba y conectar con el hook.
 
-- instagramCaption: 5-8 líneas con saltos de línea, no un bloque. Estructura: retoma el hook con otras palabras → el mecanismo concreto explicado simple → una línea de aplicación práctica → cierre según la función (alcance: pregunta con filo; nutrición: mención suave a FitPlan AI; conversión: CTA claro). Máximo 3 emojis en todo el caption, usados con intención.
+- instagramCaption: 5-8 líneas con saltos de línea, no un bloque. Estructura: retoma el hook con otras palabras → el mecanismo concreto explicado simple → una línea de aplicación práctica → cierre según la función (alcance: pregunta con filo; nutrición: mención suave a FitPlan; conversión: CTA claro). Máximo 3 emojis en todo el caption, usados con intención.
 
 - tiktokCaption: 1-2 líneas. No repite el de Instagram: mismo tema, otro ángulo, más directo y coloquial.
 
@@ -272,7 +272,7 @@ export async function generateSocialCopy(input: TopicInput): Promise<SocialCopy>
 export async function suggestSocialTopic(): Promise<string> {
   const obj = await callOpenAIJson({
     system:
-      "Eres estratega de contenido de FitPlan AI (app de fitness con IA). Sugieres UN ángulo de contenido específico y con gancho, que funcione en Instagram Reels y TikTok. Respondes SOLO con JSON.",
+      "Eres estratega de contenido de FitPlan (app de fitness con IA). Sugieres UN ángulo de contenido específico y con gancho, que funcione en Instagram Reels y TikTok. Respondes SOLO con JSON.",
     user: `Sugiéreme un tema puntual para el vídeo de hoy. Tiene que ser específico y tener un gancho claro: no "hablar de nutrición" sino, por ejemplo, "por qué contar calorías sin mirar la proteína no sirve de nada". Devuelve JSON: {"topic": "..."}`,
     maxTokens: 150,
     temperature: 1.0,

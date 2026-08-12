@@ -379,7 +379,7 @@ async function checkCronJobOrg(): Promise<ServiceStatus> {
 }
 
 /**
- * Chequea en vivo el estado de cada servicio externo que usa FitPlan AI, y
+ * Chequea en vivo el estado de cada servicio externo que usa FitPlan, y
  * el crédito/balance restante en los que son pagos por uso (HeyGen,
  * Cloudinary, Stripe). Cada check está aislado (nunca tira excepción hacia
  * afuera) para que un servicio caído no rompa el resto del panel.

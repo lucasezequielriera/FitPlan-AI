@@ -327,7 +327,7 @@ export default function PlanContinuityModal({ isOpen, onClose, planData, registr
           <div className="relative flex items-start justify-between gap-4 border-b border-[color-mix(in_oklab,var(--foreground)_8%,transparent)] px-5 py-4 sm:px-6 sm:py-5">
             <div className="min-w-0">
               <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--landing-muted)]">
-                FitPlan AI
+                FitPlan
               </p>
               <h2 className="mt-1 text-lg font-bold tracking-tight text-[var(--foreground)] sm:text-xl">
                 {stepTitle}

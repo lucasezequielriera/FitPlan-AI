@@ -2993,7 +2993,7 @@ export default function PlanPage() {
         <title>{p(locale, "headTitle")}</title>
         <meta name="description" content="Tu plan de alimentación y entrenamiento personalizado con IA. Menú semanal detallado, rutinas de gym y seguimiento de progreso." />
         <meta name="robots" content="noindex, nofollow" />
-        <meta property="og:title" content="Mi Plan | FitPlan AI" />
+        <meta property="og:title" content="Mi Plan | FitPlan" />
         <meta property="og:url" content="https://www.fitplan-ai.com/plan" />
       </Head>
       <Navbar />

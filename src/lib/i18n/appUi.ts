@@ -35,12 +35,12 @@ export function ui(locale: AppLocale, key: keyof typeof navUi): string {
 /** Dashboard — subset principal; amplía según necesites */
 export const dashboardUi = {
   loading: { es: "Cargando...", en: "Loading…" },
-  pageTitle: { es: "Mi Dashboard | FitPlan AI", en: "My Dashboard | FitPlan AI" },
+  pageTitle: { es: "Mi Dashboard | FitPlan", en: "My Dashboard | FitPlan" },
   pageDesc: {
     es: "Gestioná tus planes de alimentación y entrenamiento personalizados. Seguimiento de progreso, peso y métricas de salud.",
     en: "Manage your personalized nutrition and training plans. Progress, weight, and health metrics.",
   },
-  ogTitle: { es: "Mi Dashboard | FitPlan AI", en: "My Dashboard | FitPlan AI" },
+  ogTitle: { es: "Mi Dashboard | FitPlan", en: "My Dashboard | FitPlan" },
   heading: { es: "Mi Dashboard", en: "My Dashboard" },
   subtitle: { es: "Gestiona tus planes nutricionales guardados", en: "Manage your saved nutrition plans" },
   contactTrainer: { es: "Contactar con mi entrenador", en: "Message my trainer" },

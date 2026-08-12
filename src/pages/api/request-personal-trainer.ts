@@ -138,7 +138,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
 
         await transporter.sendMail({
-          from: `FitPlan AI <${from}>`,
+          from: `FitPlan <${from}>`,
           to: DESTINATION_EMAIL,
           subject: "Nuevo usuario solicitó entrenador personal humano",
           text: [

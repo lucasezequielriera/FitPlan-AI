@@ -20,7 +20,7 @@ export type CarouselCopy = {
   altTexts: string[];
 };
 
-const SYSTEM_PROMPT = `Eres el director de contenido de FitPlan AI, una app de entrenamiento y nutrición personalizados con IA (freemium, con opción de coach humano 1:1). Diseñas carruseles para Instagram en ESPAÑOL DE ESPAÑA (castellano peninsular, tuteo con "tú"), NUNCA con "vos" ni vocabulario latinoamericano.
+const SYSTEM_PROMPT = `Eres el director de contenido de FitPlan, una app de entrenamiento y nutrición personalizados con IA (freemium, con opción de coach humano 1:1). Diseñas carruseles para Instagram en ESPAÑOL DE ESPAÑA (castellano peninsular, tuteo con "tú"), NUNCA con "vos" ni vocabulario latinoamericano.
 
 CÓMO SE JUZGA UN CARRUSEL
 El sistema mide sobre todo cuánta gente llega a la última diapositiva y cuántos lo guardan. Eso define la estructura:
