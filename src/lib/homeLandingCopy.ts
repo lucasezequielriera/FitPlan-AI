@@ -75,7 +75,7 @@ const es: HomeLandingCopy = {
   heroTitleMiddle: "y entrenar",
   heroTitleHighlight2: "bien",
   heroSub:
-    "Respondés unas preguntas y obtenés menús semanales con ingredientes claros, rutina de gym acorde a tu nivel y seguimiento en un solo lugar.",
+    "Respondés unas preguntas y obtienes menús semanales con ingredientes claros, rutina de gym acorde a tu nivel y seguimiento en un solo lugar.",
   ctaStart: "Empezar gratis",
   ctaPremium: "Ver planes Premium",
   ctaHint: "Iniciá sesión para crear tu plan, guardarlo y activar Premium cuando quieras.",
@@ -84,18 +84,18 @@ const es: HomeLandingCopy = {
   steps: [
     {
       step: "1",
-      title: "Contanos tu objetivo",
+      title: "Cuéntanos tu objetivo",
       body: "Objetivo, preferencias y días disponibles. Sin tecnicismos innecesarios.",
     },
     {
       step: "2",
-      title: "Recibí tu plan",
+      title: "Recibe tu plan",
       body: "Comidas con macros, lista de compras y rutina de entrenamiento alineada.",
     },
     {
       step: "3",
-      title: "Seguí y ajustá",
-      body: "Marcá el progreso y refiná el plan cuando tu cuerpo o tu agenda cambien.",
+      title: "Sigue y ajusta",
+      body: "Marcá el progreso y refina el plan cuando tu cuerpo o tu agenda cambien.",
     },
   ],
   chipNutrition: "Nutrición",
@@ -105,10 +105,10 @@ const es: HomeLandingCopy = {
   expertSub:
     "Los lineamientos los pensamos con criterio profesional; la IA te ayuda a llevarlos a un plan concreto, semana a semana, adaptado a vos.",
   expertBullets: ["Nutricionistas certificados", "Entrenadores profesionales", "IA para precisión y velocidad"],
-  featuresTitle: "Todo lo que necesitás en la app",
+  featuresTitle: "Todo lo que necesitas en la app",
   features: [
     {
-      title: "Acompañamiento cuando lo necesitás",
+      title: "Acompañamiento cuando lo necesitas",
       body: "Canal de ayuda con asistencia humana y respuestas con IA para sacarte dudas rápido.",
     },
     {
@@ -121,7 +121,7 @@ const es: HomeLandingCopy = {
     },
   ],
   intakeQuestion: "¿Preferís dejar tus datos y que el equipo te contacte?",
-  intakeLink: "Completá el formulario de inicio",
+  intakeLink: "Completa el formulario de inicio",
   closingText:
     "FitPlan une nutrición y entrenamiento en un flujo simple para que sepas qué comer, cómo entrenar y cómo medir el avance.",
   closingCta: "Crear mi cuenta",
@@ -134,15 +134,15 @@ const es: HomeLandingCopy = {
     canonical: `${SITE}/`,
     ogTitle: "FitPlan | Alimentación y Entrenamiento Personalizado con IA",
     ogDescription:
-      "Planes de alimentación y entrenamiento personalizados por nutricionistas y entrenadores profesionales, potenciados con inteligencia artificial. Empezá gratis.",
+      "Planes de alimentación y entrenamiento personalizados por nutricionistas y entrenadores profesionales, potenciados con inteligencia artificial. Empieza gratis.",
     twitterTitle: "FitPlan | Alimentación y Entrenamiento Personalizado con IA",
-    twitterDescription: "Alimentación + entrenamiento personalizados por expertos y potenciados con IA. Empezá gratis.",
+    twitterDescription: "Alimentación + entrenamiento personalizados por expertos y potenciados con IA. Empieza gratis.",
   },
   jsonLdOrganizationDescription:
     "Plataforma de planes de alimentación y entrenamiento personalizados con inteligencia artificial.",
   jsonLdWebSiteAlt: "FitPlan - Plan Nutricional y Entrenamiento Inteligente",
   jsonLdSoftwareDescription:
-    "Creá tu plan de alimentación y entrenamiento personalizado con inteligencia artificial. Diseñado por nutricionistas certificados y entrenadores profesionales.",
+    "Crea tu plan de alimentación y entrenamiento personalizado con inteligencia artificial. Diseñado por nutricionistas certificados y entrenadores profesionales.",
   jsonLdSoftwareOfferDescription: "Plan gratuito por 30 días",
   jsonLdSoftwareCurrency: "ARS",
   jsonLdFeatureList: [
@@ -160,11 +160,11 @@ const es: HomeLandingCopy = {
     },
     {
       q: "¿Es gratis usar FitPlan?",
-      a: "Sí, podés crear tu primer plan de forma gratuita y acceder a él durante 30 días. Después de ese período, necesitás una suscripción premium para seguir accediendo a tu plan.",
+      a: "Sí, puedes crear tu primer plan de forma gratuita y acceder a él durante 30 días. Después de ese período, necesitas una suscripción premium para seguir accediendo a tu plan.",
     },
     {
       q: "¿Cómo funciona el plan de alimentación?",
-      a: "Completás un formulario con tus datos personales, objetivos y preferencias alimentarias. La IA genera un plan semanal detallado con recetas, ingredientes exactos, calorías y macronutrientes adaptados a vos.",
+      a: "Completas un formulario con tus datos personales, objetivos y preferencias alimentarias. La IA genera un plan semanal detallado con recetas, ingredientes exactos, calorías y macronutrientes adaptados a vos.",
     },
     {
       q: "¿El plan incluye rutina de entrenamiento?",

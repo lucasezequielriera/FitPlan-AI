@@ -437,7 +437,7 @@ export default function IMCInfoModal({
                   <FaCheckCircle className="mx-auto mb-2 text-3xl text-success" />
                   <h3 className="mb-1 text-base font-bold text-[var(--foreground)]">¡Peso saludable!</h3>
                   <p className="text-xs text-[var(--foreground)]">
-                    Tu IMC está dentro del rango saludable. Seguí con tu plan para mantener y mejorar tu composición corporal.
+                    Tu IMC está dentro del rango saludable. Sigue con tu plan para mantener y mejorar tu composición corporal.
                   </p>
                 </motion.div>
               )}

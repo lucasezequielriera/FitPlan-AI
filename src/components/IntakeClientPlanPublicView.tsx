@@ -129,7 +129,7 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
       if (!res.ok) {
         setTrainerQaError(
           json.requiresPremium
-            ? "Alcanzaste tu límite gratuito. Para seguir consultando, activá premium."
+            ? "Alcanzaste tu límite gratuito. Para seguir consultando, activa premium."
             : (json.error || `Error ${res.status}`)
         );
         if (typeof json.remaining === "number") setTrainerQaRemaining(json.remaining);
@@ -190,32 +190,32 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
     if (/prensa/.test(ex)) {
       return withName([
         "sentate con espalda completamente apoyada y pies al ancho de hombros en la plataforma.",
-        "bajá controlado hasta un rango cómodo sin despegar cadera del respaldo.",
-        "empujá con todo el pie (talón + medio pie), evitando colapsar rodillas hacia adentro.",
-        "extendé sin bloquear agresivamente las rodillas al final.",
+        "baja controlado hasta un rango cómodo sin despegar cadera del respaldo.",
+        "empuja con todo el pie (talón + medio pie), evitando colapsar rodillas hacia adentro.",
+        "extiende sin bloquear agresivamente las rodillas al final.",
       ]);
     }
     if (/hip thrust|empuje de cadera|puente de gluteo|puente de glúteo/.test(ex)) {
       return withName([
-        "apoyá escápulas en banco y pies firmes al ancho de cadera.",
-        "mantené mentón levemente recogido y costillas controladas.",
-        "elevá cadera contrayendo glúteos hasta alinear hombros-cadera-rodillas.",
-        "bajá lento sin perder tensión en glúteos.",
+        "apoya escápulas en banco y pies firmes al ancho de cadera.",
+        "mantén mentón levemente recogido y costillas controladas.",
+        "eleva cadera contrayendo glúteos hasta alinear hombros-cadera-rodillas.",
+        "baja lento sin perder tensión en glúteos.",
       ]);
     }
     if (/sentadilla|squat|goblet/.test(ex)) {
       const opts = [
         [
-          "colocá pies al ancho de hombros y puntas ligeramente abiertas.",
-          "braceá abdomen y bajá llevando cadera atrás y rodillas alineadas con puntas.",
-          "llegá a profundidad útil sin perder columna neutra.",
-          "subí empujando el piso con todo el pie, manteniendo tronco firme.",
+          "coloca pies al ancho de hombros y puntas ligeramente abiertas.",
+          "bracea abdomen y baja llevando cadera atrás y rodillas alineadas con puntas.",
+          "llega a profundidad útil sin perder columna neutra.",
+          "sube empujando el piso con todo el pie, manteniendo tronco firme.",
         ],
         [
           "armá base estable con peso repartido en talón y mediopié.",
-          "descendé controlado manteniendo pecho abierto y core activo.",
-          "evitá que las rodillas colapsen hacia adentro.",
-          "ascendé en bloque, cadera y torso suben juntos.",
+          "desciende controlado manteniendo pecho abierto y core activo.",
+          "evita que las rodillas colapsen hacia adentro.",
+          "asciende en bloque, cadera y torso suben juntos.",
         ],
       ];
       return withName(pick(opts));
@@ -223,88 +223,88 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
     if (/peso muerto|deadlift|rumano|hip hinge/.test(ex)) {
       return withName([
         "pies al ancho de cadera y carga cerca del cuerpo.",
-        "iniciá con bisagra de cadera y espalda neutra, no con flexión lumbar.",
-        "bajá sintiendo tensión en isquios, manteniendo barra/mancuernas pegadas.",
-        "subí extendiendo cadera y contrayendo glúteos, sin hiperextender la espalda.",
+        "inicia con bisagra de cadera y espalda neutra, no con flexión lumbar.",
+        "baja sintiendo tensión en isquios, manteniendo barra/mancuernas pegadas.",
+        "sube extendiendo cadera y contrayendo glúteos, sin hiperextender la espalda.",
       ]);
     }
     if (/press banca|bench|press pecho|press inclinado/.test(ex)) {
       return withName([
-        "apoyá escápulas y glúteos en banco, con pies firmes en el suelo.",
-        "bajá la carga con control hacia zona media-baja del pecho.",
-        "mantené codos en ángulo moderado, evitando abrirlos en exceso.",
-        "empujá en línea estable sin perder tensión escapular.",
+        "apoya escápulas y glúteos en banco, con pies firmes en el suelo.",
+        "baja la carga con control hacia zona media-baja del pecho.",
+        "mantén codos en ángulo moderado, evitando abrirlos en exceso.",
+        "empuja en línea estable sin perder tensión escapular.",
       ]);
     }
     if (/remo|row/.test(ex)) {
       return withName([
-        "iniciá con pecho abierto y columna neutra.",
+        "inicia con pecho abierto y columna neutra.",
         "tirá llevando codos hacia atrás, no hacia arriba.",
-        "evitá balancear tronco o usar impulso de cadera.",
-        "regresá controlado, manteniendo tensión en espalda.",
+        "evita balancear tronco o usar impulso de cadera.",
+        "regresa controlado, manteniendo tensión en espalda.",
       ]);
     }
     if (/jalon|jalón|dominada|pull/.test(ex)) {
       return withName([
         "tomá agarre firme y deprimí escápulas antes de traccionar.",
-        "llevá codos hacia costillas sin encoger hombros.",
-        "acercá barra/pecho con torso estable y controlado.",
-        "subí lento hasta casi extender brazos, sin perder postura.",
+        "lleva codos hacia costillas sin encoger hombros.",
+        "acerca barra/pecho con torso estable y controlado.",
+        "sube lento hasta casi extender brazos, sin perder postura.",
       ]);
     }
     if (/press militar|overhead|hombro/.test(ex)) {
       return withName([
-        "estabilizá pies, glúteos y abdomen antes de iniciar.",
-        "partí desde hombros con muñecas neutras y antebrazos verticales.",
-        "empujá en línea vertical controlando costillas y zona lumbar.",
-        "descendé lento al punto inicial manteniendo escápulas activas.",
+        "estabiliza pies, glúteos y abdomen antes de iniciar.",
+        "parte desde hombros con muñecas neutras y antebrazos verticales.",
+        "empuja en línea vertical controlando costillas y zona lumbar.",
+        "desciende lento al punto inicial manteniendo escápulas activas.",
       ]);
     }
     if (/zancada|lunge|split squat/.test(ex)) {
       return withName([
-        "elegí una zancada cómoda y mantené cadera estable.",
-        "descendé vertical con control, evitando colapso de rodilla.",
-        "mantené talón delantero apoyado durante todo el gesto.",
-        "ascendé empujando con la pierna delantera sin perder equilibrio.",
+        "elige una zancada cómoda y mantén cadera estable.",
+        "desciende vertical con control, evitando colapso de rodilla.",
+        "mantén talón delantero apoyado durante todo el gesto.",
+        "asciende empujando con la pierna delantera sin perder equilibrio.",
       ]);
     }
     if (/curl/.test(ex)) {
       return withName([
         "fijá codos cerca del torso y hombros estables.",
-        "flexioná codo sin usar impulso de espalda.",
+        "flexiona codo sin usar impulso de espalda.",
         "hacé una pausa corta arriba para máxima contracción.",
-        "bajá lento controlando la fase excéntrica.",
+        "baja lento controlando la fase excéntrica.",
       ]);
     }
     if (/triceps|tríceps|extension/.test(ex)) {
       return withName([
-        "mantené codos fijos y hombros quietos.",
-        "extendé codo completo sin bloqueo brusco.",
-        "sostené muñeca neutra para no cargar antebrazo.",
-        "regresá controlado manteniendo tensión constante.",
+        "mantén codos fijos y hombros quietos.",
+        "extiende codo completo sin bloqueo brusco.",
+        "sostén muñeca neutra para no cargar antebrazo.",
+        "regresa controlado manteniendo tensión constante.",
       ]);
     }
     if (/abduccion|abducción|glute kick|patada de gluteo|patada de glúteo/.test(ex)) {
       return withName([
-        "alineá pelvis y activá abdomen para evitar compensaciones.",
+        "alinea pelvis y activa abdomen para evitar compensaciones.",
         "mové la pierna desde cadera, no desde zona lumbar.",
-        "alcanzá rango útil sin rotar tronco.",
-        "volvé lento para mantener tensión en glúteo medio.",
+        "alcanza rango útil sin rotar tronco.",
+        "vuelve lento para mantener tensión en glúteo medio.",
       ]);
     }
     if (/gemelo|pantorrilla|calf/.test(ex)) {
       return withName([
-        "apoyá metatarsos firmes y mantené rodillas estables.",
-        "subí talones al máximo con pausa breve arriba.",
-        "evitá rebotes; el movimiento debe ser controlado.",
-        "bajá completo para aprovechar todo el rango de tobillo.",
+        "apoya metatarsos firmes y mantén rodillas estables.",
+        "sube talones al máximo con pausa breve arriba.",
+        "evita rebotes; el movimiento debe ser controlado.",
+        "baja completo para aprovechar todo el rango de tobillo.",
       ]);
     }
     return withName([
-      `ajustá una postura inicial estable específica para ${exerciseName}.`,
-      "ejecutá el recorrido completo con control, sin impulso.",
-      "mantené alineación articular y respiración fluida en cada repetición.",
-      "finalizá con técnica limpia antes de aumentar carga o reps.",
+      `ajusta una postura inicial estable específica para ${exerciseName}.`,
+      "ejecuta el recorrido completo con control, sin impulso.",
+      "mantén alineación articular y respiración fluida en cada repetición.",
+      "finaliza con técnica limpia antes de aumentar carga o reps.",
     ]);
   };
 
@@ -508,7 +508,7 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
                   <p>• Pesá alimentos clave (proteínas, carbos base y grasas añadidas).</p>
                   <p>• Hidratación base: 30-40 ml por kg de peso al día.</p>
                   <p>• Armá el plato con proteína + carbohidrato + grasa + vegetales.</p>
-                  <p>• Si tenés hambre alta: subí volumen de verduras sin tocar macros objetivo.</p>
+                  <p>• Si tienes hambre alta: sube volumen de verduras sin tocar macros objetivo.</p>
                 </div>
                 <div className="rounded border border-info/20 bg-black/20 px-2 py-2 space-y-1">
                   <p className="text-info font-semibold">Palabras clave (nutrición)</p>

@@ -91,13 +91,13 @@ export default function LoginModal({
       sentCta: "Email enviado",
       resetSuccess:
         "Revisá tu correo: te enviamos las instrucciones para recuperar tu contraseña.",
-      resetError: "No pudimos enviar el email. Probá de nuevo.",
+      resetError: "No pudimos enviar el email. Prueba de nuevo.",
       genericError: "Algo salió mal",
       primaryLogin: "Iniciar sesión",
       primarySignup: "Crear cuenta",
       loading: "Cargando…",
-      toggleSignup: "¿No tenés cuenta? Registrate",
-      toggleLogin: "¿Ya tenés cuenta? Iniciá sesión",
+      toggleSignup: "¿No tienes cuenta? Regístrate",
+      toggleLogin: "¿Ya tienes cuenta? Iniciá sesión",
       close: "Cerrar",
     };
   }, [locale]);

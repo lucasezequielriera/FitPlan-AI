@@ -200,7 +200,7 @@ function buildExercisesPayloadFromDraft(
     for (const s of sets) {
       const rir = parseRirFromInput(s.rirRaw);
       if (s.rirRaw.length > 0 && rir === null) {
-        return { error: "RIR: usá un entero de 0 a 4 por serie (0 = muy duro)." };
+        return { error: "RIR: usa un entero de 0 a 4 por serie (0 = muy duro)." };
       }
       const kg = s.kg != null && Number.isFinite(s.kg) ? Math.round(s.kg * 100) / 100 : null;
       if (kg !== null && (kg < 0 || kg > 600)) {
@@ -340,7 +340,7 @@ export default function IntakeWorkoutDayLog({
         rows.push({
           exerciseName: ex.name,
           status: "stalled",
-          recommendation: "Estancado con RIR alto: probá subir +2.5 kg o +1 repetición.",
+          recommendation: "Estancado con RIR alto: prueba subir +2.5 kg o +1 repetición.",
         });
       } else {
         rows.push({

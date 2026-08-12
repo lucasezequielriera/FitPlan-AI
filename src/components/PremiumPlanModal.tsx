@@ -44,7 +44,7 @@ const plansARS: Plan[] = [
     name: "Plan Trimestral",
     price: 24000,
     period: "3 meses",
-    savings: "Ahorrás 20%",
+    savings: "Ahorras 20%",
     popular: true,
   },
   {
@@ -52,7 +52,7 @@ const plansARS: Plan[] = [
     name: "Plan Anual",
     price: 50000,
     period: "12 meses",
-    savings: "Ahorrás 58%",
+    savings: "Ahorras 58%",
   },
 ];
 
@@ -159,13 +159,13 @@ export default function PremiumPlanModal({
     }
     return {
       title: "Pasá a Premium",
-      subtitle: "Tres formas de pagar. El mismo Premium completo: elegí la que te cierra.",
+      subtitle: "Tres formas de pagar. El mismo Premium completo: elige la que te cierra.",
       compareTitle: "Gratis vs Premium",
       colFree: "Gratis",
       colPremium: "Premium",
-      billingTitle: "Elegí la cuota",
+      billingTitle: "Elige la cuota",
       sameFeatures: "Mismas funciones en los tres precios; solo cambia cada cuánto cobramos.",
-      includedTitle: "En los tres tenés",
+      includedTitle: "En los tres tienes",
       includedBullets: [
         "IA completa + objetivos avanzados",
         "Todo desbloqueado mientras siga activa la suscripción",
@@ -173,8 +173,8 @@ export default function PremiumPlanModal({
       ],
       planChips: ["IA completa", "Gym + comidas", "Todo incluido"],
       planHook: {
-        monthly: "Mes a mes — salís cuando quieras",
-        quarterly: "El equilibrio: ahorrás sin atarte al año",
+        monthly: "Mes a mes — sales cuando quieras",
+        quarterly: "El equilibrio: ahorras sin atarte al año",
         annual: "Lo más barato al mes · máximo ahorro",
       } satisfies Record<PlanType, string>,
       selectPlan: "Continuar",

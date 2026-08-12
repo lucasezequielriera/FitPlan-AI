@@ -207,7 +207,7 @@ const COPY_ES: IntakeFormCopy = {
   heroEyebrow: "FitPlan · Seguimiento 1:1",
   heroTitle: "Formulario de inicio personalizado",
   heroBody:
-    "Este formulario es para crear tu plan 1:1 de entrenamiento y nutrición. No hace falta saber nada técnico: respondé con calma y con sinceridad.",
+    "Este formulario es para crear tu plan 1:1 de entrenamiento y nutrición. No hace falta saber nada técnico: responde con calma y con sinceridad.",
   heroTimePrefix: "Tiempo estimado: ",
   heroTimeBold: "8-12 min",
   heroTimeSuffix: " · cuanto más detalle des, mejor se adaptará tu plan",
@@ -233,7 +233,7 @@ const COPY_ES: IntakeFormCopy = {
     s4intro: "Esta parte es clave para adaptar el plan de forma segura.",
     s5: "Hábitos de vida",
     s6: "Alimentación actual",
-    s6intro: "No busques responder “perfecto”: contanos cómo comés hoy normalmente.",
+    s6intro: "No busques responder “perfecto”: cuéntanos cómo comes hoy normalmente.",
     s7: "Motivación y seguimiento",
     s8: "Confirmación y envío",
   },

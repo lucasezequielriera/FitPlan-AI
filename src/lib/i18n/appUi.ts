@@ -107,7 +107,7 @@ export const dashboardUi = {
   mfProgressThisMonth: { es: "Progreso del mes {n}", en: "Month {n} progress" },
   mfProgressFullProgram: { es: "Progreso del plan completo", en: "Full program progress" },
   mfMonthDoneNext: {
-    es: "Mes {m} completado — abrí el plan para generar el mes {next}.",
+    es: "Mes {m} completado — abre el plan para generar el mes {next}.",
     en: "Month {m} complete — open your plan to generate month {next}.",
   },
   mfDaysLeftInMonth: {
@@ -125,7 +125,7 @@ export const dashboardUi = {
   /** Plan gratuito vencido */
   freeExpiredTitle: { es: "Tu plan gratuito ya venció", en: "Your free plan has ended" },
   freeExpiredBody: {
-    es: "Se cumplieron los 30 días de acceso gratuito. Para seguir viendo tu plan y generar nuevas etapas, activá Premium.",
+    es: "Se cumplieron los 30 días de acceso gratuito. Para seguir viendo tu plan y generar nuevas etapas, activa Premium.",
     en: "Your 30-day free access is over. To keep viewing your plan and generate new phases, upgrade to Premium.",
   },
   understood: { es: "Entendido", en: "Got it" },
@@ -135,14 +135,14 @@ export const dashboardUi = {
   /** Modal entrenador personal */
   ptModalTitle: { es: "Entrenador personal humano", en: "Human personal trainer" },
   ptModalBody: {
-    es: "Podés asesorarte y tener seguimiento de un entrenador personal certificado en entrenamiento y nutrición.",
+    es: "Puedes asesorarte y tener seguimiento de un entrenador personal certificado en entrenamiento y nutrición.",
     en: "Get guidance and follow-up from a certified personal trainer for training and nutrition.",
   },
   ptModalFootnote: {
-    es: "Si ahora no querés, podés pedirlo más adelante con este botón o por el chat.",
+    es: "Si ahora no quieres, puedes pedirlo más adelante con este botón o por el chat.",
     en: "If you prefer not now, you can request it later with this button or via chat.",
   },
-  ptChooseTrainer: { es: "Elegí tu tipo de entrenador", en: "Choose your trainer type" },
+  ptChooseTrainer: { es: "Elige tu tipo de entrenador", en: "Choose your trainer type" },
   ptMaleTitle: { es: "Entrenador hombre", en: "Male trainer" },
   ptMaleBadge: { es: "Muy solicitado", en: "Popular" },
   ptMaleDesc: {
@@ -155,7 +155,7 @@ export const dashboardUi = {
     es: "Especialista en entrenamiento funcional, alto rendimiento y recomposición corporal.",
     en: "Specialist in functional training, high performance, and body recomposition.",
   },
-  ptOptionalGoal: { es: "Contanos tu objetivo principal (opcional)", en: "Tell us your main goal (optional)" },
+  ptOptionalGoal: { es: "Cuéntanos tu objetivo principal (opcional)", en: "Tell us your main goal (optional)" },
   ptGoalPlaceholder: {
     es: "Ej.: bajar grasa, ganar masa, mejorar rendimiento…",
     en: "E.g. fat loss, muscle gain, better performance…",
@@ -205,7 +205,7 @@ export const dashboardUi = {
   continuityTitleGenerating: { es: "Generando tu plan…", en: "Generating your plan…" },
   continuityTitleDone: { es: "¡Listo!", en: "All set!" },
   continuityIntro: {
-    es: "Completá los datos finales para recibir una sugerencia personalizada de continuidad.",
+    es: "Completa los datos finales para recibir una sugerencia personalizada de continuidad.",
     en: "Complete the final details to get a personalized continuity suggestion.",
   },
   continuityWeightFinal: { es: "Peso final (kg)", en: "Final weight (kg)" },
@@ -331,7 +331,7 @@ export const dashboardUi = {
   msgSending: { es: "Enviando…", en: "Sending…" },
   msgSendReply: { es: "Enviar respuesta", en: "Send reply" },
   msgPickThread: {
-    es: "Elegí una conversación de la lista para ver el hilo completo.",
+    es: "Elige una conversación de la lista para ver el hilo completo.",
     en: "Pick a conversation from the list to see the full thread.",
   },
   msgLoadError: { es: "Error al cargar mensajes", en: "Could not load messages" },

@@ -93,7 +93,7 @@ function buildWelcomeHtml(params: {
       Tu avance va a venir de hacer bien lo básico, una y otra vez. Yo me encargo de ajustar la estrategia, vos de ejecutar.
     </p>
     <p style="margin:0 0 12px;color:#cbd5e1">
-      Cuando quieras revisar tu plan, usá este acceso: <a href="${params.route}" style="color:#67e8f9">${params.route}</a>
+      Cuando quieras revisar tu plan, usa este acceso: <a href="${params.route}" style="color:#67e8f9">${params.route}</a>
     </p>
     <p style="margin:14px 0 0;color:#e2e8f0">
       Vamos con todo.<br/>

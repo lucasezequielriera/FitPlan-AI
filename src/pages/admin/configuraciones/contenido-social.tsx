@@ -319,7 +319,7 @@ export default function AdminContenidoSocialPage() {
     if (!preview) return;
     const scheduledForIso = madridLocalDatetimeToUtcIso(scheduledForLocal);
     if (!scheduledForIso) {
-      setError("Elegí una fecha y hora válidas.");
+      setError("Elige una fecha y hora válidas.");
       return;
     }
     setScheduling(true);
@@ -392,7 +392,7 @@ export default function AdminContenidoSocialPage() {
             </span>
             <div>
               <h1 className="text-2xl sm:text-3xl font-semibold text-white">Generador de contenido</h1>
-              <p className="text-sm text-white/55 mt-1">Creá un video para Instagram/TikTok con el tema que quieras, revisalo, y publicalo.</p>
+              <p className="text-sm text-white/55 mt-1">Crea un video para Instagram/TikTok con el tema que quieras, revisalo, y publicalo.</p>
             </div>
           </div>
         </div>
@@ -415,7 +415,7 @@ export default function AdminContenidoSocialPage() {
           {howToOpen && (
             <ol className="mt-4 space-y-3 text-sm text-white/75 list-decimal list-inside">
               <li>
-                <span className="text-white font-medium">Elegí un tema.</span> Escribilo vos mismo, o apretá{" "}
+                <span className="text-white font-medium">Elige un tema.</span> Escríbelo tú mismo, o pulsa{" "}
                 <span className="text-violet-300">&ldquo;Sugerime un tema&rdquo;</span> para que la IA te proponga uno según lo que ya se
                 publicó antes.
               </li>
@@ -426,16 +426,16 @@ export default function AdminContenidoSocialPage() {
               </li>
               <li>
                 <span className="text-white font-medium">Revisá el preview.</span> Mirá el video, la narración, los captions de Instagram/TikTok,
-                los hashtags y el alt text. Si no te convence, volvé a generar (podés cambiar el tema o simplemente reintentar).
+                los hashtags y el alt text. Si no te convence, vuelve a generar (puedes cambiar el tema o simplemente reintentar).
               </li>
               <li>
-                <span className="text-white font-medium">Elegí &ldquo;Publicar ahora&rdquo; o &ldquo;Programar para más tarde&rdquo;.</span>{" "}
+                <span className="text-white font-medium">Elige &ldquo;Publicar ahora&rdquo; o &ldquo;Programar para más tarde&rdquo;.</span>{" "}
                 Publicar ahora lo sube de una a Instagram (y a TikTok cuando esté configurado). Programar te deja elegir fecha y hora
                 (España) para que se publique solo más adelante — hasta ese momento sigue siendo un borrador que nadie ve.
               </li>
               <li>
                 <span className="text-white font-medium">(Opcional) Automatizá reels diarios.</span> Más abajo, en &ldquo;Reels automáticos
-                diarios&rdquo;, activá la publicación automática y configurá uno o varios horarios (tu hora, España) — ahí la IA elige el tema
+                diarios&rdquo;, activa la publicación automática y configura uno o varios horarios (tu hora, España) — ahí la IA elige el tema
                 sola, rotando, y publica sin que tengas que apretar nada.
               </li>
               <li>
@@ -485,7 +485,7 @@ export default function AdminContenidoSocialPage() {
                 type="text"
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
-                placeholder='Ej: "por qué el cardio en ayunas no es lo que creés"'
+                placeholder='Ej: "por qué el cardio en ayunas no es lo que crees"'
                 className="flex-1 rounded-lg bg-black/25 border border-white/15 px-3 py-2.5 text-sm text-white placeholder:text-white/35 outline-none focus:border-info/50"
               />
               <button

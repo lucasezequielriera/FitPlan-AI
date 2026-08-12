@@ -276,7 +276,7 @@ export default function AdminExerciseCatalogModal({
               <h2 className="text-lg font-semibold text-white">Catálogo global de ejercicios</h2>
               <p className="text-xs text-white/55 mt-0.5 leading-relaxed">
                 Cada entrada fija la ilustración para ese nombre: bien un ID de wger, bien imagen o GIF en{" "}
-                <code className="text-violet-300/90">public/ejercicios/</code> (podés poner solo el nombre del archivo o la URL completa). El
+                <code className="text-violet-300/90">public/ejercicios/</code> (puedes poner solo el nombre del archivo o la URL completa). El
                 nombre del ejercicio debe coincidir con el plan (típicamente lo que va antes del ·).
               </p>
             </div>
@@ -302,7 +302,7 @@ export default function AdminExerciseCatalogModal({
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-white/90">Ejercicios que aparecen en planes</p>
                 <p className="text-[11px] text-white/45 mt-1 leading-relaxed">
-                  Agrupados por <span className="text-white/60">muscle_group</span> del entrenamiento (planes intake recientes y planes de app). Elegí un grupo y tocá un nombre para copiarlo al
+                  Agrupados por <span className="text-white/60">muscle_group</span> del entrenamiento (planes intake recientes y planes de app). Elige un grupo y tocá un nombre para copiarlo al
                   campo de abajo. <span className="text-emerald-300/80">En catálogo</span> ya tiene ilustración fija; <span className="text-amber-200/80">Falta</span> aún no.
                 </p>
                 {planIndexMeta && (

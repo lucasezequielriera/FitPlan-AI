@@ -45,8 +45,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const planDescriptions: Record<PlanTypeKey, string> = {
     monthly: "Acceso premium mensual a objetivos avanzados, dietas personalizadas y análisis avanzado",
-    quarterly: "Acceso premium trimestral (3 meses) - Ahorrás 20%",
-    annual: "Acceso premium anual (12 meses) - Ahorrás 58%",
+    quarterly: "Acceso premium trimestral (3 meses) - Ahorras 20%",
+    annual: "Acceso premium anual (12 meses) - Ahorras 58%",
   };
   const selectedPlan = {
     price: arsAmount,

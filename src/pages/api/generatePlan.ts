@@ -486,9 +486,9 @@ REGLAS CRÍTICAS:
         - Tipo de dieta seleccionada
         - Patologías o condiciones médicas (si aplica)
         - Ejemplos de proyecciones personalizadas:
-          * Para ganar masa + principiante + intensa: "Como principiante con alta intensidad, podés ganar músculo muy rápido (efecto novato maximizado)"
-          * Para perder grasa + IMC > 30: "Los primeros meses podés perder más peso (agua y grasa inicial)"
-          * Para recomposición + intermedio: "Pérdida simultánea de grasa mientras ganás músculo"
+          * Para ganar masa + principiante + intensa: "Como principiante con alta intensidad, puedes ganar músculo muy rápido (efecto novato maximizado)"
+          * Para perder grasa + IMC > 30: "Los primeros meses puedes perder más peso (agua y grasa inicial)"
+          * Para recomposición + intermedio: "Pérdida simultánea de grasa mientras ganas músculo"
           * Para definición: "Definición muscular visible: abs y músculos más marcados"
           * Incluir proyecciones sobre: fuerza, composición corporal, circunferencias, energía, recuperación, etc.
       * "tiempoEstimado": string con tiempo estimado para ver resultados según intensidad:
@@ -1210,7 +1210,7 @@ ${(() => {
 
 ⚠️ MINI-CUTS (Cada 2-3 meses si es necesario):
 - Si tu cintura aumenta más de 5 cm
-- Si perdés visibilidad de abs superiores
+- Si pierdes visibilidad de abs superiores
 - Duración: 2-3 semanas de déficit moderado (-400 kcal)
 - Luego volver a lean bulk
 
@@ -3004,7 +3004,7 @@ Ejemplo de estructura:
     const isTimeout = typeof message === 'string' && (message.includes("aborted") || message.includes("timeout") || message.includes("Abort"));
     const detail = typeof message === 'string' && message.length > 0 ? message : "Error desconocido al generar el plan";
     return res.status(502).json({ 
-      error: isTimeout ? "Timeout: OpenAI tardó demasiado (intentá de nuevo)" : "Fallo al generar con OpenAI", 
+      error: isTimeout ? "Timeout: OpenAI tardó demasiado (intenta de nuevo)" : "Fallo al generar con OpenAI", 
       detail: detail 
     });
   }

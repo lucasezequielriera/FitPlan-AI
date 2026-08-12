@@ -34,7 +34,7 @@ const FALLBACK_SCENE_DURATION_SECONDS = 2.8;
  * /api/internal/renderSocialImage), genera la narración en voz (TTS) y arma
  * el video final: dimensiona las escenas para que el video dure al menos lo
  * que dura la narración, las combina con crossfade/zoom, y mezcla el audio.
- * Si la narración falla (ej. TTS caído), el video sigue generándose mudo en
+ * Si la narración falla (ej. TTS caído), el video sigue generandose mudo en
  * vez de romper todo el pipeline — mejor un reel sin audio que ninguno.
  *
  * Usado tanto por el cron diario como por el generador manual del panel

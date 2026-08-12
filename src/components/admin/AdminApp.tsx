@@ -1827,7 +1827,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
       } else {
         window.open(link, "_blank");
       }
-      alert("Link de pago generado. Lo copié al portapapeles y abrí el envío.");
+      alert("Link de pago generado. Lo copié al portapapeles y abre el envío.");
       setPaymentLinkModalOpen(false);
       setPaymentLinkUser(null);
     } catch (error) {

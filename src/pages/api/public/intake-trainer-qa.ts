@@ -32,12 +32,12 @@ function buildRuleBasedAnswer(question: string, ctx: {
     } Enfocate en cerrar el total diario más que en la perfección de una sola comida.`;
   }
   if (/desayuno|almuerzo|cena|comer|comida|meal|nutri/.test(q)) {
-    return `Guía rápida: en cada comida buscá proteína + carbohidrato + grasa + vegetales. ${
+    return `Guía rápida: en cada comida busca proteína + carbohidrato + grasa + vegetales. ${
       ctx.firstDayMeal ? `Ejemplo de tu plan: ${ctx.firstDayMeal}.` : ""
-    } Si un alimento no te gusta, podés reemplazar por uno equivalente en macros.`;
+    } Si un alimento no te gusta, puedes reemplazar por uno equivalente en macros.`;
   }
   if (/rir|fallo|intens|hit|series|reps|repet/.test(q)) {
-    return `Para progresar sin quemarte: trabajá la mayor parte del tiempo en RIR 1-3 (no al fallo siempre). El fallo muscular usalo puntualmente en la última serie de accesorios. Priorizá técnica limpia antes de subir carga.`;
+    return `Para progresar sin quemarte: trabaja la mayor parte del tiempo en RIR 1-3 (no al fallo siempre). El fallo muscular usalo puntualmente en la última serie de accesorios. Priorizá técnica limpia antes de subir carga.`;
   }
   if (/descans|rest|pausa/.test(q)) {
     return `Descansos recomendados: ejercicios básicos 90-180s, accesorios 45-90s. ${
@@ -47,9 +47,9 @@ function buildRuleBasedAnswer(question: string, ctx: {
     }`;
   }
   if (/estanc|progreso|subir|peso/.test(q)) {
-    return `Si te estancás, aplicá progresión simple: +1-2 reps por serie o +1-2.5 kg cuando completes el rango con buena técnica. Si llevás 2 semanas igual, mantené carga y mejorá ejecución/descanso/sueño.`;
+    return `Si te estancas, aplica progresión simple: +1-2 reps por serie o +1-2.5 kg cuando completes el rango con buena técnica. Si llevas 2 semanas igual, mantén carga y mejorá ejecución/descanso/sueño.`;
   }
-  return `Buena pregunta. Resumen práctico: seguí tu plan con constancia semanal, cerrá macros diarios, entrená con técnica y progresión gradual, y ajustá según sensaciones reales (fatiga/sueño/rendimiento). Si querés, preguntame algo más específico (RIR, descansos, macros o reemplazos).`;
+  return `Buena pregunta. Resumen práctico: sigue tu plan con constancia semanal, cierra macros diarios, entrena con técnica y progresión gradual, y ajusta según sensaciones reales (fatiga/sueño/rendimiento). Si quieres, preguntame algo más específico (RIR, descansos, macros o reemplazos).`;
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {

@@ -385,7 +385,7 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
             <h2 className={`font-semibold text-white ${isPage ? "text-xl sm:text-2xl" : "text-lg"}`}>Catálogo global de ejercicios</h2>
             <p className="text-xs text-white/55 mt-0.5 leading-relaxed">
               Cada entrada fija la ilustración para ese nombre: bien un ID de wger, bien imagen o GIF en{" "}
-              <code className="text-violet-300/90">public/ejercicios/</code> (podés poner solo el nombre del archivo o la URL completa). El
+              <code className="text-violet-300/90">public/ejercicios/</code> (puedes poner solo el nombre del archivo o la URL completa). El
               nombre del ejercicio debe coincidir con el plan (típicamente lo que va antes del ·). Los vídeos de técnica se enlazan con
               Cloudinary o URL directa en el plan (sección «Vídeos propios del coach» en el detalle del plan).
             </p>
@@ -415,7 +415,7 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
                 <p className="text-sm font-medium text-white/90">Ejercicios que aparecen en planes</p>
                 <p className="text-[11px] text-white/45 mt-1 leading-relaxed">
                   Agrupados por <span className="text-white/60">muscle_group</span> (planes intake recientes y planes de app). Tocá un nombre para copiarlo abajo.{" "}
-                  <span className="text-success/80">En catálogo</span> = asignación tuya; podés pulsar{" "}
+                  <span className="text-success/80">En catálogo</span> = asignación tuya; puedes pulsar{" "}
                   <span className="text-white/55">Comprobar wger</span> para ver cuáles no tienen ni catálogo ni coincidencia automática en wger.
                 </p>
                 {planIndexMeta && (
@@ -459,7 +459,7 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
                   <p className="text-[10px] text-white/40 font-mono leading-relaxed">
                     Sin catálogo en planes: {coverageMeta.notInCatalogCount ?? "—"} · Consultados wger esta vez: {coverageMeta.probedThisRequest ?? "—"}
                     {(coverageMeta.skippedDueToProbesLimit ?? 0) > 0
-                      ? ` · Sin consultar aún: ${coverageMeta.skippedDueToProbesLimit} (límite ${coverageMeta.maxResolve ?? 20} por petición; repetí o subí ?maxResolve= en la API)`
+                      ? ` · Sin consultar aún: ${coverageMeta.skippedDueToProbesLimit} (límite ${coverageMeta.maxResolve ?? 20} por petición; repite o sube ?maxResolve= en la API)`
                       : null}
                   </p>
                 )}
@@ -483,7 +483,7 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
                     type="button"
                     onClick={() => setSelectedMuscleKey("no_media")}
                     disabled={!coverageRan || noMediaCount === 0}
-                    title={!coverageRan ? "Primero pulsá Comprobar wger" : undefined}
+                    title={!coverageRan ? "Primero pulsa Comprobar wger" : undefined}
                     className={`px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors max-w-[220px] truncate ${
                       selectedMuscleKey === "no_media"
                         ? "bg-danger/30 border-danger/45 text-danger"
@@ -652,7 +652,7 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
             </div>
             {mediaMode === "custom" ? (
               <p className="text-[11px] text-violet-200/70">
-                Imágenes en <code className="text-violet-300/80">public/ejercicios/</code> o URL https; si no ponés extensión se añade .webp o .gif según el botón de abajo.
+                Imágenes en <code className="text-violet-300/80">public/ejercicios/</code> o URL https; si no pones extensión se añade .webp o .gif según el botón de abajo.
               </p>
             ) : mediaMode === "video" ? (
               <p className="text-[11px] text-emerald-200/80">
@@ -719,7 +719,7 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
                   <span className="text-[11px] text-white/45">se concatena al nombre corto</span>
                 </div>
                 <p className="text-[11px] text-white/45 leading-relaxed">
-                  Archivo en <code className="text-violet-300/80">public/ejercicios/</code>: podés escribir solo el nombre (
+                  Archivo en <code className="text-violet-300/80">public/ejercicios/</code>: puedes escribir solo el nombre (
                   <code className="text-violet-300/80">mi-ejercicio</code>), o ruta completa, o URL https de imagen. Sin YouTube ni Vimeo.
                 </p>
               </div>

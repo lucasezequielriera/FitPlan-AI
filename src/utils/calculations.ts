@@ -510,7 +510,7 @@ export function calcularProyeccionesMotivacionales(
         musculoGanancia = sexo === "masculino" ? "2-3 kg" : "1-1.5 kg";
         proyecciones.push(
           t(
-            "🔥 ULTRA: Como principiante con máxima intensidad, podés ganar músculo extremadamente rápido (efecto novato + protocolo élite)",
+            "🔥 ULTRA: Como principiante con máxima intensidad, puedes ganar músculo extremadamente rápido (efecto novato + protocolo élite)",
             "🔥 ULTRA: As a beginner at max intensity, you can gain muscle extremely fast (newbie gains + elite protocol)"
           )
         );
@@ -518,14 +518,14 @@ export function calcularProyeccionesMotivacionales(
         musculoGanancia = sexo === "masculino" ? "1.5-2.5 kg" : "0.75-1.25 kg";
         proyecciones.push(
           t(
-            "Como principiante con alta intensidad, podés ganar músculo muy rápido (efecto novato maximizado)",
+            "Como principiante con alta intensidad, puedes ganar músculo muy rápido (efecto novato maximizado)",
             "As a beginner with high intensity, you can gain muscle very quickly (maximized newbie gains)"
           )
         );
       } else if (intensidad === "moderada") {
         musculoGanancia = sexo === "masculino" ? "1-2 kg" : "0.5-1 kg";
         proyecciones.push(
-          t("Como principiante, podés ganar músculo más rápido (efecto novato)", "As a beginner, you can gain muscle faster (newbie effect)")
+          t("Como principiante, puedes ganar músculo más rápido (efecto novato)", "As a beginner, you can gain muscle faster (newbie effect)")
         );
       } else {
         musculoGanancia = sexo === "masculino" ? "0.75-1.5 kg" : "0.4-0.75 kg";
@@ -546,7 +546,7 @@ export function calcularProyeccionesMotivacionales(
         musculoGanancia = sexo === "masculino" ? "0.75-1.25 kg" : "0.4-0.7 kg";
         proyecciones.push(
           t(
-            "Con alta intensidad y disciplina, maximizás tu potencial de crecimiento",
+            "Con alta intensidad y disciplina, maximizas tu potencial de crecimiento",
             "With high intensity and discipline, you maximize your growth potential"
           )
         );
@@ -603,7 +603,7 @@ export function calcularProyeccionesMotivacionales(
     );
     proyecciones.push(
       t(
-        "Mejora en composición corporal: reducción de % de grasa mientras ganás masa",
+        "Mejora en composición corporal: reducción de % de grasa mientras ganas masa",
         "Better body composition: lower body-fat % while gaining mass"
       )
     );
@@ -622,7 +622,7 @@ export function calcularProyeccionesMotivacionales(
     if (bmi > 30) {
       proyecciones.push(
         t(
-          "Los primeros meses podés perder más peso (agua y grasa)",
+          "Los primeros meses puedes perder más peso (agua y grasa)",
           "In the first months you may lose more weight (water and fat)"
         )
       );
@@ -679,7 +679,7 @@ export function calcularProyeccionesMotivacionales(
     }
     tiempoEstimado = `${tiempoObjetivo} ${t("para transformación completa", "for full recomposition")}`;
     proyecciones.push(
-      t("Pérdida simultánea de grasa mientras ganás músculo", "Fat loss while gaining muscle at the same time")
+      t("Pérdida simultánea de grasa mientras ganas músculo", "Fat loss while gaining muscle at the same time")
     );
     proyecciones.push(
       t(
@@ -693,7 +693,7 @@ export function calcularProyeccionesMotivacionales(
     musculoGanancia = undefined; // No mostrar ganancia de músculo para este objetivo
     grasaPerdida = intensidad === "ultra" ? "1.5-2 kg" : intensidad === "intensa" ? "0.8-1.5 kg" : intensidad === "moderada" ? "0.5-1 kg" : "0.3-0.6 kg";
     proyecciones.push(
-      t("Mantenimiento de masa muscular mientras reducís grasa", "Keep muscle while losing fat")
+      t("Mantenimiento de masa muscular mientras reduces grasa", "Keep muscle while losing fat")
     );
     proyecciones.push(
       t(
@@ -737,7 +737,7 @@ export function calcularProyeccionesMotivacionales(
   
   // Proyecciones adicionales según edad
   if (edad < 30) {
-    proyecciones.push("Recuperación rápida: aprovechá tu juventud para mejores resultados");
+    proyecciones.push("Recuperación rápida: aprovecha tu juventud para mejores resultados");
   } else if (edad >= 40) {
     proyecciones.push("Enfoque en mantenimiento muscular y salud a largo plazo");
   }

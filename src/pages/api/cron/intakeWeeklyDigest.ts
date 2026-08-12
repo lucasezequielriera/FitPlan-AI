@@ -95,12 +95,12 @@ function computeSuggestion(sessions7d: IntakeWorkoutSession[], sessionsPrev7d: I
   );
   const avgRir = rirVals.length ? rirVals.reduce((a, b) => a + b, 0) / rirVals.length : null;
   if (avgRir != null && avgRir >= 2 && score7 <= scorePrev + 1) {
-    return "Hay margen de progreso: mantené técnica y probá subir ligeramente la carga (+2 a +2.5kg) en los básicos.";
+    return "Hay margen de progreso: mantén técnica y prueba subir ligeramente la carga (+2 a +2.5kg) en los básicos.";
   }
   if (avgRir != null && avgRir <= 1) {
-    return "Semana intensa. Priorizá recuperación (sueño/hidratación) y mantené cargas antes de volver a subir.";
+    return "Semana intensa. Priorizá recuperación (sueño/hidratación) y mantén cargas antes de volver a subir.";
   }
-  return "Buen ritmo. Sostené la constancia y buscá una mejora pequeña en 1-2 ejercicios clave la próxima semana.";
+  return "Buen ritmo. Sostené la constancia y busca una mejora pequeña en 1-2 ejercicios clave la próxima semana.";
 }
 
 type AdherenceRisk = {

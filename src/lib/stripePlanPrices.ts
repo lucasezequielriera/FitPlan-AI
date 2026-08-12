@@ -51,13 +51,13 @@ export function getStripeSubscriptionPlans(currency: "eur" | "usd"): Record<Plan
       price: 12,
       currency: "eur",
       title: "Plan Premium Trimestral - FitPlan",
-      description: "Acceso premium trimestral (3 meses) - 4 EUR/mes - Ahorrás 20%",
+      description: "Acceso premium trimestral (3 meses) - 4 EUR/mes - Ahorras 20%",
     },
     annual: {
       price: 25,
       currency: "eur",
       title: "Plan Premium Anual - FitPlan",
-      description: "Acceso premium anual (12 meses) - 2.08 EUR/mes - Ahorrás 58%",
+      description: "Acceso premium anual (12 meses) - 2.08 EUR/mes - Ahorras 58%",
     },
   };
 }
@@ -65,8 +65,8 @@ export function getStripeSubscriptionPlans(currency: "eur" | "usd"): Record<Plan
 /** Etiquetas para UI (modal premium) — EUR */
 export const PLANS_EUR_UI = {
   monthly: { name: "Plan Mensual", period: "mes" },
-  quarterly: { name: "Plan Trimestral", period: "3 meses", savings: "Ahorrás 20%", popular: true },
-  annual: { name: "Plan Anual", period: "12 meses", savings: "Ahorrás 58%" },
+  quarterly: { name: "Plan Trimestral", period: "3 meses", savings: "Ahorras 20%", popular: true },
+  annual: { name: "Plan Anual", period: "12 meses", savings: "Ahorras 58%" },
 } as const;
 
 /** Etiquetas para UI — USD */

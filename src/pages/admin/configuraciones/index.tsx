@@ -98,7 +98,7 @@ export default function AdminConfiguracionesPage() {
               <div className="min-w-0 flex-1">
                 <p className="font-medium text-white">Generador de contenido</p>
                 <p className="text-sm text-white/50 mt-0.5">
-                  Creá videos para Instagram/TikTok con IA, revisalos y publicalos. También configurá los reels automáticos diarios.
+                  Crea videos para Instagram/TikTok con IA, revísalos y publícalos. También configura los reels automáticos diarios.
                 </p>
               </div>
               <FaChevronRight className="text-white/35 group-hover:text-violet-300/80 shrink-0" />

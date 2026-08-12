@@ -7,7 +7,7 @@ type B = { es: string; en: string };
 export const createPlanForm = {
   pageTitle: { es: "Crear Plan Personalizado | FitPlan", en: "Create Custom Plan | FitPlan" },
   pageDesc: {
-    es: "Creá tu plan de alimentación y entrenamiento personalizado con inteligencia artificial. Completá el formulario y recibí tu plan en minutos.",
+    es: "Crea tu plan de alimentación y entrenamiento personalizado con inteligencia artificial. Completa el formulario y recibe tu plan en minutos.",
     en: "Create your personalized nutrition and training plan with AI. Complete the form and get your plan in minutes.",
   },
   ogTitle: { es: "Crear Plan Personalizado | FitPlan", en: "Create Custom Plan | FitPlan" },
@@ -17,7 +17,7 @@ export const createPlanForm = {
   },
   heroTitle: { es: "Crear mi plan", en: "Create my plan" },
   heroSubtitle: {
-    es: "Completá los pasos y generá tu plan de alimentación y entrenamiento personalizado.",
+    es: "Completa los pasos y genera tu plan de alimentación y entrenamiento personalizado.",
     en: "Complete the steps to generate your personalized nutrition and training plan.",
   },
   stepProfile: { es: "Perfil", en: "Profile" },
@@ -37,7 +37,7 @@ export const createPlanForm = {
   phHeight: { es: "Tu altura en centímetros", en: "Your height in centimeters" },
   phWeight: { es: "Tu peso en kilogramos", en: "Your weight in kilograms" },
   weightHint: {
-    es: "Puede ser un valor estimativo. Es importante para guardar tu perfil. Podés editarlo después si es necesario.",
+    es: "Puede ser un valor estimativo. Es importante para guardar tu perfil. Puedes editarlo después si es necesario.",
     en: "It can be an estimate. It helps save your profile. You can edit it later.",
   },
   premiumExtrasTitle: { es: "Datos opcionales para mayor precisión", en: "Optional data for more accuracy" },
@@ -46,7 +46,7 @@ export const createPlanForm = {
   hip: { es: "Cadera (cm)", en: "Hip (cm)" },
   athleticProfile: { es: "Perfil atlético / mayor masa muscular", en: "Athletic profile / higher muscle mass" },
   athleticHint: {
-    es: "Marca esta opción si ya sos deportista, fit o tenés un nivel de actividad física avanzado.",
+    es: "Marca esta opción si ya sos deportista, fit o tienes un nivel de actividad física avanzado.",
     en: "Check if you already train seriously or have advanced activity levels.",
   },
 
@@ -83,15 +83,15 @@ export const createPlanForm = {
   recommended: { es: "(Recomendado)", en: "(Recommended)" },
   optional: { es: "(Opcional)", en: "(Optional)" },
   weightGoalHintBulk: {
-    es: "¿A qué peso querés llegar DEFINIDO (con abs marcados)? El plan calculará el peso de bulk necesario y las fases.",
+    es: "¿A qué peso quieres llegar DEFINIDO (con abs marcados)? El plan calculará el peso de bulk necesario y las fases.",
     en: "What weight do you want to reach SHREDDED (visible abs)? The plan will estimate bulk weight and phases.",
   },
   weightGoalHintLean: {
-    es: "¿A qué peso querés llegar manteniendo definición? El plan ajustará el superávit para minimizar grasa.",
+    es: "¿A qué peso quieres llegar manteniendo definición? El plan ajustará el superávit para minimizar grasa.",
     en: "What weight do you want while staying lean? The plan will tune surplus to limit fat gain.",
   },
   weightGoalHintDefault: {
-    es: "¿A qué peso querés llegar? Esto ayuda a calcular mejor tu plan.",
+    es: "¿A qué peso quieres llegar? Esto ayuda a calcular mejor tu plan.",
     en: "What weight do you want to reach? This helps calibrate your plan.",
   },
   phWeightGoal: { es: "Ej:", en: "E.g." },
@@ -143,7 +143,7 @@ export const createPlanForm = {
   },
   routineCheck: { es: "Mantener comidas rutinarias (poca variación entre días)", en: "Keep routine meals (little day-to-day variation)" },
   routineCheckHint: {
-    es: "Ideal si preferís repetir comidas (p.ej., papa en déficit o pasta en volumen) para no pensar qué toca cada día. Lo podés editar luego.",
+    es: "Ideal si prefieres repetir comidas (p.ej., papa en déficit o pasta en volumen) para no pensar qué toca cada día. Lo puedes editar luego.",
     en: "Ideal if you like repeating meals so you don’t decide every day. You can change this later.",
   },
 
@@ -198,19 +198,19 @@ export function cpFmt(locale: AppLocale, key: keyof typeof createPlanForm, vars:
 /** Descripciones largas por objetivo (info bajo el select) */
 export const createPlanGoalLong: Record<Goal, B> = {
   perder_grasa: {
-    es: "Reduce tu porcentaje de grasa corporal mediante un déficit calórico controlado. Ideal si buscás perder peso de forma saludable, mejorando tu composición corporal y salud general. El plan incluirá un déficit moderado de calorías mientras mantiene tus músculos.",
+    es: "Reduce tu porcentaje de grasa corporal mediante un déficit calórico controlado. Ideal si buscas perder peso de forma saludable, mejorando tu composición corporal y salud general. El plan incluirá un déficit moderado de calorías mientras mantiene tus músculos.",
     en: "Lower body fat with a controlled calorie deficit. Ideal for healthy weight loss while improving body composition. The plan keeps a moderate deficit while preserving muscle.",
   },
   mantener: {
-    es: "Mantiene tu peso y composición corporal actuales. Perfecto si ya estás en un peso saludable y querés estabilizar tus hábitos alimenticios. El plan te ayudará a mantener tu condición física sin cambios significativos en tu peso.",
+    es: "Mantiene tu peso y composición corporal actuales. Perfecto si ya estás en un peso saludable y quieres estabilizar tus hábitos alimenticios. El plan te ayudará a mantener tu condición física sin cambios significativos en tu peso.",
     en: "Maintain your current weight and composition. Great if you’re already at a healthy weight and want stable habits without big swings on the scale.",
   },
   ganar_masa: {
-    es: "Aumenta tu masa muscular mediante un superávit calórico estratégico junto con entrenamiento de fuerza. Ideal si buscás ganar peso principalmente en forma de músculo. El plan te proporcionará las calorías y proteínas necesarias para construir músculo de forma eficiente.",
+    es: "Aumenta tu masa muscular mediante un superávit calórico estratégico junto con entrenamiento de fuerza. Ideal si buscas ganar peso principalmente en forma de músculo. El plan te proporcionará las calorías y proteínas necesarias para construir músculo de forma eficiente.",
     en: "Build muscle with a strategic surplus and strength training. Best when you want weight gain to come mostly from muscle, with enough calories and protein to grow efficiently.",
   },
   recomposicion: {
-    es: "Transforma tu cuerpo perdiendo grasa mientras ganás músculo al mismo tiempo. Este es el objetivo más desafiante pero también el más efectivo a largo plazo. Ideal para personas con experiencia en entrenamiento que buscan cambiar su composición corporal sin cambios drásticos en el peso.",
+    es: "Transforma tu cuerpo perdiendo grasa mientras ganas músculo al mismo tiempo. Este es el objetivo más desafiante pero también el más efectivo a largo plazo. Ideal para personas con experiencia en entrenamiento que buscan cambiar su composición corporal sin cambios drásticos en el peso.",
     en: "Lose fat and build muscle at the same time—the hardest but often most rewarding path long term. Best for experienced trainees who want recomposition without extreme scale changes.",
   },
   definicion: {
@@ -246,11 +246,11 @@ export const createPlanGoalLong: Record<Goal, B> = {
     en: "Elite-level precision: exact macros, smart supplements, advanced periodization, and recovery protocols—for athletes training 2+ hours daily and competing at the top.",
   },
   bulk_cut: {
-    es: "🔄 BULK + CUT: El método clásico para ganar músculo y quedar definido. FASE 1 (Bulk): Superávit calórico para maximizar ganancia muscular, aceptando algo de grasa. FASE 2 (Cut): Déficit controlado para eliminar la grasa y revelar los músculos. Incluye señales claras de cuándo cambiar de fase y ajustes automáticos. Ideal si querés ganar mucho músculo y luego quedar con abs marcados.",
+    es: "🔄 BULK + CUT: El método clásico para ganar músculo y quedar definido. FASE 1 (Bulk): Superávit calórico para maximizar ganancia muscular, aceptando algo de grasa. FASE 2 (Cut): Déficit controlado para eliminar la grasa y revelar los músculos. Incluye señales claras de cuándo cambiar de fase y ajustes automáticos. Ideal si quieres ganar mucho músculo y luego quedar con abs marcados.",
     en: "🔄 BULK + CUT: Build muscle then lean out. Phase 1 (bulk): surplus to grow, accepting some fat. Phase 2 (cut): controlled deficit to reveal muscle—with clear phase cues. Best when you want size first, then visible abs.",
   },
   lean_bulk: {
-    es: "💎 LEAN BULK / Volumen Limpio: Gana músculo minimizando la grasa al máximo. Superávit calórico controlado (+300-400 kcal), cardio estratégico 2-3x/semana, y mini-cuts de 2-3 semanas si acumulás grasa. Proceso más lento que bulk+cut pero evitás la fase de corte agresivo. Ideal si querés progresar sin perder definición.",
+    es: "💎 LEAN BULK / Volumen Limpio: Gana músculo minimizando la grasa al máximo. Superávit calórico controlado (+300-400 kcal), cardio estratégico 2-3x/semana, y mini-cuts de 2-3 semanas si acumulas grasa. Proceso más lento que bulk+cut pero evitas la fase de corte agresivo. Ideal si quieres progresar sin perder definición.",
     en: "💎 LEAN BULK: Gain muscle with minimal fat—small surplus (~300–400 kcal), strategic cardio 2–3×/week, and short mini-cuts if needed. Slower than bulk+cut but softer on aggressive dieting.",
   },
 };
