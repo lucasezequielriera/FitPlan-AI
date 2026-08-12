@@ -54,6 +54,28 @@ node "brand&designs/_generar.mjs"
 
 ---
 
+## Fotos de perfil
+
+En `redes/perfiles/` hay 20 archivos: cuatro tamaños por cinco variantes.
+
+| Tamaño | Para qué |
+|---|---|
+| `instagram-1000` | Máximo que acepta Instagram. El que conviene subir |
+| `instagram-400` | Suficiente si la plataforma comprime igualmente |
+| `gmail-whatsapp-500` | Cuenta de Google, Gmail y WhatsApp Business |
+| `gmail-minimo-250` | Mínimo que acepta Google |
+
+Variantes: `opaco-oscuro` (la recomendada), `opaco-claro`, `opaco-pro`,
+`transparente-gradiente` y `transparente-blanco`.
+
+**Usa las opacas.** Instagram, Gmail y WhatsApp aplanan la imagen al subirla y
+le ponen un fondo que tú no eliges — normalmente blanco o negro según dónde se
+muestre. Una foto de perfil transparente acaba con un fondo imprevisible o
+con el logo apenas visible. Las transparentes están ahí por si las necesitas
+para montar algo encima de una foto, no para subirlas como avatar.
+
+---
+
 ## Reglas de uso
 
 **Espacio libre.** Deja alrededor del símbolo un margen igual a la mitad de su
