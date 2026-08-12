@@ -1,4 +1,4 @@
-# Marca FitPlan AI
+# Marca FitPlan
 
 Identidad basada en **la zancada**: dos masas en tensión, una que empuja y otra
 que despega. Es un cuerpo en movimiento reducido a lo mínimo, sin dibujar a
@@ -49,8 +49,8 @@ node "brand&designs/_generar.mjs"
 | Lockup apilado | `logo/png/lockup-v-oscuro.png`, `-claro`, `-blanco-transp` |
 | Documentos y facturas | `logo/svg/marca-negro.svg` |
 | Camiseta oscura | `ropa/marca-blanco-4000.png` |
-| Camiseta clara | `ropa/zancada-negro-4000.png` |
-| Bordado | `logo/svg/zancada-negro.svg` — el bordador necesita vector |
+| Camiseta clara | `ropa/marca-negro-4000.png` |
+| Bordado | `logo/svg/marca-negro.svg` — el bordador necesita vector |
 
 ---
 
