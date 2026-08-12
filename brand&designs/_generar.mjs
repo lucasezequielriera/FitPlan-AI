@@ -92,6 +92,12 @@ const PNGS = [
   ["app-icons/icono-transparente-gradiente.svg", "app-icons/icono-transparente-gradiente-512.png", 512],
   ["app-icons/icono-redondeado-oscuro.svg", "app-icons/icono-redondeado-1024.png", 1024],
   ["app-icons/icono-oscuro.svg", "redes/perfil-400.png", 400],
+  // TikTok pide 1024x1024 para la foto de perfil.
+  ["app-icons/icono-oscuro.svg", "redes/perfiles/tiktok-1024-opaco-oscuro.png", 1024],
+  ["app-icons/icono-claro.svg", "redes/perfiles/tiktok-1024-opaco-claro.png", 1024],
+  ["app-icons/icono-pro.svg", "redes/perfiles/tiktok-1024-opaco-pro.png", 1024],
+  ["app-icons/icono-transparente-gradiente.svg", "redes/perfiles/tiktok-1024-transparente-gradiente.png", 1024],
+  ["app-icons/icono-transparente-blanco.svg", "redes/perfiles/tiktok-1024-transparente-blanco.png", 1024],
   ["app-icons/icono-claro.svg", "redes/perfil-400-claro.png", 400],
   ["app-icons/icono-pro.svg", "redes/perfil-400-pro.png", 400],
   ["logo/svg/marca-blanco.svg", "redes/marca-de-agua-blanca-1024.png", 1024],

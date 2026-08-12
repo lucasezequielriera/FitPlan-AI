@@ -56,10 +56,11 @@ node "brand&designs/_generar.mjs"
 
 ## Fotos de perfil
 
-En `redes/perfiles/` hay 20 archivos: cuatro tamaños por cinco variantes.
+En `redes/perfiles/` hay 25 archivos: cinco tamaños por cinco variantes.
 
 | Tamaño | Para qué |
 |---|---|
+| `tiktok-1024` | El que pide TikTok |
 | `instagram-1000` | Máximo que acepta Instagram. El que conviene subir |
 | `instagram-400` | Suficiente si la plataforma comprime igualmente |
 | `gmail-whatsapp-500` | Cuenta de Google, Gmail y WhatsApp Business |
