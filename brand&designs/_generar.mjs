@@ -52,13 +52,20 @@ const SVGS = {
   "logo/svg/marca-gradiente.svg": markSvg(null, "main"),
   "logo/svg/marca-gradiente-pro.svg": markSvg(null, "pro"),
   // Iconos cuadrados con fondo
-  "app-icons/icono-oscuro.svg": iconSvg({ grad: "main", bg: "#080E18", radius: 230 }),
-  "app-icons/icono-claro.svg": iconSvg({ fill: "#0B1220", bg: "#EDF1F7", radius: 230 }),
-  "app-icons/icono-pro.svg": iconSvg({ grad: "pro", bg: "#0A0A0C", radius: 230 }),
+  // A sangre y opacos: Apple rechaza iconos con transparencia o esquinas
+  // redondeadas (el sistema aplica la máscara), e Instagram recorta en círculo,
+  // así que un borde redondeado dejaría huecos.
+  "app-icons/icono-oscuro.svg": iconSvg({ grad: "main", bg: "#080E18" }),
+  "app-icons/icono-claro.svg": iconSvg({ fill: "#0B1220", bg: "#EDF1F7" }),
+  "app-icons/icono-pro.svg": iconSvg({ grad: "pro", bg: "#0A0A0C" }),
+  // Redondeados, para usar dentro de la web donde el borde no lo pone el sistema.
+  "app-icons/icono-redondeado-oscuro.svg": iconSvg({ grad: "main", bg: "#080E18", radius: 230 }),
+  "app-icons/icono-redondeado-claro.svg": iconSvg({ fill: "#0B1220", bg: "#EDF1F7", radius: 230 }),
   // Iconos cuadrados transparentes (mismo encuadre, sin fondo)
   "app-icons/icono-transparente-blanco.svg": iconSvg({ fill: "#FFFFFF" }),
   "app-icons/icono-transparente-negro.svg": iconSvg({ fill: "#0B1220" }),
   "app-icons/icono-transparente-gradiente.svg": iconSvg({ grad: "main" }),
+  "app-icons/icono-transparente-gradiente-pro.svg": iconSvg({ grad: "pro" }),
 };
 
 for (const [rel, content] of Object.entries(SVGS)) {
@@ -79,6 +86,11 @@ const PNGS = [
   ["app-icons/icono-pro.svg", "app-icons/ios-1024-pro.png", 1024],
   ["app-icons/icono-transparente-blanco.svg", "app-icons/icono-transparente-blanco-1024.png", 1024],
   ["app-icons/icono-transparente-gradiente.svg", "app-icons/icono-transparente-gradiente-1024.png", 1024],
+  ["app-icons/icono-transparente-negro.svg", "app-icons/icono-transparente-negro-1024.png", 1024],
+  ["app-icons/icono-transparente-gradiente-pro.svg", "app-icons/icono-transparente-pro-1024.png", 1024],
+  ["app-icons/icono-transparente-blanco.svg", "app-icons/icono-transparente-blanco-512.png", 512],
+  ["app-icons/icono-transparente-gradiente.svg", "app-icons/icono-transparente-gradiente-512.png", 512],
+  ["app-icons/icono-redondeado-oscuro.svg", "app-icons/icono-redondeado-1024.png", 1024],
   ["app-icons/icono-oscuro.svg", "redes/perfil-400.png", 400],
   ["app-icons/icono-claro.svg", "redes/perfil-400-claro.png", 400],
   ["app-icons/icono-pro.svg", "redes/perfil-400-pro.png", 400],

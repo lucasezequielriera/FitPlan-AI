@@ -36,6 +36,8 @@ node "brand&designs/_generar.mjs"
 | Dónde | Archivo |
 |---|---|
 | Favicon del navegador | `app-icons/favicon-16.png`, `-32`, `-48` |
+| Logo sobre foto o color | `app-icons/icono-transparente-blanco-1024.png` |
+| Logo suelto sin fondo | `app-icons/icono-transparente-gradiente-1024.png` · `-negro-` · `-pro-` |
 | Icono en iOS | `app-icons/ios-1024.png` (App Store), `ios-180.png` (pantalla) |
 | Icono en Android | `app-icons/android-512.png`, `android-192.png` |
 | Perfil de Instagram y TikTok | `redes/perfil-400.png` |
@@ -60,6 +62,12 @@ piezas se juntan y se pierde el hueco en negativo, que es lo que la identifica.
 **Una tinta para prenda.** En ropa se usa siempre plano, blanco o negro. El
 gradiente es para pantalla: bordado no se puede reproducir y en serigrafía
 encarece mucho.
+
+**Iconos a sangre.** Los de , ,  y las
+fotos de perfil son cuadrados opacos y sin esquinas redondeadas **a propósito**:
+Apple rechaza iconos con transparencia porque el sistema aplica la máscara él
+mismo, e Instagram recorta en círculo, así que un borde redondeado dejaría
+huecos. Para poner el borde tú, usa .
 
 **No hacer:** rotar el símbolo, cambiar la inclinación relativa de las dos
 piezas, separarlas más, aplicar sombras o contornos, ni recolorearlo fuera de la
