@@ -36,16 +36,19 @@ node "brand&designs/_generar.mjs"
 | Dónde | Archivo |
 |---|---|
 | Favicon del navegador | `app-icons/favicon-16.png`, `-32`, `-48` |
-| Logo sobre foto o color | `app-icons/icono-transparente-blanco-1024.png` |
-| Logo suelto sin fondo | `app-icons/icono-transparente-gradiente-1024.png` · `-negro-` · `-pro-` |
 | Icono en iOS | `app-icons/ios-1024.png` (App Store), `ios-180.png` (pantalla) |
 | Icono en Android | `app-icons/android-512.png`, `android-192.png` |
-| Perfil de Instagram y TikTok | `redes/perfil-400.png` |
-| Marca de agua en vídeo | `redes/marca-de-agua-blanca-512.png` (fondo transparente) |
-| Cabecera de la web, fondo oscuro | `logo/png/lockup-horizontal-oscuro.png` |
-| Cabecera de la web, fondo claro | `logo/png/lockup-horizontal-claro.png` |
-| Documentos y facturas | `logo/svg/zancada-negro.svg` |
-| Camiseta oscura | `ropa/zancada-blanco-4000.png` |
+| Perfil de Instagram y TikTok | `redes/perfil-400.png` (claro y pro disponibles) |
+| Marca de agua en vídeo | `redes/marca-de-agua-blanca-1024.png` |
+| Logo sobre foto o color plano | `app-icons/icono-transparente-blanco-1024.png` |
+| Logo suelto sin fondo | `app-icons/icono-transparente-gradiente-1024.png`, `-negro-`, `-pro-` |
+| Icono con borde redondeado propio | `app-icons/icono-redondeado-1024.png` |
+| Cabecera de la web, fondo oscuro | `logo/png/lockup-h-oscuro.png` |
+| Cabecera de la web, fondo claro | `logo/png/lockup-h-claro.png` |
+| Cabecera sobre imagen | `logo/png/lockup-h-blanco-transp.png` |
+| Lockup apilado | `logo/png/lockup-v-oscuro.png`, `-claro`, `-blanco-transp` |
+| Documentos y facturas | `logo/svg/marca-negro.svg` |
+| Camiseta oscura | `ropa/marca-blanco-4000.png` |
 | Camiseta clara | `ropa/zancada-negro-4000.png` |
 | Bordado | `logo/svg/zancada-negro.svg` — el bordador necesita vector |
 
@@ -63,11 +66,16 @@ piezas se juntan y se pierde el hueco en negativo, que es lo que la identifica.
 gradiente es para pantalla: bordado no se puede reproducir y en serigrafía
 encarece mucho.
 
-**Iconos a sangre.** Los de , ,  y las
+**Iconos a sangre.** Los de `app-icons/ios-*`, `android-*`, `favicon-*` y las
 fotos de perfil son cuadrados opacos y sin esquinas redondeadas **a propósito**:
 Apple rechaza iconos con transparencia porque el sistema aplica la máscara él
-mismo, e Instagram recorta en círculo, así que un borde redondeado dejaría
-huecos. Para poner el borde tú, usa .
+mismo, e Instagram recorta la foto de perfil en círculo, así que un borde
+redondeado dejaría huecos. Cuando el borde lo tengas que poner tú (dentro de la
+web, por ejemplo), usa `app-icons/icono-redondeado-1024.png`.
+
+**Transparencia.** Todo lo que lleva `transparente` o `transp` en el nombre, más
+`logo/png/marca-*`, `redes/marca-de-agua-*` y `ropa/*`, viene con fondo
+transparente. Los demás son opacos por diseño, no por descuido.
 
 **No hacer:** rotar el símbolo, cambiar la inclinación relativa de las dos
 piezas, separarlas más, aplicar sombras o contornos, ni recolorearlo fuera de la
