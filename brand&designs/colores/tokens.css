@@ -1,0 +1,50 @@
+/**
+ * Tokens de color de FitPlan AI.
+ *
+ * Dos temas: el principal (azul-cian) y el Pro (obsidiana y champán) para el
+ * plan premium o la línea de ropa. Se aplica el Pro añadiendo
+ * `data-brand="pro"` en el elemento raíz.
+ *
+ * Regla que no conviene romper: el verde señal se reserva para lo que MEJORA
+ * (incrementos, objetivos cumplidos, progresión). Si se usa como color
+ * decorativo pierde todo su valor de lectura rápida.
+ */
+
+:root {
+  /* Fondos */
+  --brand-ink: #080E18;
+  --brand-surface: #111B2B;
+  --brand-rule: #1E2C42;
+  --brand-paper: #EDF1F7;
+
+  /* Acentos */
+  --brand-primary: #3B82F6;
+  --brand-secondary: #22D3EE;
+  --brand-signal: #10E5B0;
+
+  /* Texto */
+  --brand-text: #E8EEF7;
+  --brand-text-soft: #7E90AB;
+  --brand-text-on-light: #0B1220;
+
+  /* Gradiente de marca: se lee de arriba-izquierda a abajo-derecha */
+  --brand-gradient: linear-gradient(135deg, #3B82F6 0%, #22D3EE 52%, #10E5B0 100%);
+}
+
+:root[data-brand="pro"] {
+  --brand-ink: #0A0A0C;
+  --brand-surface: #16171A;
+  --brand-rule: #26262B;
+  --brand-paper: #F2EFE9;
+
+  --brand-primary: #E3C77E;
+  --brand-secondary: #B08D3F;
+  /* En la línea Pro el verde desentona: la señal se da con el champán. */
+  --brand-signal: #E3C77E;
+
+  --brand-text: #F2EFE9;
+  --brand-text-soft: #C9CDD4;
+  --brand-text-on-light: #0A0A0C;
+
+  --brand-gradient: linear-gradient(135deg, #B08D3F 0%, #E3C77E 50%, #9C7C33 100%);
+}
