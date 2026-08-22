@@ -124,7 +124,7 @@ export function retentionRatio(avgWatchTimeMs: number | null, durationSec: numbe
  * más caras de conseguir — un valor alto acá explica mejor un pico de alcance
  * que cualquier otra métrica.
  */
-export function amplificationRate(metrics: MediaMetrics): number | null {
+export function amplificationRate(metrics: Pick<MediaMetrics, "reach" | "shares" | "saved">): number | null {
   if (!metrics.reach || metrics.reach <= 0) return null;
   const shares = metrics.shares ?? 0;
   const saved = metrics.saved ?? 0;

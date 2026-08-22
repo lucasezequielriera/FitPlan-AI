@@ -29,10 +29,16 @@ export type HeygenVideoStatus = {
  * guarda el session_id/video_id devuelto y chequea el estado en un tick
  * posterior (ver generateDailyContent.ts).
  */
-export async function createCommercialSession(prompt: string, opts?: { fileUrls?: string[] }): Promise<{ sessionId: string; videoId: string | null }> {
+export async function createCommercialSession(
+  prompt: string,
+  opts?: { fileUrls?: string[]; avatarId?: string; voiceId?: string }
+): Promise<{ sessionId: string; videoId: string | null }> {
   const apiKey = requireEnv("HEYGEN_API_KEY");
-  const avatarId = requireEnv("HEYGEN_AVATAR_ID");
-  const voiceId = requireEnv("HEYGEN_VOICE_ID");
+  // Permite anular el avatar/voz por defecto — para probar personas nuevas
+  // (distintos "entrenadores") sin tocar el pipeline automático, que sigue
+  // usando HEYGEN_AVATAR_ID/HEYGEN_VOICE_ID salvo que se pase un override.
+  const avatarId = opts?.avatarId || requireEnv("HEYGEN_AVATAR_ID");
+  const voiceId = opts?.voiceId || requireEnv("HEYGEN_VOICE_ID");
 
   const files = opts?.fileUrls?.length ? opts.fileUrls.map((url) => ({ type: "url", url })) : undefined;
 

@@ -1,10 +1,12 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { FieldValue, Timestamp, type Firestore, type DocumentSnapshot } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
-import { functionForSlot, pickTopicForFunction, type SocialTopic } from "@/lib/socialContent/topics";
+import { functionForSlot, pickTopicForFunction, topicHookFamily, type SocialTopic } from "@/lib/socialContent/topics";
 import { generateSocialCopy, type SocialCopy } from "@/lib/socialContent/generateCopy";
+import { getTopicPerformance, buildPerformanceContext } from "@/lib/socialContent/performanceInsights";
 import { buildCommercialPrompt, FITPLAN_LOGO_URL } from "@/lib/socialContent/buildCommercialPrompt";
 import { createCommercialSession, getSessionStatus, getVideoStatus } from "@/lib/socialContent/heygenVideoAgent";
+import { AVATAR_PERSONAS, type AvatarPersona } from "@/lib/socialContent/avatarPersonas";
 import { uploadBufferToCloudinary } from "@/lib/socialContent/cloudinaryUpload";
 import { postVideoToInstagram } from "@/lib/socialContent/postToInstagram";
 import { postVideoToTikTok } from "@/lib/socialContent/postToTikTok";
@@ -34,6 +36,17 @@ function isAuthorized(req: NextApiRequest): boolean {
 }
 
 /**
+ * Elige qué entrenador/a presenta la pieza de hoy, rotando por día del año
+ * sobre el reparto de `avatarPersonas.ts`. Un avatar fijo repetido a diario
+ * es lo primero que la audiencia reconoce como sintético; rotar reduce esa
+ * fatiga y de paso reparte el contenido entre los dos targets de audiencia.
+ */
+function pickPersonaForDate(date: Date): AvatarPersona {
+  const dayCount = Math.floor(date.getTime() / 86400000);
+  return AVATAR_PERSONAS[dayCount % AVATAR_PERSONAS.length];
+}
+
+/**
  * Arranca la generación de un reel (comercial elaborado vía HeyGen Video
  * Agent) para un horario que recién venció, y guarda el doc con
  * status "generating" — NO espera a que termine acá adentro: Video Agent
@@ -46,6 +59,14 @@ function isAuthorized(req: NextApiRequest): boolean {
  * conversión al mediodía — ver `functionForSlot`), y el tema se elige dentro
  * de los que sirven a esa función. Así la mezcla semanal de contenido queda
  * garantizada por construcción en vez de depender del azar de la rotación.
+ *
+ * Dentro de esa función, el tema y la ejecución del copy ya no son ciegos:
+ * `getTopicPerformance`/`buildPerformanceContext` (performanceInsights.ts)
+ * leen el rendimiento real de Instagram de piezas anteriores y lo usan para
+ * (a) pesar qué tema del pool es más probable que se elija y (b) avisarle al
+ * copywriter cómo viene rindiendo ese gancho/tema para que ajuste la
+ * ejecución. Sin datos suficientes todavía, ambos se comportan igual que
+ * antes (rotación determinística, prompt sin contexto extra).
  */
 async function startCommercialGeneration(db: Firestore, docId: string, slotLocal: string, now: Date): Promise<void> {
   const recentSnap = await db.collection("socialContent").orderBy("createdAt", "desc").limit(8).get();
@@ -54,21 +75,40 @@ async function startCommercialGeneration(db: Firestore, docId: string, slotLocal
     .filter((t): t is SocialTopic => !!t);
 
   const contentFunction = functionForSlot(slotLocal, now);
-  const topic = pickTopicForFunction(contentFunction, recentTopics, now);
-  const copy = await generateSocialCopy({ type: "rotation", topic });
+  const performance = await getTopicPerformance(db);
+  const selection = pickTopicForFunction(contentFunction, recentTopics, now, performance);
+  const topic = selection.topic;
+  const performanceContext = await buildPerformanceContext(db, topicHookFamily(topic), topic);
+  const copy = await generateSocialCopy({ type: "rotation", topic }, performanceContext);
   const prompt = buildCommercialPrompt(copy);
-  const { sessionId, videoId } = await createCommercialSession(prompt, { fileUrls: [FITPLAN_LOGO_URL] });
+  const persona = pickPersonaForDate(now);
+  const { sessionId, videoId } = await createCommercialSession(prompt, {
+    fileUrls: [FITPLAN_LOGO_URL],
+    avatarId: persona.avatarId,
+    voiceId: persona.voiceId,
+  });
 
   await db.collection("socialContent").doc(docId).set({
     date: docId,
     slotLocal,
     topic,
     contentFunction,
+    persona: persona.id,
     copy,
     status: "generating",
     heygenSessionId: sessionId,
     heygenVideoId: videoId,
     createdAt: FieldValue.serverTimestamp(),
+    // Auditoría del loop de aprendizaje por métricas: para verificar desde
+    // afuera (Firestore/admin) si esta pieza en particular se eligió por
+    // rendimiento real o si todavía no había datos suficientes y se usó la
+    // rotación de siempre — sin esto, la mejora automática es una caja negra.
+    topicSelection: {
+      mode: selection.mode,
+      poolSize: selection.poolSize,
+      topicsWithData: selection.topicsWithData,
+      usedPerformanceContext: performanceContext.length > 0,
+    },
   });
 }
 
@@ -83,6 +123,8 @@ async function finalizeGeneratingDoc(db: Firestore, doc: DocumentSnapshot) {
   const data = doc.data() || {};
   const docId = doc.id;
   const topic = data.topic as string;
+  const persona = data.persona as string | undefined;
+  const topicSelection = data.topicSelection as { mode: "weighted" | "rotation" } | undefined;
   const copy = data.copy as SocialCopy;
   let heygenVideoId = data.heygenVideoId as string | null;
 
@@ -157,8 +199,10 @@ async function finalizeGeneratingDoc(db: Firestore, doc: DocumentSnapshot) {
       { merge: true }
     );
 
+    const selectionLabel =
+      topicSelection?.mode === "weighted" ? "ponderado por rendimiento" : "rotación (sin datos suficientes aún)";
     const telegramLines = [
-      `📱 Reel automático generado (${topic}):`,
+      `📱 Reel automático generado (${topic}${persona ? ` · ${persona}` : ""} · tema: ${selectionLabel}):`,
       `"${copy.scenes[0]?.headline || ""}"`,
       instagramResult.ok
         ? `✅ Publicado en Instagram (post ${instagramResult.platformPostId})`

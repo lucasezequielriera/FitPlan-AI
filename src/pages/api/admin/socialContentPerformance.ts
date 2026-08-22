@@ -2,8 +2,9 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import type { Timestamp } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { requireAdmin } from "@/lib/adminAuthServer";
-import { topicHookFamily, topicLabel, type SocialTopic } from "@/lib/socialContent/topics";
+import { topicHookFamily, topicLabel, MIN_SAMPLES_TO_TRUST, SOCIAL_TOPICS, type SocialTopic } from "@/lib/socialContent/topics";
 import { amplificationRate, retentionRatio, type MediaMetrics } from "@/lib/socialContent/instagramInsights";
+import { getTopicPerformance } from "@/lib/socialContent/performanceInsights";
 
 type Piece = {
   id: string;
@@ -27,6 +28,8 @@ type Piece = {
   retention: number | null;
   /** (compartidos + guardados) / alcance. */
   amplification: number | null;
+  /** Cómo se eligió el tema de esta pieza — ver `pickTopicForFunction`. `null` en piezas de antes de que existiera esta auditoría. */
+  topicSelectionMode: "weighted" | "rotation" | null;
 };
 
 type GroupStat = {
@@ -39,6 +42,16 @@ type GroupStat = {
   avgInteractions: number | null;
 };
 
+/**
+ * Por debajo de este alcance, la retención de una pieza individual es ruido
+ * (una o dos personas viendo el video no dice nada de si el contenido
+ * engancha) — se excluye de "mejores"/"peores piezas" en vez de mostrar un
+ * número que parece un dato pero no lo es. Los grupos (`groupBy`) no usan
+ * este corte: ahí el promedio ponderado por alcance ya resuelve el ruido sin
+ * tener que descartar piezas enteras.
+ */
+const MIN_REACH_TO_RANK = 10;
+
 function toIso(ts: unknown): string | null {
   if (ts && typeof ts === "object" && typeof (ts as Timestamp).toDate === "function") {
     return (ts as Timestamp).toDate().toISOString();
@@ -50,6 +63,24 @@ function average(values: (number | null)[]): number | null {
   const present = values.filter((v): v is number => v !== null);
   if (present.length === 0) return null;
   return present.reduce((a, b) => a + b, 0) / present.length;
+}
+
+/**
+ * Promedio ponderado por alcance, para métricas que son una FRACCIÓN
+ * (retención, amplificación) — encontrado con el primer análisis real sobre
+ * el historial: un post con 1-2 cuentas alcanzadas puede mostrar "113% de
+ * retención" (una persona que vio el video completo dos veces), y un
+ * promedio simple deja que ese ruido pese exactamente igual que un post
+ * probado en 150 cuentas reales. Mismo criterio que `performanceInsights.ts`
+ * (el que de verdad decide qué tema elegir) — si el panel usara otra
+ * cuenta, mostraría una historia distinta a la que el sistema realmente usa.
+ */
+function weightedAverage(pieces: Piece[], valueOf: (p: Piece) => number | null): number | null {
+  const withValue = pieces.filter((p) => valueOf(p) !== null);
+  if (withValue.length === 0) return null;
+  const weightOf = (p: Piece) => Math.max(p.reach ?? 1, 1);
+  const totalWeight = withValue.reduce((a, p) => a + weightOf(p), 0);
+  return withValue.reduce((a, p) => a + (valueOf(p) as number) * weightOf(p), 0) / totalWeight;
 }
 
 /**
@@ -76,9 +107,9 @@ function groupBy(pieces: Piece[], key: (p: Piece) => string | null, label: (k: s
       key: k,
       label: label(k),
       pieces: list.length,
-      avgRetention: average(list.map((p) => p.retention)),
+      avgRetention: weightedAverage(list, (p) => p.retention),
       avgReach: average(list.map((p) => p.reach)),
-      avgAmplification: average(list.map((p) => p.amplification)),
+      avgAmplification: weightedAverage(list, (p) => p.amplification),
       avgInteractions: average(
         list.map((p) => {
           const parts = [p.likes, p.comments, p.shares, p.saved].filter((v): v is number => v !== null);
@@ -188,15 +219,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         saved: full.saved,
         retention: retentionRatio(full.avgWatchTimeMs, (d.videoDurationSec as number | undefined) ?? null),
         amplification: amplificationRate(full),
+        topicSelectionMode: (d.topicSelection?.mode as "weighted" | "rotation" | undefined) ?? null,
       });
     }
 
-    const ranked = [...pieces].sort((a, b) => {
+    // Piezas con alcance por debajo del umbral no entran al ranking
+    // individual: su retención/amplificación es puro ruido de muestra chica,
+    // no señal (ver `MIN_REACH_TO_RANK`).
+    const rankable = pieces.filter((p) => p.reach !== null && p.reach >= MIN_REACH_TO_RANK);
+    const unrankedCount = pieces.length - rankable.length;
+    const ranked = [...rankable].sort((a, b) => {
       if (a.retention !== null && b.retention !== null) return b.retention - a.retention;
       if (a.retention !== null) return -1;
       if (b.retention !== null) return 1;
       return (b.reach ?? 0) - (a.reach ?? 0);
     });
+
+    // Estado del loop de aprendizaje por métricas (ver performanceInsights.ts
+    // y pickTopicForFunction en topics.ts): cuenta cuántas piezas ya se
+    // eligieron pesando por rendimiento real vs. la rotación de siempre, y
+    // cuántos temas ya juntaron datos suficientes para poder pesar. Es la
+    // respuesta concreta a "¿cómo sé que está funcionando?" — sin esto no
+    // hay forma de verificarlo desde afuera del código.
+    const withSelection = pieces.filter((p) => p.topicSelectionMode !== null);
+    const topicPerformance = await getTopicPerformance(db);
+    const topicsReady = Object.values(topicPerformance).filter((s) => s.sampleSize >= MIN_SAMPLES_TO_TRUST).length;
+    const learningLoop = {
+      piecesTracked: withSelection.length,
+      weightedPicks: withSelection.filter((p) => p.topicSelectionMode === "weighted").length,
+      rotationPicks: withSelection.filter((p) => p.topicSelectionMode === "rotation").length,
+      topicsReady,
+      topicsTotal: SOCIAL_TOPICS.length,
+    };
 
     return res.status(200).json({
       ok: true,
@@ -206,13 +260,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       insightsAvailable,
       insightsError,
       totals: { published: pieces.length, withMetrics },
+      minReachToRank: MIN_REACH_TO_RANK,
+      unrankedCount,
+      learningLoop,
       byHookFamily: groupBy(pieces, (p) => p.hookFamily, (k) => HOOK_LABELS[k] ?? k),
       byFunction: groupBy(pieces, (p) => p.contentFunction, (k) => FUNCTION_LABELS[k] ?? k),
       bySlot: groupBy(pieces, (p) => p.slotLocal, (k) => `${k} (hora Madrid)`),
       byTopic: groupBy(pieces, (p) => p.topic, (k) => topicLabel(k)),
       byFormat: groupBy(pieces, (p) => p.format, (k) => (k === "carrusel" ? "Carrusel" : "Reel")),
       best: ranked.slice(0, 5),
-      worst: ranked.filter((p) => p.retention !== null || p.reach !== null).slice(-5).reverse(),
+      worst: ranked.filter((p) => p.retention !== null).slice(-5).reverse(),
     });
   } catch (error) {
     console.error("Error calculando rendimiento de contenido social:", error);

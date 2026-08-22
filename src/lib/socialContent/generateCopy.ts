@@ -55,7 +55,7 @@ ESTRUCTURA DEL VIDEO (4 escenas, ~24 segundos totales)
 1. HOOK (0-3s): el gancho. Máximo 8 palabras. Instala una pregunta abierta que el cerebro necesite cerrar.
 2. INSIGHT (3-11s): el mecanismo concreto. headline = la afirmación central; subtext = el porqué en una línea.
 3. TAKEAWAY (11-19s): qué hace la persona con esto mañana. Accionable, no teórico.
-4. CIERRE (19-24s): depende de la función de la pieza (te la indico abajo).
+4. CIERRE (19-24s): remata la idea del video, SIN llamada a la acción ni mención de venta — es un vídeo educativo que firma con FitPlan al final (el cierre visual y su firma de marca ya están resueltos aparte, siempre igual en todos los vídeos; tu trabajo aquí es solo cerrar el contenido, no vender nada).
 
 CIERRE EN LOOP: el cierre debe conectar conceptualmente con el hook, de forma que volver a ver el video se sienta natural. Es lo que dispara los replays, la segunda señal más fuerte del sistema.
 
@@ -93,12 +93,12 @@ const FUNCTION_INSTRUCTIONS: Record<ContentFunction, string> = {
 - Prioriza que el dato sea tan concreto que alguien quiera enviárselo a una persona específica.`,
   nutricion: `FUNCIÓN: NUTRICIÓN DE AUDIENCIA. El objetivo es que quien ya te ha visto confíe en ti. Profundidad y criterio por encima de alcance.
 - Muestra cómo se piensa el problema, no solo la conclusión. Aquí se permite ir más técnico.
-- CTA SUAVE en la cuarta escena: mencionar FitPlan como consecuencia natural del valor dado, sin urgencia ni imperativos agresivos. Tipo "esto es exactamente lo que ajusta el plan de FitPlan cada mes", no "¡descárgala ya!".
-- El caption puede incluir el porqué de una decisión de producto o de método.`,
-  conversion: `FUNCIÓN: CONVERSIÓN. El objetivo es que alguien que ya confía dé el paso. Asume poco alcance: esta pieza se juzga por intención, no por views.
-- Ataca UNA objeción real y concreta de frente (falta de tiempo, "ya probé apps y las dejé", "necesito que alguien me controle", precio).
-- CTA EXPLÍCITO y claro en la cuarta escena. Aquí sí: qué es, para quién es, qué hacer ahora.
-- Habla de MECANISMO, no de características: no vendas "planes personalizados", vende el método concreto por el que el plan se ajusta a la persona (IA que recalcula según progreso real + coach humano que corrige). Un mecanismo con nombre propio hace que no te comparen por precio.
+- SIN CTA en la cuarta escena, igual que en alcance: cierra la idea y conecta con el hook. FitPlan no se menciona como venta — la firma de marca ya la pone el cierre visual fijo, no la narración.
+- El caption puede incluir el porqué de una decisión de producto o de método, sin que sea una oferta.`,
+  conversion: `FUNCIÓN: CONFIANZA PROFUNDA. El objetivo es que alguien que ya te sigue entienda a fondo cómo resuelve FitPlan un bloqueo real, sin que se sienta un anuncio.
+- Ataca UNA objeción real y concreta de frente (falta de tiempo, "ya probé apps y las dejé", "necesito que alguien me controle", precio) y resuélvela con contenido, no con una oferta.
+- SIN CTA en la cuarta escena, igual que el resto: cierra la idea y conecta con el hook. La firma de marca ya la pone el cierre visual fijo, no la narración — aquí no se pide nada, se explica.
+- Habla de MECANISMO, no de características: no vendas "planes personalizados", explica el método concreto por el que el plan se ajusta a la persona (IA que recalcula según progreso real + coach humano que corrige). Un mecanismo con nombre propio genera más confianza que una lista de features.
 - Prueba por encima de promesa: describe cómo funciona de forma verificable. NUNCA inventes testimonios, cifras de usuarios ni resultados de clientes.`,
 };
 
@@ -112,6 +112,7 @@ const TOPIC_INSTRUCTIONS: Record<SocialTopic, string> = {
   coste_oculto: `Nombra algo que le está costando progreso a la persona ahora mismo sin que lo note, y cuantifícalo de forma honesta (en semanas perdidas, en porcentaje de esfuerzo desperdiciado, en sesiones que no cuentan). Ideas: dormir mal y su efecto sobre la fuerza, entrenar siempre con el mismo peso, no registrar lo que comes los fines de semana, cardio que sustituye a la fuerza cuando el objetivo es composición corporal.`,
   dato_contraintuitivo: `Un dato que rompe la intuición y hace replantearse algo. Ideas: por qué comer más puede acelerar la pérdida de grasa en ciertos contextos, por qué entrenar menos días puede dar más resultado, por qué el músculo pesa en la báscula y eso es buena señal, por qué las agujetas no correlacionan con el estímulo. Explica el mecanismo, que es lo que lo hace creíble y compartible.`,
   confesion_fundador: `Habla en primera persona como el fundador de FitPlan y cuenta un error propio, concreto y algo vergonzoso, relacionado con entrenar, comer o construir el producto — y qué aprendiste. Nada de falsa humildad ni de "mi mayor defecto es ser perfeccionista": tiene que ser un error real con consecuencia real. Esto construye la relación con la audiencia, que es lo que después convierte.`,
+  dato_curioso_fitness: `Un dato curioso y verificable de fisiología, historia del entrenamiento o del cuerpo humano que casi nadie conoce — puro asombro, sin intentar corregir ninguna creencia (eso es "dato_contraintuitivo") ni vender nada. Ideas: por qué el músculo no se convierte en grasa ni al revés (son tejidos distintos), cuánta fuerza real se pierde por cada día sin dormir bien, por qué el corazón de alguien entrenado late más lento en reposo, cuántas fibras musculares se reclutan de verdad en un movimiento máximo, qué pasa en el cerebro durante el primer minuto de esfuerzo intenso. Tono de "esto te va a sorprender", cercano y con energía, no de clase magistral.`,
 
   // --- nutrición ---
   mecanismo_explicado: `Explica el PORQUÉ fisiológico de algo que la gente hace sin entender, de forma que después no pueda dejar de verlo. Ideas: qué pasa realmente en el músculo con la sobrecarga progresiva, por qué la proteína sacia más, qué hace el déficit calórico al metabolismo y qué no, cómo funciona la adaptación al entrenamiento. Simple pero no simplón: la persona tiene que salir entendiendo el mecanismo, no memorizando una regla.`,
@@ -119,6 +120,8 @@ const TOPIC_INSTRUCTIONS: Record<SocialTopic, string> = {
   tip_nutricion: `UN tip de nutrición específico y accionable, con el porqué. Ideas: timing de proteína, densidad calórica y saciedad, macros frente a calorías totales, cómo leer una etiqueta de verdad, errores al "comer sano" que no acercan al objetivo.`,
   caso_practico: `Coge un PERFIL concreto y resuélvelo delante de la cámara. Ideas: alguien con trabajo de oficina y 45 minutos al día, alguien que vuelve tras 6 meses parado, alguien que entrena en casa sin material, alguien que ha estancado el press de banca. Describe el perfil, el error típico de ese perfil y qué haría distinto. Que quien se reconozca sienta que le hablas a él.`,
   detras_de_escena: `Cuenta cómo se construye FitPlan por dentro: una decisión de producto y su porqué, algo que probasteis y no funcionó, cómo se diseña el ajuste mensual del plan, por qué se incluye un coach humano y no solo IA. Transparencia real y concreta. Esto genera confianza que ningún contenido educativo consigue.`,
+  tecnica_grupo_muscular: `Elige UN grupo muscular (rota entre pecho, espalda, piernas, hombros, core y brazos — no uses siempre el mismo) y explica la técnica correcta de UN ejercicio clave para ese grupo: el error de forma más común que ves, por qué arruina el estímulo o mete riesgo de lesión, y cómo corregirlo en la próxima serie. Sé anatómicamente preciso (qué articulación, qué rango de movimiento, qué músculo debería sentirse trabajando) sin sonar a clase de biomecánica.`,
+  comida_por_objetivo: `Elige UN objetivo (rota entre ganar músculo/volumen, perder grasa/definición, mantenimiento y rendimiento/energía para entrenar — no uses siempre el mismo) y da UNA idea de comida concreta y realista para ese objetivo: qué lleva, por qué encaja con el objetivo (macros, saciedad, densidad calórica) y una sustitución fácil si a alguien no le gusta un ingrediente. Nada de receta de cuenta de "comida sana" genérica: tiene que sonar a algo que alguien realmente cocina entre semana.`,
 
   // --- conversión ---
   objecion_tiempo: `Ataca de frente la objeción "no tengo tiempo". No la niegues ni la minimices: reconócela como legítima y desmóntala con concreción (qué se puede hacer realmente en el tiempo que sí hay, y por qué un plan adaptado a ese tiempo bate a uno genérico ignorado). Cierra explicando cómo FitPlan construye el plan alrededor del tiempo disponible real de la persona.`,
@@ -132,16 +135,16 @@ function resolveTopicInstruction(input: TopicInput): string {
   return `El fundador de FitPlan pidió específicamente este tema/ángulo: "${input.description}". Desarróllalo con la misma vara de densidad, especificidad y mecanismo concreto que el resto de las reglas — si el pedido es genérico, aporta tú el ángulo específico y el dato concreto.`;
 }
 
-function buildUserPrompt(input: TopicInput, fn: ContentFunction, hook: HookFamily): string {
+function buildUserPrompt(input: TopicInput, fn: ContentFunction, hook: HookFamily, performanceContext?: string): string {
   return `${FUNCTION_INSTRUCTIONS[fn]}
 
 ${HOOK_INSTRUCTIONS[hook]}
 
 TEMA DE HOY: ${resolveTopicInstruction(input)}
-
+${performanceContext ? `\n${performanceContext}\n` : ""}
 Genera la pieza completa con estos campos:
 
-- scenes: array de EXACTAMENTE 4 objetos { "headline": "...", "subtext": "..." } siguiendo hook/insight/takeaway/cierre. El headline del hook: máximo 8 palabras. Los demás headlines: máximo 6 palabras (se renderizan como texto grande en pantalla y con más se cortan mal). "subtext" puede ser cadena vacía si la escena no lo necesita (típicamente el hook). El cierre debe respetar la política de CTA de la función indicada arriba y conectar con el hook.
+- scenes: array de EXACTAMENTE 4 objetos { "headline": "...", "subtext": "..." } siguiendo hook/insight/takeaway/cierre. El headline del hook: máximo 8 palabras. Los demás headlines: máximo 6 palabras (se renderizan como texto grande en pantalla y con más se cortan mal). "subtext" puede ser cadena vacía si la escena no lo necesita (típicamente el hook). El cierre no lleva CTA (ver arriba) y debe conectar con el hook.
 
 - instagramCaption: 5-8 líneas con saltos de línea, no un bloque. Estructura: retoma el hook con otras palabras → el mecanismo concreto explicado simple → una línea de aplicación práctica → cierre según la función (alcance: pregunta con filo; nutrición: mención suave a FitPlan; conversión: CTA claro). Máximo 3 emojis en todo el caption, usados con intención.
 
@@ -228,14 +231,20 @@ async function callOpenAIJson(params: { system: string; user: string; maxTokens:
  * elige el modelo: son decisiones de estrategia, no de redacción. Para temas
  * manuales se asume "alcance" con gancho de curiosidad, que es el default
  * seguro (nunca mete CTA de venta donde perjudicaría la retención).
+ *
+ * `performanceContext` es el resultado de `buildPerformanceContext`
+ * (performanceInsights.ts) — un resumen de cómo viene rindiendo este gancho y
+ * este tema en piezas reales ya medidas, para que el copywriter ajuste la
+ * ejecución en vez de escribir a ciegas. Opcional: sin datos suficientes
+ * todavía, el prompt queda exactamente igual que antes.
  */
-export async function generateSocialCopy(input: TopicInput): Promise<SocialCopy> {
+export async function generateSocialCopy(input: TopicInput, performanceContext?: string): Promise<SocialCopy> {
   const fn: ContentFunction = input.type === "rotation" ? topicFunction(input.topic) : "alcance";
   const hook: HookFamily = input.type === "rotation" ? topicHookFamily(input.topic) : "curiosidad";
 
   const obj = await callOpenAIJson({
     system: SYSTEM_PROMPT,
-    user: buildUserPrompt(input, fn, hook),
+    user: buildUserPrompt(input, fn, hook, performanceContext),
     maxTokens: 1400,
     temperature: 0.9,
   });

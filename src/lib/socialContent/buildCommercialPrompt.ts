@@ -1,25 +1,19 @@
 import type { SocialCopy } from "@/lib/socialContent/generateCopy";
-import type { ContentFunction } from "@/lib/socialContent/topics";
 
 /** Logo oficial de FitPlan (public/brand/icon-social-transparent.png), servido por el propio sitio. Fuente en brand&designs/. */
 export const FITPLAN_LOGO_URL = "https://www.fitplan-ai.com/brand/icon-social-transparent.png";
 
 /**
- * Cierre de marca según la función de la pieza.
+ * Cierre de marca FIJO, igual en todos los vídeos.
  *
- * El principio: cada segundo de pantalla de marca es un segundo que resta
- * retención, y la retención es lo que abre el siguiente lote de distribución.
- * Así que la marca ocupa tiempo proporcional a lo que la pieza intenta
- * conseguir — en alcance casi nada, en conversión lo necesario.
+ * Desde el pivote a contenido 100% educativo (dejar de vender FitPlan
+ * escena a escena y en cambio enseñar algo real, con FitPlan apareciendo
+ * solo como firma al final) ya no tiene sentido variar el cierre según la
+ * función de la pieza: todas las piezas son la misma clase de contenido, así
+ * que todas cierran igual. Validado con un vídeo de prueba real antes de
+ * fijarlo acá como comportamiento permanente.
  */
-const BRAND_CLOSE: Record<ContentFunction, (closingLine: string) => string> = {
-  alcance: () =>
-    `[0:22-0:24] CIERRE EN LOOP (máximo 2 segundos, NO es una pantalla de anuncio): remata la idea y vuelve visualmente al mismo tipo de plano con el que abriste, para que volver a ver el video se sienta natural. El LOGO REAL adjunto aparece pequeño, en una esquina, durante ese cierre — nada de pantalla de marca a pantalla completa, nada de texto de llamada a la acción, nada de "descarga la app". Una pieza de alcance que termina en anuncio pierde el último tramo de retención, que es justo el que más pesa.`,
-  nutricion: (closingLine) =>
-    `[0:21-0:24] CIERRE DE MARCA SUAVE (unos 3 segundos): el LOGO REAL adjunto (dos trazos afilados en diagonal, en gradiente azul a verde) con el nombre "FitPlan" sobre el gradiente de marca, y debajo una línea corta y sin urgencia: "${closingLine}". Tono de firma, no de anuncio: sin imperativos agresivos ni signos de exclamación.`,
-  conversion: (closingLine) =>
-    `[0:20-0:24] CIERRE DE CONVERSIÓN (unos 4 segundos): pantalla de marca completa con el LOGO REAL adjunto (dos trazos afilados en diagonal, en gradiente azul a verde), el nombre "FitPlan" sobre el gradiente de marca y la llamada a la acción bien legible y centrada. Aquí sí es una pantalla de anuncio: tiene que quedar claro qué es y qué hacer. Texto de la llamada a la acción: "${closingLine}".`,
-};
+const BRAND_CLOSE = `[0:21-0:24] CIERRE DE MARCA FIJO (unos 3 segundos, igual en todos los vídeos): el LOGO REAL adjunto (dos trazos afilados en diagonal, en gradiente azul a verde) centrado, con el nombre "FitPlan" debajo en texto limpio. Sin llamada a la acción, sin URL, sin oferta, sin imperativos — es una firma de marca al final de un vídeo educativo, no un anuncio. Tono de cierre de autor/creador de contenido.`;
 
 /** Quita el punto final para poder interpolar sin que queden ".." en el prompt. */
 function trimPeriod(text?: string): string {
@@ -45,11 +39,7 @@ function trimPeriod(text?: string): string {
  * inventar un wordmark propio.
  */
 export function buildCommercialPrompt(copy: SocialCopy): string {
-  const [hook, insight, takeaway, cierre] = copy.scenes;
-  const fn: ContentFunction = copy.contentFunction ?? "alcance";
-
-  const closingLine = trimPeriod(cierre?.subtext) || trimPeriod(cierre?.headline) || "Empieza gratis en FitPlan";
-  const brandClose = BRAND_CLOSE[fn](closingLine);
+  const [hook, insight, takeaway] = copy.scenes;
 
   return `Haz un video vertical (9:16) de 23 a 26 segundos para Instagram Reels y TikTok, de FitPlan (app de entrenamiento y nutrición personalizados con IA, con opción de coach real 1 a 1).
 
@@ -83,7 +73,7 @@ GUION POR ESCENAS (respeta el mensaje; la puesta en escena visual la decides tú
 [0:00-0:03] GANCHO: "${trimPeriod(hook.headline)}"${hook.subtext ? ` — ${trimPeriod(hook.subtext)}` : ""}. Plano de apertura con fricción o curiosidad, cortes rápidos, texto grande y corto en pantalla. Este es el tramo que decide si el video vive o muere.
 [0:03-0:11] Corte al presentador a cámara, tono confiado y muy enérgico, acento de España: "${trimPeriod(insight.headline)}"${insight.subtext ? ` — ${trimPeriod(insight.subtext)}` : ""}. Intercala al menos un plano de apoyo aquí, no lo dejes hablando fijo todo el tramo.
 [0:11-0:19] Motion graphics + mockup de la app ilustrando: "${trimPeriod(takeaway.headline)}"${takeaway.subtext ? ` — ${trimPeriod(takeaway.subtext)}` : ""}. Gráficos de progreso, checkmarks, chips con los puntos clave, textos cortos y bien compaginados.
-${brandClose}
+${BRAND_CLOSE}
 
 Que se sienta como una pieza de creador con producción alta, no como un anuncio de televisión: el objetivo es que alguien lo vea entero sin darse cuenta de que le estaban vendiendo algo.`;
 }

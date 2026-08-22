@@ -34,12 +34,24 @@ type Piece = {
   saved: number | null;
   retention: number | null;
   amplification: number | null;
+  topicSelectionMode: "weighted" | "rotation" | null;
+};
+
+type LearningLoop = {
+  piecesTracked: number;
+  weightedPicks: number;
+  rotationPicks: number;
+  topicsReady: number;
+  topicsTotal: number;
 };
 
 type Performance = {
   insightsAvailable: boolean;
   insightsError: string | null;
   totals: { published: number; withMetrics: number };
+  minReachToRank: number;
+  unrankedCount: number;
+  learningLoop: LearningLoop;
   byFormat: GroupStat[];
   byHookFamily: GroupStat[];
   byFunction: GroupStat[];
@@ -132,6 +144,8 @@ function PieceRow({ piece }: { piece: Piece }) {
             {piece.topicName}
             {piece.slotLocal ? ` · ${piece.slotLocal}` : ""}
             {piece.publishedAt ? ` · ${new Date(piece.publishedAt).toLocaleDateString("es-ES")}` : ""}
+            {piece.topicSelectionMode === "weighted" && <span className="text-cyan-300"> · pesado por rendimiento</span>}
+            {piece.topicSelectionMode === "rotation" && <span className="text-white/30"> · rotación</span>}
           </p>
         </div>
         <div className="text-right shrink-0">
@@ -282,6 +296,26 @@ export default function AdminMetricasRsPage() {
               </div>
             )}
 
+            <div className="rounded-lg border border-cyan-400/25 bg-cyan-500/5 px-4 py-3">
+              <p className="text-xs font-medium text-cyan-200 uppercase tracking-wide mb-1">Loop de aprendizaje por métricas</p>
+              {data.learningLoop.piecesTracked === 0 ? (
+                <p className="text-sm text-white/60">
+                  Todavía no hay piezas generadas con esta auditoría (se activó recién) — la próxima que se genere ya va a quedar registrada acá.
+                </p>
+              ) : (
+                <p className="text-sm text-white/75">
+                  De las últimas {data.learningLoop.piecesTracked} piezas,{" "}
+                  <strong className="text-white">{data.learningLoop.weightedPicks}</strong> se eligieron pesando por
+                  rendimiento real y <strong className="text-white">{data.learningLoop.rotationPicks}</strong> todavía por
+                  rotación (sin datos suficientes en ese momento). Temas con datos suficientes para pesar:{" "}
+                  <strong className="text-white">
+                    {data.learningLoop.topicsReady} / {data.learningLoop.topicsTotal}
+                  </strong>
+                  .
+                </p>
+              )}
+            </div>
+
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
                 { label: "Publicadas", value: data.totals.published },
@@ -362,6 +396,13 @@ export default function AdminMetricasRsPage() {
 
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="card-surface p-5">
               <h2 className="text-sm font-semibold text-white/80 uppercase tracking-wide mb-3">Mejores piezas</h2>
+              {data.unrankedCount > 0 && (
+                <p className="text-xs text-white/40 mb-3">
+                  {data.unrankedCount} pieza{data.unrankedCount === 1 ? "" : "s"} con menos de {data.minReachToRank} cuentas
+                  alcanzadas no entran acá — con tan poca distribución, la retención de una sola pieza es ruido, no señal (los
+                  gráficos de arriba sí las incluyen, ponderadas por su alcance).
+                </p>
+              )}
               <div className="space-y-2">
                 {data.best.length === 0 ? (
                   <p className="text-sm text-white/40">Sin datos todavía.</p>
