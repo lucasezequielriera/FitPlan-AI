@@ -260,9 +260,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       "",
       `📋 ${routine} mensaje(s) de rutina quedaron pendientes de respuesta (sin escalar).`,
     ];
-    await sendTelegramMessage(lines.join("\n")).catch((err) => {
+    const telegramOk = await sendTelegramMessage(lines.join("\n")).catch((err) => {
       console.warn("⚠️ No se pudo enviar el triage de soporte a Telegram:", err);
+      return false;
     });
+
+    // El único propósito de este cron es avisarle a Lucas: si el envío a
+    // Telegram falla, un 200 dejaría el fallo invisible (el análisis se hizo
+    // pero nadie se entera). Se refleja en el status HTTP para que quede
+    // marcado como fallido en el panel de crons de Vercel, sin perder el
+    // resultado del análisis ya hecho.
+    if (!telegramOk) {
+      return res.status(502).json({
+        ok: false,
+        error: "No se pudo enviar el triage de soporte a Telegram",
+        checked,
+        escalated: escalated.length,
+        routine,
+      });
+    }
 
     return res.status(200).json({ ok: true, checked, escalated: escalated.length, routine });
   } catch (error) {

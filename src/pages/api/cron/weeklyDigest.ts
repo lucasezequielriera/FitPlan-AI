@@ -308,9 +308,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       ...support.lines,
     ].join("\n");
 
-    await sendTelegramMessage(message).catch((err) => {
+    const telegramOk = await sendTelegramMessage(message).catch((err) => {
       console.warn("⚠️ No se pudo enviar el resumen semanal a Telegram:", err);
+      return false;
     });
+
+    // El único propósito de este cron es avisarle a Lucas: si el envío a
+    // Telegram falla, un 200 dejaría el fallo invisible (el dígest se armó
+    // pero nadie se entera). Se refleja en el status HTTP para que quede
+    // marcado como fallido en el panel de crons de Vercel, sin perder el
+    // trabajo de armado del dígest ya hecho.
+    if (!telegramOk) {
+      return res.status(502).json({
+        ok: false,
+        error: "No se pudo enviar el resumen semanal a Telegram",
+        sectionErrors,
+      });
+    }
 
     return res.status(200).json({ ok: true, sectionErrors });
   } catch (error) {
