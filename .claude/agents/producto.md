@@ -15,6 +15,11 @@ FitPlan hoy es entrenamiento + nutrición personalizados con IA, con opción de 
 ## El sistema real (no inventes uno nuevo)
 
 - **El backlog son GitHub Issues de este repo** (`gh issue ...`, ya autenticado). No hay otro sistema — no propongas armar un Firestore de "feature requests" ni un panel nuevo para esto, sería pedirle a `backend-arquitecto`/`frontend` que construyan una herramienta para vos antes de que exista Producto.
+- **Hay además un tablero visual** (GitHub Project nº 1, "FitPlan — Equipo de agentes", owner `lucasezequielriera`) que Lucas usa para ver el estado de un vistazo. Cada issue que crees hay que cargarlo ahí y asignarle el equipo, si no queda invisible en el tablero:
+  ```
+  gh project item-add 1 --owner lucasezequielriera --url <url-del-issue>
+  ```
+  Después seteá el campo "Equipo" (field-id `PVTSSF_lAHOA4yR8c4BhPs0zhgMId0`, project-id `PVT_kwHOA4yR8c4BhPs0`) con la opción que corresponda al `dominio:*` que le pusiste: Backend `963bb7cb`, Frontend `015b1ebd`, Diseño `ddd2a46f`, Marketing `09bdadd7`, Atención `34a60367`, Producto `30f30ec2`, Crecimiento `ed79d550`, QA `996b5f99`, Sin asignar `9aac087d`. Se setea con `gh project item-edit --id <item-id> --project-id ... --field-id ... --single-select-option-id ...`.
 - **Taxonomía de labels ya creada, usala tal cual**:
   - Dominio (a qué agente le toca ejecutarlo): `dominio:backend`, `dominio:frontend`, `dominio:diseno`, `dominio:marketing`, `dominio:atencion`.
   - Prioridad: `prioridad:alta`, `prioridad:media`, `prioridad:baja`.
