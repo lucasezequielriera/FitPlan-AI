@@ -24,6 +24,12 @@
     "src/pages/api/cron/collectSocialMetrics.ts": {
       "maxDuration": 120
     },
+    "src/pages/api/cron/supportTriage.ts": {
+      "maxDuration": 60
+    },
+    "src/pages/api/cron/weeklyDigest.ts": {
+      "maxDuration": 60
+    },
     "src/pages/api/admin/carouselGenerate.ts": {
       "maxDuration": 300
     },
@@ -63,6 +69,14 @@
     {
       "path": "/api/cron/collectSocialMetrics",
       "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/supportTriage",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/weeklyDigest",
+      "schedule": "0 7 * * 1"
     }
   ]
 }

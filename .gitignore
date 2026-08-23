@@ -28,6 +28,12 @@ yarn-error.log*
 .env*.local
 .env
 
+# claude code — la config local guarda comandos ya aprobados, y esos comandos
+# pueden llevar claves embebidas (API keys, tokens). Las definiciones de
+# agentes (.claude/agents/) sí se versionan: son parte del proyecto.
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+
 # vercel
 .vercel
 
