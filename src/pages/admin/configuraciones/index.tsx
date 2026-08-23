@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { useAuthStore } from "@/store/authStore";
 import { getIsAdminClient } from "@/lib/adminAuthClient";
 import Navbar from "@/components/Navbar";
-import { FaArrowLeft, FaChevronRight, FaCog, FaDumbbell, FaVideo, FaServer, FaChartLine, FaBolt } from "react-icons/fa";
+import { FaArrowLeft, FaChevronRight, FaCog, FaDumbbell, FaVideo, FaServer, FaChartLine, FaBolt, FaColumns } from "react-icons/fa";
 
 export default function AdminConfiguracionesPage() {
   const router = useRouter();
@@ -133,6 +133,23 @@ export default function AdminConfiguracionesPage() {
                 <p className="font-medium text-white">Métricas de RS</p>
                 <p className="text-sm text-white/50 mt-0.5">
                   Qué reel engancha más: retención, alcance y amplificación comparadas por gancho, franja horaria y tema.
+                </p>
+              </div>
+              <FaChevronRight className="text-white/35 group-hover:text-violet-300/80 shrink-0" />
+            </Link>
+          </li>
+          <li>
+            <Link
+              href="/admin/backlog"
+              className="group flex items-center gap-4 rounded-xl border border-white/10 bg-white/5 hover:bg-white/[0.07] hover:border-violet-400/30 px-4 py-4 transition-colors"
+            >
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-violet-500/15 border border-violet-400/25 text-violet-200">
+                <FaColumns />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-white">Backlog del equipo</p>
+                <p className="text-sm text-white/50 mt-0.5">
+                  En qué trabaja cada equipo, cuánto tardó cada tarea, y qué quedó esperando una decisión tuya.
                 </p>
               </div>
               <FaChevronRight className="text-white/35 group-hover:text-violet-300/80 shrink-0" />
