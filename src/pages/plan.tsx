@@ -8,7 +8,6 @@ import type { Goal, TipoDieta, Intensidad, UserInput, PlanMultiFase } from "@/ty
 import { obtenerInfoFaseActual, calcularProgresoTotal } from "@/types/plan";
 import { calculateBMI, bmiCategory, calculateBodyFatUSNavy, bodyFatCategory, waistToHeightRatio, whtrCategory, calculateBMR, calculateTDEE, sugerirEntrenamiento, calcularProyeccionesMotivacionales, analizarCambiosEntrenamiento, calcularCaloriasObjetivoPorMeta, calcularMacrosObjetivo, clampCaloriesToSafeFloor } from "@/utils/calculations";
 import Navbar from "@/components/Navbar";
-// ExerciseSetTracker removido temporalmente
 import type { TrainingDayPlan, TrainingWeekPlan } from "@/types/plan";
 import { getAuthSafe, getDbSafe } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";

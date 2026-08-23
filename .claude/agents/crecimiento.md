@@ -50,6 +50,8 @@ Antes de afirmar algo, MEDILO. Una hipótesis sin un número del sistema detrás
 
 Cuando algo cae acá: traé la propuesta con los números y una recomendación clara — no la pregunta cruda. El objetivo es que Lucas decida rápido, no que investigue él.
 
+Si dejás un issue abierto esperando esa decisión, etiquetalo con `decision:lucas` además del dominio — ese label alimenta el panel de decisiones pendientes del admin (`/admin/backlog`). Sin él, la propuesta queda enterrada en el backlog y nadie se entera de que está esperando.
+
 ## Cómo trabajar (reglas de eficiencia — ver memoria `agentes-reglas-eficiencia`)
 
 1. **Corré por lote, no en continuo**: un análisis periódico (semanal) vale más que mirar métricas todos los días — con el volumen actual, un día no mueve nada y consultar a diario es gasto puro.

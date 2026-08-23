@@ -3,6 +3,7 @@ import { getAdminDb } from "@/lib/firebase-admin";
 import { sendTelegramMessage } from "@/lib/telegram";
 import { getTopicPerformance } from "@/lib/socialContent/performanceInsights";
 import { topicLabel } from "@/lib/socialContent/topics";
+import { fetchAllGithubIssues } from "@/lib/githubIssues";
 
 /**
  * Corre los lunes. Un único mensaje semanal consolidado por Telegram, con
@@ -57,47 +58,37 @@ type SectionResult = { lines: string[]; error?: string };
  * DECISIONES PENDIENTES: issues de GitHub abiertos con label `vertical:nuevo`
  * o `prioridad:alta`.
  *
- * TODO(backend): esto requiere `GITHUB_TOKEN` (fine-grained, permiso de
- * lectura de Issues) y `GITHUB_REPO` ("owner/repo") en las env vars de
- * Vercel. Sin esas dos variables, esta sección se omite de forma explícita
- * (se avisa en el mensaje, no se inventa contenido) — pedirle a Lucas que
- * genere el token es lo único que falta para activarla.
+ * Usa `fetchAllGithubIssues` (src/lib/githubIssues.ts) — el mismo fetch
+ * paginado que alimenta el panel de backlog en
+ * `src/pages/api/admin/githubIssues.ts` — y filtra localmente. Requiere
+ * `GITHUB_TOKEN` (fine-grained, permiso de lectura de Issues) y
+ * `GITHUB_REPO` ("owner/repo") en las env vars de Vercel. Sin esas dos
+ * variables, esta sección se omite de forma explícita (se avisa en el
+ * mensaje, no se inventa contenido) — pedirle a Lucas que genere el token
+ * es lo único que falta para activarla.
  */
 async function buildDecisionsSection(): Promise<SectionResult> {
-  const token = process.env.GITHUB_TOKEN;
-  const repo = process.env.GITHUB_REPO;
-  if (!token || !repo) {
-    return {
-      lines: [
-        "🗳️ <b>Decisiones pendientes</b>",
-        "Sin datos: falta configurar GITHUB_TOKEN y GITHUB_REPO para poder leer los issues abiertos.",
-      ],
-    };
-  }
-
   try {
-    const labels = ["vertical:nuevo", "prioridad:alta"];
-    const seen = new Map<number, { number: number; title: string; url: string; labels: string[] }>();
+    const result = await fetchAllGithubIssues();
 
-    for (const label of labels) {
-      const query = encodeURIComponent(`repo:${repo} is:issue is:open label:"${label}"`);
-      const resp = await fetch(`https://api.github.com/search/issues?q=${query}`, {
-        headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" },
-      });
-      if (!resp.ok) throw new Error(`GitHub respondió ${resp.status}`);
-      const data = (await resp.json()) as { items?: Array<{ number: number; title: string; html_url: string; labels?: Array<{ name: string }> }> };
-      for (const item of data.items || []) {
-        const itemLabels = (item.labels || []).map((l) => l.name);
-        const existing = seen.get(item.number);
-        if (existing) {
-          existing.labels = Array.from(new Set([...existing.labels, ...itemLabels]));
-        } else {
-          seen.set(item.number, { number: item.number, title: item.title, url: item.html_url, labels: itemLabels });
-        }
-      }
+    if (!result.configured) {
+      return {
+        lines: ["🗳️ <b>Decisiones pendientes</b>", `Sin datos: ${result.reason}`],
+      };
     }
 
-    const issues = Array.from(seen.values());
+    if (result.rateLimited) {
+      return {
+        lines: ["🗳️ <b>Decisiones pendientes</b>", "⚠️ GitHub devolvió rate limit esta semana, no se pudo consultar."],
+        error: "decisions: github rate limited",
+      };
+    }
+
+    const relevantLabels = new Set(["vertical:nuevo", "prioridad:alta"]);
+    const issues = result.issues.filter(
+      (issue) => issue.state === "open" && issue.labels.some((label) => relevantLabels.has(label))
+    );
+
     if (issues.length === 0) {
       return { lines: ["🗳️ <b>Decisiones pendientes</b>", "Sin issues abiertos con label vertical:nuevo o prioridad:alta."] };
     }
