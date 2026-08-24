@@ -86,15 +86,8 @@ function Mark({ size }: { size: number }) {
   const h = (size * MARK_BOX.h) / MARK_BOX.w;
   return (
     <svg width={size} height={h} viewBox={`${MARK_BOX.x} ${MARK_BOX.y} ${MARK_BOX.w} ${MARK_BOX.h}`}>
-      <defs>
-        <linearGradient id="bg" x1="8%" y1="10%" x2="92%" y2="90%">
-          <stop offset="0%" stopColor="#3B82F6" />
-          <stop offset="52%" stopColor="#22D3EE" />
-          <stop offset="100%" stopColor="#10E5B0" />
-        </linearGradient>
-      </defs>
       {MARK_PATHS.map((d) => (
-        <path key={d} fill="url(#bg)" d={d} />
+        <path key={d} fill="#cbff3d" d={d} />
       ))}
     </svg>
   );

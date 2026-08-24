@@ -56,16 +56,19 @@ const SVGS = {
   // A sangre y opacos: Apple rechaza iconos con transparencia o esquinas
   // redondeadas (el sistema aplica la máscara), e Instagram recorta en círculo,
   // así que un borde redondeado dejaría huecos.
-  "app-icons/icono-oscuro.svg": iconSvg({ grad: "main", bg: "#080E18" }),
+  // El mark va en lima sólido (--accent) desde el rediseño "FitPlan Volt": el
+  // degradado no funciona sobre este trazo, ver marca-lima.svg. Los nombres con
+  // "gradiente" quedan por compatibilidad con lo que ya referencia esos archivos.
+  "app-icons/icono-oscuro.svg": iconSvg({ fill: "#cbff3d", bg: "#08090c" }),
   "app-icons/icono-claro.svg": iconSvg({ fill: "#0B1220", bg: "#EDF1F7" }),
   "app-icons/icono-pro.svg": iconSvg({ grad: "pro", bg: "#0A0A0C" }),
   // Redondeados, para usar dentro de la web donde el borde no lo pone el sistema.
-  "app-icons/icono-redondeado-oscuro.svg": iconSvg({ grad: "main", bg: "#080E18", radius: 230 }),
+  "app-icons/icono-redondeado-oscuro.svg": iconSvg({ fill: "#cbff3d", bg: "#08090c", radius: 230 }),
   "app-icons/icono-redondeado-claro.svg": iconSvg({ fill: "#0B1220", bg: "#EDF1F7", radius: 230 }),
   // Iconos cuadrados transparentes (mismo encuadre, sin fondo)
   "app-icons/icono-transparente-blanco.svg": iconSvg({ fill: "#FFFFFF" }),
   "app-icons/icono-transparente-negro.svg": iconSvg({ fill: "#0B1220" }),
-  "app-icons/icono-transparente-gradiente.svg": iconSvg({ grad: "main" }),
+  "app-icons/icono-transparente-gradiente.svg": iconSvg({ fill: "#cbff3d" }),
   "app-icons/icono-transparente-gradiente-pro.svg": iconSvg({ grad: "pro" }),
 };
 
