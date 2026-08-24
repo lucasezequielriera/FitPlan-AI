@@ -37,10 +37,10 @@ const TYPE_STYLES: Record<Session["type"], { badge: string; label: string }> = {
 };
 
 const PHASE_COLORS: Record<PhaseKey, string> = {
-  base: "bg-blue-500/15 border-blue-400/30 text-blue-200",
-  construccion: "bg-emerald-500/15 border-emerald-400/30 text-emerald-200",
-  especifico: "bg-amber-500/15 border-amber-400/30 text-amber-200",
-  taper: "bg-violet-500/15 border-violet-400/30 text-violet-200",
+  base: "badge-phase-hyrox-base",
+  construccion: "badge-phase-hyrox-construccion",
+  especifico: "badge-phase-hyrox-especifico",
+  taper: "badge-phase-hyrox-taper",
 };
 
 type TabKey = "plan" | "estrategia" | "nutricion" | "tests" | "contenido";
@@ -238,7 +238,7 @@ export default function AdminHyroxPage() {
               onClick={() => setTab(t.key)}
               className={`text-sm px-3 py-1.5 rounded-lg border transition-colors ${
                 tab === t.key
-                  ? "border-orange-400/40 bg-orange-500/15 text-orange-100"
+                  ? "border-accent/40 bg-accent/15 text-accent"
                   : "border-white/10 bg-white/5 text-white/60 hover:text-white/85"
               }`}
             >
@@ -291,7 +291,7 @@ export default function AdminHyroxPage() {
                     key={w.week}
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className={`card-surface overflow-hidden ${isActive ? "ring-1 ring-orange-400/40" : ""}`}
+                    className={`card-surface overflow-hidden ${isActive ? "ring-1 ring-accent/40" : ""}`}
                   >
                     <button
                       type="button"
@@ -406,7 +406,7 @@ export default function AdminHyroxPage() {
                       </p>
                     )}
                     <p className="text-sm text-white/75 mt-2">
-                      <span className="text-emerald-300/90">Reparto:</span> {s.doublesSplit}
+                      <span className="text-info">Reparto:</span> {s.doublesSplit}
                     </p>
                     <p className="text-sm text-white/60 mt-1.5">
                       <span className="text-warning/90">Error típico:</span> {s.commonMistake}
@@ -438,7 +438,7 @@ export default function AdminHyroxPage() {
                           placeholder={b.unit}
                           defaultValue={progress.benchmarks[b.key]?.[String(w)] || ""}
                           onBlur={(e) => void saveBenchmark(b.key, w, e.target.value)}
-                          className="w-24 rounded-lg bg-black/25 border border-white/15 px-2 py-1.5 text-sm text-white tabular-nums outline-none focus:border-orange-400/50"
+                          className="w-24 rounded-lg bg-black/25 border border-white/15 px-2 py-1.5 text-sm text-white tabular-nums outline-none focus:border-accent/50"
                         />
                       </label>
                     ))}
@@ -461,7 +461,7 @@ export default function AdminHyroxPage() {
                 <ul className="space-y-2">
                   {section.items.map((item, i) => (
                     <li key={i} className="text-sm text-white/75 flex gap-2">
-                      <span className="text-orange-300/60 shrink-0">·</span>
+                      <span className="text-text-subtle shrink-0">·</span>
                       <span>{item}</span>
                     </li>
                   ))}

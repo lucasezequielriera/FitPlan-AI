@@ -54,6 +54,14 @@
   --phase-lean-bulk: #10b981;    /* emerald: recomposición */
   --phase-maintenance: #a855f7;  /* purple: mantenimiento */
 
+  /* --- Fases de periodización HYROX (aprobado por Lucas — ver DESIGN_SYSTEM.md §8.2-A).
+     Progresión frío→cálido según cercanía a la carrera; ninguna colisiona con los hues
+     de arriba, que ya significan otra cosa (ámbar/cian/esmeralda/violeta). --- */
+  --phase-hyrox-base: #3b82f6;          /* blue: base aeróbica */
+  --phase-hyrox-construccion: #14b8a6;  /* teal: construcción */
+  --phase-hyrox-especifico: #f97316;    /* orange: específico de carrera */
+  --phase-hyrox-taper: #f43f5e;         /* rose: afinado y competición */
+
   /* --- Radios y sombras --- */
   --radius-sm: 0.5rem;
   --radius-md: 0.875rem;
@@ -109,6 +117,11 @@
   --color-phase-cut: var(--phase-cut);
   --color-phase-lean-bulk: var(--phase-lean-bulk);
   --color-phase-maintenance: var(--phase-maintenance);
+
+  --color-phase-hyrox-base: var(--phase-hyrox-base);
+  --color-phase-hyrox-construccion: var(--phase-hyrox-construccion);
+  --color-phase-hyrox-especifico: var(--phase-hyrox-especifico);
+  --color-phase-hyrox-taper: var(--phase-hyrox-taper);
 }
 
 html {
@@ -240,6 +253,12 @@ body {
 .badge-phase-cut         { background: color-mix(in oklab, var(--phase-cut) 16%, transparent); color: var(--phase-cut); border-color: color-mix(in oklab, var(--phase-cut) 35%, transparent); }
 .badge-phase-lean-bulk   { background: color-mix(in oklab, var(--phase-lean-bulk) 16%, transparent); color: var(--phase-lean-bulk); border-color: color-mix(in oklab, var(--phase-lean-bulk) 35%, transparent); }
 .badge-phase-maintenance { background: color-mix(in oklab, var(--phase-maintenance) 16%, transparent); color: var(--phase-maintenance); border-color: color-mix(in oklab, var(--phase-maintenance) 35%, transparent); }
+
+/* --- Fases de periodización HYROX --- */
+.badge-phase-hyrox-base          { background: color-mix(in oklab, var(--phase-hyrox-base) 16%, transparent);          color: var(--phase-hyrox-base);          border-color: color-mix(in oklab, var(--phase-hyrox-base) 35%, transparent); }
+.badge-phase-hyrox-construccion  { background: color-mix(in oklab, var(--phase-hyrox-construccion) 16%, transparent);  color: var(--phase-hyrox-construccion);  border-color: color-mix(in oklab, var(--phase-hyrox-construccion) 35%, transparent); }
+.badge-phase-hyrox-especifico    { background: color-mix(in oklab, var(--phase-hyrox-especifico) 16%, transparent);    color: var(--phase-hyrox-especifico);    border-color: color-mix(in oklab, var(--phase-hyrox-especifico) 35%, transparent); }
+.badge-phase-hyrox-taper         { background: color-mix(in oklab, var(--phase-hyrox-taper) 16%, transparent);         color: var(--phase-hyrox-taper);         border-color: color-mix(in oklab, var(--phase-hyrox-taper) 35%, transparent); }
 
 /* --- Texto de estado (sin fondo) --- */
 .text-success { color: var(--success); }

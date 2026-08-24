@@ -70,6 +70,17 @@ Antes de esto, la app tenía una paleta *parcial* (`--landing-*`, adoptada solo 
 | `--phase-lean-bulk` (esmeralda) | Recomposición |
 | `--phase-maintenance` (violeta) | Mantenimiento |
 
+### Fases de periodización HYROX — ver §8.2-A (aprobado por Lucas)
+
+Tokens propios, distintos de los de arriba a propósito (misma naturaleza — "comunicación de estado, no decisión de marca" — pero dominio distinto, sin relación entre una fase de plan y una fase de bloque HYROX). Progresión frío→cálido según cercanía a la carrera.
+
+| Token | Fase | Hex |
+|---|---|---|
+| `--phase-hyrox-base` (azul) | Base aeróbica, semanas 1-4 | `#3b82f6` |
+| `--phase-hyrox-construccion` (teal) | Construcción, semanas 5-9 | `#14b8a6` |
+| `--phase-hyrox-especifico` (naranja) | Específico de carrera, semanas 10-13 | `#f97316` |
+| `--phase-hyrox-taper` (rosa/coral fuerte) | Afinado y competición, semanas 14-15 | `#f43f5e` |
+
 ### Radios y sombras
 
 `--radius-sm/md/lg/xl`, `--shadow-sm/md/lg` — usar en vez de valores arbitrarios (`rounded-[14px]`, `shadow-[0_2px_8px_...]`). Formas más contundentes que antes del rediseño (`--radius-lg` 1.25rem, `--radius-xl` 1.75rem) — lenguaje visual más "app", tap targets más generosos.
@@ -105,6 +116,8 @@ En vez de reconstruir combinaciones de Tailwind cada vez, usar estas clases (def
 
 **Badges de fase**: `.badge-phase-bulk`, `.badge-phase-cut`, `.badge-phase-lean-bulk`, `.badge-phase-maintenance`.
 
+**Badges de fase HYROX**: `.badge-phase-hyrox-base`, `.badge-phase-hyrox-construccion`, `.badge-phase-hyrox-especifico`, `.badge-phase-hyrox-taper` — ver §8.2-A.
+
 **Tarjetas**: `.card-surface` (nivel 1), `.card-surface-2` (nivel 2).
 
 **Texto de estado sin fondo**: `.text-success`, `.text-warning`, `.text-danger`, `.text-info`, `.text-muted`, `.text-subtle`.
@@ -135,7 +148,7 @@ Quedan **sin migrar, fuera del alcance de esta pasada**, con recuento aproximado
 | `src/pages/transformacion-fitplan.tsx` / `src/pages/en/transformacion-fitplan.tsx` | 55 / 49 | Landing pages alternativas (variante de campaña), no tocadas |
 | `src/components/AdminExerciseCatalogPanel.tsx` / `AdminExerciseCatalogModal.tsx` | 49 / 46 | Catálogo de ejercicios del admin |
 | `src/pages/admin/configuraciones/index.tsx` | 38 | Configuración de ejercicios del admin |
-| `src/pages/admin/hyrox.tsx` | 29 | Panel Hyrox del admin |
+| `src/pages/admin/hyrox.tsx` | 0 | Panel Hyrox del admin — migrado por completo, ver §8.2 (decorativo y `PHASE_COLORS`, este último con tokens `--phase-hyrox-*` propios aprobados por Lucas) |
 | `src/components/UserMessagesModal.tsx` | 27 | Chat de mensajería con el fundador (el CTA principal ya usa el gradiente de marca; quedan detalles del hilo de mensajes) |
 | `src/pages/admin/metricas-rs.tsx` | 20 | Métricas de redes sociales |
 | `src/components/ExerciseDemoMedia.tsx` | 17 | Reproductor de demos de ejercicios |
@@ -257,7 +270,7 @@ Reemplaza la lista vertical de tarjetas con 5-6 botones de acción de colores di
 | 4 | **Ejercicios** | `configuraciones/ejercicios` | Dominio de autoría de contenido de entrenamiento, no tiene relación con "Contenido" (que es marketing/redes) — se mantiene aparte a propósito. |
 | 5 | **Backlog del equipo** | `backlog` | Meta: qué están haciendo los equipos de agentes y qué decisión te está esperando. Dominio propio (gestión del propio sistema de agentes), no client-facing. |
 | 6 | **Servicios** | `servicios` | Salud/crédito de integraciones externas. Se queda como destino propio y visible (se usa seguido para troubleshooting) — con un punto de estado (verde/ámbar/rojo, tokens `--success`/`--warning`/`--danger` ya existentes) directamente en el ítem del sidebar, para ver de un vistazo si algo está caído sin entrar. |
-| 7 | **HYROX** | `hyrox` | Herramienta personal de Lucas, acotada en el tiempo (carrera 20 de noviembre). Se mantiene en el nav pero con tratamiento visualmente secundario (color apagado, sin badge) — **pendiente de `producto`, no mío:** decidir si sale del nav principal después de la carrera o si queda como plantilla reutilizable para futuros eventos. |
+| 7 | **HYROX** | `hyrox` | Herramienta personal de Lucas, permanente (Lucas confirmó: queda como plantilla reutilizable para futuros eventos, no sale del nav después de la carrera del 20 de noviembre — ver §8.1). Se mantiene con tratamiento visualmente secundario (`muted`, sin badge) en el nav. |
 
 Esto resuelve el problema central: ningún destino queda a más de 1 clic, y "Configuraciones" deja de existir como nombre engañoso — cada cosa se llama y se agrupa por lo que realmente es.
 
@@ -275,6 +288,59 @@ Toda la reestructuración de arriba se resuelve con tokens/clases que ya existen
 
 Demo de referencia (no implementación real, datos hardcodeados): `src/pages/admin-design-preview.tsx` → `/admin-design-preview` (vista "Resumen" por defecto, `?view=clientes` para la vista de datos densos).
 
-## 8. Modo claro
+## 8. HYROX — nav permanente y paleta interna (decisión de `diseno`, seguimiento de §7)
+
+Con las 12 vistas ya migradas al `<AdminShell>` de §7 y en producción, quedaban dos puntos abiertos sobre HYROX: la vigencia en el nav (que §7.4 dejaba pendiente de `producto`) y la paleta interna de `src/pages/admin/hyrox.tsx`, que `frontend` dejó explícitamente sin tocar porque no había token equivalente para las fases de periodización y no quiso inventar uno.
+
+### 8.1 Nav: HYROX es permanente — se revisa el trato `muted`, se mantiene
+
+Lucas confirmó que HYROX **no** sale del nav después de la carrera del 20 de noviembre: queda como plantilla reutilizable para futuros eventos.
+
+Eso invalida la razón original con la que se propuso el trato `muted` en §7.4 ("acotado en el tiempo") — un ítem apagado en un sidebar suele leerse como "esto está por desaparecer", y ya no es cierto. Revisado el criterio con esa razón fuera de la mesa, **se mantiene `muted`, pero por un motivo distinto**: a diferencia de Clientes/Contenido/Backlog (uso diario, de todo el equipo), HYROX es una herramienta personal de Lucas, no cara al cliente, de uso estacional (se consulta seguido mientras hay un evento en preparación, prácticamente nada el resto del año). La jerarquía por frecuencia de uso real sigue siendo válida — es el mismo criterio con el que hoy "Servicios" o "Backlog" no compiten visualmente con "Clientes" en el sidebar.
+
+**Decisión: se mantiene el tratamiento `muted` de `AdminShell.tsx` (`NAV_ITEMS`, ítem `hyrox`) tal cual está implementado**, sin cambios de código. Lo único que cambia es la nota de §7.4 (ya actualizada arriba): deja de decir "pendiente de `producto`" y pasa a documentar que es una decisión ya resuelta y de motivo distinto al original. No queda nada pendiente de implementar en el nav.
+
+### 8.2 Paleta interna de `hyrox.tsx`: dos problemas distintos, dos resoluciones distintas (ambos resueltos)
+
+Revisado el archivo completo (grep de clases Tailwind de color crudas, ver líneas 40-43, 241, 294, 409, 441, 464). Hay dos cosas de naturaleza distinta mezcladas bajo "paleta HYROX", y no se resuelven igual:
+
+**A. `PHASE_COLORS` (líneas 39-44) — categorías con significado real, no decorativas. Resuelto: Lucas aprobó la propuesta tal cual, ver valores finales en §1 y en la tabla más abajo.**
+
+`PHASES` (`src/lib/hyrox/plan.ts`) define 4 fases de periodización del bloque de 15 semanas — Base aeróbica (sem. 1-4), Construcción (5-9), Específico de carrera (10-13), Afinado y competición (14-15) — cada semana pertenece a exactamente una, tienen objetivo y contrapartida propios, y se muestran lado a lado en "Las 4 fases" para que Lucas identifique en qué momento del bloque está. Esto es estructuralmente **el mismo caso que las fases de plan** (`--phase-bulk/cut/lean-bulk/maintenance`, §1) que el propio rediseño decidió mantener a propósito "por ser comunicación de estado, no decisión de marca" — no color decorativo.
+
+Tratamiento correcto entonces: no consolidar a un solo acento (perdería la distinción que el usuario necesita), sino tokens propios — mismo patrón que las fases de plan.
+
+**Esto excede mi autonomía y queda escalado a Lucas.** Definir una categoría de token nueva en el árbol de `:root` (`--phase-hyrox-*`) es exactamente lo que la sección "Qué escalás a Lucas" me pide no tocar sin su ok — aun siguiendo un patrón ya aprobado, sigue siendo una entrada nueva en el árbol de marca, no un ajuste dentro de una categoría existente. Además, los 4 tonos crudos actuales (`blue`, `emerald`, `amber`, `violet`) pisan 3 de los 4 hues que ya significan otra cosa en `--phase-bulk` (ámbar), `--phase-lean-bulk` (esmeralda) y `--phase-maintenance` (violeta) — si se tokenizan tal cual, se recrea el problema exacto que este sistema existe para resolver (mismo tono, significado distinto según la pantalla).
+
+Propuesta aprobada por Lucas tal cual, sin ajustes:
+
+| Token propuesto | Fase | Hue | Por qué este hue y no otro |
+|---|---|---|---|
+| `--phase-hyrox-base` | Base aeróbica | Azul | No colisiona con ninguna fase de plan existente |
+| `--phase-hyrox-construccion` | Construcción | Teal | Distinto de `--phase-cut` (cian) y `--phase-lean-bulk` (esmeralda), pero en la misma familia fría — coherente con que todavía no es la fase de mayor intensidad |
+| `--phase-hyrox-especifico` | Específico de carrera | Naranja | Es el tono que hoy ya "es" HYROX en la página (tabs, franja activa) — conservarlo en la fase de mayor intensidad específica de carrera es la asociación más intuitiva, y no colisiona con `--phase-bulk` (ámbar, más amarillo) |
+| `--phase-hyrox-taper` | Afinado y competición | Rosa/coral fuerte | Cierre de la progresión (frío→cálido, calca la lógica de "se acerca la carrera"), sin colisionar con `--phase-maintenance` (violeta) |
+
+**Implementado por `frontend`:** 4 variables agregadas al árbol `:root` + `@theme inline` (mismo patrón que `--phase-*` existente), con las variantes `.badge-phase-hyrox-*` (bg 16% / texto sólido / border 35%, mismo mix `color-mix(in oklab, ...)` que `.badge-phase-bulk` etc.) que `PHASE_COLORS` necesitaba. `PHASE_COLORS` de `hyrox.tsx` reemplazado por esas clases. Hex finales, elegidos por contraste legible sobre `--background: #08090c` y verificados visualmente uno junto al otro (los 4 se distinguen a simple vista, ninguno se confunde con `--phase-bulk`/`--phase-cut`/`--phase-lean-bulk`/`--phase-maintenance`): ver tabla en §1.
+
+**B. Todo lo demás (líneas 241, 294, 409, 441, 464) — decorativo, sin significado propio. Se consolida ahora, no requiere a Lucas.**
+
+Verificado uno por uno, ninguno de estos codifica un estado real — es la misma paleta "naranja porque sí" de la página entera, elegida sin relación con `--accent` (lima) de marca, igual que el ícono de sección de HYROX ya señalado como arbitrario en §7.1. Mapeo exacto para que `frontend` lo implemente:
+
+| Uso actual (color crudo) | Línea | Qué representa | Nuevo tratamiento |
+|---|---:|---|---|
+| `border-orange-400/40 bg-orange-500/15 text-orange-100` (tab activo: Plan semanal / Estrategia / Tests / Nutrición / Contenido) | 241 | Selector de sub-pestaña — mismo patrón que cualquier tab/filtro activo del resto de la app, sin estado propio | `border-accent/40 bg-accent/15 text-accent` (mismo tratamiento que el nav activo de `AdminShell`) |
+| `ring-orange-400/40` (semana en curso, tarjeta destacada) | 294 | Resalta la tarjeta "activa" del acordeón de semanas — es selección/foco, no un estado semántico | `ring-accent/40` |
+| `focus:border-orange-400/50` (input de test/benchmark) | 441 | Estado de foco de un `<input>` | `focus:border-accent/50` — `--accent` es literalmente el token documentado en §1 para foco |
+| `text-orange-300/60` (viñeta `·` de la lista de nutrición) | 464 | Marcador decorativo de lista, sin significado | `text-text-subtle` (mismo tratamiento neutro que las viñetas `·` de `SessionCard`, ya en el archivo) |
+| `text-emerald-300/90` (prefijo "Reparto:" en cada estación) | 409 | Encabezado de un dato informativo/procedimental (cómo se reparte la estación en dobles) — no es una cifra positiva ni un logro | `text-info` — es guía informativa, no éxito; evita reusar esmeralda, que en el resto de la app ya significa `--phase-lean-bulk`/`--success` |
+
+Nada de esta tabla B crea categoría nueva: todo resuelve con `--accent`, `--info` y `--text-subtle`, ya existentes.
+
+### 8.3 Pendiente — resuelto, nada abierto
+
+Ambos puntos de 8.2 (A y B) están implementados. Lucas aprobó la propuesta de 4 tokens `--phase-hyrox-*` de 8.2-A sin ajustes; `frontend` la aplicó junto con el mapeo decorativo de la tabla B (8.2-B) en `src/pages/admin/hyrox.tsx` en la misma pasada. No queda nada pendiente de aprobación sobre la paleta de HYROX.
+
+## 9. Modo claro
 
 Hoy la app es permanentemente oscura (no hay toggle ni variante clara). Si en el futuro se quiere soporte de modo claro, el punto de entrada es un solo lugar: redefinir el bloque `:root` de tokens bajo un selector `[data-theme="light"]` (mismos nombres de variable, valores distintos) — como todo el resto del sistema ya lee de variables, no haría falta tocar componentes.
