@@ -98,7 +98,7 @@ export default function App({ Component, pageProps }: AppProps) {
         <title>FitPlan | Plan de Alimentación y Entrenamiento Inteligente con IA</title>
         <meta name="description" content="Crea tu plan de alimentación y entrenamiento personalizado con inteligencia artificial. Nutrición semanal con ingredientes exactos, rutinas de gym, macros, seguimiento y PDF. Hecho por nutricionistas y entrenadores." />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
-        <meta name="theme-color" content="#0b1220" />
+        <meta name="theme-color" content="#08090c" />
         <meta name="color-scheme" content="dark" />
         <meta name="author" content="FitPlan" />
         <meta name="application-name" content="FitPlan" />
