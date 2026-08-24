@@ -186,6 +186,95 @@ Además, dentro de los archivos ya migrados quedaron **intencionalmente sin toke
 
 No queda ningún tono nuevo que documentar como categoría propia: todo lo de arriba se resuelve con clases/tokens que ya existían antes de esta pasada.
 
-## 7. Modo claro
+## 7. Panel admin — reestructuración de navegación e IA (decisión de `diseno`, fase de definición)
+
+Encargo de Lucas: "reorganizar y reestructurar" el panel admin completo, no solo repintarlo (el rollout de paleta/tipografía en `AdminApp.tsx` y las 12 vistas ya está hecho — ver §6 y §5). Esta sección es la spec de la reorganización; **no implementada todavía**, es entrega para que `frontend` la construya. Demo funcionando en `/admin-design-preview` (página aislada, datos de muestra, no toca las vistas reales — mismo patrón que `/design-preview`).
+
+### 7.1 Diagnóstico: por qué el admin se siente "app vieja repintada"
+
+Auditadas las 12 vistas + `AdminApp.tsx` + `Navbar.tsx` (nav compartido cliente/admin). Hallazgo central: **el admin no tiene navegación propia.** No existe un sidebar, tab bar ni menú admin persistente en ningún lado. Lo único que existe:
+
+- Un ícono de campana (notificaciones) y un ícono de chat en `Navbar.tsx`, compartidos con la vista de cliente.
+- Un link "Configuraciones" enterrado dentro del menú desplegable del avatar de usuario (mismo menú que usa el cliente final para cambiar de idioma o cerrar sesión).
+- Breadcrumbs "← Volver al panel" / "Volver a configuraciones" sueltos en cada página, uno por uno, sin ningún punto central desde el que se vean todas las secciones a la vez.
+
+Consecuencia concreta: **`/admin/configuraciones` no es una pantalla de configuración — es el índice real del panel.** Ahí viven, a un clic de distancia con nombre engañoso, 6 de las 12 vistas: catálogo de ejercicios, generador de contenido con IA, servicios (salud/crédito de integraciones externas), métricas de RS, backlog del equipo y HYROX. Son herramientas de trabajo diario, no ajustes ocasionales — y están nombradas y ubicadas como si lo fueran. Esto es exactamente la "fricción" y "cosas enterradas" que pedía la auditoría.
+
+Segundo problema, ya apuntado en §6 pero que se repite acá: cada página tiene su propio header decorativo con gradiente hexadecimal crudo (`from-[#0b1e37] via-[#0f2847] to-[#0f3d3a]`) y su propio ícono de sección con un tono Tailwind elegido sin criterio (ejercicios=cian, servicios=esmeralda, backlog=violeta, hyrox=naranja, contenido=info) — no hay wayfinding real, cada vista "grita" con su propio color en vez de vivir en una jerarquía visual común.
+
+Tercer problema: `AdminApp.tsx` (8.060 líneas) resuelve 3 vistas (`dashboard`/`intake`/`fitplan`) con un `view` prop y su propio breadcrumb ad hoc, separado del resto de páginas de `/admin/*`, que son archivos independientes con su propio patrón de header. Dos sistemas de navegación conviviendo sin cruzarse.
+
+### 7.2 Qué patrones de la landing (issue #16, fase de auditoría) generalizan al admin y cuáles no
+
+Auditado `HomeLanding.tsx`. Esto responde la fase 1 pedida en el issue #16 para la porción admin (queda comentado también en el issue).
+
+**Generalizan bien** (reutilizados en la demo):
+- Tarjeta base: `rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5/p-6` — mismo radio, mismo borde sutil, misma superficie. Ya es lo que da `.card-surface`.
+- Patrón "kicker + título": label pequeño en mayúsculas con tracking ancho y color de acento (`text-sm font-semibold uppercase tracking-wider text-[var(--accent)]`) encima de cada `h1`/`h2` — reemplaza los headers actuales del admin, todos con el mismo texto gris `text-info/90` sin jerarquía.
+- Chips/pills (`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium`) para filtros y estados — ya existen como `.badge`, solo falta aplicarlos consistentemente en vez de los tonos sueltos por botón que señala §6.
+- Motion: `fadeUp` (opacity+y, 0.35s) al entrar cada sección y `whileInView` con stagger (`delay: i*0.05–0.06`) en grillas — el admin hoy no tiene motion en la mayoría de vistas (`actividad.tsx`, `servicios.tsx`, etc. renderizan instantáneo) o lo tiene inconsistente. Reusar exactamente los mismos valores que ya usa la landing, no inventar un lenguaje de motion nuevo.
+- Radios contundentes / botones grandes (`.btn`, `rounded-2xl`) — igual.
+
+**No generalizan, y no correspondía forzarlos** (herramienta de uso diario ≠ landing de marketing):
+- El hero de scroll grande a pantalla completa con storytelling en varias secciones apiladas — el admin necesita todo accesible sin scroll narrativo, con shell persistente (sidebar + contenido), no una página que se recorre de arriba a abajo.
+- Acordeón de FAQ y bloques de copy largo — no aplica a paneles de datos.
+- Un solo CTA de conversión dominante por sección — el admin tiene múltiples acciones concurrentes por pantalla (tabla de clientes con 5 acciones por fila), no un único "siguiente paso".
+
+### 7.3 Propuesta de reestructuración
+
+**A. Shell de navegación persistente (`<AdminShell>`, componente nuevo para `frontend`).**
+Envuelve las 12 vistas reales. Reemplaza los breadcrumbs sueltos y la falsa jerarquía de "Configuraciones".
+
+- Desktop (`lg:` y arriba): sidebar fijo a la izquierda, 248px, `bg-surface border-r border-border`. Logo + "FitPlan · Admin" arriba (link a `/admin`). Debajo, lista de navegación con **7 destinos** (ver 7.4), ícono + label, estado activo = `bg-accent/12 text-accent` (mismo tratamiento que cualquier tab/filtro activo del resto de la app — no `--info`, que es el color que se usaba antes sin motivo semántico).
+- Mobile (`< lg`): la sidebar colapsa a una tira horizontal de pills con scroll (`overflow-x-auto`, mismo patrón de pill que ya usan `hyrox.tsx`/`metricas-rs.tsx`/`actividad.tsx` para sus tabs internas — no hay que inventar el componente, ya existe, solo promoverlo a nav de primer nivel), fija abajo de la pantalla.
+- El shell **no duplica** cuenta/idioma/logout/notificaciones — eso se queda en `Navbar.tsx` tal cual está, es correcto que sea compartido con la vista cliente.
+- Contenedor de contenido: `max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8` como default; vistas con tablas anchas (Clientes, Actividad) pueden pedir `max-w-7xl`. Hoy los 12 archivos usan anchos sueltos e inconsistentes (`max-w-3xl`, `4xl`, `5xl`, `7xl` sin criterio) — se estandariza a estas dos opciones nada más.
+
+**B. Header de página estándar**, igual en las 12 vistas (reemplaza los headers ad hoc con gradiente hex crudo):
+- Kicker (`text-[11px] font-semibold uppercase tracking-[0.18em] text-accent`) + `h1` en `font-display` + subtítulo en `text-text-muted`.
+- El **gradiente de marca** (`--brand-start/mid/end`) queda reservado *solo* para el hero de Resumen/Dashboard — es el único lugar que "brilla"; las otras 11 vistas usan headers planos sin caja de color. Esto crea jerarquía real: hoy las 12 vistas tienen exactamente el mismo tratamiento de header "hero", por lo que ninguna se siente más importante que otra.
+- Acciones de la página a la derecha del header, siempre `.btn-secondary`/`.btn-primary` — nunca botones de navegación coloreados como "positivos" (ej. el actual "Ver clientes 1:1" en verde `border-success/40 bg-success/15`, que no es un estado de éxito, es solo un link).
+
+**C. Vistas de datos densos (clientes-fitplan/clientes-1:1 como caso de referencia, ver demo).**
+Reemplaza la lista vertical de tarjetas con 5-6 botones de acción de colores dispares (mapeo ya definido en §6) por:
+- Tabla en desktop: header `bg-surface-2`, filas alternadas sutiles, columnas Cliente/Estado (`.badge`)/Plan (`.badge-phase-*`)/Última actividad/Acciones.
+- Acciones como íconos `.btn-ghost` con `title`/`aria-label` (tooltip) en vez de 5 botones con texto y colores distintos por fila — mismo criterio de §6 (decorativo sin estado real → neutral).
+- En mobile, la misma fila se convierte en tarjeta `.card-surface-2` apilada (mismo dato, layout de tarjeta en vez de tabla).
+- Filtros como pills con estado activo en `--accent` (igual al selector de días de `/design-preview`), no un tono distinto por cada valor del filtro.
+
+**D. Motion + accesibilidad (mi responsabilidad directa, no delegable).**
+- Aplicar `fadeUp`/stagger consistentes (7.2) en las 12 vistas.
+- **Nuevo requisito, no existía antes:** envolver las variantes de motion compartidas en `useReducedMotion()` de `framer-motion` y desactivar animación cuando el usuario tiene `prefers-reduced-motion` — ni la landing ni el admin lo hacen hoy. Implementado en la demo (`admin-design-preview.tsx`) como referencia de patrón.
+- Botones de acción por ícono (punto C) llevan siempre `title` + `aria-label` explícito — hoy varias acciones del admin son solo ícono sin texto accesible.
+
+### 7.4 Los 7 destinos de navegación (reemplazan los 12 puntos de entrada actuales + el falso hub "Configuraciones")
+
+| # | Sección | Contenido que agrupa | Por qué |
+|---|---|---|---|
+| 1 | **Resumen** | `/admin` (dashboard) | Único lugar con hero de marca; KPIs + accesos directos a las otras 6. |
+| 2 | **Clientes** | `clientes-fitplan` + `clientes-1-1` + `actividad` como sub-pestañas de una misma vista | Las 3 son sobre el mismo dominio (usuarios/eventos de clientes) y hoy son 3 destinos desconectados; `actividad` hoy solo es alcanzable desde la campana de notificaciones. |
+| 3 | **Contenido** | `configuraciones/contenido-social` + `configuraciones/carrusel-ig` + `metricas-rs` como sub-pestañas | Mismo pipeline: generar contenido → publicarlo → medir su rendimiento. Hoy `metricas-rs` vive separado de las otras dos bajo "Configuraciones", sin relación visible entre sí. |
+| 4 | **Ejercicios** | `configuraciones/ejercicios` | Dominio de autoría de contenido de entrenamiento, no tiene relación con "Contenido" (que es marketing/redes) — se mantiene aparte a propósito. |
+| 5 | **Backlog del equipo** | `backlog` | Meta: qué están haciendo los equipos de agentes y qué decisión te está esperando. Dominio propio (gestión del propio sistema de agentes), no client-facing. |
+| 6 | **Servicios** | `servicios` | Salud/crédito de integraciones externas. Se queda como destino propio y visible (se usa seguido para troubleshooting) — con un punto de estado (verde/ámbar/rojo, tokens `--success`/`--warning`/`--danger` ya existentes) directamente en el ítem del sidebar, para ver de un vistazo si algo está caído sin entrar. |
+| 7 | **HYROX** | `hyrox` | Herramienta personal de Lucas, acotada en el tiempo (carrera 20 de noviembre). Se mantiene en el nav pero con tratamiento visualmente secundario (color apagado, sin badge) — **pendiente de `producto`, no mío:** decidir si sale del nav principal después de la carrera o si queda como plantilla reutilizable para futuros eventos. |
+
+Esto resuelve el problema central: ningún destino queda a más de 1 clic, y "Configuraciones" deja de existir como nombre engañoso — cada cosa se llama y se agrupa por lo que realmente es.
+
+### 7.5 Qué no requirió tocar nada del árbol de tokens
+
+Toda la reestructuración de arriba se resuelve con tokens/clases que ya existen (`--accent`, `--surface`/`--surface-2`/`--surface-3`, `--success`/`--warning`/`--danger`, `.badge*`, `.btn*`, `.card-surface*`, `font-display`). No hay ninguna categoría de token nueva, ningún asset de marca nuevo ni cambio de paleta — por eso esta sección no necesitó pasar por Lucas antes de proponerse. Lo único pendiente de aprobación de Lucas es la nota de HYROX de la tabla de 7.4, y es una decisión de producto (alcance/vigencia de la sección), no de diseño — corresponde a `producto`, no a él directamente.
+
+### 7.6 Pendiente para `frontend` (implementación, fuera de esta entrega)
+
+1. Construir `<AdminShell>` (sidebar desktop + tira de pills mobile) según 7.3-A y envolver las 12 vistas reales de `/admin/*`.
+2. Migrar `clientes-fitplan.tsx`/`clientes-1-1.tsx` de lista de tarjetas a tabla/tarjeta según 7.3-C.
+3. Reemplazar los headers con gradiente hex crudo de las 12 vistas por el header estándar de 7.3-B (de paso, aplica `font-display` a los headings, pendiente general de rollout ya anotado en §1).
+4. Deshacer `/admin/configuraciones` como hub — sus 6 hijos pasan a ser destinos de primer nivel (o sub-pestañas dentro de "Clientes"/"Contenido") según 7.4.
+5. Aplicar `useReducedMotion()` a las variantes de motion compartidas (punto D), y sumarlo también a `HomeLanding.tsx`/`design-preview.tsx` ya que hoy tampoco lo tienen — deuda de accesibilidad preexistente que se detectó de paso en esta auditoría.
+
+Demo de referencia (no implementación real, datos hardcodeados): `src/pages/admin-design-preview.tsx` → `/admin-design-preview` (vista "Resumen" por defecto, `?view=clientes` para la vista de datos densos).
+
+## 8. Modo claro
 
 Hoy la app es permanentemente oscura (no hay toggle ni variante clara). Si en el futuro se quiere soporte de modo claro, el punto de entrada es un solo lugar: redefinir el bloque `:root` de tokens bajo un selector `[data-theme="light"]` (mismos nombres de variable, valores distintos) — como todo el resto del sistema ya lee de variables, no haría falta tocar componentes.
