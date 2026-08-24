@@ -23,15 +23,21 @@ const CONTENT_W = 860;
 /** Se renderiza al doble y se deja que Instagram reescale: el texto queda más nítido. */
 const SCALE = 2;
 
+// Paleta "FitPlan Volt" (ver DESIGN_SYSTEM.md) — acento lima único en vez de
+// la pareja azul/esmeralda anterior, negro neutro en vez de navy. `brand` y
+// `signal` ya no son dos tonos distintos: se consolidan en el mismo acento
+// lima, igual que el resto de la app pasó de "azul = marca, verde = éxito" a
+// un único --accent. El logo (`Mark`, abajo) mantiene su gradiente real sin
+// tocar — es el ícono de la app, fuera del alcance de este cambio de paleta.
 const C = {
-  ink: "#080E18",
-  rule: "#1E2C42",
-  brand: "#3B82F6",
-  signal: "#10E5B0",
-  muted: "#7E90AB",
-  paper: "#E8EEF7",
-  body: "#B9C6D8",
-  dead: "#64748B",
+  ink: "#08090c",
+  rule: "#242628",
+  brand: "#cbff3d",
+  signal: "#cbff3d",
+  muted: "#9a9c98",
+  paper: "#f5f7f2",
+  body: "#c7c9c4",
+  dead: "#6b6d6a",
 };
 
 function loadFont(file: string): Buffer {
@@ -51,7 +57,7 @@ async function getFonts(): Promise<LoadedFont[]> {
   return fontCache;
 }
 
-/** Fila de una tabla de registro. `delta` en verde marca lo que cambia. */
+/** Fila de una tabla de registro. `delta` en el acento de marca marca lo que cambia. */
 export type LogRow = { week: string; sets: string; load: string; note?: string; delta?: string; dead?: boolean };
 
 export type SlideSpec =

@@ -32,15 +32,26 @@
   }
 
   /* Tokens fijos de la creatividad: las diapositivas se exportan como imagen,
-     así que no cambian con el tema del visor. */
+     así que no cambian con el tema del visor.
+     Paleta "FitPlan Volt" (ver DESIGN_SYSTEM.md) — acento lima único en vez
+     de la pareja azul/esmeralda anterior, fondo negro neutro (no navy). El
+     mark del footer/cierre es "la zancada" (ver brand&designs/README.md),
+     el mismo path y gradiente que usa el renderer de producción
+     (renderCarouselSlide.tsx) — ya no el ícono de manzana que TikTok rechazó
+     por riesgo de marca. Mantiene su gradiente propio (azul→cian→verde) sin
+     tocar, igual que en producción: es el ícono de la app, fuera del
+     alcance del cambio de paleta a un único --accent. */
   .slide {
-    --ink: #080E18;
-    --surface: #111B2B;
-    --rule: #1E2C42;
-    --brand: #3B82F6;
-    --signal: #10B981;
-    --muted: #7E90AB;
-    --paper: #E8EEF7;
+    --ink: #08090c;
+    --surface: #111315;
+    --rule: #242628;
+    --accent: #cbff3d;
+    --accent-strong: #a6e600;
+    --brand-start: #cbff3d;
+    --brand-mid: #ff5f45;
+    --brand-end: #ff3d81;
+    --muted: #9a9c98;
+    --paper: #f5f7f2;
   }
 
   * { box-sizing: border-box; }
@@ -68,10 +79,10 @@
   button {
     font: inherit; font-size: 0.88rem; font-weight: 600;
     padding: 9px 16px; border-radius: 8px; cursor: pointer;
-    background: #3B82F6; color: #fff; border: 1px solid #3B82F6;
+    background: #cbff3d; color: #0a0f05; border: 1px solid #cbff3d;
   }
-  button:hover { background: #2f74e0; }
-  button:focus-visible { outline: 3px solid #22D3EE; outline-offset: 2px; }
+  button:hover { background: #a6e600; }
+  button:focus-visible { outline: 3px solid #cbff3d; outline-offset: 2px; }
 
   .deck { display: flex; flex-direction: column; gap: 40px; }
 
@@ -89,7 +100,14 @@
   .slide {
     width: 1080px; height: 1350px; flex: none;
     position: relative; overflow: hidden;
-    background: var(--ink); color: var(--paper);
+    /* Ambiental sutil con el gradiente de marca (lima → coral → magenta),
+       igual en espíritu al fondo de la app (globals.css) pero muy tenue para
+       no comprometer el contraste del texto sobre --ink. */
+    background:
+      radial-gradient(900px 560px at 88% -10%, rgba(203,255,61,0.10) 0%, transparent 60%),
+      radial-gradient(760px 560px at -12% 18%, rgba(255,61,129,0.07) 0%, transparent 60%),
+      var(--ink);
+    color: var(--paper);
     padding: 96px 88px 88px 132px;
     display: flex; flex-direction: column;
   }
@@ -113,7 +131,7 @@
     font-size: 26px; letter-spacing: 0.16em; color: var(--muted);
     font-variant-numeric: tabular-nums;
   }
-  .idx b { color: var(--brand); font-weight: 500; }
+  .idx b { color: var(--accent); font-weight: 500; }
 
   .spacer { flex: 1; }
 
@@ -122,7 +140,7 @@
     font-size: 116px; line-height: 0.94; letter-spacing: -0.035em;
     text-wrap: balance; text-transform: uppercase;
   }
-  h2.display .em { color: var(--signal); }
+  h2.display .em { color: var(--accent); }
 
   h3.title {
     margin: 0; font-weight: 800;
@@ -130,14 +148,14 @@
   }
 
   p.sub { margin: 32px 0 0; font-size: 40px; line-height: 1.35; color: var(--muted); max-width: 22ch; }
-  p.body { margin: 40px 0 0; font-size: 34px; line-height: 1.45; color: #B9C6D8; max-width: 30ch; }
+  p.body { margin: 40px 0 0; font-size: 34px; line-height: 1.45; color: #c7c9c4; max-width: 30ch; }
 
   .foot {
     display: flex; align-items: center; gap: 20px;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 24px; color: var(--muted); letter-spacing: 0.04em;
   }
-  .foot svg { width: 46px; height: 46px; flex: none; }
+  .foot svg { width: 46px; height: auto; flex: none; }
 
   /* ---- Tabla de registro: los números cuentan la historia ---- */
   .log { margin: 56px 0 0; width: 100%; border-collapse: collapse; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
@@ -150,8 +168,8 @@
     font-variant-numeric: tabular-nums; color: var(--paper);
   }
   .log td.note { font-size: 24px; color: var(--muted); text-align: right; }
-  .log td.delta { font-size: 30px; color: var(--signal); text-align: right; }
-  .log tr.dead td { color: #64748B; }
+  .log td.delta { font-size: 30px; color: var(--accent); text-align: right; }
+  .log tr.dead td { color: #6b6d6a; }
 
   .caption-line {
     margin: 44px 0 0; font-size: 38px; font-weight: 700; letter-spacing: -0.02em; color: var(--paper);
@@ -163,12 +181,12 @@
   ul.includes .tick { flex: none; width: 34px; height: 34px; margin-top: 6px; }
 
   /* ---- Cierre ---- */
-  .mark { width: 132px; height: 132px; }
+  .mark { width: 132px; height: auto; }
   .price {
     margin: 28px 0 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 34px; color: var(--signal); letter-spacing: 0.02em; font-variant-numeric: tabular-nums;
+    font-size: 34px; color: var(--accent); letter-spacing: 0.02em; font-variant-numeric: tabular-nums;
   }
-  .url { margin: 56px 0 0; font-size: 40px; font-weight: 700; letter-spacing: -0.01em; color: var(--brand); }
+  .url { margin: 56px 0 0; font-size: 40px; font-weight: 700; letter-spacing: -0.01em; color: var(--accent); }
 
   /* ---- Bloque de textos para copiar ---- */
   .copy-block {
@@ -211,7 +229,7 @@
           <p class="sub">Y tú seguiste haciéndolo igual.</p>
           <div class="spacer"></div>
           <div class="foot">
-            <svg viewBox="0 0 1080 1080" aria-hidden="true"><defs><linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#3b82f6"/><stop offset="100%" stop-color="#06b6d4"/></linearGradient></defs><g transform="translate(248.8,207.2) scale(1.3)"><path fill="url(#g1)" d="M350.85 129c25.97 4.67 47.27 18.67 63.92 42 14.65 20.67 24.64 46.67 29.96 78 4.67 28.67 4.32 57.33-1 86-7.99 47.33-23.97 87-47.94 119-28.64 38.67-64.59 58-107.87 58-10.66 0-22.3-3.33-34.96-10-8.66-5.33-18.31-8-28.97-8s-20.3 2.67-28.97 8c-12.66 6.67-24.3 10-34.96 10-43.28 0-79.23-19.33-107.87-58-23.97-32-39.95-71.67-47.94-119-5.32-28.67-5.67-57.33-1-86 5.32-31.33 15.31-57.33 29.96-78 16.65-23.33 37.95-37.33 63.92-42 15.98-2.67 37.95-.33 65.92 7 23.97 6.67 44.28 14.67 60.93 24 16.65-9.33 36.96-17.33 60.93-24 27.98-7.33 49.96-9.67 65.94-7zm-54.94-41c-9.32 8.67-21.65 15-36.96 19-10.66 3.33-22.3 5-34.96 5l-14.98-1c-1.33-9.33-1.33-20 0-32 2.67-24 10.32-42.33 22.97-55 9.32-8.67 21.65-15 36.96-19 10.66-3.33 22.3-5 34.96-5l14.98 1 1 15c0 12.67-1.67 24.33-4.99 35-3.99 15.33-10.31 27.67-18.98 37z"/></g></svg>
+            <svg viewBox="150 264 750 608" aria-hidden="true"><defs><linearGradient id="g1" x1="8%" y1="10%" x2="92%" y2="90%"><stop offset="0%" stop-color="#3B82F6"/><stop offset="52%" stop-color="#22D3EE"/><stop offset="100%" stop-color="#10E5B0"/></linearGradient></defs><g fill="url(#g1)"><path d="M150 852 C 214 700, 318 566, 456 470 C 386 618, 336 742, 316 866 Z"/><path d="M556 872 C 636 662, 748 458, 900 264 C 852 500, 780 700, 690 872 Z"/></g></svg>
             <span>FITPLAN AI</span>
           </div>
         </section>
@@ -273,11 +291,11 @@
           <div class="spacer"></div>
           <h3 class="title">Lo que entra en el plan</h3>
           <ul class="includes">
-            <li><svg class="tick" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5l5.5 5.5L20 6"/></svg><span>Menús semanales con ingredientes y cantidades exactas</span></li>
-            <li><svg class="tick" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5l5.5 5.5L20 6"/></svg><span>Rutinas según tu nivel, tu material y tus lesiones</span></li>
-            <li><svg class="tick" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5l5.5 5.5L20 6"/></svg><span>Macros y seguimiento diario</span></li>
-            <li><svg class="tick" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5l5.5 5.5L20 6"/></svg><span>Todo exportable a PDF</span></li>
-            <li><svg class="tick" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5l5.5 5.5L20 6"/></svg><span>Opción de coach humano 1:1</span></li>
+            <li><svg class="tick" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5l5.5 5.5L20 6"/></svg><span>Menús semanales con ingredientes y cantidades exactas</span></li>
+            <li><svg class="tick" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5l5.5 5.5L20 6"/></svg><span>Rutinas según tu nivel, tu material y tus lesiones</span></li>
+            <li><svg class="tick" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5l5.5 5.5L20 6"/></svg><span>Macros y seguimiento diario</span></li>
+            <li><svg class="tick" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5l5.5 5.5L20 6"/></svg><span>Todo exportable a PDF</span></li>
+            <li><svg class="tick" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5l5.5 5.5L20 6"/></svg><span>Opción de coach humano 1:1</span></li>
           </ul>
           <div class="spacer"></div>
           <div class="foot"><span>FITPLAN AI</span></div>
@@ -292,7 +310,7 @@
         <section class="slide">
           <div class="idx"><b>05</b> / 05</div>
           <div class="spacer"></div>
-          <svg class="mark" viewBox="0 0 1080 1080" aria-hidden="true"><defs><linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#3b82f6"/><stop offset="100%" stop-color="#06b6d4"/></linearGradient></defs><g transform="translate(248.8,207.2) scale(1.3)"><path fill="url(#g2)" d="M350.85 129c25.97 4.67 47.27 18.67 63.92 42 14.65 20.67 24.64 46.67 29.96 78 4.67 28.67 4.32 57.33-1 86-7.99 47.33-23.97 87-47.94 119-28.64 38.67-64.59 58-107.87 58-10.66 0-22.3-3.33-34.96-10-8.66-5.33-18.31-8-28.97-8s-20.3 2.67-28.97 8c-12.66 6.67-24.3 10-34.96 10-43.28 0-79.23-19.33-107.87-58-23.97-32-39.95-71.67-47.94-119-5.32-28.67-5.67-57.33-1-86 5.32-31.33 15.31-57.33 29.96-78 16.65-23.33 37.95-37.33 63.92-42 15.98-2.67 37.95-.33 65.92 7 23.97 6.67 44.28 14.67 60.93 24 16.65-9.33 36.96-17.33 60.93-24 27.98-7.33 49.96-9.67 65.94-7zm-54.94-41c-9.32 8.67-21.65 15-36.96 19-10.66 3.33-22.3 5-34.96 5l-14.98-1c-1.33-9.33-1.33-20 0-32 2.67-24 10.32-42.33 22.97-55 9.32-8.67 21.65-15 36.96-19 10.66-3.33 22.3-5 34.96-5l14.98 1 1 15c0 12.67-1.67 24.33-4.99 35-3.99 15.33-10.31 27.67-18.98 37z"/></g></svg>
+          <svg class="mark" viewBox="150 264 750 608" aria-hidden="true"><defs><linearGradient id="g2" x1="8%" y1="10%" x2="92%" y2="90%"><stop offset="0%" stop-color="#3B82F6"/><stop offset="52%" stop-color="#22D3EE"/><stop offset="100%" stop-color="#10E5B0"/></linearGradient></defs><g fill="url(#g2)"><path d="M150 852 C 214 700, 318 566, 456 470 C 386 618, 336 742, 316 866 Z"/><path d="M556 872 C 636 662, 748 458, 900 264 C 852 500, 780 700, 690 872 Z"/></g></svg>
           <h3 class="title" style="margin-top:44px">Empieza gratis</h3>
           <p class="price">Premium desde 2,08 €/mes</p>
           <p class="url">fitplan-ai.com</p>

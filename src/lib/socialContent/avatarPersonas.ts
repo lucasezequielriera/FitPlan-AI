@@ -59,8 +59,15 @@ export const AVATAR_PERSONAS: AvatarPersona[] = [
  * logo correspondiente (blanco sobre oscuro, negro sobre blanco, gradiente de
  * marca sobre azul) se decide a mano al agregar el logo real después, no acá.
  */
+// Nota (rediseño "FitPlan Volt"): la marca ya no es azul, es lima/negro (ver
+// DESIGN_SYSTEM.md) — el azul oscuro de esta lista quedó como color de
+// vestuario neutro, no como referencia al color de marca. No se cambia a
+// lima porque esta función no está en uso hoy (los looks reales de Marcos y
+// Elena se armaron a mano en HeyGen, ver AVATAR_PERSONAS arriba) y vestir a
+// un avatar entero de lima es una decisión de estilismo, no una migración de
+// paleta automática — a definir con `diseno`/Lucas si se retoma esta función.
 const SHIRT_LOGO_RULES: { shirt: string; shirtHex: string }[] = [
-  { shirt: "camiseta azul oscuro (el azul de marca, #1E3A8A aprox.)", shirtHex: "#1E3A8A" },
+  { shirt: "camiseta azul oscuro", shirtHex: "#1E3A8A" },
   { shirt: "camiseta negra", shirtHex: "#0A0A0A" },
   { shirt: "camiseta blanca", shirtHex: "#FFFFFF" },
 ];

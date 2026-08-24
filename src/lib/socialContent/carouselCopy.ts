@@ -30,8 +30,8 @@ El sistema mide sobre todo cuánta gente llega a la última diapositiva y cuánt
 - FitPlan aparece como pronto en la penúltima. Un carrusel que se declara anuncio en la primera no lo comparte nadie.
 
 TIPOS DE DIAPOSITIVA
-- "hook": la primera, siempre. headline corto y contundente (máx. 7 palabras, se muestra en mayúsculas). "emphasis" es una palabra o número suelto que se pinta en verde para rematar. "sub" es una línea de apoyo.
-- "log": una tabla de registro de gimnasio. Es el recurso más potente del formato: los números cuentan la historia. columns son 3 encabezados cortos. Cada fila lleva week, sets, load y, o bien "note" (máx. 16 caracteres) o bien "delta" (un incremento, se pinta en verde). "dead: true" pinta la fila en gris apagado, para mostrar estancamiento. Opcionalmente "caption" (frase corta de remate) o "body" (párrafo breve).
+- "hook": la primera, siempre. headline corto y contundente (máx. 7 palabras, se muestra en mayúsculas). "emphasis" es una palabra o número suelto que se pinta en el lima de marca para rematar. "sub" es una línea de apoyo.
+- "log": una tabla de registro de gimnasio. Es el recurso más potente del formato: los números cuentan la historia. columns son 3 encabezados cortos. Cada fila lleva week, sets, load y, o bien "note" (máx. 16 caracteres) o bien "delta" (un incremento, se pinta en el lima de marca). "dead: true" pinta la fila en gris apagado, para mostrar estancamiento. Opcionalmente "caption" (frase corta de remate) o "body" (párrafo breve).
 - "list": título y de 3 a 5 puntos concretos, cada uno de una línea.
 - "cta": la última, siempre. title corto, price y url.
 

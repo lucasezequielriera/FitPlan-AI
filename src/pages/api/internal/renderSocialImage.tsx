@@ -16,6 +16,13 @@ export const config = {
  *
  * `format=story` (default, usado para el video de Reels/TikTok, 9:16) vs.
  * `format=feed` (1:1, por si en el futuro se vuelve a publicar como imagen).
+ *
+ * Paleta actualizada a "FitPlan Volt" (ver DESIGN_SYSTEM.md): acento lima
+ * `#cbff3d` en vez del teal `#2dd4bf` anterior, fondo negro neutro en vez de
+ * navy. Este endpoint ya no es el pipeline de video en vivo (lo reemplazó
+ * HeyGen, ver heygenAvatarVideo.ts), pero sigue accesible desde el preview
+ * manual del admin — se actualiza igual para no dejar un remanente
+ * visualmente inconsistente con el resto de la marca.
  */
 export default function handler(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -35,8 +42,8 @@ export default function handler(req: NextRequest) {
           flexDirection: "column",
           justifyContent: "space-between",
           padding: format === "feed" ? "80px" : "100px 80px",
-          background: "linear-gradient(160deg, #0b1020 0%, #0f1b33 55%, #0b1020 100%)",
-          color: "#e6f6ff",
+          background: "linear-gradient(160deg, #08090c 0%, #111315 55%, #08090c 100%)",
+          color: "#f5f7f2",
           fontFamily: "sans-serif",
         }}
       >
@@ -46,7 +53,7 @@ export default function handler(req: NextRequest) {
               width: "20px",
               height: "20px",
               borderRadius: "9999px",
-              background: "#2dd4bf",
+              background: "#cbff3d",
               display: "flex",
             }}
           />
@@ -65,7 +72,7 @@ export default function handler(req: NextRequest) {
             {headline}
           </span>
           {subtext ? (
-            <span style={{ fontSize: "36px", color: "rgba(230,246,255,0.75)", lineHeight: 1.4, display: "flex" }}>
+            <span style={{ fontSize: "36px", color: "rgba(245,247,242,0.75)", lineHeight: 1.4, display: "flex" }}>
               {subtext}
             </span>
           ) : null}
@@ -77,16 +84,16 @@ export default function handler(req: NextRequest) {
               display: "flex",
               padding: "14px 28px",
               borderRadius: "9999px",
-              background: "rgba(45,212,191,0.14)",
-              border: "2px solid rgba(45,212,191,0.4)",
+              background: "rgba(203,255,61,0.14)",
+              border: "2px solid rgba(203,255,61,0.4)",
               fontSize: "26px",
-              color: "#2dd4bf",
+              color: "#cbff3d",
               fontWeight: 600,
             }}
           >
             Tu plan, con IA
           </div>
-          <span style={{ fontSize: "28px", color: "#2dd4bf", fontWeight: 600 }}>fitplan-ai.com</span>
+          <span style={{ fontSize: "28px", color: "#cbff3d", fontWeight: 600 }}>fitplan-ai.com</span>
         </div>
       </div>
     ),
