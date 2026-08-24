@@ -51,6 +51,7 @@ const SVGS = {
   "logo/svg/marca-azul.svg": markSvg("#3B82F6"),
   "logo/svg/marca-gradiente.svg": markSvg(null, "main"),
   "logo/svg/marca-gradiente-pro.svg": markSvg(null, "pro"),
+  "logo/svg/marca-lima.svg": markSvg("#cbff3d"),
   // Iconos cuadrados con fondo
   // A sangre y opacos: Apple rechaza iconos con transparencia o esquinas
   // redondeadas (el sistema aplica la máscara), e Instagram recorta en círculo,
@@ -105,6 +106,7 @@ const PNGS = [
   ["logo/svg/marca-negro.svg", "logo/png/marca-negro-1024.png", 1024],
   ["logo/svg/marca-gradiente.svg", "logo/png/marca-gradiente-1024.png", 1024],
   ["logo/svg/marca-gradiente-pro.svg", "logo/png/marca-gradiente-pro-1024.png", 1024],
+  ["logo/svg/marca-lima.svg", "logo/png/marca-lima-1024.png", 1024],
   ["logo/svg/marca-negro.svg", "ropa/marca-negro-4000.png", 4000],
   ["logo/svg/marca-blanco.svg", "ropa/marca-blanco-4000.png", 4000],
 ];
