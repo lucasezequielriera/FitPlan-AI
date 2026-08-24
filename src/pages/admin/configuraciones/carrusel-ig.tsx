@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/router";
 import { motion } from "framer-motion";
 import { useAuthStore } from "@/store/authStore";
 import { getIsAdminClient, adminFetch } from "@/lib/adminAuthClient";
 import Navbar from "@/components/Navbar";
-import { FaArrowLeft, FaImages, FaMagic, FaPaperPlane, FaClock, FaTimes, FaPlus, FaTrash } from "react-icons/fa";
+import { AdminShell } from "@/components/admin/AdminShell";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { AdminSubTabs } from "@/components/admin/AdminSubTabs";
+import { useAdminFadeUp } from "@/components/admin/adminMotion";
+import { FaMagic, FaPaperPlane, FaClock, FaTimes, FaPlus, FaTrash } from "react-icons/fa";
 
 const MADRID_TZ = "Europe/Madrid";
 
@@ -51,6 +54,7 @@ const MAX_SLIDES = 10;
 
 export default function AdminCarruselIgPage() {
   const router = useRouter();
+  const fadeUp = useAdminFadeUp();
   const { user: authUser, loading: authLoading } = useAuthStore();
   const [checking, setChecking] = useState(true);
   const [allowed, setAllowed] = useState(false);
@@ -188,10 +192,10 @@ export default function AdminCarruselIgPage() {
 
   if (authLoading || checking) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900">
+      <div className="min-h-screen bg-background">
         <Navbar />
         <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-violet-400" />
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-accent" />
         </div>
       </div>
     );
@@ -199,40 +203,25 @@ export default function AdminCarruselIgPage() {
   if (!allowed) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900">
-      <Navbar />
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
-        <Link
-          href="/admin/configuraciones"
-          className="inline-flex items-center gap-2 text-sm text-white/55 hover:text-white/85 transition-colors mb-4"
-        >
-          <FaArrowLeft className="text-xs" />
-          Volver a configuraciones
-        </Link>
+    <AdminShell active="contenido">
+      <motion.div {...fadeUp}>
+        <AdminPageHeader
+          kicker="Contenido"
+          title="Generador de contenido"
+          subtitle="Carruseles de imágenes para Instagram con el formato de marca."
+        />
+        <AdminSubTabs
+          tabs={[
+            { label: "Generador", href: "/admin/configuraciones/contenido-social", active: false },
+            { label: "Carrusel IG", href: "/admin/configuraciones/carrusel-ig", active: true },
+            { label: "Métricas", href: "/admin/metricas-rs", active: false },
+          ]}
+        />
 
-        <div className="flex items-center gap-3 mb-6">
-          <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-info/20 border border-info/35 text-info">
-            <FaImages className="text-lg" />
-          </span>
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-semibold text-white">Generador de contenido</h1>
-            <p className="text-sm text-white/55 mt-1">Carruseles de imágenes para Instagram con el formato de marca.</p>
-          </div>
-        </div>
+        {error && <div className="mt-6 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">{error}</div>}
+        {notice && <div className="mt-6 rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success">{notice}</div>}
 
-        <div className="flex gap-2 mb-6">
-          <Link href="/admin/configuraciones/contenido-social" className="text-sm px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 text-white/60 hover:text-white/85 transition-colors">
-            Reels
-          </Link>
-          <span className="text-sm px-3 py-1.5 rounded-lg border border-info/40 bg-info/15 text-info">
-            Carrusel
-          </span>
-        </div>
-
-        {error && <div className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger mb-4">{error}</div>}
-        {notice && <div className="rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm text-success mb-4">{notice}</div>}
-
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="card-surface p-5 space-y-4">
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="card-surface p-5 mt-6 space-y-4">
           <div>
             <label htmlFor="topic" className="block text-sm text-white/75 mb-1.5">Tema del carrusel</label>
             <input
@@ -461,7 +450,7 @@ export default function AdminCarruselIgPage() {
             )}
           </motion.div>
         )}
-      </div>
-    </div>
+      </motion.div>
+    </AdminShell>
   );
 }

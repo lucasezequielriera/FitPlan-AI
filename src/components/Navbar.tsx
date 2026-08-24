@@ -1113,24 +1113,6 @@ export default function Navbar() {
                         </span>
                       </button>
 
-                      {isAdmin && (
-                        <button
-                          type="button"
-                          role="menuitem"
-                          onClick={() => {
-                            setUserMenuOpen(false);
-                            router.push("/admin/configuraciones");
-                          }}
-                          className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-medium text-[var(--foreground)] transition hover:bg-[var(--landing-surface)]"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4 shrink-0 text-[var(--landing-accent)]" aria-hidden>
-                            <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
-                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.08a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.08a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.08a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1V15Z" />
-                          </svg>
-                          <span className="min-w-0 flex-1 truncate">Configuraciones</span>
-                        </button>
-                      )}
-
                       <div className="my-1 h-px bg-[var(--landing-border)]" role="separator" />
 
                       <div className="px-3 py-2">

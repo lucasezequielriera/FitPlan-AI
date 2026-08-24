@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/router";
+import { motion } from "framer-motion";
 import Navbar from "@/components/Navbar";
 import { useAuthStore } from "@/store/authStore";
 import { getIsAdminClient, adminFetch } from "@/lib/adminAuthClient";
-import { FaArrowLeft } from "react-icons/fa";
+import { AdminShell } from "@/components/admin/AdminShell";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { AdminSubTabs } from "@/components/admin/AdminSubTabs";
+import { useAdminFadeUp } from "@/components/admin/adminMotion";
 
 type ActivityItem = {
   id: string;
@@ -22,6 +25,7 @@ type ActivityItem = {
 
 export default function AdminActividadPage() {
   const router = useRouter();
+  const fadeUp = useAdminFadeUp();
   const { user: authUser, loading: authLoading } = useAuthStore();
   const [checking, setChecking] = useState(true);
   const [allowed, setAllowed] = useState(false);
@@ -160,24 +164,22 @@ export default function AdminActividadPage() {
   if (!allowed) return null;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      <Navbar />
-      <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
-        <Link
-          href="/admin"
-          className="mb-4 inline-flex items-center gap-2 text-sm text-white/60 transition-colors hover:text-white/90"
-        >
-          <FaArrowLeft className="text-xs" />
-          Volver al panel
-        </Link>
+    <AdminShell active="clientes">
+      <motion.div {...fadeUp}>
+        <AdminPageHeader
+          kicker="Admin · Historial"
+          title="Actividad y notificaciones"
+          subtitle="Registro completo de eventos recientes, agrupado por fecha y hora."
+        />
+        <AdminSubTabs
+          tabs={[
+            { label: "FitPlan", href: "/admin/clientes-fitplan", active: false },
+            { label: "1:1", href: "/admin/clientes-1-1", active: false },
+            { label: "Actividad", href: "/admin/actividad", active: true },
+          ]}
+        />
 
-        <div className="mb-5 rounded-2xl border border-[var(--info)]/25 bg-gradient-to-br from-[#0b1e37] via-[#0f2847] to-[#0f3d3a] p-4 sm:p-5">
-          <p className="text-[11px] uppercase tracking-[0.16em] text-info/90">Admin · Historial</p>
-          <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-white">Actividad y notificaciones</h1>
-          <p className="mt-1 text-sm text-white/65">Registro completo de eventos recientes, agrupado por fecha y hora.</p>
-        </div>
-
-        <div className="mb-4 rounded-2xl border border-white/10 bg-white/[0.03] p-3 sm:p-4">
+        <div className="mt-5 mb-4 rounded-2xl border border-border bg-surface-2 p-3 sm:p-4">
           <div className="mb-3 flex flex-wrap gap-1.5">
             {[
               ["all", "Todo"],
@@ -193,8 +195,8 @@ export default function AdminActividadPage() {
                 onClick={() => setCategoryFilter(id as "all" | "users" | "payments" | "fatigue" | "risk" | "emails")}
                 className={`rounded-lg border px-2.5 py-1.5 text-xs transition ${
                   categoryFilter === id
-                    ? "border-[var(--info)]/50 bg-info/20 text-info"
-                    : "border-white/15 bg-white/5 text-white/70 hover:text-white"
+                    ? "border-accent/40 bg-accent/12 text-accent"
+                    : "border-border bg-surface text-text-muted hover:text-foreground"
                 }`}
               >
                 {label}
@@ -206,23 +208,23 @@ export default function AdminActividadPage() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Buscar por nombre, email, tipo o contenido..."
-            className="w-full rounded-lg border border-white/20 bg-black/25 px-3 py-2 text-sm text-white placeholder:text-white/45 focus:outline-none focus:ring-2 focus:ring-info/45"
+            className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-text-subtle focus:outline-none focus:ring-2 focus:ring-accent/50"
           />
         </div>
 
         {loading ? (
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-white/70">
+          <div className="rounded-2xl border border-border bg-surface-2 p-6 text-sm text-text-muted">
             Cargando historial...
           </div>
         ) : Object.keys(groupedByDay).length === 0 ? (
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-white/70">
+          <div className="rounded-2xl border border-border bg-surface-2 p-6 text-sm text-text-muted">
             No hay resultados para los filtros aplicados.
           </div>
         ) : (
           <div className="space-y-4">
             {Object.entries(groupedByDay).map(([dayKey, dayItems]) => (
-              <section key={dayKey} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 sm:p-4">
-                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-info/85">{dayKey}</p>
+              <section key={dayKey} className="rounded-2xl border border-border bg-surface-2 p-3 sm:p-4">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-text-muted">{dayKey}</p>
                 <div className="space-y-2">
                   {dayItems.map((item) => {
                     const date = item.createdAt ? new Date(item.createdAt) : null;
@@ -230,19 +232,19 @@ export default function AdminActividadPage() {
                       ? `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`
                       : "--:--";
                     return (
-                      <article key={item.id} className="rounded-xl border border-white/10 bg-black/20 px-3 py-2.5">
+                      <article key={item.id} className="rounded-xl border border-border bg-surface px-3 py-2.5">
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-[11px] font-semibold uppercase tracking-wide text-white/60">{hour}</p>
-                          <p className="text-[11px] uppercase tracking-wide text-info/85">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">{hour}</p>
+                          <p className="text-[11px] uppercase tracking-wide text-text-muted">
                             {item.label}
                             {item.provider ? ` · ${item.provider}` : ""}
                           </p>
                         </div>
-                        <p className="mt-1 text-sm text-white/90">
+                        <p className="mt-1 text-sm text-foreground">
                           {item.userName || item.userEmail || "Usuario"} · {item.message}
                         </p>
                         {(typeof item.amount === "number" || item.currency) && (
-                          <p className="mt-1 text-xs text-white/60">
+                          <p className="mt-1 text-xs text-text-muted">
                             Monto: {item.amount ?? 0} {item.currency || ""}
                           </p>
                         )}
@@ -254,7 +256,7 @@ export default function AdminActividadPage() {
             ))}
           </div>
         )}
-      </div>
-    </div>
+      </motion.div>
+    </AdminShell>
   );
 }

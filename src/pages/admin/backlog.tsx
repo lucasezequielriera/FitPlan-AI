@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/router";
 import { motion } from "framer-motion";
 import { useAuthStore } from "@/store/authStore";
 import { getIsAdminClient, adminFetch } from "@/lib/adminAuthClient";
 import Navbar from "@/components/Navbar";
+import { AdminShell } from "@/components/admin/AdminShell";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { useAdminFadeUp } from "@/components/admin/adminMotion";
 import {
-  FaArrowLeft,
-  FaColumns,
   FaSync,
   FaExclamationTriangle,
   FaExternalLinkAlt,
@@ -128,6 +128,7 @@ function IssueRow({ issue }: { issue: BacklogIssue }) {
 
 export default function AdminBacklogPage() {
   const router = useRouter();
+  const fadeUp = useAdminFadeUp();
   const { user: authUser, loading: authLoading } = useAuthStore();
   const [checking, setChecking] = useState(true);
   const [allowed, setAllowed] = useState(false);
@@ -173,10 +174,10 @@ export default function AdminBacklogPage() {
 
   if (authLoading || checking) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900">
+      <div className="min-h-screen bg-background">
         <Navbar />
         <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-violet-400" />
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-accent" />
         </div>
       </div>
     );
@@ -187,45 +188,25 @@ export default function AdminBacklogPage() {
   const pending = data?.pendingDecisions ?? [];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900">
-      <Navbar />
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
-        <div className="mb-8">
-          <Link
-            href="/admin/configuraciones"
-            className="inline-flex items-center gap-2 text-sm text-white/55 hover:text-white/85 transition-colors mb-4"
-          >
-            <FaArrowLeft className="text-xs" />
-            Volver a configuraciones
-          </Link>
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="flex items-center gap-3">
-              <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-violet-500/20 border border-violet-400/35 text-violet-200">
-                <FaColumns className="text-lg" />
-              </span>
-              <div>
-                <h1 className="text-2xl sm:text-3xl font-semibold text-white">Backlog del equipo</h1>
-                <p className="text-sm text-white/55 mt-1">
-                  Qué está haciendo cada equipo y qué está esperando una decisión tuya.
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => void load()}
-              disabled={loading}
-              className="btn btn-secondary text-sm disabled:opacity-50"
-            >
+    <AdminShell active="backlog">
+      <motion.div {...fadeUp}>
+        <AdminPageHeader
+          kicker="Backlog del equipo"
+          title="Backlog del equipo"
+          subtitle="Qué está haciendo cada equipo y qué está esperando una decisión tuya."
+          actions={
+            <button type="button" onClick={() => void load()} disabled={loading} className="btn btn-secondary text-sm disabled:opacity-50">
               <FaSync className={loading ? "animate-spin" : ""} />
               Actualizar
             </button>
-          </div>
-        </div>
+          }
+        />
 
         {error && (
-          <div className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger mb-6">{error}</div>
+          <div className="mt-6 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">{error}</div>
         )}
 
+        <div className="mt-6">
         {loading && !data ? (
           <p className="text-sm text-white/50">Cargando backlog...</p>
         ) : !data ? null : !data.configured ? (
@@ -367,7 +348,8 @@ export default function AdminBacklogPage() {
             ))}
           </div>
         )}
-      </div>
-    </div>
+        </div>
+      </motion.div>
+    </AdminShell>
   );
 }

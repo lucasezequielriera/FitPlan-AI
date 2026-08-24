@@ -7,6 +7,10 @@ import { useAuthStore } from "@/store/authStore";
 import { getDbSafe, getAuthSafe } from "@/lib/firebase";
 import { adminFetch } from "@/lib/adminAuthClient";
 import Navbar from "@/components/Navbar";
+import { AdminShell, type AdminSectionId } from "@/components/admin/AdminShell";
+import { AdminSubTabs } from "@/components/admin/AdminSubTabs";
+import { AdminActionIcon } from "@/components/admin/AdminActionIcon";
+import { useAdminFadeUp } from "@/components/admin/adminMotion";
 import WeeklyStatsModal from "@/components/WeeklyStatsModal";
 import ExerciseDemoMedia from "@/components/ExerciseDemoMedia";
 import { normalizeExerciseMediaKey } from "@/lib/exerciseMedia";
@@ -32,6 +36,8 @@ import {
   FaCircle,
   FaUserFriends,
   FaExternalLinkAlt,
+  FaPen,
+  FaHistory,
 } from "react-icons/fa";
 
 interface User {
@@ -354,9 +360,16 @@ function formatIntakeFieldValue(value: unknown): string {
 
 export type AdminView = "dashboard" | "intake" | "fitplan";
 
+const ADMIN_SECTION_BY_VIEW: Record<AdminView, AdminSectionId> = {
+  dashboard: "resumen",
+  intake: "clientes",
+  fitplan: "clientes",
+};
+
 export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
   const router = useRouter();
   const { user: authUser, loading: authLoading } = useAuthStore();
+  const heroFadeUp = useAdminFadeUp();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -2596,110 +2609,131 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
   }).length;
   const currentMonthLabel = nowDate.toLocaleDateString("es-AR", { month: "short", year: "numeric" });
   const previousMonthLabel = previousMonthDate.toLocaleDateString("es-AR", { month: "short", year: "numeric" });
-  return (
-    <div className="relative min-h-screen overflow-hidden bg-background text-white">
-      <div
-        className="pointer-events-none absolute inset-0 -z-0 bg-[radial-gradient(ellipse_100%_55%_at_50%_-15%,rgba(34,211,238,0.14),transparent_58%)]"
-        aria-hidden
-      />
-      <div
-        className="pointer-events-none absolute inset-0 -z-0 bg-[radial-gradient(ellipse_70%_45%_at_100%_60%,rgba(16,185,129,0.1),transparent_55%)]"
-        aria-hidden
-      />
-      <div className="pointer-events-none absolute inset-0 -z-0 bg-gradient-to-b from-[#0b1e37]/90 via-background to-background" aria-hidden />
-      <Navbar />
 
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-7">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-6"
-        >
+  const renderIntakeActions = (client: IntakeClient) => (
+    <>
+      <AdminActionIcon icon={FaUser} label="Ver datos" onClick={() => handleOpenIntakeClientDetail(client)} />
+      <AdminActionIcon
+        icon={FaPlusCircle}
+        label="Generar plan"
+        tone="success"
+        onClick={() => openIntakePlanModal(client, "generate")}
+        disabled={intakePlanGeneratingClientId !== null}
+        loading={intakePlanGeneratingClientId === client.id && intakePlanActionType === "generate"}
+      />
+      {client.latestPlanId && (
+        <>
+          <AdminActionIcon
+            icon={FaSyncAlt}
+            label="Actualizar plan"
+            tone="info"
+            onClick={() => openIntakePlanModal(client, "update")}
+            disabled={intakePlanGeneratingClientId !== null}
+            loading={intakePlanGeneratingClientId === client.id && intakePlanActionType === "update"}
+          />
+          <AdminActionIcon icon={FaEye} label="Ver plan generado" onClick={() => handleOpenGeneratedPlan(client)} />
+          <AdminActionIcon
+            icon={FaExternalLinkAlt}
+            label="Copiar enlace web del plan (el cliente lo ve sin iniciar sesión)"
+            onClick={() => void handleCopyIntakeClientPublicPlanLink(client)}
+          />
+          <AdminActionIcon
+            icon={FaTrashAlt}
+            label="Eliminar plan"
+            tone="danger"
+            onClick={() => openDeletePlanModal(client)}
+            disabled={processingIntakeAction}
+          />
+        </>
+      )}
+      <AdminActionIcon
+        icon={FaBell}
+        label={
+          requestingCheckinClientId === client.id
+            ? "Enviando solicitud de check-in..."
+            : client.wellnessCheckinRequested
+              ? "Check-in pendiente"
+              : "Pedir check-in de bienestar"
+        }
+        tone={client.wellnessCheckinRequested ? "warning" : "info"}
+        onClick={() => void handleRequestWellnessCheckin(client)}
+        disabled={requestingCheckinClientId === client.id}
+        loading={requestingCheckinClientId === client.id}
+      />
+      <AdminActionIcon
+        icon={FaChartLine}
+        label={requestingWeightClientId === client.id ? "Enviando solicitud de peso..." : "Pedir peso"}
+        onClick={() => void handleRequestWeightCheck(client)}
+        disabled={requestingWeightClientId === client.id}
+        loading={requestingWeightClientId === client.id}
+      />
+      <AdminActionIcon icon={FaLink} label="Generar link de pago" tone="success" onClick={() => openIntakePaymentModal(client)} />
+      <AdminActionIcon icon={FaEnvelope} label="Ver historial de emails" onClick={() => void handleOpenIntakeEmailHistory(client)} />
+      <AdminActionIcon
+        icon={FaTrashAlt}
+        label="Eliminar cliente"
+        tone="danger"
+        onClick={() => openDeleteUserModal(client)}
+        disabled={processingIntakeAction}
+      />
+    </>
+  );
+
+  return (
+    <AdminShell active={ADMIN_SECTION_BY_VIEW[view]}>
+      <div className="relative text-white">
+        <motion.div {...heroFadeUp} className="mb-6">
           {view === "dashboard" ? (
-            <div className="rounded-2xl border border-info/25 bg-gradient-to-br from-[var(--brand-start)]/14 via-[var(--brand-mid)]/10 to-[var(--brand-end)]/12 p-4 md:p-5 shadow-[0_16px_48px_-28px_rgba(34,211,238,0.55)]">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-info/90 mb-1.5">
-                    FitPlan · Admin
-                  </p>
-                  <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight">
-                    Panel de administración
-                  </h1>
-                  <p className="text-white/70 text-sm mt-1.5 max-w-xl">
-                    Resumen de ingresos y actividad; las listas de clientes están en vistas dedicadas.
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={handleCopyFormLink}
-                    className="px-3 py-2 rounded-xl border border-white/25 bg-white/5 hover:bg-white/10 text-white/90 text-xs sm:text-sm font-medium transition-colors"
-                  >
+            <>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent">FitPlan · Admin</p>
+              <h1 className="font-display mt-1 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+                Resumen
+              </h1>
+              <p className="mt-2 max-w-xl text-sm text-text-muted">
+                Ingresos y actividad; el detalle de clientes vive en su propia sección del menú.
+              </p>
+              {/* Hero de marca: reservado SOLO para Resumen, no se repite en el resto de vistas (DESIGN_SYSTEM.md §7.3-B) */}
+              <div
+                className="mt-4 overflow-hidden rounded-2xl border border-border p-4 md:p-5"
+                style={{
+                  background:
+                    "linear-gradient(135deg, color-mix(in oklab, var(--brand-start) 14%, var(--surface)), color-mix(in oklab, var(--brand-mid) 10%, var(--surface)) 55%, color-mix(in oklab, var(--brand-end) 12%, var(--surface)))",
+                }}
+              >
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <button type="button" onClick={handleCopyFormLink} className="btn btn-secondary text-xs sm:text-sm">
                     {copiedFormLink ? "Enlace copiado" : "Copiar enlace del formulario"}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => router.push("/admin/clientes-1-1")}
-                    className="px-3 py-2 rounded-xl border border-success/40 bg-success/15 hover:bg-success/25 text-success text-xs sm:text-sm font-semibold transition-colors"
-                  >
+                  <button type="button" onClick={() => router.push("/admin/clientes-1-1")} className="btn btn-secondary text-xs sm:text-sm">
                     Ver clientes 1:1
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => router.push("/admin/clientes-fitplan")}
-                    className="px-3 py-2 rounded-xl border border-info/40 bg-info/15 hover:bg-info/25 text-info text-xs sm:text-sm font-semibold transition-colors"
-                  >
+                  <button type="button" onClick={() => router.push("/admin/clientes-fitplan")} className="btn btn-secondary text-xs sm:text-sm">
                     Ver clientes FitPlan
                   </button>
                 </div>
               </div>
-            </div>
+            </>
           ) : (
-            <div className="rounded-2xl border border-info/25 bg-gradient-to-br from-[var(--brand-start)]/14 via-[var(--brand-mid)]/10 to-[var(--brand-end)]/12 p-4 md:p-5 shadow-[0_16px_48px_-28px_rgba(34,211,238,0.55)]">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex flex-wrap items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => router.push("/admin")}
-                    className="px-3 py-1.5 rounded-lg border border-white/20 bg-white/5 hover:bg-white/10 text-white/90 text-xs font-medium transition-colors"
-                  >
-                    ← Panel
-                  </button>
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-info/90">
-                      {view === "intake" ? "FORMULARIO 1:1" : "APP FITPLAN"}
-                    </p>
-                    <h1 className="text-xl md:text-2xl font-extrabold text-white tracking-tight">
-                      {view === "intake" ? "Clientes 1:1" : "Clientes FitPlan"}
-                    </h1>
-                    <p className="text-white/65 text-xs mt-0.5">
-                      {view === "intake"
-                        ? "Leads y seguimiento del formulario de inicio."
-                        : "Usuarios registrados en la plataforma."}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2 shrink-0">
-                  {view === "intake" ? (
-                    <button
-                      type="button"
-                      onClick={() => router.push("/admin/clientes-fitplan")}
-                      className="px-3 py-2 rounded-xl border border-white/20 bg-white/5 text-white/90 text-xs font-medium"
-                    >
-                      Ver FitPlan
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => router.push("/admin/clientes-1-1")}
-                      className="px-3 py-2 rounded-xl border border-white/20 bg-white/5 text-white/90 text-xs font-medium"
-                    >
-                      Ver 1:1
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
+            <>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent">
+                {view === "intake" ? "Formulario 1:1" : "App FitPlan"}
+              </p>
+              <h1 className="font-display mt-1 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+                Clientes
+              </h1>
+              <p className="mt-2 max-w-xl text-sm text-text-muted">
+                {view === "intake"
+                  ? "Leads y seguimiento del formulario de inicio."
+                  : "Usuarios registrados en la plataforma."}
+              </p>
+              <AdminSubTabs
+                tabs={[
+                  { label: "FitPlan", href: "/admin/clientes-fitplan", active: view === "fitplan" },
+                  { label: "1:1", href: "/admin/clientes-1-1", active: view === "intake" },
+                  { label: "Actividad", href: "/admin/actividad", active: false },
+                ]}
+              />
+            </>
           )}
         </motion.div>
 
@@ -3164,7 +3198,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                               })
                             : "N/A"}
                         </td>
-                        <td className="px-4 py-3 text-sm min-w-[420px]">
+                        <td className="px-4 py-3 text-sm min-w-[260px]">
                           {intakePlanGeneratingClientId === client.id && (
                             <div className="mb-2 rounded-lg border border-info/35 bg-info/15 px-2.5 py-2 text-xs text-info flex flex-wrap items-center gap-2">
                               <span className="inline-block h-3.5 w-3.5 border-2 border-info/40 border-t-info rounded-full animate-spin shrink-0" />
@@ -3175,113 +3209,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                               </span>
                             </div>
                           )}
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              onClick={() => handleOpenIntakeClientDetail(client)}
-                              className="px-3 py-1.5 rounded-lg bg-surface-2 border border-border-strong text-foreground hover:bg-surface-3 transition-colors inline-flex items-center gap-1.5"
-                            >
-                              <FaUser className="h-3.5 w-3.5" />
-                              <span>Datos</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => openIntakePlanModal(client, "generate")}
-                              disabled={intakePlanGeneratingClientId !== null}
-                              className="px-3 py-1.5 rounded-lg bg-success/20 border border-success/40 text-success hover:bg-success/30 transition-colors inline-flex items-center gap-1.5 disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:bg-success/20"
-                            >
-                              <FaPlusCircle className="h-3.5 w-3.5" />
-                              <span>Generar</span>
-                            </button>
-                            {client.latestPlanId && (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => openIntakePlanModal(client, "update")}
-                                  disabled={intakePlanGeneratingClientId !== null}
-                                  className="px-3 py-1.5 rounded-lg bg-info/20 border border-info/40 text-info hover:bg-info/30 transition-colors inline-flex items-center gap-1.5 disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:bg-info/20"
-                                >
-                                  <FaSyncAlt className="h-3.5 w-3.5" />
-                                  <span>Actualizar</span>
-                                </button>
-                                <button
-                                  onClick={() => handleOpenGeneratedPlan(client)}
-                                  className="px-3 py-1.5 rounded-lg bg-surface-2 border border-border-strong text-foreground hover:bg-surface-3 transition-colors inline-flex items-center gap-1.5"
-                                >
-                                  <FaEye className="h-3.5 w-3.5" />
-                                  <span>Ver</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => void handleCopyIntakeClientPublicPlanLink(client)}
-                                  className="px-3 py-1.5 rounded-lg bg-surface-2 border border-border-strong text-foreground hover:bg-surface-3 transition-colors inline-flex items-center gap-1.5"
-                                  title="Copiar URL para que el cliente vea su plan (nutrición y entreno) sin iniciar sesión"
-                                >
-                                  <FaExternalLinkAlt className="h-3.5 w-3.5" />
-                                  <span>Enlace web</span>
-                                </button>
-                                <button
-                                  onClick={() => openDeletePlanModal(client)}
-                                  disabled={processingIntakeAction}
-                                  className="px-3 py-1.5 rounded-lg bg-danger/20 border border-danger/40 text-danger hover:bg-danger/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
-                                >
-                                  <FaTrashAlt className="h-3.5 w-3.5" />
-                                  <span>Eliminar plan</span>
-                                </button>
-                              </>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => void handleRequestWellnessCheckin(client)}
-                              disabled={requestingCheckinClientId === client.id}
-                              className={`px-3 py-1.5 rounded-lg border transition-colors inline-flex items-center gap-1.5 ${
-                                client.wellnessCheckinRequested
-                                  ? "bg-warning/20 border-warning/40 text-warning hover:bg-warning/30"
-                                  : "bg-info/20 border-info/40 text-info hover:bg-info/30"
-                              } disabled:opacity-60`}
-                              title="Solicitar check-in de bienestar al cliente"
-                            >
-                              <FaBell className="h-3.5 w-3.5" />
-                              <span>
-                                {requestingCheckinClientId === client.id
-                                  ? "Enviando..."
-                                  : client.wellnessCheckinRequested
-                                  ? "Check-in pendiente"
-                                  : "Pedir check-in"}
-                              </span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void handleRequestWeightCheck(client)}
-                              disabled={requestingWeightClientId === client.id}
-                              className="px-3 py-1.5 rounded-lg bg-surface-2 border border-border-strong text-foreground hover:bg-surface-3 transition-colors inline-flex items-center gap-1.5 disabled:opacity-60"
-                            >
-                              <FaChartLine className="h-3.5 w-3.5" />
-                              <span>{requestingWeightClientId === client.id ? "Enviando..." : "Pedir peso"}</span>
-                            </button>
-                            <button
-                              onClick={() => openIntakePaymentModal(client)}
-                              className="px-3 py-1.5 rounded-lg bg-success/20 border border-success/40 text-success hover:bg-success/30 transition-colors inline-flex items-center gap-1.5"
-                            >
-                              <FaLink className="h-3.5 w-3.5" />
-                              <span>Link pago</span>
-                            </button>
-                            <button
-                              onClick={() => void handleOpenIntakeEmailHistory(client)}
-                              className="px-3 py-1.5 rounded-lg bg-surface-2 border border-border-strong text-foreground hover:bg-surface-3 transition-colors inline-flex items-center gap-1.5"
-                            >
-                              <FaEnvelope className="h-3.5 w-3.5" />
-                              <span>Emails</span>
-                            </button>
-                            <button
-                              onClick={() => openDeleteUserModal(client)}
-                              disabled={processingIntakeAction}
-                              className="px-3 py-1.5 rounded-lg bg-danger/20 border border-danger/40 text-danger hover:bg-danger/30 transition-colors disabled:opacity-60 inline-flex items-center gap-1.5"
-                            >
-                              <FaTrashAlt className="h-3.5 w-3.5" />
-                              <span>Eliminar</span>
-                            </button>
-                          </div>
+                          <div className="flex flex-wrap items-center gap-1">{renderIntakeActions(client)}</div>
                         </td>
                       </tr>
                     ))}
@@ -3482,111 +3410,8 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                       </div>
                     )}
 
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenIntakeClientDetail(client)}
-                        className="px-3 py-1.5 rounded-lg bg-surface-2 border border-border-strong text-foreground hover:bg-surface-3 transition-colors inline-flex items-center gap-1.5 text-xs"
-                      >
-                        <FaUser className="h-3.5 w-3.5" />
-                        <span>Datos</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => openIntakePlanModal(client, "generate")}
-                        disabled={intakePlanGeneratingClientId !== null}
-                        className="px-3 py-1.5 rounded-lg bg-success/20 border border-success/40 text-success hover:bg-success/30 transition-colors inline-flex items-center gap-1.5 disabled:opacity-45 disabled:cursor-not-allowed text-xs"
-                      >
-                        <FaPlusCircle className="h-3.5 w-3.5" />
-                        <span>Generar</span>
-                      </button>
-                      {client.latestPlanId && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => openIntakePlanModal(client, "update")}
-                            disabled={intakePlanGeneratingClientId !== null}
-                            className="px-3 py-1.5 rounded-lg bg-info/20 border border-info/40 text-info hover:bg-info/30 transition-colors inline-flex items-center gap-1.5 disabled:opacity-45 disabled:cursor-not-allowed text-xs"
-                          >
-                            <FaSyncAlt className="h-3.5 w-3.5" />
-                            <span>Actualizar</span>
-                          </button>
-                          <button
-                            onClick={() => handleOpenGeneratedPlan(client)}
-                            className="px-3 py-1.5 rounded-lg bg-surface-2 border border-border-strong text-foreground hover:bg-surface-3 transition-colors inline-flex items-center gap-1.5 text-xs"
-                          >
-                            <FaEye className="h-3.5 w-3.5" />
-                            <span>Ver</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void handleCopyIntakeClientPublicPlanLink(client)}
-                            className="px-3 py-1.5 rounded-lg bg-surface-2 border border-border-strong text-foreground hover:bg-surface-3 transition-colors inline-flex items-center gap-1.5 text-xs"
-                            title="Copiar URL para el cliente"
-                          >
-                            <FaExternalLinkAlt className="h-3.5 w-3.5" />
-                            <span>Enlace web</span>
-                          </button>
-                          <button
-                            onClick={() => openDeletePlanModal(client)}
-                            disabled={processingIntakeAction}
-                            className="px-3 py-1.5 rounded-lg bg-danger/20 border border-danger/40 text-danger hover:bg-danger/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5 text-xs"
-                          >
-                            <FaTrashAlt className="h-3.5 w-3.5" />
-                            <span>Eliminar plan</span>
-                          </button>
-                        </>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => void handleRequestWellnessCheckin(client)}
-                        disabled={requestingCheckinClientId === client.id}
-                        className={`px-3 py-1.5 rounded-lg border transition-colors inline-flex items-center gap-1.5 text-xs ${
-                          client.wellnessCheckinRequested
-                            ? "bg-warning/20 border-warning/40 text-warning hover:bg-warning/30"
-                            : "bg-info/20 border-info/40 text-info hover:bg-info/30"
-                        } disabled:opacity-60`}
-                      >
-                        <FaBell className="h-3.5 w-3.5" />
-                        <span>
-                          {requestingCheckinClientId === client.id
-                            ? "Enviando..."
-                            : client.wellnessCheckinRequested
-                            ? "Check-in pendiente"
-                            : "Pedir check-in"}
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleRequestWeightCheck(client)}
-                        disabled={requestingWeightClientId === client.id}
-                        className="px-3 py-1.5 rounded-lg bg-surface-2 border border-border-strong text-foreground hover:bg-surface-3 transition-colors inline-flex items-center gap-1.5 text-xs disabled:opacity-60"
-                      >
-                        <FaChartLine className="h-3.5 w-3.5" />
-                        <span>{requestingWeightClientId === client.id ? "Enviando..." : "Pedir peso"}</span>
-                      </button>
-                      <button
-                        onClick={() => openIntakePaymentModal(client)}
-                        className="px-3 py-1.5 rounded-lg bg-success/20 border border-success/40 text-success hover:bg-success/30 transition-colors inline-flex items-center gap-1.5 text-xs"
-                      >
-                        <FaLink className="h-3.5 w-3.5" />
-                        <span>Link pago</span>
-                      </button>
-                      <button
-                        onClick={() => void handleOpenIntakeEmailHistory(client)}
-                        className="px-3 py-1.5 rounded-lg bg-surface-2 border border-border-strong text-foreground hover:bg-surface-3 transition-colors inline-flex items-center gap-1.5 text-xs"
-                      >
-                        <FaEnvelope className="h-3.5 w-3.5" />
-                        <span>Emails</span>
-                      </button>
-                      <button
-                        onClick={() => openDeleteUserModal(client)}
-                        disabled={processingIntakeAction}
-                        className="px-3 py-1.5 rounded-lg bg-danger/20 border border-danger/40 text-danger hover:bg-danger/30 transition-colors disabled:opacity-60 inline-flex items-center gap-1.5 text-xs"
-                      >
-                        <FaTrashAlt className="h-3.5 w-3.5" />
-                        <span>Eliminar</span>
-                      </button>
+                    <div className="mt-3 flex flex-wrap items-center gap-1 border-t border-border pt-3">
+                      {renderIntakeActions(client)}
                     </div>
                   </div>
                 ))}
@@ -3949,15 +3774,12 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-white/60">{formatDate(user.createdAt)}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleEdit(user)}
-                            className="px-3 py-1.5 rounded-lg bg-info/20 hover:bg-info/30 text-info border border-info/30 transition-colors"
-                          >
-                            Editar
-                          </button>
+                        <div className="flex items-center gap-1">
+                          <AdminActionIcon icon={FaPen} label="Editar usuario" onClick={() => handleEdit(user)} />
                           {user.email?.toLowerCase() !== "admin@fitplan-ai.com" && (
-                            <button
+                            <AdminActionIcon
+                              icon={FaHistory}
+                              label="Ver historial"
                               onClick={async () => {
                                 setSelectedUserForHistory(user);
                                 setHistoryModalOpen(true);
@@ -3974,10 +3796,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                   setLoadingHistory(false);
                                 }
                               }}
-                              className="px-3 py-1.5 rounded-lg bg-success/20 hover:bg-success/30 text-success border border-success/30 transition-colors"
-                            >
-                              Historial
-                            </button>
+                            />
                           )}
                         </div>
                       </td>
@@ -4331,15 +4150,18 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                     </div>
 
                     {/* Botones de acción */}
-                    <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-white/10">
+                    <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-border">
                       <button
+                        type="button"
                         onClick={() => handleEdit(user)}
-                        className="flex-1 px-3 py-2 rounded-lg bg-info/20 hover:bg-info/30 text-info border border-info/30 transition-colors text-sm font-medium"
+                        className="btn btn-secondary flex-1 text-sm"
                       >
+                        <FaPen className="h-3.5 w-3.5" aria-hidden />
                         Editar
                       </button>
                       {user.email?.toLowerCase() !== "admin@fitplan-ai.com" && (
                         <button
+                          type="button"
                           onClick={async () => {
                             setSelectedUserForHistory(user);
                             setHistoryModalOpen(true);
@@ -4356,8 +4178,9 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                               setLoadingHistory(false);
                             }
                           }}
-                          className="flex-1 px-3 py-2 rounded-lg bg-success/20 hover:bg-success/30 text-success border border-success/30 transition-colors text-sm font-medium"
+                          className="btn btn-secondary flex-1 text-sm"
                         >
+                          <FaHistory className="h-3.5 w-3.5" aria-hidden />
                           Historial
                         </button>
                       )}
@@ -5902,7 +5725,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
         )}
 
       </div>
-    </div>
+    </AdminShell>
   );
 }
 

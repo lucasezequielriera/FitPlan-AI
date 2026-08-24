@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/router";
 import { motion } from "framer-motion";
 import { useAuthStore } from "@/store/authStore";
 import { getIsAdminClient, adminFetch } from "@/lib/adminAuthClient";
 import Navbar from "@/components/Navbar";
-import { FaArrowLeft, FaChartLine, FaSync, FaExclamationTriangle, FaExternalLinkAlt } from "react-icons/fa";
+import { AdminShell } from "@/components/admin/AdminShell";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { AdminSubTabs } from "@/components/admin/AdminSubTabs";
+import { useAdminFadeUp } from "@/components/admin/adminMotion";
+import { FaSync, FaExclamationTriangle, FaExternalLinkAlt } from "react-icons/fa";
 
 type GroupStat = {
   key: string;
@@ -185,6 +188,7 @@ function PieceRow({ piece }: { piece: Piece }) {
 
 export default function AdminMetricasRsPage() {
   const router = useRouter();
+  const fadeUp = useAdminFadeUp();
   const { user: authUser, loading: authLoading } = useAuthStore();
   const [checking, setChecking] = useState(true);
   const [allowed, setAllowed] = useState(false);
@@ -231,10 +235,10 @@ export default function AdminMetricasRsPage() {
 
   if (authLoading || checking) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900">
+      <div className="min-h-screen bg-background">
         <Navbar />
         <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-violet-400" />
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-accent" />
         </div>
       </div>
     );
@@ -245,36 +249,30 @@ export default function AdminMetricasRsPage() {
   const activeMetric = METRICS.find((m) => m.key === metric)!;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900">
-      <Navbar />
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
-        <div className="mb-8">
-          <Link
-            href="/admin/configuraciones"
-            className="inline-flex items-center gap-2 text-sm text-white/55 hover:text-white/85 transition-colors mb-4"
-          >
-            <FaArrowLeft className="text-xs" />
-            Volver a configuraciones
-          </Link>
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="flex items-center gap-3">
-              <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-500/20 border border-cyan-400/35 text-cyan-200">
-                <FaChartLine className="text-lg" />
-              </span>
-              <div>
-                <h1 className="text-2xl sm:text-3xl font-semibold text-white">Métricas de RS</h1>
-                <p className="text-sm text-white/55 mt-1">Qué engancha de verdad: retención, alcance y amplificación por gancho, franja y tema.</p>
-              </div>
-            </div>
+    <AdminShell active="contenido">
+      <motion.div {...fadeUp}>
+        <AdminPageHeader
+          kicker="Contenido"
+          title="Métricas de RS"
+          subtitle="Qué engancha de verdad: retención, alcance y amplificación por gancho, franja y tema."
+          actions={
             <button type="button" onClick={() => void load()} disabled={loading} className="btn btn-secondary text-sm disabled:opacity-50">
               <FaSync className={loading ? "animate-spin" : ""} />
               Actualizar
             </button>
-          </div>
-        </div>
+          }
+        />
+        <AdminSubTabs
+          tabs={[
+            { label: "Generador", href: "/admin/configuraciones/contenido-social", active: false },
+            { label: "Carrusel IG", href: "/admin/configuraciones/carrusel-ig", active: false },
+            { label: "Métricas", href: "/admin/metricas-rs", active: true },
+          ]}
+        />
 
-        {error && <div className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger mb-6">{error}</div>}
+        {error && <div className="mt-6 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">{error}</div>}
 
+        <div className="mt-6">
         {loading && !data ? (
           <p className="text-sm text-white/50">Cargando métricas...</p>
         ) : !data ? null : (
@@ -425,7 +423,8 @@ export default function AdminMetricasRsPage() {
             </motion.div>
           </div>
         )}
-      </div>
-    </div>
+        </div>
+      </motion.div>
+    </AdminShell>
   );
 }

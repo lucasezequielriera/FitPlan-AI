@@ -5,7 +5,10 @@ import { motion } from "framer-motion";
 import { useAuthStore } from "@/store/authStore";
 import { getIsAdminClient, adminFetch } from "@/lib/adminAuthClient";
 import Navbar from "@/components/Navbar";
-import { FaArrowLeft, FaBolt, FaCheck, FaChevronDown, FaChevronRight } from "react-icons/fa";
+import { AdminShell } from "@/components/admin/AdminShell";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { useAdminFadeUp } from "@/components/admin/adminMotion";
+import { FaCheck, FaChevronDown, FaChevronRight } from "react-icons/fa";
 import {
   BENCHMARKS,
   FIRST_MONDAY,
@@ -102,6 +105,7 @@ function SessionCard({
 
 export default function AdminHyroxPage() {
   const router = useRouter();
+  const fadeUp = useAdminFadeUp();
   const { user: authUser, loading: authLoading } = useAuthStore();
   const [checking, setChecking] = useState(true);
   const [allowed, setAllowed] = useState(false);
@@ -180,10 +184,10 @@ export default function AdminHyroxPage() {
 
   if (authLoading || checking) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900">
+      <div className="min-h-screen bg-background">
         <Navbar />
         <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-violet-400" />
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-accent" />
         </div>
       </div>
     );
@@ -194,31 +198,17 @@ export default function AdminHyroxPage() {
   const totalTrainingSessions = WEEKS.reduce((acc, w) => acc + w.sessions.filter((s) => s.type !== "descanso").length, 0);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900">
-      <Navbar />
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
-        <div className="mb-6">
-          <Link
-            href="/admin/configuraciones"
-            className="inline-flex items-center gap-2 text-sm text-white/55 hover:text-white/85 transition-colors mb-4"
-          >
-            <FaArrowLeft className="text-xs" />
-            Volver a configuraciones
-          </Link>
-          <div className="flex items-center gap-3">
-            <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-orange-500/20 border border-orange-400/35 text-orange-200">
-              <FaBolt className="text-lg" />
-            </span>
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-semibold text-white">HYROX</h1>
-              <p className="text-sm text-white/55 mt-1">
-                Doubles · División Open · {new Date(RACE_DATE).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}
-              </p>
-            </div>
-          </div>
-        </div>
+    <AdminShell active="hyrox">
+      <motion.div {...fadeUp}>
+        <AdminPageHeader
+          kicker="HYROX"
+          title="HYROX"
+          subtitle={`Doubles · División Open · ${new Date(RACE_DATE).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })}`}
+        />
 
-        {error && <div className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger mb-4">{error}</div>}
+        {error && <div className="mt-6 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">{error}</div>}
+
+        <div className="mt-6">
 
         <div className="grid grid-cols-3 gap-3 mb-6">
           <div className="card-surface px-4 py-3">
@@ -505,7 +495,8 @@ export default function AdminHyroxPage() {
             </div>
           </motion.div>
         )}
-      </div>
-    </div>
+        </div>
+      </motion.div>
+    </AdminShell>
   );
 }

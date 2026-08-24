@@ -2,7 +2,7 @@ import Head from "next/head";
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Space_Grotesk, Inter } from "next/font/google";
 
 /**
@@ -50,14 +50,18 @@ const MEALS = [
   { name: "Cena", detail: "Salmón con vegetales", kcal: 480 },
 ];
 
-const fadeUp = {
-  initial: { opacity: 0, y: 16 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.35, ease: [0.22, 1, 0.36, 1] as const },
-};
-
 export default function DesignPreview() {
   const [activeDay, setActiveDay] = useState(2); // Miércoles, "hoy"
+  // Accesibilidad: si el usuario tiene prefers-reduced-motion, no animamos
+  // (DESIGN_SYSTEM.md §7.3-D — deuda detectada de paso en la auditoría del admin).
+  const reduceMotion = useReducedMotion();
+  const fadeUp = reduceMotion
+    ? { initial: false as const }
+    : {
+        initial: { opacity: 0, y: 16 },
+        animate: { opacity: 1, y: 0 },
+        transition: { duration: 0.35, ease: [0.22, 1, 0.36, 1] as const },
+      };
 
   return (
     <div className={`${displayFont.variable} ${uiFont.variable} fp-preview`}>
@@ -258,9 +262,10 @@ function PlanCard({
   progress: number;
   detail: string;
 }) {
+  const reduceMotion = useReducedMotion();
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12 }}
+      initial={reduceMotion ? false : { opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
       className="card-surface overflow-hidden"

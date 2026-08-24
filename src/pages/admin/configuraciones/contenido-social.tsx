@@ -5,10 +5,12 @@ import { motion } from "framer-motion";
 import { useAuthStore } from "@/store/authStore";
 import { getIsAdminClient, adminFetch } from "@/lib/adminAuthClient";
 import Navbar from "@/components/Navbar";
+import { AdminShell } from "@/components/admin/AdminShell";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { AdminSubTabs } from "@/components/admin/AdminSubTabs";
+import { useAdminFadeUp } from "@/components/admin/adminMotion";
 import {
-  FaArrowLeft,
   FaMagic,
-  FaVideo,
   FaPaperPlane,
   FaLightbulb,
   FaClock,
@@ -128,6 +130,7 @@ type PublishResult = {
 
 export default function AdminContenidoSocialPage() {
   const router = useRouter();
+  const fadeUp = useAdminFadeUp();
   const { user: authUser, loading: authLoading } = useAuthStore();
   const [checking, setChecking] = useState(true);
   const [allowed, setAllowed] = useState(false);
@@ -363,10 +366,10 @@ export default function AdminContenidoSocialPage() {
 
   if (authLoading || checking) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900">
+      <div className="min-h-screen bg-background">
         <Navbar />
         <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-violet-400" />
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-accent" />
         </div>
       </div>
     );
@@ -375,29 +378,22 @@ export default function AdminContenidoSocialPage() {
   if (!allowed) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900">
-      <Navbar />
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
-        <div className="mb-8">
-          <Link
-            href="/admin/configuraciones"
-            className="inline-flex items-center gap-2 text-sm text-white/55 hover:text-white/85 transition-colors mb-4"
-          >
-            <FaArrowLeft className="text-xs" />
-            Volver a configuraciones
-          </Link>
-          <div className="flex items-center gap-3">
-            <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-info/20 border border-info/35 text-info">
-              <FaVideo className="text-lg" />
-            </span>
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-semibold text-white">Generador de contenido</h1>
-              <p className="text-sm text-white/55 mt-1">Crea un video para Instagram/TikTok con el tema que quieras, revisalo, y publicalo.</p>
-            </div>
-          </div>
-        </div>
+    <AdminShell active="contenido">
+      <motion.div {...fadeUp}>
+        <AdminPageHeader
+          kicker="Contenido"
+          title="Generador de contenido"
+          subtitle="Crea un video para Instagram/TikTok con el tema que quieras, revisalo, y publicalo."
+        />
+        <AdminSubTabs
+          tabs={[
+            { label: "Generador", href: "/admin/configuraciones/contenido-social", active: true },
+            { label: "Carrusel IG", href: "/admin/configuraciones/carrusel-ig", active: false },
+            { label: "Métricas", href: "/admin/metricas-rs", active: false },
+          ]}
+        />
 
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="card-surface p-5 mb-6">
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="card-surface p-5 mt-6 mb-6">
           <button
             type="button"
             onClick={() => setHowToOpen((v) => !v)}
@@ -441,7 +437,7 @@ export default function AdminContenidoSocialPage() {
               <li>
                 <span className="text-white font-medium">Controlá el estado y el historial</span> desde{" "}
                 <Link href="/admin/servicios" className="text-info hover:underline">
-                  Configuraciones → Servicios
+                  Servicios
                 </Link>
                 : ahí ves si HeyGen/Instagram/etc. están bien, cuánto crédito te queda, y todo lo que se publicó hasta ahora.
               </li>
@@ -500,12 +496,7 @@ export default function AdminContenidoSocialPage() {
             </div>
           </div>
 
-          <div className="flex gap-2 mb-6">
-          <span className="text-sm px-3 py-1.5 rounded-lg border border-info/40 bg-info/15 text-info">Reels</span>
-          <Link href="/admin/configuraciones/carrusel-ig" className="text-sm px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 text-white/60 hover:text-white/85 transition-colors">Carrusel</Link>
-        </div>
-
-        {error && <div className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">{error}</div>}
+          {error && <div className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">{error}</div>}
 
           <button
             type="button"
@@ -706,7 +697,7 @@ export default function AdminContenidoSocialPage() {
             </>
           )}
         </motion.div>
-      </div>
-    </div>
+      </motion.div>
+    </AdminShell>
   );
 }

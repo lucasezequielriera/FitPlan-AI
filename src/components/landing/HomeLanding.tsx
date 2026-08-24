@@ -2,7 +2,7 @@ import { useEffect, useCallback, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import Image from "next/image";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   FaArrowRight,
   FaCheck,
@@ -22,11 +22,6 @@ import PremiumPlanModal from "@/components/PremiumPlanModal";
 import Head from "next/head";
 import { getHomeLandingCopy, SITE, type LandingLocale } from "@/lib/homeLandingCopy";
 
-const fadeUp = {
-  initial: { opacity: 0, y: 16 },
-  animate: { opacity: 1, y: 0 },
-};
-
 const featureIcons: IconType[] = [FaComments, FaLeaf, FaUtensils];
 
 interface HomeLandingProps {
@@ -36,6 +31,16 @@ interface HomeLandingProps {
 export default function HomeLanding({ locale }: HomeLandingProps) {
   const c = getHomeLandingCopy(locale);
   const router = useRouter();
+  // Accesibilidad: si el usuario tiene prefers-reduced-motion, no animamos
+  // (DESIGN_SYSTEM.md §7.3-D — deuda detectada de paso en la auditoría del admin).
+  const reduceMotion = useReducedMotion();
+  const fadeUp = reduceMotion
+    ? { initial: false as const }
+    : { initial: { opacity: 0, y: 16 }, animate: { opacity: 1, y: 0 } };
+  const reveal = (margin?: string) =>
+    reduceMotion
+      ? {}
+      : { initial: { opacity: 0, y: 12 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true, margin } };
   const { user: authUser, loading: authLoading } = useAuthStore();
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   /** "Entrar" abre login; CTAs de alta abren registro. */
@@ -342,9 +347,7 @@ export default function HomeLanding({ locale }: HomeLandingProps) {
               {c.steps.map((item, i) => (
                 <motion.li
                   key={item.step}
-                  initial={{ opacity: 0, y: 12 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, margin: "-40px" }}
+                  {...reveal("-40px")}
                   transition={{ duration: 0.3, delay: i * 0.06 }}
                   className="relative rounded-2xl border border-[var(--landing-border)] bg-[var(--landing-surface)] p-5 sm:p-6"
                 >
@@ -361,9 +364,7 @@ export default function HomeLanding({ locale }: HomeLandingProps) {
 
         <section className="mx-auto max-w-5xl px-3 py-10 sm:px-6 sm:py-16">
           <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+            {...reveal()}
             transition={{ duration: 0.35 }}
             className="rounded-2xl sm:rounded-3xl border border-[var(--landing-border)] bg-gradient-to-br from-[var(--landing-surface)] to-[color-mix(in_oklab,var(--landing-accent)_8%,transparent)] p-5 sm:p-8 md:p-10"
           >
@@ -412,9 +413,7 @@ export default function HomeLanding({ locale }: HomeLandingProps) {
                 return (
                   <motion.div
                     key={feature.title}
-                    initial={{ opacity: 0, y: 12 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
+                    {...reveal()}
                     transition={{ duration: 0.3, delay: idx * 0.05 }}
                     className="rounded-2xl border border-[var(--landing-border)] bg-[var(--landing-surface)] p-5 sm:p-6"
                   >
