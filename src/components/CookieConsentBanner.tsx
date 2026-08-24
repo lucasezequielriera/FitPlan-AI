@@ -38,9 +38,9 @@ export default function CookieConsentBanner() {
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-[11000] p-3 sm:p-4">
-      <div className="mx-auto max-w-4xl rounded-2xl border border-white/15 bg-slate-950/95 backdrop-blur-md p-4 sm:p-5 shadow-2xl">
-        <p className="text-sm font-bold text-white">{copy.title}</p>
-        <p className="mt-2 text-xs sm:text-sm text-white/80">{copy.body}</p>
+      <div className="mx-auto max-w-4xl rounded-2xl border border-[var(--border)] bg-[color-mix(in_oklab,var(--background)_95%,#0f172a)] backdrop-blur-md p-4 sm:p-5 shadow-2xl">
+        <p className="text-sm font-bold text-[var(--foreground)]">{copy.title}</p>
+        <p className="mt-2 text-xs sm:text-sm text-[var(--text-muted)]">{copy.body}</p>
         <div className="mt-4 flex flex-col sm:flex-row gap-2 sm:justify-end">
           <button
             type="button"
@@ -48,7 +48,7 @@ export default function CookieConsentBanner() {
               writeConsent({ analytics: false, ads: false });
               setVisible(false);
             }}
-            className="px-4 py-2 rounded-xl border border-white/20 bg-white/5 text-white/90 text-sm font-medium hover:bg-white/10"
+            className="btn btn-secondary text-sm"
           >
             {copy.reject}
           </button>
@@ -58,7 +58,7 @@ export default function CookieConsentBanner() {
               writeConsent({ analytics: true, ads: true });
               setVisible(false);
             }}
-            className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 text-sm font-bold hover:from-emerald-400 hover:to-cyan-400"
+            className="btn btn-primary text-sm font-bold"
           >
             {copy.accept}
           </button>

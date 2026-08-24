@@ -223,7 +223,7 @@ export default function TrainingCalendar({
   };
 
   return (
-    <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl border border-white/10 p-6 shadow-2xl">
+    <div className="bg-[color-mix(in_oklab,var(--background)_95%,#0f172a)] rounded-2xl border border-white/10 p-6 shadow-2xl">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <button

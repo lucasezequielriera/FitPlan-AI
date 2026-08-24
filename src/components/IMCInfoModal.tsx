@@ -446,7 +446,7 @@ export default function IMCInfoModal({
             <div className="border-t border-[var(--landing-border)] p-4">
               <button
                 onClick={onClose}
-                className={`w-full rounded-xl bg-gradient-to-r py-2.5 text-sm font-semibold text-white transition-all ${estadoTema.button}`}
+                className={`w-full rounded-xl bg-gradient-to-r py-2.5 text-sm font-semibold text-accent-ink transition-all ${estadoTema.button}`}
               >
                 {estaEnRangoSaludable ? "¡Genial! Continuar" : "Entendido, ¡a trabajar!"}
               </button>

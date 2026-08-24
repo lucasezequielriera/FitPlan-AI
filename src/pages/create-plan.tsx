@@ -1145,7 +1145,7 @@ export default function CreatePlan() {
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--landing-muted)]">
                 FitPlan
               </p>
-              <h1 className="mt-1 text-2xl font-bold tracking-tight text-[var(--foreground)] md:text-3xl">
+              <h1 className="font-display mt-1 text-2xl font-bold tracking-tight text-[var(--foreground)] md:text-3xl">
                 {cp(locale, "heroTitle")}
               </h1>
               <p className="mt-2 text-sm leading-relaxed text-[var(--landing-muted)]">
@@ -1952,7 +1952,7 @@ export default function CreatePlan() {
             {step < maxStep ? (
               <button
                 type="button"
-                className="rounded-xl bg-gradient-to-r from-[var(--brand-start)] via-[var(--brand-mid)] to-[var(--brand-end)] px-6 py-2.5 text-sm font-semibold text-white shadow-[0_12px_40px_-18px_color-mix(in_oklab,var(--brand-mid)_50%,transparent)] transition hover:brightness-110"
+                className="rounded-xl bg-gradient-to-r from-[var(--brand-start)] via-[var(--brand-mid)] to-[var(--brand-end)] px-6 py-2.5 text-sm font-semibold text-accent-ink shadow-[0_12px_40px_-18px_color-mix(in_oklab,var(--brand-mid)_50%,transparent)] transition hover:brightness-110"
                 onClick={() => {
                   // Validar campos requeridos antes de avanzar
                   if (step === 1) {
@@ -1998,7 +1998,7 @@ export default function CreatePlan() {
             ) : (
               <button
                 type="button"
-                className="rounded-xl bg-gradient-to-r from-[var(--brand-start)] via-[var(--brand-mid)] to-[var(--brand-end)] px-6 py-2.5 text-sm font-semibold text-white shadow-[0_12px_40px_-18px_color-mix(in_oklab,var(--brand-mid)_50%,transparent)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-xl bg-gradient-to-r from-[var(--brand-start)] via-[var(--brand-mid)] to-[var(--brand-end)] px-6 py-2.5 text-sm font-semibold text-accent-ink shadow-[0_12px_40px_-18px_color-mix(in_oklab,var(--brand-mid)_50%,transparent)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
                 onClick={handleGeneratePlan}
                 disabled={loading}
               >
@@ -2072,7 +2072,7 @@ export default function CreatePlan() {
               transition={{ delay: 0.15 }}
               className="space-y-3 text-center"
             >
-              <h3 className="text-xl font-semibold tracking-tight text-[var(--foreground)]">
+              <h3 className="font-display text-xl font-semibold tracking-tight text-[var(--foreground)]">
                 {cp(locale, "loadingTitle")}
               </h3>
               <p className="mx-auto max-w-md text-sm leading-relaxed text-[var(--landing-muted)]">

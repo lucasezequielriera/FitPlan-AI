@@ -1468,7 +1468,7 @@ function SendMessageModal({
               <button
                 type="button"
                 onClick={() => setSuccess(false)}
-                className="mt-6 rounded-xl bg-gradient-to-r from-[var(--brand-start,#3b82f6)] via-[var(--brand-mid,#06b6d4)] to-[var(--brand-end,#10b981)] px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-cyan-500/15 transition hover:brightness-110"
+                className="mt-6 rounded-xl bg-gradient-to-r from-[var(--brand-start)] via-[var(--brand-mid)] to-[var(--brand-end)] px-5 py-2.5 text-sm font-medium text-accent-ink shadow-[0_10px_28px_-14px_color-mix(in_oklab,var(--brand-mid)_45%,transparent)] transition hover:brightness-110"
               >
                 {dash(locale, "composeAnother")}
               </button>
@@ -1491,7 +1491,7 @@ function SendMessageModal({
 
               <div>
                 <label className="mb-2 block text-xs font-medium text-[var(--landing-muted)] sm:text-sm">
-                  {dash(locale, "composeMessageLabel")} <span className="text-red-400">*</span>
+                  {dash(locale, "composeMessageLabel")} <span className="text-danger">*</span>
                 </label>
                 <textarea
                   value={message}
@@ -1522,7 +1522,7 @@ function SendMessageModal({
                 <button
                   type="submit"
                   disabled={loading || !message.trim()}
-                  className="flex-1 rounded-xl bg-gradient-to-r from-[var(--brand-start,#3b82f6)] via-[var(--brand-mid,#06b6d4)] to-[var(--brand-end,#10b981)] px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-45"
+                  className="flex-1 rounded-xl bg-gradient-to-r from-[var(--brand-start)] via-[var(--brand-mid)] to-[var(--brand-end)] px-4 py-2.5 text-sm font-semibold text-accent-ink shadow-[0_10px_28px_-14px_color-mix(in_oklab,var(--brand-mid)_45%,transparent)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   {loading ? dash(locale, "composeSending") : dash(locale, "composeSend")}
                 </button>

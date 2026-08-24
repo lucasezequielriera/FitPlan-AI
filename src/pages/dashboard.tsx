@@ -426,7 +426,7 @@ export default function Dashboard() {
               <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0 max-w-2xl">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--landing-muted)]">FitPlan</p>
-                  <h1 className="mt-1 text-3xl font-bold tracking-tight text-[var(--foreground)] sm:text-4xl">
+                  <h1 className="font-display mt-1 text-3xl font-bold tracking-tight text-[var(--foreground)] sm:text-4xl">
                     {dash(locale, "heading")}
                   </h1>
                   <p className="mt-2 text-sm leading-relaxed text-[var(--landing-muted)] sm:text-base">
@@ -486,7 +486,7 @@ export default function Dashboard() {
                       setPremiumModalOpen(true);
                     }}
                     disabled={processingPayment}
-                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_12px_36px_-16px_rgba(251,146,60,0.55)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[var(--brand-start)] via-[var(--brand-mid)] to-[var(--brand-end)] px-5 py-2.5 text-sm font-semibold text-accent-ink shadow-[0_12px_36px_-16px_color-mix(in_oklab,var(--brand-mid)_55%,transparent)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
@@ -516,7 +516,7 @@ export default function Dashboard() {
                   <button
                     type="button"
                     onClick={handleCreateNew}
-                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[var(--brand-start)] via-[var(--brand-mid)] to-[var(--brand-end)] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_12px_40px_-18px_color-mix(in_oklab,var(--brand-mid)_50%,transparent)] transition hover:brightness-110 sm:flex-none"
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[var(--brand-start)] via-[var(--brand-mid)] to-[var(--brand-end)] px-5 py-2.5 text-sm font-semibold text-accent-ink shadow-[0_12px_40px_-18px_color-mix(in_oklab,var(--brand-mid)_50%,transparent)] transition hover:brightness-110 sm:flex-none"
                   >
                     {dash(locale, "newPlan")}
                   </button>
@@ -537,12 +537,12 @@ export default function Dashboard() {
                     📋
                   </span>
                 </div>
-                <h2 className="text-xl font-semibold text-[var(--foreground)]">{dash(locale, "noPlansTitle")}</h2>
+                <h2 className="font-display text-xl font-semibold text-[var(--foreground)]">{dash(locale, "noPlansTitle")}</h2>
                 <p className="mx-auto mt-2 max-w-md text-sm text-[var(--landing-muted)]">{dash(locale, "noPlansBody")}</p>
                 <button
                   type="button"
                   onClick={handleCreateNew}
-                  className="mt-8 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[var(--brand-start)] via-[var(--brand-mid)] to-[var(--brand-end)] px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:brightness-110"
+                  className="mt-8 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[var(--brand-start)] via-[var(--brand-mid)] to-[var(--brand-end)] px-6 py-3 text-sm font-semibold text-accent-ink shadow-lg transition hover:brightness-110"
                 >
                   {dash(locale, "createFirst")}
                 </button>
@@ -553,7 +553,7 @@ export default function Dashboard() {
                   const phase = plan.planMultiFase?.faseActual;
                   const accentBar =
                     plan.isOldest
-                      ? "bg-gradient-to-r from-slate-500 via-slate-400/70 to-[color-mix(in_oklab,var(--info)_80%,transparent)]"
+                      ? "bg-gradient-to-r from-[color-mix(in_oklab,var(--foreground)_40%,transparent)] via-[color-mix(in_oklab,var(--foreground)_28%,transparent)] to-[color-mix(in_oklab,var(--info)_80%,transparent)]"
                       : phase === "BULK"
                         ? "bg-gradient-to-r from-[var(--phase-bulk)] to-[color-mix(in_oklab,var(--phase-bulk)_70%,white)]"
                         : phase === "CUT"
@@ -635,7 +635,7 @@ export default function Dashboard() {
                         <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                       </svg>
                     </div>
-                    <h2 className="text-xl font-semibold mb-2 text-center">
+                    <h2 className="font-display text-xl font-semibold mb-2 text-center">
                       {dash(locale, "deleteModalTitle")}
                     </h2>
                     <p className="text-sm opacity-70 text-center">
@@ -767,7 +767,7 @@ export default function Dashboard() {
                         <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--landing-muted)]">
                           FitPlan
                         </p>
-                        <h3 className="mt-1 text-xl font-bold tracking-tight text-[var(--foreground)] sm:text-2xl">
+                        <h3 className="font-display mt-1 text-xl font-bold tracking-tight text-[var(--foreground)] sm:text-2xl">
                           {dash(locale, "freeExpiredTitle")}
                         </h3>
                         <p className="mt-3 text-sm leading-relaxed text-[var(--landing-muted)]">
@@ -789,7 +789,7 @@ export default function Dashboard() {
                           setFreeExpiredModalOpen(false);
                           setPremiumModalOpen(true);
                         }}
-                        className="order-1 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_14px_40px_-18px_rgba(251,146,60,0.55)] transition hover:brightness-110 sm:order-2"
+                        className="order-1 rounded-xl bg-gradient-to-r from-[var(--brand-start)] via-[var(--brand-mid)] to-[var(--brand-end)] px-5 py-2.5 text-sm font-semibold text-accent-ink shadow-[0_14px_40px_-18px_color-mix(in_oklab,var(--brand-mid)_55%,transparent)] transition hover:brightness-110 sm:order-2"
                       >
                         {dash(locale, "viewPremiumPlans")}
                       </button>
@@ -848,7 +848,7 @@ export default function Dashboard() {
                   <span className="inline-flex rounded-full border border-[color-mix(in_oklab,var(--brand-end)_45%,transparent)] bg-[color-mix(in_oklab,var(--brand-end)_15%,transparent)] px-2.5 py-1 text-[11px] font-medium text-[var(--foreground)]">
                     Soporte humano
                   </span>
-                  <h2 className="mt-2 text-lg font-semibold text-[var(--foreground)] sm:text-xl">{dash(locale, "ptModalTitle")}</h2>
+                  <h2 className="font-display mt-2 text-lg font-semibold text-[var(--foreground)] sm:text-xl">{dash(locale, "ptModalTitle")}</h2>
                   <p className="mt-2 text-sm text-[var(--landing-muted)]">{dash(locale, "ptModalBody")}</p>
                 </div>
                 <button
@@ -930,7 +930,7 @@ export default function Dashboard() {
                   type="button"
                   onClick={handleRequestPersonalTrainer}
                   disabled={personalTrainerLoading || !trainerPreference}
-                  className="flex-1 rounded-xl bg-gradient-to-r from-[var(--brand-start,#3b82f6)] to-[var(--brand-end,#10b981)] px-4 py-2 text-sm font-medium text-white transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="flex-1 rounded-xl bg-gradient-to-r from-[var(--brand-start)] to-[var(--brand-end)] px-4 py-2 text-sm font-medium text-accent-ink transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {personalTrainerLoading ? dash(locale, "ptProcessing") : dash(locale, "ptYesWant")}
                 </button>
@@ -1501,7 +1501,7 @@ function ProgressModalContent({ plan, onClose, locale }: { plan: SavedPlan; onCl
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--landing-muted)]">
             FitPlan
           </p>
-          <h2 className="mt-1 text-xl font-bold tracking-tight text-[var(--foreground)] sm:text-2xl">
+          <h2 className="font-display mt-1 text-xl font-bold tracking-tight text-[var(--foreground)] sm:text-2xl">
             {dash(locale, "progressModalTitle")}
           </h2>
         </div>
@@ -1536,7 +1536,7 @@ function ProgressModalContent({ plan, onClose, locale }: { plan: SavedPlan; onCl
           >
             <div className="flex h-full w-full items-center justify-center rounded-full bg-[color-mix(in_oklab,var(--background)_92%,#0c1018)] text-center ring-1 ring-[color-mix(in_oklab,var(--foreground)_8%,transparent)]">
               <div>
-                <p className="text-2xl font-bold tabular-nums text-[var(--foreground)]">{pct.toFixed(0)}%</p>
+                <p className="font-display text-2xl font-bold tabular-nums text-[var(--foreground)]">{pct.toFixed(0)}%</p>
                 <p className="text-[10px] font-medium uppercase tracking-wider text-[var(--landing-muted)]">
                   {dash(locale, "simplePlanProgress")}
                 </p>
@@ -1560,7 +1560,7 @@ function ProgressModalContent({ plan, onClose, locale }: { plan: SavedPlan; onCl
             <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--landing-muted)]">
               {dash(locale, "progressInitialWeight")}
             </p>
-            <p className="mt-0.5 text-sm font-semibold text-[var(--foreground)]">
+            <p className="font-display mt-0.5 text-sm font-semibold text-[var(--foreground)]">
               {typeof user?.pesoKg === "number" ? user.pesoKg : Number(user?.pesoKg) || 0} kg
             </p>
           </div>
@@ -1568,7 +1568,7 @@ function ProgressModalContent({ plan, onClose, locale }: { plan: SavedPlan; onCl
             <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--landing-muted)]">
               {dash(locale, "progressPlanPercent")}
             </p>
-            <p className="mt-0.5 text-sm font-semibold text-[var(--foreground)]">{pct.toFixed(0)}%</p>
+            <p className="font-display mt-0.5 text-sm font-semibold text-[var(--foreground)]">{pct.toFixed(0)}%</p>
           </div>
         </div>
       </div>
@@ -1607,7 +1607,7 @@ function ProgressModalContent({ plan, onClose, locale }: { plan: SavedPlan; onCl
                 type="button"
                 onClick={handleGuardarPeso}
                 disabled={guardando}
-                className="shrink-0 rounded-xl bg-gradient-to-r from-[var(--brand-start)] via-[var(--brand-mid)] to-[var(--brand-end)] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_32px_-16px_color-mix(in_oklab,var(--brand-mid)_45%,transparent)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                className="shrink-0 rounded-xl bg-gradient-to-r from-[var(--brand-start)] via-[var(--brand-mid)] to-[var(--brand-end)] px-5 py-2.5 text-sm font-semibold text-accent-ink shadow-[0_10px_32px_-16px_color-mix(in_oklab,var(--brand-mid)_45%,transparent)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {guardando ? dash(locale, "progressSaving") : dash(locale, "progressSave")}
               </button>
@@ -1642,12 +1642,12 @@ function ProgressModalContent({ plan, onClose, locale }: { plan: SavedPlan; onCl
                           <span className="text-[var(--landing-muted)]">
                             {fecha.toLocaleDateString(dateLoc, { day: "numeric", month: "short", year: "numeric" })}
                           </span>
-                          <span className="font-semibold text-[var(--foreground)]">{registro.peso} kg</span>
+                          <span className="font-display font-semibold text-[var(--foreground)]">{registro.peso} kg</span>
                           {(() => {
                             const peso = user?.pesoKg;
                             return Boolean(peso && typeof peso === "number");
                           })() ? (
-                            <span className={`text-xs font-medium ${esPositivo ? "text-success" : "text-warning"}`}>
+                            <span className={`font-display text-xs font-medium ${esPositivo ? "text-success" : "text-warning"}`}>
                               {diferencia > 0 ? "+" : ""}
                               {diferencia.toFixed(1)} kg
                             </span>
@@ -1790,7 +1790,7 @@ function ProgressModalContent({ plan, onClose, locale }: { plan: SavedPlan; onCl
                       <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                     </svg>
                   </div>
-                  <h2 className="mb-2 text-center text-lg font-semibold text-[var(--foreground)]">
+                  <h2 className="font-display mb-2 text-center text-lg font-semibold text-[var(--foreground)]">
                     {dash(locale, "deleteWeightTitle")}
                   </h2>
                   <p className="mb-3 text-center text-sm text-[var(--landing-muted)]">

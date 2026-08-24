@@ -8,18 +8,20 @@
 
 :root {
   /* --- Base --- */
-  --background: #0b1020;
-  --foreground: #e6f6ff;
+  /* Rediseño "FitPlan Volt" (aprobado por Lucas — ver /design-preview para la propuesta original) */
+  --background: #08090c;
+  --foreground: #f5f7f2;
 
   /* --- Marca (gradientes hero / fondos ambientales) --- */
-  --brand-start: #3b82f6; /* blue-500 */
-  --brand-mid: #10b981;   /* emerald-500 */
-  --brand-end: #06b6d4;   /* cyan-500 */
+  --brand-start: #cbff3d; /* volt lime */
+  --brand-mid: #ff5f45;   /* coral */
+  --brand-end: #ff3d81;   /* magenta */
 
   /* --- Acento principal de interacción (CTAs, links activos) --- */
-  --accent: #2dd4bf;      /* teal-400 */
+  --accent: #cbff3d;      /* volt lime */
   --accent-dim: color-mix(in oklab, var(--accent) 75%, white);
-  --accent-strong: #14b8a6; /* teal-500, hover/active */
+  --accent-strong: #a6e600; /* lima oliva, hover/active */
+  --accent-ink: #0a0f05;  /* texto sobre superficies de acento (contraste sobre lima) */
 
   /* --- Superficies (jerarquía de profundidad, de más plana a más elevada) --- */
   --surface: color-mix(in oklab, var(--foreground) 4%, transparent);
@@ -54,9 +56,9 @@
 
   /* --- Radios y sombras --- */
   --radius-sm: 0.5rem;
-  --radius-md: 0.75rem;
-  --radius-lg: 1rem;
-  --radius-xl: 1.5rem;
+  --radius-md: 0.875rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.75rem;
   --shadow-sm: 0 1px 2px color-mix(in oklab, black 30%, transparent);
   --shadow-md: 0 4px 16px color-mix(in oklab, black 35%, transparent);
   --shadow-lg: 0 12px 32px color-mix(in oklab, black 40%, transparent);
@@ -77,10 +79,14 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  /* Tipografía de display del rediseño (Space Grotesk) — usar en headings/cifras
+     grandes (kcal, kg, %, reps) vía className="font-display". Cargada en _app.tsx. */
+  --font-display: var(--font-display);
 
   --color-accent: var(--accent);
   --color-accent-dim: var(--accent-dim);
   --color-accent-strong: var(--accent-strong);
+  --color-accent-ink: var(--accent-ink);
 
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
@@ -169,10 +175,12 @@ body {
 
 .btn-primary {
   background: var(--accent);
-  color: #04211d;
+  color: var(--accent-ink);
+  box-shadow: 0 10px 32px -10px color-mix(in oklab, var(--accent) 55%, transparent);
 }
 .btn-primary:hover:not(:disabled) {
   background: var(--accent-strong);
+  box-shadow: 0 14px 40px -10px color-mix(in oklab, var(--accent) 65%, transparent);
 }
 
 .btn-secondary {

@@ -34,7 +34,7 @@ function StatBox({
       className={`rounded-xl border border-[color-mix(in_oklab,var(--foreground)_8%,transparent)] bg-[color-mix(in_oklab,var(--foreground)_4%,transparent)] p-3 ${className}`}
     >
       <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--landing-muted)]">{label}</p>
-      <div className="mt-1.5 min-h-[2.5rem] text-sm font-semibold leading-snug text-[var(--foreground)]">{children}</div>
+      <div className="font-display mt-1.5 min-h-[2.5rem] text-sm font-semibold leading-snug text-[var(--foreground)]">{children}</div>
     </div>
   );
 }
@@ -145,7 +145,7 @@ export function DashboardPlanCard({
                     : "badge-phase-maintenance"
             }`}
           >
-            <span className="text-xs font-semibold">
+            <span className="font-display text-xs font-semibold">
               {plan.planMultiFase.faseActual === "BULK" && "🏋️"}
               {plan.planMultiFase.faseActual === "CUT" && "✂️"}
               {plan.planMultiFase.faseActual === "LEAN_BULK" && "💎"}
@@ -236,7 +236,7 @@ export function DashboardPlanCard({
             </p>
             <div className="mb-2 flex items-center justify-between">
               <span className="text-xs text-[var(--landing-muted)]">{dash(locale, "simplePlanProgress")}</span>
-              <span className="text-xs font-semibold tabular-nums text-[var(--foreground)]">
+              <span className="font-display text-xs font-semibold tabular-nums text-[var(--foreground)]">
                 {calculateProgress(plan.createdAt).toFixed(1)}%
               </span>
             </div>
@@ -336,7 +336,7 @@ function PlanMultiFaseBlock({ plan, locale }: { plan: SavedPlan; locale: AppLoca
       <div className="space-y-1">
         <div className="flex items-center justify-between">
           <span className="text-xs text-[var(--landing-muted)]">{dashFmt(locale, "mfProgressThisMonth", { n: mesActual })}</span>
-          <span className="text-xs font-medium tabular-nums">{Math.round(progresoMes)}%</span>
+          <span className="font-display text-xs font-medium tabular-nums">{Math.round(progresoMes)}%</span>
         </div>
         <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
           <div className="h-full rounded-full transition-all duration-300" style={{ width: `${progresoMes}%`, background: colors.gradient }} />
@@ -350,7 +350,7 @@ function PlanMultiFaseBlock({ plan, locale }: { plan: SavedPlan; locale: AppLoca
       <div className="space-y-1 border-t border-white/10 pt-3">
         <div className="flex items-center justify-between">
           <span className="text-xs text-[var(--landing-muted)]">{dash(locale, "mfProgressFullProgram")}</span>
-          <span className="text-xs font-medium tabular-nums">{progresoTotal}%</span>
+          <span className="font-display text-xs font-medium tabular-nums">{progresoTotal}%</span>
         </div>
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
           <div

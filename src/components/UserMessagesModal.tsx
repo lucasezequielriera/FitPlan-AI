@@ -402,7 +402,7 @@ export default function UserMessagesModal({
                   <button
                     type="button"
                     onClick={onSendMessage}
-                    className="rounded-xl bg-gradient-to-r from-[var(--brand-start,#3b82f6)] via-[var(--brand-mid,#06b6d4)] to-[var(--brand-end,#10b981)] px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-cyan-500/15 transition hover:brightness-110"
+                    className="rounded-xl bg-gradient-to-r from-[var(--brand-start)] via-[var(--brand-mid)] to-[var(--brand-end)] px-5 py-2.5 text-sm font-medium text-accent-ink shadow-[0_10px_28px_-14px_color-mix(in_oklab,var(--brand-mid)_45%,transparent)] transition hover:brightness-110"
                   >
                     {dash(locale, "msgSendFirst")}
                   </button>

@@ -1,0 +1,86 @@
+/* ============================================================
+   REDISEÑO "FitPlan Volt" — APROBADO Y YA PROMOVIDO A :root
+   ------------------------------------------------------------
+   Estos mismos valores ya viven en el árbol canónico de
+   src/styles/globals.css (ver DESIGN_SYSTEM.md). Este scope
+   aislado (.fp-preview) queda solo para que /design-preview siga
+   funcionando como guía visual de referencia — no hace falta
+   tocarlo para que el resto de la app tenga la paleta nueva.
+   ============================================================ */
+
+.fp-preview {
+  /* --- Base: de navy (#0b1020) a negro neutro para más contraste --- */
+  --background: #08090c;
+  --foreground: #f5f7f2;
+
+  /* --- Marca / gradiente ambiental: de azul-esmeralda-cian a lima-coral-magenta --- */
+  --brand-start: #cbff3d;
+  --brand-mid: #ff5f45;
+  --brand-end: #ff3d81;
+
+  /* --- Acento principal: de teal a "volt lime" (máximo contraste sobre negro) --- */
+  --accent: #cbff3d;
+  --accent-dim: color-mix(in oklab, var(--accent) 75%, white);
+  --accent-strong: #a6e600;
+
+  /* Superficies, texto, semántico (success/warning/danger/info) y colores de fase
+     de plan se heredan sin cambios: ya son legibles y no representan una decisión
+     de marca, sino de estado — fuera de alcance de esta propuesta. */
+
+  /* --- Radios: formas más contundentes para un lenguaje más "app", no genérico --- */
+  --radius-md: 0.875rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.75rem;
+
+  /* --- Tipografía de la propuesta (cargada vía next/font en design-preview.tsx) --- */
+  --font-ui: var(--font-preview-ui);
+  --font-display: var(--font-preview-display);
+
+  background:
+    radial-gradient(1100px 560px at 82% -8%, color-mix(in oklab, var(--brand-end) 20%, transparent) 0%, transparent 60%),
+    radial-gradient(900px 520px at -8% 15%, color-mix(in oklab, var(--brand-start) 16%, transparent) 0%, transparent 58%),
+    linear-gradient(180deg, color-mix(in oklab, var(--brand-mid) 8%, var(--background)) 0%, var(--background) 55%);
+  color: var(--foreground);
+  font-family: var(--font-ui), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+.fp-preview .fp-display {
+  font-family: var(--font-display), var(--font-ui), ui-sans-serif, system-ui;
+  font-feature-settings: "tnum" 1, "lnum" 1; /* numerales tabulares: kcal/kg/reps siempre alineados */
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: -0.01em;
+}
+
+/* CTA primario con glow de acento — variante puntual solo para esta demo,
+   reutiliza .btn/.btn-primary como base (ver globals.css) */
+.fp-preview .btn-primary {
+  box-shadow: 0 10px 32px -10px color-mix(in oklab, var(--accent) 55%, transparent);
+}
+.fp-preview .btn-primary:hover:not(:disabled) {
+  box-shadow: 0 14px 40px -10px color-mix(in oklab, var(--accent) 65%, transparent);
+}
+
+.fp-preview .fp-ribbon {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  border-bottom: 1px dashed color-mix(in oklab, var(--accent) 45%, transparent);
+  background: color-mix(in oklab, var(--background) 92%, transparent);
+  backdrop-filter: blur(8px);
+  padding: 0.5rem 1rem;
+  text-align: center;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fp-preview * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

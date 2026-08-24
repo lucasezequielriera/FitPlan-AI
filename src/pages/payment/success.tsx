@@ -176,7 +176,7 @@ export default function PaymentSuccess() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--accent)] mx-auto mb-4"></div>
           <p className="opacity-70">Verificando pago...</p>
         </div>
       </div>
@@ -201,7 +201,7 @@ export default function PaymentSuccess() {
         >
           {premium ? (
             <>
-              <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-green-500/20 mb-6">
+              <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-success/20 mb-6">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 24 24"
@@ -210,19 +210,19 @@ export default function PaymentSuccess() {
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  className="h-10 w-10 text-green-400"
+                  className="h-10 w-10 text-success"
                 >
                   <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
                   <polyline points="22 4 12 14.01 9 11.01" />
                 </svg>
               </div>
-              <h1 className="text-3xl font-bold mb-4 bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
+              <h1 className="font-display text-3xl font-bold mb-4 text-success">
                 ¡Pago exitoso!
               </h1>
               <p className="text-lg opacity-80 mb-6">
                 Tu plan Premium ha sido activado correctamente.
               </p>
-              <div className="mb-8 p-4 rounded-xl bg-green-500/10 border border-green-500/30">
+              <div className="mb-8 p-4 rounded-xl bg-success/10 border border-success/30">
                 <p className="text-sm opacity-70 mb-2">Ahora tienes acceso a:</p>
                 <ul className="text-left text-sm space-y-1">
                   <li>✓ Objetivos avanzados (Recomposición, Definición, Volumen, Corte)</li>
@@ -233,15 +233,15 @@ export default function PaymentSuccess() {
               </div>
               <button
                 onClick={() => router.push("/dashboard")}
-                className="px-6 py-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-medium transition-all shadow-lg shadow-green-500/20"
+                className="btn btn-success"
               >
                 Ir a mi Dashboard
               </button>
-              <p className="text-white/60 text-xs mt-3">Te redirigimos automáticamente en unos segundos...</p>
+              <p className="text-subtle text-xs mt-3">Te redirigimos automáticamente en unos segundos...</p>
             </>
           ) : (
             <>
-              <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-yellow-500/20 mb-6">
+              <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-warning/20 mb-6">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 24 24"
@@ -250,20 +250,20 @@ export default function PaymentSuccess() {
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  className="h-10 w-10 text-yellow-400"
+                  className="h-10 w-10 text-warning"
                 >
                   <circle cx="12" cy="12" r="10" />
                   <line x1="12" y1="8" x2="12" y2="12" />
                   <line x1="12" y1="16" x2="12.01" y2="16" />
                 </svg>
               </div>
-              <h1 className="text-3xl font-bold mb-4">Procesando pago...</h1>
+              <h1 className="font-display text-3xl font-bold mb-4">Procesando pago...</h1>
               <p className="text-lg opacity-80 mb-6">
                 Estamos verificando tu pago. Esto puede tomar unos momentos.
               </p>
               <button
                 onClick={() => router.push("/dashboard")}
-                className="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-medium transition-all shadow-lg shadow-blue-500/20"
+                className="btn btn-primary"
               >
                 Volver al Dashboard
               </button>

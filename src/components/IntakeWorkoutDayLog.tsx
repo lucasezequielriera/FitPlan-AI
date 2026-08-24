@@ -1089,9 +1089,9 @@ export default function IntakeWorkoutDayLog({
 
       {comparisonOpen ? (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-5xl rounded-xl border border-white/15 bg-slate-900 p-4">
+          <div className="w-full max-w-5xl rounded-xl border border-white/15 bg-[color-mix(in_oklab,var(--background)_95%,#0f172a)] p-4">
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-white">Comparador de semanas</h3>
+              <h3 className="font-display text-sm font-semibold text-white">Comparador de semanas</h3>
               <button className="text-white/70 hover:text-white" onClick={() => setComparisonOpen(false)}>
                 Cerrar
               </button>
@@ -1102,7 +1102,7 @@ export default function IntakeWorkoutDayLog({
                 <select
                   value={compareWeekA ?? ""}
                   onChange={(e) => setCompareWeekA(Number(e.target.value))}
-                  className="rounded border border-white/20 bg-slate-800 px-2 py-1"
+                  className="rounded border border-white/20 bg-[var(--surface-2)] px-2 py-1"
                 >
                   {weekIndexes.map((w) => (
                     <option key={`a-${w}`} value={w}>
@@ -1116,7 +1116,7 @@ export default function IntakeWorkoutDayLog({
                 <select
                   value={compareWeekB ?? ""}
                   onChange={(e) => setCompareWeekB(Number(e.target.value))}
-                  className="rounded border border-white/20 bg-slate-800 px-2 py-1"
+                  className="rounded border border-white/20 bg-[var(--surface-2)] px-2 py-1"
                 >
                   {weekIndexes.map((w) => (
                     <option key={`b-${w}`} value={w}>

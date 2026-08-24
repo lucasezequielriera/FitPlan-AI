@@ -281,7 +281,7 @@ export default function LoginModal({
 
               <div className="mb-5 flex items-start gap-3 pr-10">
                 <span
-                  className="mt-0.5 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--landing-accent)]/30 to-cyan-500/20 ring-1 ring-[var(--landing-accent)]/40 text-[var(--landing-accent)]"
+                  className="mt-0.5 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--landing-accent)]/30 to-[var(--brand-mid)]/20 ring-1 ring-[var(--landing-accent)]/40 text-[var(--landing-accent)]"
                   aria-hidden
                 >
                   {isForgotPassword ? <FaKey className="h-5 w-5" /> : <FaLock className="h-5 w-5" />}
@@ -289,7 +289,7 @@ export default function LoginModal({
                 <div className="min-w-0">
                   <h2
                     id="login-modal-title"
-                    className="text-xl font-bold tracking-tight text-balance bg-gradient-to-r from-[var(--foreground)] to-[var(--landing-accent)] bg-clip-text text-transparent sm:text-2xl"
+                    className="font-display text-xl font-bold tracking-tight text-balance bg-gradient-to-r from-[var(--foreground)] to-[var(--landing-accent)] bg-clip-text text-transparent sm:text-2xl"
                   >
                     {isForgotPassword ? copy.titleForgot : isSignUp ? copy.titleSignup : copy.titleLogin}
                   </h2>
@@ -321,10 +321,10 @@ export default function LoginModal({
                   </div>
 
                   {error && (
-                    <div className="rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-2.5 text-sm text-red-200">{error}</div>
+                    <div className="rounded-xl border border-danger/30 bg-danger/10 px-3 py-2.5 text-sm text-danger">{error}</div>
                   )}
                   {success && (
-                    <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-3 py-2.5 text-sm text-emerald-200">{success}</div>
+                    <div className="rounded-xl border border-success/30 bg-success/10 px-3 py-2.5 text-sm text-success">{success}</div>
                   )}
 
                   <button
@@ -440,10 +440,10 @@ export default function LoginModal({
                     </div>
 
                     {error && (
-                      <div className="rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-2.5 text-sm text-red-200">{error}</div>
+                      <div className="rounded-xl border border-danger/30 bg-danger/10 px-3 py-2.5 text-sm text-danger">{error}</div>
                     )}
                     {success && (
-                      <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-3 py-2.5 text-sm text-emerald-200">{success}</div>
+                      <div className="rounded-xl border border-success/30 bg-success/10 px-3 py-2.5 text-sm text-success">{success}</div>
                     )}
 
                     <button

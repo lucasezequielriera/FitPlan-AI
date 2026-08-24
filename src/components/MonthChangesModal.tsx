@@ -120,7 +120,7 @@ export default function MonthChangesModal({ isOpen, onClose, cambios }: MonthCha
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-2xl font-bold mb-1">
+            <h2 className="font-display text-2xl font-bold mb-1">
               {cambioFase ? "🔄 ¡Cambio de Fase!" : "📈 Nuevo Mes Generado"}
             </h2>
             <p className="text-sm opacity-70">
@@ -174,8 +174,8 @@ export default function MonthChangesModal({ isOpen, onClose, cambios }: MonthCha
 
         {/* Resumen de Progreso del Usuario */}
         {cambios.progresoUsuario && (
-          <div className="mb-6 p-4 rounded-xl bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/30">
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <div className="mb-6 p-4 rounded-xl bg-gradient-to-br from-[color-mix(in_oklab,var(--brand-mid)_10%,transparent)] to-[color-mix(in_oklab,var(--brand-end)_10%,transparent)] border border-[color-mix(in_oklab,var(--brand-mid)_30%,transparent)]">
+            <h3 className="font-display text-lg font-semibold mb-4 flex items-center gap-2">
               <span>📊</span>
               <span>Tu Progreso hasta ahora</span>
             </h3>
@@ -191,7 +191,7 @@ export default function MonthChangesModal({ isOpen, onClose, cambios }: MonthCha
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="opacity-60">Actual:</span>
-                    <span className="font-semibold text-lg">{cambios.progresoUsuario.pesoActual} kg</span>
+                    <span className="font-display font-semibold text-lg">{cambios.progresoUsuario.pesoActual} kg</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="opacity-60">Objetivo:</span>
@@ -206,7 +206,7 @@ export default function MonthChangesModal({ isOpen, onClose, cambios }: MonthCha
                     </div>
                     <div className="h-2 w-full rounded-full bg-white/10 overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all"
+                        className="h-full rounded-full bg-gradient-to-r from-[var(--brand-mid)] to-[var(--brand-end)] transition-all"
                         style={{ width: `${Math.min(100, cambios.progresoUsuario.porcentajeHaciaObjetivo)}%` }}
                       />
                     </div>
@@ -243,7 +243,7 @@ export default function MonthChangesModal({ isOpen, onClose, cambios }: MonthCha
                     </div>
                     <div className="h-1.5 w-full rounded-full bg-white/10 overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-500"
+                        className="h-full rounded-full bg-gradient-to-r from-[var(--brand-start)] to-[var(--brand-end)]"
                         style={{ width: `${(cambios.progresoUsuario.mesesCompletados / cambios.progresoUsuario.totalMeses) * 100}%` }}
                       />
                     </div>
@@ -299,7 +299,7 @@ export default function MonthChangesModal({ isOpen, onClose, cambios }: MonthCha
             </div>
 
             {/* Mensaje motivacional basado en progreso */}
-            <div className="mt-4 p-3 rounded-lg bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-400/30">
+            <div className="mt-4 p-3 rounded-lg bg-gradient-to-r from-[color-mix(in_oklab,var(--brand-mid)_20%,transparent)] to-[color-mix(in_oklab,var(--brand-end)_20%,transparent)] border border-[color-mix(in_oklab,var(--brand-mid)_35%,transparent)]">
               <p className="text-sm text-center">
                 {cambios.progresoUsuario.porcentajeHaciaObjetivo >= 80 
                   ? "🎉 ¡Estás muy cerca de tu objetivo! Sigue con esta consistencia."
@@ -316,7 +316,7 @@ export default function MonthChangesModal({ isOpen, onClose, cambios }: MonthCha
         {/* Razón de los cambios */}
         {cambios.razonCambios && (
           <div className="mb-6 p-4 rounded-lg bg-[var(--info-soft)] border border-[var(--info)]/30">
-            <h3 className="text-sm font-semibold mb-2 text-info">💡 ¿Por qué estos cambios?</h3>
+            <h3 className="font-display text-sm font-semibold mb-2 text-info">💡 ¿Por qué estos cambios?</h3>
             <p className="text-sm opacity-90">{cambios.razonCambios}</p>
           </div>
         )}
@@ -324,7 +324,7 @@ export default function MonthChangesModal({ isOpen, onClose, cambios }: MonthCha
         <div className="space-y-6">
           {/* Cambios en Nutrición */}
           <div className="p-4 rounded-xl bg-white/5 border border-white/10">
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <h3 className="font-display text-lg font-semibold mb-4 flex items-center gap-2">
               <span>🍽️</span>
               <span>Nutrición</span>
             </h3>
@@ -396,7 +396,7 @@ export default function MonthChangesModal({ isOpen, onClose, cambios }: MonthCha
 
           {/* Cambios en Entrenamiento */}
           <div className="p-4 rounded-xl bg-white/5 border border-white/10">
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <h3 className="font-display text-lg font-semibold mb-4 flex items-center gap-2">
               <span>💪</span>
               <span>Entrenamiento</span>
             </h3>
@@ -451,7 +451,7 @@ export default function MonthChangesModal({ isOpen, onClose, cambios }: MonthCha
           {/* Ajustes aplicados */}
           {cambios.ajustesAplicados && cambios.ajustesAplicados.length > 0 && (
             <div className="p-4 rounded-xl bg-[var(--warning-soft)] border border-[var(--warning)]/30">
-              <h3 className="text-sm font-semibold mb-3 text-warning">
+              <h3 className="font-display text-sm font-semibold mb-3 text-warning">
                 🎯 Ajustes aplicados basados en tus resultados:
               </h3>
               <ul className="space-y-2">
@@ -466,7 +466,7 @@ export default function MonthChangesModal({ isOpen, onClose, cambios }: MonthCha
           )}
 
           {/* Resumen motivacional */}
-          <div className="p-4 rounded-xl bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/30 text-center">
+          <div className="p-4 rounded-xl bg-gradient-to-r from-[color-mix(in_oklab,var(--brand-start)_10%,transparent)] to-[color-mix(in_oklab,var(--brand-end)_10%,transparent)] border border-[color-mix(in_oklab,var(--brand-mid)_30%,transparent)] text-center">
             <p className="text-sm font-medium mb-2">
               {cambioFase 
                 ? `¡Felicidades! Has completado la fase ${cambios.faseAnterior}. Es momento de comenzar tu fase ${cambios.faseNueva}.`
@@ -481,7 +481,7 @@ export default function MonthChangesModal({ isOpen, onClose, cambios }: MonthCha
         {/* Botón continuar */}
         <button
           onClick={onClose}
-          className="w-full mt-6 px-6 py-3 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-medium transition-all shadow-lg"
+          className="w-full mt-6 px-6 py-3 rounded-lg bg-gradient-to-r from-[var(--brand-start)] via-[var(--brand-mid)] to-[var(--brand-end)] text-accent-ink font-medium transition-all hover:brightness-110 shadow-lg"
         >
           Entendido, continuar con el Mes {cambios.mesNuevo}
         </button>

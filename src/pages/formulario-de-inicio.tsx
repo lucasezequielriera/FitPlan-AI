@@ -106,8 +106,8 @@ export default function FormularioDeInicioPage() {
     "rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)]/60 p-3 md:p-4";
   const chipOff = "rounded-full border border-[var(--landing-border)] bg-[var(--landing-surface)] px-3 py-2 text-sm font-medium text-[var(--landing-muted)] transition hover:border-[color-mix(in_oklab,var(--landing-accent)_35%,transparent)] hover:text-[var(--foreground)]";
   const chipOn = "rounded-full border border-[var(--landing-accent)] bg-[color-mix(in_oklab,var(--landing-accent)_14%,transparent)] px-3 py-2 text-sm font-semibold text-[var(--landing-accent)] shadow-[0_0_20px_-8px_var(--landing-accent)]";
-  const chipFoodGusta = "rounded-full border border-emerald-400/45 bg-emerald-500/15 px-3 py-2 text-sm font-medium text-emerald-100";
-  const chipFoodNo = "rounded-full border border-rose-400/45 bg-rose-500/15 px-3 py-2 text-sm font-medium text-rose-100";
+  const chipFoodGusta = "rounded-full border border-success/45 bg-success/15 px-3 py-2 text-sm font-medium text-success";
+  const chipFoodNo = "rounded-full border border-danger/45 bg-danger/15 px-3 py-2 text-sm font-medium text-danger";
 
   return (
     <div className="min-h-screen" lang={locale}>
@@ -139,7 +139,7 @@ export default function FormularioDeInicioPage() {
           >
             <div className="relative border-b border-[var(--landing-border)]/80 bg-gradient-to-br from-[color-mix(in_oklab,var(--landing-accent)_14%,transparent)] via-[var(--landing-surface)] to-[color-mix(in_oklab,#6366f1_10%,transparent)] px-5 py-6 md:px-8 md:py-8">
               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--landing-accent)]">{copy.heroEyebrow}</p>
-              <h1 className="mt-2 text-balance bg-gradient-to-r from-[var(--foreground)] via-[var(--foreground)] to-[var(--landing-accent)] bg-clip-text text-2xl font-bold tracking-tight text-transparent md:text-3xl">
+              <h1 className="font-display mt-2 text-balance bg-gradient-to-r from-[var(--foreground)] via-[var(--foreground)] to-[var(--landing-accent)] bg-clip-text text-2xl font-bold tracking-tight text-transparent md:text-3xl">
                 {copy.heroTitle}
               </h1>
               <p className="mt-3 max-w-2xl text-pretty text-sm font-medium leading-relaxed text-[var(--landing-muted)] md:text-base">
@@ -162,7 +162,7 @@ export default function FormularioDeInicioPage() {
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[color-mix(in_oklab,var(--landing-accent)_16%,transparent)] text-sm font-bold text-[var(--landing-accent)] ring-1 ring-[var(--landing-accent)]/35">
                     1
                   </span>
-                  <h2 className="pt-0.5 text-lg font-bold tracking-tight text-[var(--foreground)] md:text-xl">{copy.sections.s1}</h2>
+                  <h2 className="font-display pt-0.5 text-lg font-bold tracking-tight text-[var(--foreground)] md:text-xl">{copy.sections.s1}</h2>
                 </div>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <label className="flex flex-col gap-1">
@@ -240,7 +240,7 @@ export default function FormularioDeInicioPage() {
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[color-mix(in_oklab,var(--landing-accent)_16%,transparent)] text-sm font-bold text-[var(--landing-accent)] ring-1 ring-[var(--landing-accent)]/35">
                     2
                   </span>
-                  <h2 className="pt-0.5 text-lg font-bold tracking-tight text-[var(--foreground)] md:text-xl">{copy.sections.s2}</h2>
+                  <h2 className="font-display pt-0.5 text-lg font-bold tracking-tight text-[var(--foreground)] md:text-xl">{copy.sections.s2}</h2>
                 </div>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <label className="flex flex-col gap-1">
@@ -269,7 +269,7 @@ export default function FormularioDeInicioPage() {
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[color-mix(in_oklab,var(--landing-accent)_16%,transparent)] text-sm font-bold text-[var(--landing-accent)] ring-1 ring-[var(--landing-accent)]/35">
                     3
                   </span>
-                  <h2 className="pt-0.5 text-lg font-bold tracking-tight text-[var(--foreground)] md:text-xl">{copy.sections.s3}</h2>
+                  <h2 className="font-display pt-0.5 text-lg font-bold tracking-tight text-[var(--foreground)] md:text-xl">{copy.sections.s3}</h2>
                 </div>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <label className="flex flex-col gap-1">
@@ -373,7 +373,7 @@ export default function FormularioDeInicioPage() {
                     4
                   </span>
                   <div>
-                    <h2 className="text-lg font-bold tracking-tight text-[var(--foreground)] md:text-xl">{copy.sections.s4}</h2>
+                    <h2 className="font-display text-lg font-bold tracking-tight text-[var(--foreground)] md:text-xl">{copy.sections.s4}</h2>
                     <p className="mt-1 text-sm text-[var(--landing-muted)]">{copy.sections.s4intro}</p>
                   </div>
                 </div>
@@ -467,7 +467,7 @@ export default function FormularioDeInicioPage() {
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[color-mix(in_oklab,var(--landing-accent)_16%,transparent)] text-sm font-bold text-[var(--landing-accent)] ring-1 ring-[var(--landing-accent)]/35">
                     5
                   </span>
-                  <h2 className="pt-0.5 text-lg font-bold tracking-tight text-[var(--foreground)] md:text-xl">{copy.sections.s5}</h2>
+                  <h2 className="font-display pt-0.5 text-lg font-bold tracking-tight text-[var(--foreground)] md:text-xl">{copy.sections.s5}</h2>
                 </div>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <label className="flex flex-col gap-1">
@@ -533,7 +533,7 @@ export default function FormularioDeInicioPage() {
                     6
                   </span>
                   <div>
-                    <h2 className="text-lg font-bold tracking-tight text-[var(--foreground)] md:text-xl">{copy.sections.s6}</h2>
+                    <h2 className="font-display text-lg font-bold tracking-tight text-[var(--foreground)] md:text-xl">{copy.sections.s6}</h2>
                     <p className="mt-1 text-sm text-[var(--landing-muted)]">{copy.sections.s6intro}</p>
                   </div>
                 </div>
@@ -699,7 +699,7 @@ export default function FormularioDeInicioPage() {
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[color-mix(in_oklab,var(--landing-accent)_16%,transparent)] text-sm font-bold text-[var(--landing-accent)] ring-1 ring-[var(--landing-accent)]/35">
                     7
                   </span>
-                  <h2 className="pt-0.5 text-lg font-bold tracking-tight text-[var(--foreground)] md:text-xl">{copy.sections.s7}</h2>
+                  <h2 className="font-display pt-0.5 text-lg font-bold tracking-tight text-[var(--foreground)] md:text-xl">{copy.sections.s7}</h2>
                 </div>
                 <label className="flex flex-col gap-1">
                   <span className="text-sm font-medium text-[var(--landing-muted)]">{L.objRend}</span>
@@ -732,7 +732,7 @@ export default function FormularioDeInicioPage() {
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[color-mix(in_oklab,var(--landing-accent)_16%,transparent)] text-sm font-bold text-[var(--landing-accent)] ring-1 ring-[var(--landing-accent)]/35">
                     8
                   </span>
-                  <h2 className="pt-0.5 text-lg font-bold tracking-tight text-[var(--foreground)] md:text-xl">{copy.sections.s8}</h2>
+                  <h2 className="font-display pt-0.5 text-lg font-bold tracking-tight text-[var(--foreground)] md:text-xl">{copy.sections.s8}</h2>
                 </div>
                 <label className="flex items-start gap-3 text-sm">
                   <input
@@ -745,10 +745,10 @@ export default function FormularioDeInicioPage() {
                 </label>
 
                 {error && (
-                  <div className="rounded-xl border border-red-400/35 bg-red-500/10 px-3 py-2.5 text-sm text-red-200">{error}</div>
+                  <div className="rounded-xl border border-danger/35 bg-danger/10 px-3 py-2.5 text-sm text-danger">{error}</div>
                 )}
                 {success && (
-                  <div className="rounded-xl border border-emerald-400/35 bg-emerald-500/10 px-3 py-2.5 text-sm text-emerald-100">
+                  <div className="rounded-xl border border-success/35 bg-success/10 px-3 py-2.5 text-sm text-success">
                     {copy.successMsg}
                   </div>
                 )}
@@ -785,7 +785,7 @@ export default function FormularioDeInicioPage() {
               className="relative z-10 w-full max-w-lg rounded-t-2xl border border-[var(--landing-border)] border-b-0 bg-[color-mix(in_oklab,var(--background)_95%,#0f172a)] p-6 shadow-2xl sm:rounded-2xl sm:border-b pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:pb-6"
             >
               <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--landing-accent)]">FitPlan</p>
-              <h3 className="mt-2 text-balance bg-gradient-to-r from-[var(--foreground)] to-[var(--landing-accent)] bg-clip-text text-xl font-bold text-transparent">
+              <h3 className="font-display mt-2 text-balance bg-gradient-to-r from-[var(--foreground)] to-[var(--landing-accent)] bg-clip-text text-xl font-bold text-transparent">
                 {copy.modalTitle}
               </h3>
               <p className="mt-3 text-sm leading-relaxed text-[var(--landing-muted)]">{copy.modalLine1}</p>

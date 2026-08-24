@@ -253,10 +253,10 @@ export default function MiPlanIntakePage() {
         <title>{title}</title>
         <meta name="robots" content="noindex, nofollow" />
       </Head>
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-slate-900 to-gray-900 text-white">
+      <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
         <header className="border-b border-white/10 bg-black/20 px-4 py-4">
           <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
-            <p className="text-lg font-semibold bg-gradient-to-r from-cyan-300 to-emerald-300 bg-clip-text text-transparent">
+            <p className="font-display text-lg font-semibold bg-gradient-to-r from-[var(--foreground)] to-[var(--landing-accent)] bg-clip-text text-transparent">
               FitPlan
             </p>
             <p className="text-xs text-white/50">Tu nutrición y entrenamiento</p>
@@ -274,7 +274,7 @@ export default function MiPlanIntakePage() {
           ) : data?.plan ? (
             <>
               <div className="mb-3 flex items-center gap-3">
-                <h1 className="text-2xl font-bold text-white">
+                <h1 className="font-display text-2xl font-bold text-white">
                   Hola{data.clientName ? `, ${data.clientName.split(" ")[0]}` : ""}
                 </h1>
                 <button
@@ -330,8 +330,8 @@ export default function MiPlanIntakePage() {
       </div>
       {editOpen && (
         <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm p-4 flex items-center justify-center" onClick={(e) => e.target === e.currentTarget && !savingProfile && setEditOpen(false)}>
-          <div className="w-full max-w-xl rounded-xl border border-white/10 bg-gray-900 p-5">
-            <h2 className="text-lg font-semibold text-white">Editar datos esenciales</h2>
+          <div className="w-full max-w-xl rounded-xl border border-white/10 bg-[color-mix(in_oklab,var(--background)_95%,#0f172a)] p-5">
+            <h2 className="font-display text-lg font-semibold text-white">Editar datos esenciales</h2>
             <p className="text-xs text-white/60 mt-1">Estos datos no cambian tu plan. Solo mantienen tu perfil correcto.</p>
             <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
               {[
@@ -397,8 +397,8 @@ export default function MiPlanIntakePage() {
           className="fixed inset-0 z-[120] bg-black/70 backdrop-blur-sm p-4 flex items-center justify-center"
           onClick={(e) => e.target === e.currentTarget && !savingWellness && setWellnessOpen(false)}
         >
-          <div className="w-full max-w-xl rounded-xl border border-white/10 bg-gray-900 p-5">
-            <h2 className="text-lg font-semibold text-white">Check-in de bienestar</h2>
+          <div className="w-full max-w-xl rounded-xl border border-white/10 bg-[color-mix(in_oklab,var(--background)_95%,#0f172a)] p-5">
+            <h2 className="font-display text-lg font-semibold text-white">Check-in de bienestar</h2>
             <p className="text-xs text-white/60 mt-1">
               Te toma menos de 1 minuto. Esto ayuda a tu coach a prevenir fatiga y ajustar cargas.
             </p>
@@ -468,8 +468,8 @@ export default function MiPlanIntakePage() {
           className="fixed inset-0 z-[120] bg-black/70 backdrop-blur-sm p-4 flex items-center justify-center"
           onClick={(e) => e.target === e.currentTarget && !savingWeight && setWeightOpen(false)}
         >
-          <div className="w-full max-w-md rounded-xl border border-white/10 bg-gray-900 p-5">
-            <h2 className="text-lg font-semibold text-white">Registrar peso</h2>
+          <div className="w-full max-w-md rounded-xl border border-white/10 bg-[color-mix(in_oklab,var(--background)_95%,#0f172a)] p-5">
+            <h2 className="font-display text-lg font-semibold text-white">Registrar peso</h2>
             <p className="text-xs text-white/60 mt-1">Este dato se guarda para ver tu evolución en el tiempo.</p>
             <label className="mt-4 block text-sm text-white/85">
               Peso actual (kg)

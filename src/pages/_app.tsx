@@ -1,9 +1,13 @@
 import "@/styles/globals.css";
+// Estilos de la propuesta de rediseño (solo /design-preview). Todas las reglas
+// están gateadas detrás de .fp-preview / .fp-ribbon / .fp-display, clases que
+// no existen en ninguna otra pantalla — no cambia nada del resto de la app.
+import "@/styles/design-preview-2026.css";
 import type { AppProps } from "next/app";
 import Head from "next/head";
 import Script from "next/script";
 import { useRouter } from "next/router";
-import { Poppins } from "next/font/google";
+import { Inter, Space_Grotesk } from "next/font/google";
 import { useEffect, useState } from "react";
 import { AppLocaleProvider } from "@/contexts/AppLocaleContext";
 import { useAuthStore } from "@/store/authStore";
@@ -16,7 +20,11 @@ import { CONSENT_CHANGED_EVENT, readConsent } from "@/lib/consent";
 import { persistAttributionFromUrl } from "@/lib/attribution";
 import CookieConsentBanner from "@/components/CookieConsentBanner";
 
-const poppins = Poppins({ subsets: ["latin"], weight: ["300","400","500","600","700"], variable: "--font-sans" });
+// Tipografía del rediseño "FitPlan Volt" (aprobado — ver /design-preview y DESIGN_SYSTEM.md):
+// Inter para UI/cuerpo (reemplaza a Poppins), Space Grotesk disponible como font-display
+// para que las pantallas vayan adoptando headings/cifras grandes de a poco.
+const inter = Inter({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800"], variable: "--font-sans" });
+const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], weight: ["500", "700"], variable: "--font-display" });
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter();
@@ -194,7 +202,7 @@ export default function App({ Component, pageProps }: AppProps) {
           `}
         </Script>
       ) : null}
-      <div className={`${poppins.className} min-h-screen flex flex-col`}>
+      <div className={`${inter.className} ${spaceGrotesk.variable} min-h-screen flex flex-col`}>
         <AppLocaleProvider>
           <Component {...pageProps} />
           <Footer />

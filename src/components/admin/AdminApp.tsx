@@ -701,8 +701,8 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
     if (!peso || !alturaCm || alturaCm === 0) {
       return {
         status: "saludable",
-        icon: <FaCheck className="text-gray-400" />,
-        color: "text-gray-400"
+        icon: <FaCheck className="text-muted" />,
+        color: "text-muted"
       };
     }
 
@@ -2485,7 +2485,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
 
   if (authLoading || loading) {
     return (
-      <div className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
+      <div className="relative min-h-screen overflow-hidden bg-background text-white">
         <div
           className="pointer-events-none absolute inset-0 -z-0 bg-[radial-gradient(ellipse_100%_55%_at_50%_-15%,rgba(34,211,238,0.14),transparent_58%)]"
           aria-hidden
@@ -2494,7 +2494,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
           className="pointer-events-none absolute inset-0 -z-0 bg-[radial-gradient(ellipse_70%_45%_at_100%_60%,rgba(16,185,129,0.1),transparent_55%)]"
           aria-hidden
         />
-        <div className="pointer-events-none absolute inset-0 -z-0 bg-gradient-to-b from-[#0b1e37]/90 via-slate-950 to-slate-950" aria-hidden />
+        <div className="pointer-events-none absolute inset-0 -z-0 bg-gradient-to-b from-[#0b1e37]/90 via-background to-background" aria-hidden />
         <Navbar />
         <div className="relative flex items-center justify-center min-h-[calc(100vh-4rem)]">
           <div className="text-center">
@@ -2508,7 +2508,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
 
   if (!isAdmin || error) {
     return (
-      <div className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
+      <div className="relative min-h-screen overflow-hidden bg-background text-white">
         <div
           className="pointer-events-none absolute inset-0 -z-0 bg-[radial-gradient(ellipse_100%_55%_at_50%_-15%,rgba(34,211,238,0.14),transparent_58%)]"
           aria-hidden
@@ -2517,7 +2517,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
           className="pointer-events-none absolute inset-0 -z-0 bg-[radial-gradient(ellipse_70%_45%_at_100%_60%,rgba(16,185,129,0.1),transparent_55%)]"
           aria-hidden
         />
-        <div className="pointer-events-none absolute inset-0 -z-0 bg-gradient-to-b from-[#0b1e37]/90 via-slate-950 to-slate-950" aria-hidden />
+        <div className="pointer-events-none absolute inset-0 -z-0 bg-gradient-to-b from-[#0b1e37]/90 via-background to-background" aria-hidden />
         <Navbar />
         <div className="relative flex items-center justify-center min-h-[calc(100vh-4rem)]">
           <div className="text-center p-8 rounded-xl bg-danger/10 border border-danger/30">
@@ -2597,7 +2597,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
   const currentMonthLabel = nowDate.toLocaleDateString("es-AR", { month: "short", year: "numeric" });
   const previousMonthLabel = previousMonthDate.toLocaleDateString("es-AR", { month: "short", year: "numeric" });
   return (
-    <div className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
+    <div className="relative min-h-screen overflow-hidden bg-background text-white">
       <div
         className="pointer-events-none absolute inset-0 -z-0 bg-[radial-gradient(ellipse_100%_55%_at_50%_-15%,rgba(34,211,238,0.14),transparent_58%)]"
         aria-hidden
@@ -2606,7 +2606,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
         className="pointer-events-none absolute inset-0 -z-0 bg-[radial-gradient(ellipse_70%_45%_at_100%_60%,rgba(16,185,129,0.1),transparent_55%)]"
         aria-hidden
       />
-      <div className="pointer-events-none absolute inset-0 -z-0 bg-gradient-to-b from-[#0b1e37]/90 via-slate-950 to-slate-950" aria-hidden />
+      <div className="pointer-events-none absolute inset-0 -z-0 bg-gradient-to-b from-[#0b1e37]/90 via-background to-background" aria-hidden />
       <Navbar />
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-7">
@@ -2616,7 +2616,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
           className="mb-6"
         >
           {view === "dashboard" ? (
-            <div className="rounded-2xl border border-info/25 bg-gradient-to-br from-blue-500/14 via-cyan-500/10 to-emerald-500/12 p-4 md:p-5 shadow-[0_16px_48px_-28px_rgba(34,211,238,0.55)]">
+            <div className="rounded-2xl border border-info/25 bg-gradient-to-br from-[var(--brand-start)]/14 via-[var(--brand-mid)]/10 to-[var(--brand-end)]/12 p-4 md:p-5 shadow-[0_16px_48px_-28px_rgba(34,211,238,0.55)]">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-info/90 mb-1.5">
@@ -2655,7 +2655,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
               </div>
             </div>
           ) : (
-            <div className="rounded-2xl border border-info/25 bg-gradient-to-br from-blue-500/14 via-cyan-500/10 to-emerald-500/12 p-4 md:p-5 shadow-[0_16px_48px_-28px_rgba(34,211,238,0.55)]">
+            <div className="rounded-2xl border border-info/25 bg-gradient-to-br from-[var(--brand-start)]/14 via-[var(--brand-mid)]/10 to-[var(--brand-end)]/12 p-4 md:p-5 shadow-[0_16px_48px_-28px_rgba(34,211,238,0.55)]">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap items-center gap-3">
                   <button
@@ -2742,7 +2742,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-info/30 bg-gradient-to-b from-cyan-400/18 to-emerald-400/12 p-4">
+                <div className="rounded-xl border border-info/30 bg-gradient-to-b from-[var(--brand-start)]/18 to-[var(--brand-end)]/12 p-4">
                   <p className="text-[10px] uppercase tracking-[0.1em] text-info mb-1">Acción recomendada</p>
                   <p className="text-white/90 text-xs leading-snug">
                     Pendientes + renovaciones 7 días para proteger caja.
@@ -2753,7 +2753,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                       setYearlyEarningsYear(new Date().getFullYear());
                       setYearlyEarningsModalOpen(true);
                     }}
-                    className="mt-3 w-full px-3 py-2 rounded-lg bg-white/90 text-slate-900 font-semibold hover:bg-white transition-colors text-xs"
+                    className="mt-3 w-full px-3 py-2 rounded-lg bg-white/90 text-background font-semibold hover:bg-white transition-colors text-xs"
                   >
                     Ver detalle {new Date().getFullYear()}
                   </button>
@@ -2789,16 +2789,16 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
               </div>
 
               <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div className="rounded-lg border border-indigo-300/25 bg-indigo-400/10 p-3">
+                <div className="rounded-lg border border-border bg-surface-2 p-3">
                   <p className="text-white/75 text-[10px] uppercase tracking-[0.1em] mb-0.5">Proyección anual</p>
-                  <p className="text-lg font-bold text-indigo-100">
+                  <p className="text-lg font-bold text-foreground">
                     ${revenueStats.estimatedAnnual.toLocaleString("es-AR")}
                   </p>
                   <p className="text-white/50 text-[10px] mt-0.5">{(revenueStats.estimatedAnnual / 2000).toFixed(2)} EUR</p>
                 </div>
-                <div className="rounded-lg border border-purple-300/25 bg-purple-400/10 p-3">
+                <div className="rounded-lg border border-border bg-surface-2 p-3">
                   <p className="text-white/75 text-[10px] uppercase tracking-[0.1em] mb-0.5">Total premium histórico</p>
-                  <p className="text-lg font-bold text-purple-100">{revenueStats.totalPremiumUsers}</p>
+                  <p className="text-lg font-bold text-foreground">{revenueStats.totalPremiumUsers}</p>
                   <p className="text-white/50 text-[10px] mt-0.5">Registrados</p>
                 </div>
               </div>
@@ -2859,7 +2859,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
               <p className="text-2xl font-extrabold text-info tabular-nums">{regularUsers}</p>
               <p className="text-white/50 text-[10px] mt-0.5">Sin premium</p>
             </div>
-            <div className="rounded-xl border border-success/25 bg-gradient-to-br from-emerald-500/15 to-cyan-500/10 p-3">
+            <div className="rounded-xl border border-success/25 bg-success/10 p-3">
               <p className="text-success/90 text-[10px] uppercase tracking-[0.1em] mb-0.5">Atléticos</p>
               <p className="text-2xl font-extrabold text-success tabular-nums">{athleticUsers}</p>
               <p className="text-white/50 text-[10px] mt-0.5">Perfil deportivo</p>
@@ -3065,8 +3065,8 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                 />
                               </label>
                             </div>
-                            <div className="mt-2 rounded-md border border-violet-400/20 bg-violet-500/5 p-2">
-                              <label className="inline-flex items-center gap-2 text-[11px] text-violet-100/90">
+                            <div className="mt-2 rounded-md border border-border bg-surface-2 p-2">
+                              <label className="inline-flex items-center gap-2 text-[11px] text-foreground">
                                 <input
                                   type="checkbox"
                                   checked={client.weightRequestAutoEnabled === true}
@@ -3179,7 +3179,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                             <button
                               type="button"
                               onClick={() => handleOpenIntakeClientDetail(client)}
-                              className="px-3 py-1.5 rounded-lg bg-slate-500/20 border border-slate-400/40 text-slate-200 hover:bg-slate-500/30 transition-colors inline-flex items-center gap-1.5"
+                              className="px-3 py-1.5 rounded-lg bg-surface-2 border border-border-strong text-foreground hover:bg-surface-3 transition-colors inline-flex items-center gap-1.5"
                             >
                               <FaUser className="h-3.5 w-3.5" />
                               <span>Datos</span>
@@ -3206,7 +3206,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                 </button>
                                 <button
                                   onClick={() => handleOpenGeneratedPlan(client)}
-                                  className="px-3 py-1.5 rounded-lg bg-violet-500/20 border border-violet-400/40 text-violet-200 hover:bg-violet-500/30 transition-colors inline-flex items-center gap-1.5"
+                                  className="px-3 py-1.5 rounded-lg bg-surface-2 border border-border-strong text-foreground hover:bg-surface-3 transition-colors inline-flex items-center gap-1.5"
                                 >
                                   <FaEye className="h-3.5 w-3.5" />
                                   <span>Ver</span>
@@ -3214,7 +3214,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                 <button
                                   type="button"
                                   onClick={() => void handleCopyIntakeClientPublicPlanLink(client)}
-                                  className="px-3 py-1.5 rounded-lg bg-teal-500/20 border border-teal-400/40 text-teal-100 hover:bg-teal-500/30 transition-colors inline-flex items-center gap-1.5"
+                                  className="px-3 py-1.5 rounded-lg bg-surface-2 border border-border-strong text-foreground hover:bg-surface-3 transition-colors inline-flex items-center gap-1.5"
                                   title="Copiar URL para que el cliente vea su plan (nutrición y entreno) sin iniciar sesión"
                                 >
                                   <FaExternalLinkAlt className="h-3.5 w-3.5" />
@@ -3254,7 +3254,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                               type="button"
                               onClick={() => void handleRequestWeightCheck(client)}
                               disabled={requestingWeightClientId === client.id}
-                              className="px-3 py-1.5 rounded-lg bg-indigo-500/20 border border-indigo-400/40 text-indigo-100 hover:bg-indigo-500/30 transition-colors inline-flex items-center gap-1.5 disabled:opacity-60"
+                              className="px-3 py-1.5 rounded-lg bg-surface-2 border border-border-strong text-foreground hover:bg-surface-3 transition-colors inline-flex items-center gap-1.5 disabled:opacity-60"
                             >
                               <FaChartLine className="h-3.5 w-3.5" />
                               <span>{requestingWeightClientId === client.id ? "Enviando..." : "Pedir peso"}</span>
@@ -3268,7 +3268,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                             </button>
                             <button
                               onClick={() => void handleOpenIntakeEmailHistory(client)}
-                              className="px-3 py-1.5 rounded-lg bg-fuchsia-500/20 border border-fuchsia-400/40 text-fuchsia-200 hover:bg-fuchsia-500/30 transition-colors inline-flex items-center gap-1.5"
+                              className="px-3 py-1.5 rounded-lg bg-surface-2 border border-border-strong text-foreground hover:bg-surface-3 transition-colors inline-flex items-center gap-1.5"
                             >
                               <FaEnvelope className="h-3.5 w-3.5" />
                               <span>Emails</span>
@@ -3406,7 +3406,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                           }
                           className="mt-1 w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white"
                         />
-                        <label className="mt-2 inline-flex items-center gap-2 text-[11px] text-violet-100/90">
+                        <label className="mt-2 inline-flex items-center gap-2 text-[11px] text-foreground">
                           <input
                             type="checkbox"
                             checked={client.weightRequestAutoEnabled === true}
@@ -3486,7 +3486,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                       <button
                         type="button"
                         onClick={() => handleOpenIntakeClientDetail(client)}
-                        className="px-3 py-1.5 rounded-lg bg-slate-500/20 border border-slate-400/40 text-slate-200 hover:bg-slate-500/30 transition-colors inline-flex items-center gap-1.5 text-xs"
+                        className="px-3 py-1.5 rounded-lg bg-surface-2 border border-border-strong text-foreground hover:bg-surface-3 transition-colors inline-flex items-center gap-1.5 text-xs"
                       >
                         <FaUser className="h-3.5 w-3.5" />
                         <span>Datos</span>
@@ -3513,7 +3513,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                           </button>
                           <button
                             onClick={() => handleOpenGeneratedPlan(client)}
-                            className="px-3 py-1.5 rounded-lg bg-violet-500/20 border border-violet-400/40 text-violet-200 hover:bg-violet-500/30 transition-colors inline-flex items-center gap-1.5 text-xs"
+                            className="px-3 py-1.5 rounded-lg bg-surface-2 border border-border-strong text-foreground hover:bg-surface-3 transition-colors inline-flex items-center gap-1.5 text-xs"
                           >
                             <FaEye className="h-3.5 w-3.5" />
                             <span>Ver</span>
@@ -3521,7 +3521,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                           <button
                             type="button"
                             onClick={() => void handleCopyIntakeClientPublicPlanLink(client)}
-                            className="px-3 py-1.5 rounded-lg bg-teal-500/20 border border-teal-400/40 text-teal-100 hover:bg-teal-500/30 transition-colors inline-flex items-center gap-1.5 text-xs"
+                            className="px-3 py-1.5 rounded-lg bg-surface-2 border border-border-strong text-foreground hover:bg-surface-3 transition-colors inline-flex items-center gap-1.5 text-xs"
                             title="Copiar URL para el cliente"
                           >
                             <FaExternalLinkAlt className="h-3.5 w-3.5" />
@@ -3560,7 +3560,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                         type="button"
                         onClick={() => void handleRequestWeightCheck(client)}
                         disabled={requestingWeightClientId === client.id}
-                        className="px-3 py-1.5 rounded-lg bg-indigo-500/20 border border-indigo-400/40 text-indigo-100 hover:bg-indigo-500/30 transition-colors inline-flex items-center gap-1.5 text-xs disabled:opacity-60"
+                        className="px-3 py-1.5 rounded-lg bg-surface-2 border border-border-strong text-foreground hover:bg-surface-3 transition-colors inline-flex items-center gap-1.5 text-xs disabled:opacity-60"
                       >
                         <FaChartLine className="h-3.5 w-3.5" />
                         <span>{requestingWeightClientId === client.id ? "Enviando..." : "Pedir peso"}</span>
@@ -3574,7 +3574,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                       </button>
                       <button
                         onClick={() => void handleOpenIntakeEmailHistory(client)}
-                        className="px-3 py-1.5 rounded-lg bg-fuchsia-500/20 border border-fuchsia-400/40 text-fuchsia-200 hover:bg-fuchsia-500/30 transition-colors inline-flex items-center gap-1.5 text-xs"
+                        className="px-3 py-1.5 rounded-lg bg-surface-2 border border-border-strong text-foreground hover:bg-surface-3 transition-colors inline-flex items-center gap-1.5 text-xs"
                       >
                         <FaEnvelope className="h-3.5 w-3.5" />
                         <span>Emails</span>
@@ -3739,7 +3739,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {user.email?.toLowerCase() === "admin@fitplan-ai.com" ? (
-                          <span className="px-2 py-1 text-xs rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                          <span className="px-2 py-1 text-xs rounded-full bg-info/20 text-info border border-info/30">
                             Admin
                           </span>
                         ) : user.premium ? (
@@ -3760,14 +3760,14 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                             )}
                           </div>
                         ) : (
-                          <span className="px-2 py-1 text-xs rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/30">
+                          <span className="px-2 py-1 text-xs rounded-full bg-surface-2 text-muted border border-border">
                             Regular
                           </span>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {user.email?.toLowerCase() === "admin@fitplan-ai.com" ? (
-                          <span className="px-2 py-1 text-xs rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/30">
+                          <span className="px-2 py-1 text-xs rounded-full bg-surface-2 text-muted border border-border">
                             N/A
                           </span>
                         ) : user.premium ? (
@@ -3898,7 +3898,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                             )}
                           </div>
                         ) : (
-                          <span className="px-2 py-1 text-xs rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/30">
+                          <span className="px-2 py-1 text-xs rounded-full bg-surface-2 text-muted border border-border">
                             Regular
                           </span>
                         )}
@@ -4072,7 +4072,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                           </div>
                         )}
                         {user.email?.toLowerCase() === "admin@fitplan-ai.com" ? (
-                          <span className="px-2 py-1 text-xs rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                          <span className="px-2 py-1 text-xs rounded-full bg-info/20 text-info border border-info/30">
                             Admin
                           </span>
                         ) : user.premium ? (
@@ -4093,7 +4093,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                             )}
                           </>
                         ) : (
-                          <span className="px-2 py-1 text-xs rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/30">
+                          <span className="px-2 py-1 text-xs rounded-full bg-surface-2 text-muted border border-border">
                             Regular
                           </span>
                         )}
@@ -4194,7 +4194,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                       <div>
                         <p className="text-white/60 text-xs mb-0.5">Estado de Pago</p>
                         {user.email?.toLowerCase() === "admin@fitplan-ai.com" ? (
-                          <span className="px-2 py-1 text-xs rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/30">
+                          <span className="px-2 py-1 text-xs rounded-full bg-surface-2 text-muted border border-border">
                             N/A
                           </span>
                         ) : user.premium ? (
@@ -4319,7 +4319,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                             )}
                           </div>
                         ) : (
-                          <span className="px-2 py-1 text-xs rounded-full bg-gray-500/20 text-gray-400 border border-gray-500/30">
+                          <span className="px-2 py-1 text-xs rounded-full bg-surface-2 text-muted border border-border">
                             Regular
                           </span>
                         )}
@@ -4377,7 +4377,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+              className="bg-surface rounded-xl border border-white/10 p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
             >
               <h2 className="text-2xl font-bold text-white mb-4">
                 Editar Usuario: {editingUser.nombre || editingUser.id}
@@ -4595,7 +4595,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-5xl w-full max-h-[90vh] overflow-y-auto"
+              className="bg-surface rounded-xl border border-white/10 p-6 max-w-5xl w-full max-h-[90vh] overflow-y-auto"
             >
               <div className="flex items-center justify-between mb-6">
                 <div>
@@ -4671,7 +4671,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                           </div>
                           <div>
                             <p className="text-white/60">Premium</p>
-                            <p className={`font-medium ${user.premium ? "text-warning" : "text-gray-400"}`}>
+                            <p className={`font-medium ${user.premium ? "text-warning" : "text-muted"}`}>
                               {user.premium ? "Sí" : "No"}
                             </p>
                           </div>
@@ -4809,10 +4809,10 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                               return (
                                 <div key={idx} className="flex-1 flex flex-col items-center group relative">
                                   <div
-                                    className="w-full bg-gradient-to-t from-cyan-500 to-blue-500 rounded-t transition-all hover:from-cyan-400 hover:to-blue-400"
+                                    className="w-full bg-gradient-to-t from-accent to-accent-strong rounded-t transition-all hover:brightness-110"
                                     style={{ height: `${Math.max(height, 10)}%` }}
                                   >
-                                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-900 px-2 py-1 rounded text-xs whitespace-nowrap border border-white/10">
+                                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity bg-surface px-2 py-1 rounded text-xs whitespace-nowrap border border-white/10">
                                       {fecha.toLocaleDateString('es-AR')}: {record.peso} kg
                                     </div>
                                   </div>
@@ -5038,7 +5038,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+              className="bg-surface rounded-xl border border-white/10 p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
             >
               <div className="flex items-center justify-between mb-6">
                 <div>
@@ -5370,7 +5370,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                           if (diffDays <= 7) return "text-warning";
                                           return "text-success";
                                         })()
-                                      : "text-gray-400"
+                                      : "text-muted"
                                   }`}>
                                     {expiresDate 
                                       ? (() => {
@@ -5443,7 +5443,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
             <motion.div
               initial={{ opacity: 0, scale: 0.96, y: 16 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+              className="bg-surface rounded-xl border border-white/10 p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between gap-3 mb-4">
@@ -5643,7 +5643,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
             <motion.div
               initial={{ opacity: 0, scale: 0.97 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-gray-900 rounded-xl border border-success/30 max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl"
+              className="bg-surface rounded-xl border border-success/30 max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-white/10 shrink-0">
@@ -5654,7 +5654,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                       type="button"
                       onClick={() => setTrainerPreferenceFilter("all")}
                       className={`px-2 py-1 rounded-md transition-colors ${
-                        trainerPreferenceFilter === "all" ? "bg-white/20 text-white" : "text-white/70 hover:text-white"
+                        trainerPreferenceFilter === "all" ? "bg-accent text-accent-ink" : "text-muted hover:text-white"
                       }`}
                     >
                       Todos
@@ -5663,7 +5663,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                       type="button"
                       onClick={() => setTrainerPreferenceFilter("hombre")}
                       className={`px-2 py-1 rounded-md transition-colors ${
-                        trainerPreferenceFilter === "hombre" ? "bg-info/30 text-info" : "text-white/70 hover:text-white"
+                        trainerPreferenceFilter === "hombre" ? "bg-accent text-accent-ink" : "text-muted hover:text-white"
                       }`}
                     >
                       Hombre
@@ -5672,7 +5672,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                       type="button"
                       onClick={() => setTrainerPreferenceFilter("mujer")}
                       className={`px-2 py-1 rounded-md transition-colors ${
-                        trainerPreferenceFilter === "mujer" ? "bg-fuchsia-500/30 text-fuchsia-100" : "text-white/70 hover:text-white"
+                        trainerPreferenceFilter === "mujer" ? "bg-accent text-accent-ink" : "text-muted hover:text-white"
                       }`}
                     >
                       Mujer
@@ -5706,11 +5706,9 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                           <p className="font-medium text-white">{user.nombre || user.email || user.id}</p>
                           <span
                             className={`px-2 py-0.5 rounded-full text-[11px] border ${
-                              user.personalTrainerPreference === "mujer"
-                                ? "bg-fuchsia-500/20 border-fuchsia-400/40 text-fuchsia-100"
-                                : user.personalTrainerPreference === "hombre"
-                                  ? "bg-info/20 border-info/40 text-info"
-                                  : "bg-white/10 border-white/25 text-white/80"
+                              user.personalTrainerPreference === "mujer" || user.personalTrainerPreference === "hombre"
+                                ? "bg-surface-2 border-border text-muted"
+                                : "bg-white/10 border-white/25 text-white/80"
                             }`}
                           >
                             {user.personalTrainerPreference === "mujer"
@@ -5778,7 +5776,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
             <motion.div
               initial={{ opacity: 0, scale: 0.97 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-gray-900 rounded-xl border border-info/30 max-w-xl w-full max-h-[min(90vh,720px)] overflow-hidden flex flex-col shadow-2xl"
+              className="bg-surface rounded-xl border border-info/30 max-w-xl w-full max-h-[min(90vh,720px)] overflow-hidden flex flex-col shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5 sm:py-4 border-b border-white/10 shrink-0">
@@ -5840,7 +5838,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                               ? `$${row.totalEarningsArs.toLocaleString("es-AR")}`
                               : "—"}
                           </span>
-                          <span className="text-sky-300 font-semibold tabular-nums text-right text-xs sm:text-sm">
+                          <span className="text-info font-semibold tabular-nums text-right text-xs sm:text-sm">
                             {row.totalEarningsEur > 0
                               ? `€${row.totalEarningsEur.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                               : "—"}
@@ -5865,7 +5863,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                       </div>
                       <div className="flex flex-wrap justify-between gap-2 text-sm">
                         <span className="text-white/70">EUR</span>
-                        <span className="text-sky-300 font-bold tabular-nums">
+                        <span className="text-info font-bold tabular-nums">
                           €{yearlyEarningsPayload.yearlyTotalEur.toLocaleString("es-AR", {
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
@@ -5996,7 +5994,7 @@ function IntakePlanActionModal({
       <motion.div
         initial={{ opacity: 0, scale: 0.96, y: 14 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-xl w-full max-h-[90vh] overflow-y-auto"
+        className="bg-surface rounded-xl border border-white/10 p-6 max-w-xl w-full max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3 mb-4">
@@ -6316,7 +6314,7 @@ function DeleteIntakePlanModal({
       <motion.div
         initial={{ opacity: 0, scale: 0.96, y: 14 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-lg w-full"
+        className="bg-surface rounded-xl border border-white/10 p-6 max-w-lg w-full"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3 mb-4">
@@ -6396,7 +6394,7 @@ function DeleteIntakeUserModal({
       <motion.div
         initial={{ opacity: 0, scale: 0.96, y: 14 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-lg w-full"
+        className="bg-surface rounded-xl border border-white/10 p-6 max-w-lg w-full"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3 mb-4">
@@ -6461,7 +6459,7 @@ function PaymentLinkModal({
       <motion.div
         initial={{ opacity: 0, scale: 0.96, y: 14 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-lg w-full"
+        className="bg-surface rounded-xl border border-white/10 p-6 max-w-lg w-full"
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="text-xl font-bold text-white">Enviar link de pago</h3>
@@ -6535,7 +6533,7 @@ function IntakePaymentLinkModal({
       <motion.div
         initial={{ opacity: 0, scale: 0.96, y: 14 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-lg w-full"
+        className="bg-surface rounded-xl border border-white/10 p-6 max-w-lg w-full"
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="text-xl font-bold text-white">Enviar Link de Pago</h3>
@@ -6784,7 +6782,7 @@ function IntakeClientDetailsModal({
       <motion.div
         initial={{ opacity: 0, scale: 0.96, y: 16 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+        className="bg-surface rounded-xl border border-white/10 p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4 mb-4">
@@ -7001,8 +6999,8 @@ function IntakeClientDetailsModal({
               </div>
             ) : null}
             {weightPts.length > 1 ? (
-              <div className="rounded-lg border border-indigo-400/30 bg-indigo-500/10 px-3 py-2">
-                <p className="text-xs text-indigo-100 mb-2">Evolución de peso</p>
+              <div className="rounded-lg border border-border bg-surface-2 px-3 py-2">
+                <p className="text-xs text-foreground mb-2">Evolución de peso</p>
                 <div className="overflow-x-auto">
                   <svg width={chartWidth} height={chartHeight + 24} className="min-w-[520px]">
                     <line x1="0" y1={chartHeight} x2={chartWidth} y2={chartHeight} stroke="rgba(255,255,255,0.2)" />
@@ -7016,8 +7014,8 @@ function IntakeClientDetailsModal({
               </div>
             ) : null}
             {engagementEventsFiltered.length > 0 ? (
-              <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2">
-                <p className="text-xs text-warning mb-2">Historial de solicitudes/completados</p>
+              <div className="rounded-lg border border-border bg-surface-2 px-3 py-2">
+                <p className="text-xs text-foreground mb-2">Historial de solicitudes/completados</p>
                 <div className="space-y-1.5 max-h-44 overflow-y-auto">
                   {engagementEventsFiltered.slice(0, 40).map((ev) => (
                     <div key={ev.id} className="rounded border border-white/10 bg-black/20 px-2 py-1 text-xs text-white/85">
@@ -7034,8 +7032,8 @@ function IntakeClientDetailsModal({
               </div>
             ) : null}
             {Array.isArray(detail.profileEdits) && detail.profileEdits.length > 0 ? (
-              <div className="rounded-lg border border-fuchsia-400/30 bg-fuchsia-500/10 px-3 py-2">
-                <p className="text-xs text-fuchsia-100 mb-2">Historial de cambios de datos (últimos)</p>
+              <div className="rounded-lg border border-border bg-surface-2 px-3 py-2">
+                <p className="text-xs text-foreground mb-2">Historial de cambios de datos (últimos)</p>
                 <div className="space-y-2">
                   {detail.profileEdits.slice(0, 5).map((ev) => (
                     <div key={ev.id} className="rounded border border-white/10 bg-black/20 px-2 py-1.5 text-xs text-white/85">
@@ -7550,7 +7548,7 @@ function IntakeGeneratedPlanModal({
       <motion.div
         initial={{ opacity: 0, scale: 0.96, y: 14 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+        className="bg-surface rounded-xl border border-white/10 p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
@@ -7569,7 +7567,7 @@ function IntakeGeneratedPlanModal({
                 Descargar plan
               </button>
               {showDownloadMenu && (
-                <div className="absolute right-0 mt-2 w-56 rounded-xl border border-white/15 bg-gray-950/95 p-2 shadow-2xl z-20">
+                <div className="absolute right-0 mt-2 w-56 rounded-xl border border-white/15 bg-surface p-2 shadow-2xl z-20">
                   <button
                     onClick={() => handleExportPlan("pdf")}
                     disabled={exportingFormat !== null}
@@ -7621,9 +7619,9 @@ function IntakeGeneratedPlanModal({
         ) : (
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="rounded-lg border border-sky-400/20 bg-sky-500/10 px-3 py-2">
-                <p className="text-xs text-sky-100/80">Datos de la persona</p>
-                <p className="text-sm text-sky-100">
+              <div className="rounded-lg border border-border bg-surface-2 px-3 py-2">
+                <p className="text-xs text-muted">Datos de la persona</p>
+                <p className="text-sm text-foreground">
                   Edad: {String((plan?.input as Record<string, unknown> | null)?.edad || "N/A")} · Altura:{" "}
                   {String((plan?.input as Record<string, unknown> | null)?.alturaCm || "N/A")} cm · Peso actual:{" "}
                   {String((plan?.input as Record<string, unknown> | null)?.pesoKg || "N/A")} kg
@@ -7655,26 +7653,26 @@ function IntakeGeneratedPlanModal({
                     : "N/A"}
                 </p>
               </div>
-              <div className="rounded-lg border border-violet-400/20 bg-violet-500/10 px-3 py-2">
-                <p className="text-xs text-violet-100/80">Split entrenamiento</p>
-                <p className="text-sm text-violet-100">{String(trainingPlan?.split || "N/A")}</p>
+              <div className="rounded-lg border border-border bg-surface-2 px-3 py-2">
+                <p className="text-xs text-muted">Split entrenamiento</p>
+                <p className="text-sm text-foreground">{String(trainingPlan?.split || "N/A")}</p>
               </div>
             </div>
             {trainingPlan?.week_order_rationale ? (
-              <div className="rounded-lg border border-violet-400/25 bg-violet-500/5 px-3 py-2">
-                <p className="text-xs text-violet-100/80">Por qué este orden de días y ejercicios</p>
-                <p className="text-sm text-violet-50/95 whitespace-pre-wrap">{String(trainingPlan.week_order_rationale)}</p>
+              <div className="rounded-lg border border-border bg-surface-2 px-3 py-2">
+                <p className="text-xs text-muted">Por qué este orden de días y ejercicios</p>
+                <p className="text-sm text-foreground whitespace-pre-wrap">{String(trainingPlan.week_order_rationale)}</p>
               </div>
             ) : null}
             {Boolean(plan?.plan?.evaluacion_inicial) && typeof plan?.plan?.evaluacion_inicial === "object" && (
-              <div className="rounded-lg border border-fuchsia-400/20 bg-fuchsia-500/10 px-3 py-2">
-                <p className="text-xs text-fuchsia-100/80">Evaluación inicial</p>
-                <p className="text-sm text-fuchsia-100">
+              <div className="rounded-lg border border-border bg-surface-2 px-3 py-2">
+                <p className="text-xs text-muted">Evaluación inicial</p>
+                <p className="text-sm text-foreground">
                   IMC: {String((plan.plan.evaluacion_inicial as Record<string, unknown>).imc || "N/A")} · Estado:{" "}
                   {String((plan.plan.evaluacion_inicial as Record<string, unknown>).estado || "N/A")}
                 </p>
                 {Boolean((plan.plan.evaluacion_inicial as Record<string, unknown>).decisionClinica) && (
-                  <p className="text-xs text-fuchsia-100/85 mt-1">
+                  <p className="text-xs text-muted mt-1">
                     {String((plan.plan.evaluacion_inicial as Record<string, unknown>).decisionClinica)}
                   </p>
                 )}
@@ -7687,13 +7685,13 @@ function IntakeGeneratedPlanModal({
               </div>
             )}
             {cardioPlan && (
-              <div className="rounded-lg border border-sky-400/20 bg-sky-500/10 px-3 py-2">
-                <p className="text-xs text-sky-100/80">Cardio recomendado (caminar/correr)</p>
-                <p className="text-sm text-sky-100">
+              <div className="rounded-lg border border-border bg-surface-2 px-3 py-2">
+                <p className="text-xs text-muted">Cardio recomendado (caminar/correr)</p>
+                <p className="text-sm text-foreground">
                   Pasos diarios: {String(cardioPlan.objetivo_pasos_diarios || "N/A")} · Sesiones:{" "}
                   {String(cardioPlan.sesiones_por_semana || "N/A")}
                 </p>
-                <p className="text-xs text-sky-100/80 mt-1">{String(cardioPlan.detalle || "")}</p>
+                <p className="text-xs text-muted mt-1">{String(cardioPlan.detalle || "")}</p>
               </div>
             )}
             {suplementacionPlan.length > 0 && (
@@ -7762,7 +7760,7 @@ function IntakeGeneratedPlanModal({
                                   </p>
                                 ) : null}
                                 {mealOptionSpecific.length > 0 ? (
-                                  <p className="text-[11px] text-violet-100/90 mt-1">
+                                  <p className="text-[11px] text-foreground mt-1">
                                     Según esta opción: {mealOptionSpecific.join(" · ")}
                                   </p>
                                 ) : null}
@@ -7787,7 +7785,7 @@ function IntakeGeneratedPlanModal({
                     const exercises = Array.isArray(day.ejercicios) ? (day.ejercicios as Array<Record<string, unknown>>) : [];
                     return (
                       <div key={`${dayName}-${split}-${dayIndex}`} className="rounded-md border border-white/10 bg-black/20 px-3 py-3">
-                        <p className="text-sm font-semibold text-violet-200">{dayName}</p>
+                        <p className="text-sm font-semibold text-foreground">{dayName}</p>
                         <p className="text-xs text-white/70 mt-1">{split} · {exercises.length} ejercicios</p>
                         <div className="mt-2 space-y-3">
                           {exercises.slice(0, 6).map((exercise, exIndex) => {
@@ -7981,7 +7979,7 @@ function AdminSendMessageModal({
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.9, y: 20 }}
-        className="bg-gray-900 rounded-xl border border-white/10 p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto"
+        className="bg-surface rounded-xl border border-white/10 p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">

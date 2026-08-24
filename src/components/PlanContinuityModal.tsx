@@ -476,7 +476,7 @@ export default function PlanContinuityModal({ isOpen, onClose, planData, registr
                 <button
                   type="button"
                   onClick={handleAnalyze}
-                  className="w-full rounded-xl bg-gradient-to-r from-[var(--brand-start)] via-[var(--brand-mid)] to-[var(--brand-end)] py-3 text-sm font-semibold text-white shadow-[0_14px_40px_-18px_color-mix(in_oklab,var(--brand-mid)_45%,transparent)] transition hover:brightness-110"
+                  className="w-full rounded-xl bg-gradient-to-r from-[var(--brand-start)] via-[var(--brand-mid)] to-[var(--brand-end)] py-3 text-sm font-semibold text-accent-ink shadow-[0_14px_40px_-18px_color-mix(in_oklab,var(--brand-mid)_45%,transparent)] transition hover:brightness-110"
                 >
                   {dash(locale, "continuityAnalyzeCta")}
                 </button>

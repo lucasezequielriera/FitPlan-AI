@@ -1055,7 +1055,7 @@ export default function PlanPage() {
       <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-white/10">
         {/* Header con comparación */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0 mb-3 sm:mb-4">
-          <h4 className="text-sm sm:text-base font-semibold text-info flex items-center gap-2">
+          <h4 className="font-display text-sm sm:text-base font-semibold text-info flex items-center gap-2">
             💪 Registro de Pesos
           </h4>
           {comparison && previousWeights && (
@@ -1342,11 +1342,11 @@ export default function PlanPage() {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="mt-6 rounded-xl border-2 border-info/30 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6"
+        className="mt-6 rounded-xl border-2 border-info/30 bg-[color-mix(in_oklab,var(--background)_95%,#0f172a)] p-6"
       >
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="text-xl font-bold text-white flex items-center gap-2">
+            <h3 className="font-display text-xl font-bold text-white flex items-center gap-2">
               <span className="text-info">🏋️</span>
               {dayData.day}
               {musculos && (
@@ -2816,7 +2816,7 @@ export default function PlanPage() {
       key="sugerencias-entrenamiento"
       className="mt-6 rounded-2xl border border-[var(--landing-border)] bg-[var(--landing-surface)] p-4"
     >
-      <h2 className="mb-3 text-lg font-semibold text-[var(--foreground)]">💪 {p(locale, "trainingRecoveryHeading")}</h2>
+      <h2 className="font-display mb-3 text-lg font-semibold text-[var(--foreground)]">💪 {p(locale, "trainingRecoveryHeading")}</h2>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <div className="rounded-xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--foreground)_3%,transparent)] p-3">
           <div className="flex items-center justify-between mb-1">
@@ -2845,9 +2845,9 @@ export default function PlanPage() {
               max="7"
               value={diasGymActual}
               onChange={(e) => setDiasGymEditado(Number(e.target.value))}
-              className="w-16 border-b-2 border-[var(--landing-border)] bg-transparent text-2xl font-bold text-[var(--foreground)] outline-none focus:border-[color-mix(in_oklab,var(--landing-accent)_45%,transparent)]"
+              className="font-display w-16 border-b-2 border-[var(--landing-border)] bg-transparent text-2xl font-bold text-[var(--foreground)] outline-none focus:border-[color-mix(in_oklab,var(--landing-accent)_45%,transparent)]"
             />
-            <span className="text-2xl font-bold text-[var(--foreground)]">{p(locale, "dayPerWeek")}</span>
+            <span className="font-display text-2xl font-bold text-[var(--foreground)]">{p(locale, "dayPerWeek")}</span>
           </div>
           <div className="flex items-center gap-2 mt-2">
             <span className="min-w-[130px] text-sm text-[var(--landing-muted)]">{p(locale, "sessionDuration")}</span>
@@ -2879,9 +2879,9 @@ export default function PlanPage() {
               step="5"
               value={minutosCaminataActual}
               onChange={(e) => setMinutosCaminataEditado(Number(e.target.value))}
-              className="w-16 border-b-2 border-[var(--landing-border)] bg-transparent text-2xl font-bold text-[var(--foreground)] outline-none focus:border-[color-mix(in_oklab,var(--landing-accent)_45%,transparent)]"
+              className="font-display w-16 border-b-2 border-[var(--landing-border)] bg-transparent text-2xl font-bold text-[var(--foreground)] outline-none focus:border-[color-mix(in_oklab,var(--landing-accent)_45%,transparent)]"
             />
-            <span className="text-2xl font-bold text-[var(--foreground)]">{p(locale, "minutes")}</span>
+            <span className="font-display text-2xl font-bold text-[var(--foreground)]">{p(locale, "minutes")}</span>
           </div>
           <p className="mt-1 text-xs text-[var(--landing-muted)]">{p(locale, "moderateWalkDaily")}</p>
         </div>
@@ -2917,9 +2917,9 @@ export default function PlanPage() {
               step="0.5"
               value={horasSuenoActual}
               onChange={(e) => setHorasSuenoEditado(Number(e.target.value))}
-              className="w-20 border-b-2 border-[var(--landing-border)] bg-transparent text-2xl font-bold text-[var(--foreground)] outline-none focus:border-[color-mix(in_oklab,var(--landing-accent)_45%,transparent)]"
+              className="font-display w-20 border-b-2 border-[var(--landing-border)] bg-transparent text-2xl font-bold text-[var(--foreground)] outline-none focus:border-[color-mix(in_oklab,var(--landing-accent)_45%,transparent)]"
             />
-            <span className="text-2xl font-bold text-[var(--foreground)]">{p(locale, "hours")}</span>
+            <span className="font-display text-2xl font-bold text-[var(--foreground)]">{p(locale, "hours")}</span>
           </div>
           <p className="mt-1 text-xs text-[var(--landing-muted)]">{p(locale, "sleepRecovery")}</p>
         </div>
@@ -2929,7 +2929,7 @@ export default function PlanPage() {
       </p>
       {analisisCambios && (analisisCambios.pros.length > 0 || analisisCambios.contras.length > 0) && (
         <div className="mt-4 border-t border-[var(--landing-border)] pt-4">
-          <h3 className="mb-3 text-sm font-semibold text-[var(--foreground)]">📊 {p(locale, "impactChangesHeading")}</h3>
+          <h3 className="font-display mb-3 text-sm font-semibold text-[var(--foreground)]">📊 {p(locale, "impactChangesHeading")}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {analisisCambios.pros.length > 0 && (
               <div>
@@ -3151,7 +3151,7 @@ export default function PlanPage() {
                       <div>
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-lg">🎯</span>
-                          <h3 className="font-bold text-success">
+                          <h3 className="font-display font-bold text-success">
                             {progress >= 100 ? "¡Plan completado!" : "Plan casi completado"}
                           </h3>
                         </div>
@@ -3319,7 +3319,7 @@ export default function PlanPage() {
                           <span className="text-lg">
                             {cambiaFase ? "🔄" : "📈"}
                           </span>
-                          <h3 className={`font-bold ${
+                          <h3 className={`font-display font-bold ${
                             planMultiFase.faseActual === "BULK" ? "text-phase-bulk" :
                             planMultiFase.faseActual === "CUT" ? "text-phase-cut" :
                             planMultiFase.faseActual === "LEAN_BULK" ? "text-phase-lean-bulk" :
@@ -3397,7 +3397,7 @@ export default function PlanPage() {
             })()}
             
             <div className="flex flex-wrap items-center justify-between gap-4">
-            <h1 className="text-3xl font-bold tracking-tight text-[var(--foreground)] md:text-4xl">{p(locale, "smartPlanHeading")}</h1>
+            <h1 className="font-display text-3xl font-bold tracking-tight text-[var(--foreground)] md:text-4xl">{p(locale, "smartPlanHeading")}</h1>
               <div className="flex gap-3">
                 <div className="relative group">
                   <button
@@ -3512,13 +3512,13 @@ export default function PlanPage() {
           {/* Resumen corporal y energético */}
           <section className="mt-2">
             <div className="mb-2">
-              <h2 className="text-base font-semibold text-[var(--foreground)]">{p(locale, "todaySummary")}</h2>
+              <h2 className="font-display text-base font-semibold text-[var(--foreground)]">{p(locale, "todaySummary")}</h2>
               <p className="text-xs text-[var(--landing-muted)]">{p(locale, "todaySummarySub")}</p>
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <div className="rounded-2xl border border-[var(--landing-border)] bg-[var(--landing-surface)] p-4">
                 <p className="text-xs uppercase tracking-wide text-[var(--landing-muted)]">{p(locale, "currentWeight")}</p>
-                <p className="mt-1 text-3xl font-bold text-[var(--foreground)]">{pesoActual} kg</p>
+                <p className="font-display mt-1 text-3xl font-bold text-[var(--foreground)]">{pesoActual} kg</p>
                 <p className="mt-2 text-xs text-[var(--landing-muted)]">
                   {pFmt(locale, "weightProjectedLine", { months: mesesProyeccionPeso })}{" "}
                   <span className="font-semibold text-success">{pesoProyectado} kg</span>
@@ -3530,7 +3530,7 @@ export default function PlanPage() {
 
               <div className="rounded-2xl border border-[var(--landing-border)] bg-[var(--landing-surface)] p-4">
                 <p className="text-xs uppercase tracking-wide text-[var(--landing-muted)]">{p(locale, "dailyCalories")}</p>
-                <p className="mt-1 text-3xl font-bold text-[var(--foreground)]">{plan.calorias_diarias} kcal</p>
+                <p className="font-display mt-1 text-3xl font-bold text-[var(--foreground)]">{plan.calorias_diarias} kcal</p>
                 {tdee > 0 ? (
                   <div className="mt-3 space-y-1 text-xs">
                     <p className="text-[var(--landing-muted)]">{p(locale, "maintenance")} {tdee} kcal</p>
@@ -3562,7 +3562,7 @@ export default function PlanPage() {
                   </button>
                 </p>
                 <div className="mt-1 flex items-end gap-2">
-                  <p className="text-3xl font-bold text-[var(--foreground)]">{bmi.toFixed(1) || "-"}</p>
+                  <p className="font-display text-3xl font-bold text-[var(--foreground)]">{bmi.toFixed(1) || "-"}</p>
                   {bmi ? (
                     <span className="mb-1 rounded-full px-2 py-0.5 text-[10px] font-semibold text-white" style={{ background: bmiBadgeColor() }}>
                       {bmiText}
@@ -3607,7 +3607,7 @@ export default function PlanPage() {
           {/* Contexto del plan */}
           <section className="mt-6">
             <div className="mb-2">
-              <h2 className="text-base font-semibold text-[var(--foreground)]">{p(locale, "planContext")}</h2>
+              <h2 className="font-display text-base font-semibold text-[var(--foreground)]">{p(locale, "planContext")}</h2>
               <p className="text-xs text-[var(--landing-muted)]">{p(locale, "planContextSub")}</p>
             </div>
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
@@ -3970,7 +3970,7 @@ export default function PlanPage() {
                     return (
                       <>
                   <div className="mb-3">
-                    <h3 className="text-base font-semibold text-[var(--foreground)]">{p(locale, "trainingPlanHeading")}</h3>
+                    <h3 className="font-display text-base font-semibold text-[var(--foreground)]">{p(locale, "trainingPlanHeading")}</h3>
                   </div>
                   {weekList.length > 0 ? (
                     <div className="space-y-4">
@@ -4062,7 +4062,7 @@ export default function PlanPage() {
               ) : (
                 <>
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                <h3 className="text-base font-semibold text-[var(--foreground)]">{p(locale, "mealPlanHeading")}</h3>
+                <h3 className="font-display text-base font-semibold text-[var(--foreground)]">{p(locale, "mealPlanHeading")}</h3>
                 {/* Botones de seguimiento - Alineados a la derecha del título */}
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="relative group">
@@ -4179,7 +4179,7 @@ export default function PlanPage() {
           {/* Sección de Suplementos - Solo para planes multi-fase */}
           {planMultiFase && planMultiFase.suplementosBase && planMultiFase.suplementosBase.length > 0 && (
             <div className="mt-8">
-              <h2 className="text-xl font-semibold mb-3 flex items-center gap-2">
+              <h2 className="font-display text-xl font-semibold mb-3 flex items-center gap-2">
                 💊 Suplementación Recomendada
                 <span className={`px-2 py-0.5 text-xs rounded-lg ${
                   planMultiFase.faseActual === "BULK"
@@ -4205,7 +4205,7 @@ export default function PlanPage() {
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <h3 className="font-medium flex items-center gap-2">
+                        <h3 className="font-display font-medium flex items-center gap-2">
                           {sup.nombre}
                           {sup.prioridad === "esencial" && (
                             <span className="px-1.5 py-0.5 text-xs bg-success/30 text-success rounded">
@@ -4255,7 +4255,7 @@ export default function PlanPage() {
             <section className="mt-8">
               <details className="group overflow-hidden rounded-2xl border border-[var(--landing-border)] bg-[var(--landing-surface)]">
                 <summary className="flex cursor-pointer items-center justify-between gap-2 px-4 py-3 transition-colors hover:bg-[color-mix(in_oklab,var(--foreground)_3%,transparent)]">
-                  <h2 className="text-base font-semibold text-[var(--foreground)]">{p(locale, "shoppingList")}</h2>
+                  <h2 className="font-display text-base font-semibold text-[var(--foreground)]">{p(locale, "shoppingList")}</h2>
                   <span className="rounded-full border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--foreground)_3%,transparent)] px-2.5 py-1 text-xs text-[var(--landing-muted)]">
                     {plan.lista_compras.length} items
                   </span>
@@ -4280,7 +4280,7 @@ export default function PlanPage() {
 
           {plan.progresion_semanal?.length ? (
             <div className="mt-8">
-              <h2 className="text-xl font-semibold mb-3">Progresión semanal</h2>
+              <h2 className="font-display text-xl font-semibold mb-3">Progresión semanal</h2>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                 {plan.progresion_semanal.map((p, i) => (
                   <div key={`prog-${p.semana ?? i}-${i}`} className="rounded-xl border border-white/10 p-4">
@@ -4296,7 +4296,7 @@ export default function PlanPage() {
           {/* Sección de Historial y Progreso - Solo para planes multi-fase con historial */}
           {planMultiFase && planMultiFase.tipo !== "simple" && planMultiFase.historialMeses.length > 0 && (
             <div className="mt-8">
-              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+              <h2 className="font-display text-xl font-semibold mb-4 flex items-center gap-2">
                 📈 Historial y Progreso
                 {planMultiFase.estado === "activo" && (
                   <span className="px-2 py-0.5 text-xs rounded-lg bg-success/20 text-success">
@@ -4312,25 +4312,25 @@ export default function PlanPage() {
                   <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-white/5 to-white/10 border border-white/10">
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                       <div>
-                        <p className="text-2xl font-bold text-success">
+                        <p className="font-display text-2xl font-bold text-success">
                           {progreso.mesesCompletados}/{planMultiFase.totalMeses}
                         </p>
                         <p className="text-xs opacity-70">Meses completados</p>
                       </div>
                       <div>
-                        <p className={`text-2xl font-bold ${progreso.cambioNeto > 0 ? "text-warning" : progreso.cambioNeto < 0 ? "text-info" : "text-white"}`}>
+                        <p className={`font-display text-2xl font-bold ${progreso.cambioNeto > 0 ? "text-warning" : progreso.cambioNeto < 0 ? "text-info" : "text-white"}`}>
                           {progreso.cambioNeto > 0 ? "+" : ""}{progreso.cambioNeto.toFixed(1)} kg
                         </p>
                         <p className="text-xs opacity-70">Cambio neto</p>
                       </div>
                       <div>
-                        <p className="text-2xl font-bold text-info">
+                        <p className="font-display text-2xl font-bold text-info">
                           {progreso.adherenciaPromedio.toFixed(0)}%
                         </p>
                         <p className="text-xs opacity-70">Adherencia promedio</p>
                       </div>
                       <div>
-                        <p className="text-2xl font-bold text-phase-maintenance">
+                        <p className="font-display text-2xl font-bold text-phase-maintenance">
                           {progreso.porcentajeCompletado.toFixed(0)}%
                         </p>
                         <p className="text-xs opacity-70">Progreso total</p>
@@ -4534,7 +4534,7 @@ export default function PlanPage() {
           {proyecciones && (
             <section className="mt-8">
               <div className="mb-2">
-                <h2 className="text-base font-semibold text-[var(--foreground)]">{p(locale, "projectionsHeading")}</h2>
+                <h2 className="font-display text-base font-semibold text-[var(--foreground)]">{p(locale, "projectionsHeading")}</h2>
                 <p className="text-xs text-[var(--landing-muted)]">{p(locale, "projectionsSub")}</p>
               </div>
 
@@ -4614,7 +4614,7 @@ export default function PlanPage() {
                 </svg>
               </button>
 
-              <h2 className="pr-10 text-xl font-semibold text-[var(--foreground)] sm:text-2xl">{p(locale, "editPlanTitle")}</h2>
+              <h2 className="font-display pr-10 text-xl font-semibold text-[var(--foreground)] sm:text-2xl">{p(locale, "editPlanTitle")}</h2>
               <p className="mt-1 text-xs text-[var(--landing-muted)]">{p(locale, "editPlanSubtitle")}</p>
               
               <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -5086,7 +5086,7 @@ export default function PlanPage() {
                   <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-info/20 mb-4">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-info"></div>
       </div>
-                  <h3 className="text-xl font-semibold mb-2">Regenerando plan</h3>
+                  <h3 className="font-display text-xl font-semibold mb-2">Regenerando plan</h3>
                   <p className="text-sm opacity-70">
                     Estamos generando tu nuevo plan personalizado con IA...
                   </p>
@@ -5141,7 +5141,7 @@ export default function PlanPage() {
                   <span className="inline-flex rounded-full border border-[var(--landing-border)] bg-[var(--landing-surface)] px-2.5 py-1 text-[10px] uppercase tracking-wide text-[var(--landing-muted)]">
                     {p(locale, "helpBadge")}
                   </span>
-                  <h3 className="text-lg font-semibold text-[var(--foreground)]">
+                  <h3 className="font-display text-lg font-semibold text-[var(--foreground)]">
                     {modalInfoAbierto === 'imc' && p(locale, "helpImcTitle")}
                     {modalInfoAbierto === 'macros' && p(locale, "helpMacrosTitle")}
                     {modalInfoAbierto === 'sueno' && p(locale, "helpSleepTitle")}
@@ -5242,11 +5242,11 @@ export default function PlanPage() {
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
                 onClick={(e) => e.stopPropagation()}
-                className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl border border-white/10 p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+                className="bg-[color-mix(in_oklab,var(--background)_95%,#0f172a)] rounded-2xl border border-white/10 p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
               >
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-3">
-                    <h2 className="text-2xl font-bold">🏋️ Plan de Entrenamiento</h2>
+                    <h2 className="font-display text-2xl font-bold">🏋️ Plan de Entrenamiento</h2>
                     {splitResumen && (
                       <span className="text-sm px-3 py-1 rounded-full bg-info/20 text-info border border-info/30 font-medium">
                         {splitResumen}
@@ -5283,7 +5283,7 @@ export default function PlanPage() {
                   // Día seleccionado pero sin entrenamiento
                   <div className="text-center py-12">
                     <div className="text-6xl mb-4">📅</div>
-                    <h3 className="text-xl font-semibold text-white mb-2">
+                    <h3 className="font-display text-xl font-semibold text-white mb-2">
                       {selectedTrainingDate.toLocaleDateString('es-AR', { 
                         weekday: 'long', 
                         year: 'numeric', 
@@ -5338,7 +5338,7 @@ export default function PlanPage() {
 
                   return (
                     <div className="space-y-4">
-                      <h3 className="text-lg font-semibold text-info mb-4">
+                      <h3 className="font-display text-lg font-semibold text-info mb-4">
                         {isPremium
                           ? `Semana ${semanaActual.week ?? semanaSeleccionada}`
                           : `Mes ${semanaActual.week ?? semanaSeleccionada}`}
@@ -5389,7 +5389,7 @@ export default function PlanPage() {
                           key={`dia-${semanaSeleccionada}-${di}`} 
                           className={`rounded-lg border-2 bg-white/5 p-4 transition-all ${
                             esDiaActual 
-                              ? 'border-info/50 bg-info/10 shadow-lg shadow-cyan-500/20' 
+                              ? 'border-info/50 bg-info/10 shadow-[0_10px_30px_-14px_color-mix(in_oklab,var(--info)_45%,transparent)]' 
                               : 'border-white/10'
                           }`}
                         >
@@ -5397,7 +5397,7 @@ export default function PlanPage() {
                             onClick={() => setDiasExpandidos(prev => ({ ...prev, [dayKey]: !prev[dayKey] }))}
                             className="w-full flex items-center justify-between mb-3"
                           >
-                            <h4 className={`text-base font-semibold text-white flex items-center gap-2 ${
+                            <h4 className={`font-display text-base font-semibold text-white flex items-center gap-2 ${
                               esDiaActual ? 'text-info' : ''
                             }`}>
                               {esDiaActual && <span className="text-info">📍</span>}
@@ -5653,11 +5653,11 @@ export default function PlanPage() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-slate-900 border border-white/10 rounded-2xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto"
+              className="bg-[color-mix(in_oklab,var(--background)_95%,#0f172a)] border border-white/10 rounded-2xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold">
+                <h2 className="font-display text-xl font-semibold">
                   🚀 Generar Mes {planMultiFase.mesActual + 1}
                 </h2>
                 <button
