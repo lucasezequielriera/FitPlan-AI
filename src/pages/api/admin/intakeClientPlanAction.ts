@@ -10,6 +10,7 @@ import {
 } from "@/lib/trainingPlanGuards";
 import type { Goal, UserInput } from "@/types/plan";
 import { requireAdmin } from "@/lib/adminAuthServer";
+import { stripUndefinedDeep } from "@/lib/firestoreSanitize";
 
 export const maxDuration = 150;
 
@@ -32,21 +33,6 @@ type UpdateContext = {
   /** Texto parseado desde Excel de seguimiento devuelto por el cliente */
   clientTrackingLog?: string;
 } | null;
-
-function removeUndefinedDeep<T>(value: T): T {
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => removeUndefinedDeep(item))
-      .filter((item) => item !== undefined) as unknown as T;
-  }
-  if (value && typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>)
-      .filter(([, entryValue]) => entryValue !== undefined)
-      .map(([key, entryValue]) => [key, removeUndefinedDeep(entryValue)] as const);
-    return Object.fromEntries(entries) as T;
-  }
-  return value;
-}
 
 function toNumber(value: unknown, fallback = 0): number {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -735,7 +721,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       selectedPlan.mensaje_ajuste_objetivo = mensajeCliente;
     }
 
-    const planDocData = removeUndefinedDeep({
+    const planDocData = stripUndefinedDeep({
       intakeClientId: clientId,
       generatedBy: auth.uid,
       actionType,
@@ -773,7 +759,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       updateContext: actionType === "update" ? updateContext || null : null,
     };
 
-    const intakeClientUpdate = removeUndefinedDeep({
+    const intakeClientUpdate = stripUndefinedDeep({
         status,
         planAction: {
           ...entry,
