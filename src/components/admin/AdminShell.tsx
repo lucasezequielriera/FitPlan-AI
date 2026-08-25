@@ -37,7 +37,7 @@ export type AdminSectionId =
 
 type StatusDot = "success" | "warning" | "danger";
 
-type NavItem = {
+export type NavItem = {
   id: AdminSectionId;
   label: string;
   icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
@@ -45,7 +45,7 @@ type NavItem = {
   muted?: boolean;
 };
 
-const NAV_ITEMS: NavItem[] = [
+export const NAV_ITEMS: NavItem[] = [
   { id: "resumen", label: "Resumen", icon: FaChartLine, href: "/admin" },
   { id: "clientes", label: "Clientes", icon: FaUserFriends, href: "/admin/clientes-fitplan" },
   { id: "contenido", label: "Contenido", icon: FaVideo, href: "/admin/configuraciones/contenido-social" },

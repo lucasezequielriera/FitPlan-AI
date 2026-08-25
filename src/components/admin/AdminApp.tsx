@@ -7,7 +7,7 @@ import { useAuthStore } from "@/store/authStore";
 import { getDbSafe, getAuthSafe } from "@/lib/firebase";
 import { adminFetch } from "@/lib/adminAuthClient";
 import Navbar from "@/components/Navbar";
-import { AdminShell, type AdminSectionId } from "@/components/admin/AdminShell";
+import { AdminShell, NAV_ITEMS, type AdminSectionId } from "@/components/admin/AdminShell";
 import { AdminSubTabs } from "@/components/admin/AdminSubTabs";
 import { AdminActionIcon } from "@/components/admin/AdminActionIcon";
 import { useAdminFadeUp } from "@/components/admin/adminMotion";
@@ -38,6 +38,7 @@ import {
   FaExternalLinkAlt,
   FaPen,
   FaHistory,
+  FaSearch,
 } from "react-icons/fa";
 
 interface User {
@@ -365,6 +366,39 @@ const ADMIN_SECTION_BY_VIEW: Record<AdminView, AdminSectionId> = {
   intake: "clientes",
   fitplan: "clientes",
 };
+
+/** Tarjeta de stat compacta — mismo patrón que StatCard en admin-design-preview.tsx (DESIGN_SYSTEM.md §8). */
+function AdminStatCard({
+  label,
+  value,
+  unit,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string | number;
+  unit?: string;
+  tone?: "accent" | "success" | "warning" | "info" | "danger" | "neutral";
+}) {
+  const toneClass =
+    tone === "accent"
+      ? "text-accent"
+      : tone === "success"
+        ? "text-success"
+        : tone === "warning"
+          ? "text-warning"
+          : tone === "info"
+            ? "text-info"
+            : tone === "danger"
+              ? "text-danger"
+              : "text-foreground";
+  return (
+    <div className="rounded-xl bg-[color-mix(in_oklab,var(--surface)_70%,transparent)] p-4">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-text-muted">{label}</p>
+      <p className={`font-display mt-1 text-2xl font-bold sm:text-3xl ${toneClass}`}>{value}</p>
+      {unit ? <p className="mt-0.5 text-xs text-text-muted">{unit}</p> : null}
+    </div>
+  );
+}
 
 export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
   const router = useRouter();
@@ -1096,41 +1130,23 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
 
   const getWellnessStatus = (client: IntakeClient): { label: string; className: string } => {
     if (client.wellnessCheckinRequested) {
-      return {
-        label: "Pendiente",
-        className: "bg-warning/20 text-warning border-warning/40",
-      };
+      return { label: "Pendiente", className: "badge-warning" };
     }
     if (!client.lastWellnessCheckinAt) {
-      return {
-        label: "Sin check-in",
-        className: "bg-danger/20 text-danger border-danger/40",
-      };
+      return { label: "Sin check-in", className: "badge-danger" };
     }
     const last = new Date(client.lastWellnessCheckinAt);
     if (isNaN(last.getTime())) {
-      return {
-        label: "Sin check-in",
-        className: "bg-danger/20 text-danger border-danger/40",
-      };
+      return { label: "Sin check-in", className: "badge-danger" };
     }
     const days = Math.floor((Date.now() - last.getTime()) / 86400000);
     if (days <= 2) {
-      return {
-        label: "Al día",
-        className: "bg-success/20 text-success border-success/40",
-      };
+      return { label: "Al día", className: "badge-success" };
     }
     if (days <= 7) {
-      return {
-        label: `Hace ${days}d`,
-        className: "bg-warning/20 text-warning border-warning/40",
-      };
+      return { label: `Hace ${days}d`, className: "badge-warning" };
     }
-    return {
-      label: `Atrasado ${days}d`,
-      className: "bg-danger/20 text-danger border-danger/40",
-    };
+    return { label: `Atrasado ${days}d`, className: "badge-danger" };
   };
 
 
@@ -2498,21 +2514,12 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
 
   if (authLoading || loading) {
     return (
-      <div className="relative min-h-screen overflow-hidden bg-background text-white">
-        <div
-          className="pointer-events-none absolute inset-0 -z-0 bg-[radial-gradient(ellipse_100%_55%_at_50%_-15%,rgba(34,211,238,0.14),transparent_58%)]"
-          aria-hidden
-        />
-        <div
-          className="pointer-events-none absolute inset-0 -z-0 bg-[radial-gradient(ellipse_70%_45%_at_100%_60%,rgba(16,185,129,0.1),transparent_55%)]"
-          aria-hidden
-        />
-        <div className="pointer-events-none absolute inset-0 -z-0 bg-gradient-to-b from-[#0b1e37]/90 via-background to-background" aria-hidden />
+      <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
         <Navbar />
         <div className="relative flex items-center justify-center min-h-[calc(100vh-4rem)]">
           <div className="text-center">
-            <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-[var(--landing-border)] border-t-[var(--landing-accent)]" />
-            <p className="text-sm text-[var(--landing-muted)]">Cargando...</p>
+            <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-border border-t-accent" />
+            <p className="text-sm text-text-muted">Cargando...</p>
           </div>
         </div>
       </div>
@@ -2521,16 +2528,8 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
 
   if (!isAdmin || error) {
     return (
-      <div className="relative min-h-screen overflow-hidden bg-background text-white">
-        <div
-          className="pointer-events-none absolute inset-0 -z-0 bg-[radial-gradient(ellipse_100%_55%_at_50%_-15%,rgba(34,211,238,0.14),transparent_58%)]"
-          aria-hidden
-        />
-        <div
-          className="pointer-events-none absolute inset-0 -z-0 bg-[radial-gradient(ellipse_70%_45%_at_100%_60%,rgba(16,185,129,0.1),transparent_55%)]"
-          aria-hidden
-        />
-        <div className="pointer-events-none absolute inset-0 -z-0 bg-gradient-to-b from-[#0b1e37]/90 via-background to-background" aria-hidden />
+      <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
+        <Navbar />
         <Navbar />
         <div className="relative flex items-center justify-center min-h-[calc(100vh-4rem)]">
           <div className="text-center p-8 rounded-xl bg-danger/10 border border-danger/30">
@@ -2681,7 +2680,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
 
   return (
     <AdminShell active={ADMIN_SECTION_BY_VIEW[view]}>
-      <div className="relative text-white">
+      <div className="relative text-foreground">
         <motion.div {...heroFadeUp} className="mb-6">
           {view === "dashboard" ? (
             <>
@@ -2700,17 +2699,42 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                     "linear-gradient(135deg, color-mix(in oklab, var(--brand-start) 14%, var(--surface)), color-mix(in oklab, var(--brand-mid) 10%, var(--surface)) 55%, color-mix(in oklab, var(--brand-end) 12%, var(--surface)))",
                 }}
               >
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <button type="button" onClick={handleCopyFormLink} className="btn btn-secondary text-xs sm:text-sm">
-                    {copiedFormLink ? "Enlace copiado" : "Copiar enlace del formulario"}
-                  </button>
-                  <button type="button" onClick={() => router.push("/admin/clientes-1-1")} className="btn btn-secondary text-xs sm:text-sm">
-                    Ver clientes 1:1
-                  </button>
-                  <button type="button" onClick={() => router.push("/admin/clientes-fitplan")} className="btn btn-secondary text-xs sm:text-sm">
-                    Ver clientes FitPlan
-                  </button>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <AdminStatCard
+                    label="Ingresado este mes"
+                    value={`$${revenueStats.actualMonthly.toLocaleString("es-AR")}`}
+                    unit={`${(revenueStats.actualMonthly / 2000).toFixed(2)} EUR aprox.`}
+                    tone="accent"
+                  />
+                  <AdminStatCard label="Clientes activos" value={totalUsers} unit="FitPlan + 1:1" />
+                  <AdminStatCard
+                    label="Altas este mes"
+                    value={totalRegisteredCurrentMonth}
+                    unit={`${premiumActivatedCurrentMonth} premium nuevos`}
+                  />
                 </div>
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-2.5">
+                <button type="button" onClick={handleCopyFormLink} className="btn btn-secondary text-sm">
+                  {copiedFormLink ? "Enlace copiado" : "Copiar enlace del formulario"}
+                </button>
+                <button type="button" onClick={() => router.push("/admin/clientes-1-1")} className="btn btn-secondary text-sm">
+                  Ver clientes 1:1
+                </button>
+                <button type="button" onClick={() => router.push("/admin/clientes-fitplan")} className="btn btn-secondary text-sm">
+                  Ver clientes FitPlan
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setYearlyEarningsYear(new Date().getFullYear());
+                    setYearlyEarningsModalOpen(true);
+                  }}
+                  className="btn btn-secondary text-sm"
+                >
+                  Ver detalle {new Date().getFullYear()}
+                </button>
               </div>
             </>
           ) : (
@@ -2739,209 +2763,101 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
 
         {view === "dashboard" && (
         <>
-        {/* Panel de Estadísticas de Ganancias — compacto */}
-        <div className="mb-5">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="relative overflow-hidden p-4 md:p-5 rounded-2xl border border-info/25 bg-gradient-to-br from-[#0b1e37] via-[#0f2847] to-[#0f3d3a] shadow-[0_18px_56px_-36px_rgba(34,211,238,0.75)]"
-          >
-            <div className="pointer-events-none absolute -top-12 -right-10 h-36 w-36 rounded-full bg-info/18 blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-14 -left-12 h-40 w-40 rounded-full bg-success/15 blur-3xl" />
-
-            <div className="relative">
-              <div className="flex flex-wrap items-center gap-1.5 mb-3">
-                <span className="px-2 py-0.5 rounded-full border border-info/35 bg-info/15 text-[10px] font-semibold tracking-wide text-info">
-                  FINANZAS
-                </span>
-                <span className="px-2 py-0.5 rounded-full border border-success/35 bg-success/15 text-[10px] font-semibold tracking-wide text-success">
-                  ADMIN FITPLAN
-                </span>
-              </div>
-              <div className="grid grid-cols-1 xl:grid-cols-[1.35fr_0.65fr] gap-3 mb-3">
-                <div className="rounded-xl border border-white/15 bg-black/20 p-4">
-                  <p className="text-info/85 text-[10px] uppercase tracking-[0.14em] mb-1">Ganancias de este mes</p>
-                  <h2 className="text-lg md:text-xl font-extrabold text-white leading-tight">
-                    Estadísticas de Ganancias
-                  </h2>
-                  <p className="text-white/70 text-xs mt-1">Ingresos, riesgo y renovaciones.</p>
-                  <div className="mt-3">
-                    <p className="text-[10px] uppercase tracking-[0.1em] text-success/90">Ingresado (real)</p>
-                    <p className="text-2xl md:text-3xl font-extrabold text-success">
-                      ${revenueStats.actualMonthly.toLocaleString("es-AR")}
-                    </p>
-                    <p className="text-white/50 text-[11px] mt-0.5">
-                      {(revenueStats.actualMonthly / 2000).toFixed(2)} EUR aprox.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-info/30 bg-gradient-to-b from-[var(--brand-start)]/18 to-[var(--brand-end)]/12 p-4">
-                  <p className="text-[10px] uppercase tracking-[0.1em] text-info mb-1">Acción recomendada</p>
-                  <p className="text-white/90 text-xs leading-snug">
-                    Pendientes + renovaciones 7 días para proteger caja.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setYearlyEarningsYear(new Date().getFullYear());
-                      setYearlyEarningsModalOpen(true);
-                    }}
-                    className="mt-3 w-full px-3 py-2 rounded-lg bg-white/90 text-background font-semibold hover:bg-white transition-colors text-xs"
-                  >
-                    Ver detalle {new Date().getFullYear()}
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-                <div className="rounded-lg border border-success/30 bg-success/10 p-3">
-                  <p className="text-white/75 text-[10px] uppercase tracking-[0.1em] mb-0.5">Mensual estimada</p>
-                  <p className="text-lg sm:text-xl font-bold text-success">
-                    ${revenueStats.estimatedMonthly.toLocaleString("es-AR")}
-                  </p>
-                  <p className="text-white/50 text-[10px] mt-0.5">{(revenueStats.estimatedMonthly / 2000).toFixed(2)} EUR</p>
-                </div>
-
-                <div className="rounded-lg border border-info/30 bg-info/10 p-3">
-                  <p className="text-white/75 text-[10px] uppercase tracking-[0.1em] mb-0.5">Premium activos</p>
-                  <p className="text-lg sm:text-xl font-bold text-info">{revenueStats.premiumActiveThisMonth}</p>
-                  <p className="text-white/50 text-[10px] mt-0.5">Mes actual</p>
-                </div>
-
-                <div className="rounded-lg border border-warning/30 bg-warning/10 p-3">
-                  <p className="text-white/75 text-[10px] uppercase tracking-[0.1em] mb-0.5">Pendientes</p>
-                  <p className="text-lg sm:text-xl font-bold text-warning">{revenueStats.pendingPayments}</p>
-                  <p className="text-white/50 text-[10px] mt-0.5">Seguimiento</p>
-                </div>
-
-                <div className="rounded-lg border border-info/30 bg-info/10 p-3">
-                  <p className="text-white/75 text-[10px] uppercase tracking-[0.1em] mb-0.5">Renov. 7d</p>
-                  <p className="text-lg sm:text-xl font-bold text-info">{revenueStats.renewingSoon}</p>
-                  <p className="text-white/50 text-[10px] mt-0.5">Crítico</p>
-                </div>
-              </div>
-
-              <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div className="rounded-lg border border-border bg-surface-2 p-3">
-                  <p className="text-white/75 text-[10px] uppercase tracking-[0.1em] mb-0.5">Proyección anual</p>
-                  <p className="text-lg font-bold text-foreground">
-                    ${revenueStats.estimatedAnnual.toLocaleString("es-AR")}
-                  </p>
-                  <p className="text-white/50 text-[10px] mt-0.5">{(revenueStats.estimatedAnnual / 2000).toFixed(2)} EUR</p>
-                </div>
-                <div className="rounded-lg border border-border bg-surface-2 p-3">
-                  <p className="text-white/75 text-[10px] uppercase tracking-[0.1em] mb-0.5">Total premium histórico</p>
-                  <p className="text-lg font-bold text-foreground">{revenueStats.totalPremiumUsers}</p>
-                  <p className="text-white/50 text-[10px] mt-0.5">Registrados</p>
-                </div>
-              </div>
-            </div>
-          </motion.div>
+        {/* Detalle de ingresos — misma grilla de tarjetas de stat que el hero, sin panel propio (DESIGN_SYSTEM.md §8) */}
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-muted">Detalle de ingresos</p>
+        <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <AdminStatCard
+            label="Mensual estimada"
+            value={`$${revenueStats.estimatedMonthly.toLocaleString("es-AR")}`}
+            unit={`${(revenueStats.estimatedMonthly / 2000).toFixed(2)} EUR`}
+            tone="success"
+          />
+          <AdminStatCard label="Premium activos" value={revenueStats.premiumActiveThisMonth} unit="Mes actual" tone="info" />
+          <AdminStatCard label="Pendientes" value={revenueStats.pendingPayments} unit="Seguimiento" tone="warning" />
+          <AdminStatCard label="Renov. 7d" value={revenueStats.renewingSoon} unit="Crítico" tone="info" />
+          <AdminStatCard
+            label="Proyección anual"
+            value={`$${revenueStats.estimatedAnnual.toLocaleString("es-AR")}`}
+            unit={`${(revenueStats.estimatedAnnual / 2000).toFixed(2)} EUR`}
+          />
+          <AdminStatCard label="Total premium histórico" value={revenueStats.totalPremiumUsers} unit="Registrados" />
         </div>
 
-        {/* Estadísticas rápidas — compacto, misma paleta */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="relative overflow-hidden mb-6 rounded-2xl border border-info/25 bg-gradient-to-br from-[#0b1e37] via-[#0f2847] to-[#0f3d3a] p-4 md:p-5 shadow-[0_16px_48px_-28px_rgba(34,211,238,0.55)]"
-        >
-          <div className="pointer-events-none absolute -top-10 -right-6 h-28 w-28 rounded-full bg-info/15 blur-3xl" />
-          <div className="pointer-events-none absolute -bottom-12 left-1/3 h-32 w-32 rounded-full bg-success/12 blur-3xl" />
+        {/* Detalle de usuarios */}
+        <p className="mt-8 text-[11px] font-semibold uppercase tracking-[0.18em] text-text-muted">Detalle de usuarios</p>
+        <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <AdminStatCard
+            label="Total"
+            value={totalUsers}
+            unit={`${currentMonthLabel}: ${totalUsersMonthDelta > 0 ? "+" : ""}${totalUsersMonthDelta} vs ${previousMonthLabel}`}
+            tone={totalUsersMonthDelta > 0 ? "success" : totalUsersMonthDelta < 0 ? "danger" : "neutral"}
+          />
+          <AdminStatCard label="Premium" value={premiumUsers} unit={`${premiumActivatedCurrentMonth} nuevos este mes`} tone="success" />
+          <AdminStatCard label="Regulares" value={regularUsers} unit="Sin premium" tone="info" />
+          <AdminStatCard label="Atléticos" value={athleticUsers} unit="Perfil deportivo" tone="success" />
+        </div>
 
-          <div className="relative flex flex-wrap items-center gap-1.5 mb-3">
-            <span className="px-2 py-0.5 rounded-full border border-info/35 bg-info/15 text-[10px] font-semibold tracking-wide text-info">
-              USUARIOS
-            </span>
-            <span className="px-2 py-0.5 rounded-full border border-white/20 bg-white/10 text-[10px] font-semibold tracking-wide text-white/90">
-              Vista rápida
-            </span>
-          </div>
-          <h2 className="text-lg md:text-xl font-extrabold text-white tracking-tight">Estadísticas rápidas</h2>
-          <p className="text-white/65 text-xs mt-0.5 mb-3 max-w-xl">
-            Total, premium, regulares y atléticos.
-          </p>
-
-          <div className="relative grid grid-cols-2 lg:grid-cols-4 gap-2">
-            <div className="rounded-xl border border-info/30 bg-black/25 p-3 backdrop-blur-sm">
-              <p className="text-info/85 text-[10px] uppercase tracking-[0.1em] mb-0.5">Total</p>
-              <p className="text-2xl font-extrabold text-white tabular-nums">{totalUsers}</p>
-              <p className="text-white/45 text-[10px] mt-0.5">Registrados</p>
-              <p
-                className={`text-[10px] mt-1 ${
-                  totalUsersMonthDelta > 0
-                    ? "text-success"
-                    : totalUsersMonthDelta < 0
-                    ? "text-danger"
-                    : "text-white/55"
-                }`}
+        {/* Accesos directos — mismo patrón que admin-design-preview.tsx */}
+        <p className="mt-8 text-[11px] font-semibold uppercase tracking-[0.18em] text-text-muted">Accesos directos</p>
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {NAV_ITEMS.filter((item) => item.id !== "resumen").map((item, i) => {
+            const Icon = item.icon;
+            return (
+              <motion.button
+                key={item.id}
+                type="button"
+                onClick={() => router.push(item.href)}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: i * 0.04 }}
+                className="card-surface flex items-center gap-3 p-4 text-left transition-colors hover:bg-surface-2"
               >
-                {currentMonthLabel}: {totalUsersMonthDelta > 0 ? "+" : ""}
-                {totalUsersMonthDelta} altas netas vs {previousMonthLabel}
-              </p>
-            </div>
-            <div className="rounded-xl border border-success/35 bg-success/10 p-3">
-              <p className="text-success/90 text-[10px] uppercase tracking-[0.1em] mb-0.5">Premium</p>
-              <p className="text-2xl font-extrabold text-success tabular-nums">{premiumUsers}</p>
-              <p className="text-white/50 text-[10px] mt-0.5">Con premium</p>
-              <p className="text-success/85 text-[10px] mt-1">
-                {currentMonthLabel}: {premiumActivatedCurrentMonth} premium nuevos
-              </p>
-            </div>
-            <div className="rounded-xl border border-info/30 bg-info/10 p-3">
-              <p className="text-info/90 text-[10px] uppercase tracking-[0.1em] mb-0.5">Regulares</p>
-              <p className="text-2xl font-extrabold text-info tabular-nums">{regularUsers}</p>
-              <p className="text-white/50 text-[10px] mt-0.5">Sin premium</p>
-            </div>
-            <div className="rounded-xl border border-success/25 bg-success/10 p-3">
-              <p className="text-success/90 text-[10px] uppercase tracking-[0.1em] mb-0.5">Atléticos</p>
-              <p className="text-2xl font-extrabold text-success tabular-nums">{athleticUsers}</p>
-              <p className="text-white/50 text-[10px] mt-0.5">Perfil deportivo</p>
-            </div>
-          </div>
-        </motion.div>
-
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-accent">
+                  <Icon />
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">{item.label}</p>
+                  <p className="truncate text-xs text-text-muted">Ver sección</p>
+                </div>
+              </motion.button>
+            );
+          })}
+        </div>
         </>
         )}
 
         {/* Clientes provenientes del formulario de inicio — solo vista 1:1 */}
         {view === "intake" && (
-        <div className="relative overflow-hidden rounded-2xl border border-info/25 bg-gradient-to-br from-[#0b1e37] via-[#0f2847] to-[#0f3d3a] shadow-[0_16px_48px_-28px_rgba(34,211,238,0.45)] mb-6">
-          <div className="px-4 py-3 border-b border-white/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-black/20">
-            <div>
-              <h2 className="text-base font-bold text-white">Lista de clientes (formulario 1:1)</h2>
-              <p className="text-[11px] text-white/55 mt-0.5">Filtros y acciones por lead</p>
-            </div>
-            <span className="inline-flex items-center gap-2 rounded-full bg-info/15 border border-info/30 text-info px-2.5 py-0.5 text-[11px] font-medium w-fit">
-              {filteredIntakeClients.length} / {intakeClients.length}
-            </span>
-          </div>
+        <>
           {!loadingIntakeClients && intakeClients.length > 0 && (
-            <div className="px-5 py-3 border-t border-white/10 grid grid-cols-1 lg:grid-cols-3 gap-2.5 bg-black/10">
-              <input
-                type="text"
-                value={intakeSearchQuery}
-                onChange={(e) => setIntakeSearchQuery(e.target.value)}
-                placeholder="Buscar por nombre, email, WhatsApp, Instagram..."
-                className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-info/45"
-              />
-              <select
-                value={intakePaymentFilter}
-                onChange={(e) =>
-                  setIntakePaymentFilter(e.target.value as "all" | "paid" | "pending" | "unpaid")
-                }
-                className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-info/45"
-              >
-                <option value="all">Todos los pagos</option>
-                <option value="paid">Pagado mes actual</option>
-                <option value="pending">Pendiente</option>
-                <option value="unpaid">No pagó</option>
-              </select>
-              <div className="flex gap-2">
+            <div className="mt-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="relative w-full lg:max-w-xs">
+                <FaSearch className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-subtle" aria-hidden />
+                <input
+                  type="text"
+                  value={intakeSearchQuery}
+                  onChange={(e) => setIntakeSearchQuery(e.target.value)}
+                  placeholder="Buscar por nombre, email, WhatsApp, Instagram..."
+                  className="w-full rounded-lg border border-border bg-surface-2 py-2 pl-9 pr-3 text-sm text-foreground placeholder:text-text-subtle focus:outline-none focus:ring-2 focus:ring-accent/50"
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={intakePaymentFilter}
+                  onChange={(e) =>
+                    setIntakePaymentFilter(e.target.value as "all" | "paid" | "pending" | "unpaid")
+                  }
+                  className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-accent/50"
+                >
+                  <option value="all">Todos los pagos</option>
+                  <option value="paid">Pagado mes actual</option>
+                  <option value="pending">Pendiente</option>
+                  <option value="unpaid">No pagó</option>
+                </select>
                 <select
                   value={intakeServiceFilter}
                   onChange={(e) => setIntakeServiceFilter(e.target.value)}
-                  className="w-full rounded-lg border border-white/20 bg-black/30 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-info/45"
+                  className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-accent/50"
                 >
                   <option value="all">Todos los servicios</option>
                   {intakeServiceOptions.map((service) => (
@@ -2957,80 +2873,86 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                     setIntakePaymentFilter("all");
                     setIntakeServiceFilter("all");
                   }}
-                  className="shrink-0 px-3 py-2 rounded-lg border border-white/20 bg-white/10 text-white/85 hover:bg-white/20 text-xs font-medium transition-colors"
+                  className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs font-medium text-text-muted transition-colors hover:text-foreground"
                 >
                   Limpiar
                 </button>
+                <span className="badge badge-info shrink-0">
+                  {filteredIntakeClients.length} / {intakeClients.length}
+                </span>
               </div>
             </div>
           )}
 
           {loadingIntakeClients ? (
-            <div className="px-5 py-6 text-sm text-white/70">Cargando clientes...</div>
+            <p className="mt-5 text-sm text-text-muted">Cargando clientes...</p>
           ) : intakeClients.length === 0 ? (
-            <div className="px-5 py-6 text-sm text-white/70">Aún no hay envíos del formulario.</div>
+            <p className="mt-5 text-sm text-text-muted">Aún no hay envíos del formulario.</p>
           ) : filteredIntakeClients.length === 0 ? (
-            <div className="px-5 py-6 text-sm text-white/70">No hay resultados con esos filtros.</div>
+            <p className="mt-5 text-sm text-text-muted">No hay resultados con esos filtros.</p>
           ) : (
             <>
               {/* Desktop */}
-              <div className="hidden lg:block overflow-x-auto">
+              <div className="mt-5 hidden overflow-hidden rounded-2xl border border-border lg:block">
+                <div className="overflow-x-auto">
                 <table className="w-full min-w-[1280px]">
-                  <thead className="bg-white/5 border-b border-white/10">
+                  <thead className="bg-surface-2 border-b border-border">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Cliente</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Perfil</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Contacto</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Pago</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Bienestar</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Peso inicial</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Creado</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-white/60 uppercase tracking-wider">Acciones</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Cliente</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Perfil</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Contacto</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Pago</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Bienestar</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Peso inicial</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Creado</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-text-muted uppercase tracking-wider">Acciones</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-white/10">
-                    {filteredIntakeClients.map((client) => (
+                  <tbody className="divide-y divide-border">
+                    {filteredIntakeClients.map((client, clientIndex) => (
                       <tr
                         key={client.id}
-                        className={`hover:bg-white/5 transition-colors align-top ${
+                        className={`hover:bg-surface-2 transition-colors align-top ${
                           intakePlanGeneratingClientId === client.id
                             ? "bg-info/[0.12] ring-1 ring-inset ring-info/40"
-                            : ""
+                            : clientIndex % 2 === 0
+                              ? "bg-surface"
+                              : "bg-[color-mix(in_oklab,var(--surface)_60%,var(--surface-2))]"
                         }`}
                       >
-                        <td className="px-4 py-3 text-sm text-white min-w-[220px]">
-                          <p className="font-medium text-white">{client.nombreCompleto || "N/A"}</p>
-                          <p className="text-white/60 text-xs mt-1">ID: {client.id}</p>
+                        <td className="px-4 py-3 text-sm text-foreground min-w-[220px]">
+                          <p className="font-medium text-foreground">{client.nombreCompleto || "N/A"}</p>
+                          <p className="text-text-muted text-xs mt-1">ID: {client.id}</p>
                         </td>
-                        <td className="px-4 py-3 text-sm text-white/85 min-w-[290px]">
+                        <td className="px-4 py-3 text-sm text-foreground min-w-[290px]">
                           <div className="flex flex-wrap gap-1.5">
-                            <span className="px-2 py-0.5 rounded-full border border-white/20 bg-white/5 text-[11px] text-white/85">
+                            <span className="px-2 py-0.5 rounded-full border border-border bg-surface-2 text-[11px] text-foreground">
                               Servicio: {client.servicioInteres || "N/A"}
                             </span>
-                            <span className="px-2 py-0.5 rounded-full border border-white/20 bg-white/5 text-[11px] text-white/85">
+                            <span className="px-2 py-0.5 rounded-full border border-border bg-surface-2 text-[11px] text-foreground">
                               Objetivo: {client.objetivoPrincipal || "N/A"}
                             </span>
                           </div>
-                          <p className="text-white/65 text-xs mt-2">
+                          <p className="text-text-muted text-xs mt-2">
                             Trabajo:{" "}
                             {client.trabajoTurnos || client.diasTrabajo.length > 0
                               ? `${client.trabajoTurnos || "Sin horas"}${client.diasTrabajo.length > 0 ? ` · ${client.diasTrabajo.join(", ")}` : ""}`
                               : "N/A"}
                           </p>
                         </td>
-                        <td className="px-4 py-3 text-sm text-white/85 min-w-[240px]">
+                        <td className="px-4 py-3 text-sm text-foreground min-w-[240px]">
                           <div className="space-y-1.5">
-                            <p className="text-xs text-white/80">
-                              <span className="text-white/55">Email:</span> {client.email || "N/A"}
+                            <p className="text-xs text-foreground">
+                              <span className="text-text-muted">Email:</span> {client.email || "N/A"}
                             </p>
-                            <p className="text-xs text-white/80">
-                              <span className="text-white/55">WhatsApp:</span> {client.whatsapp || "N/A"}
+                            <p className="text-xs text-foreground">
+                              <span className="text-text-muted">WhatsApp:</span> {client.whatsapp || "N/A"}
                             </p>
-                            <p className="text-xs text-white/80">
-                              <span className="text-white/55">Instagram:</span> {client.instagram || "N/A"}
+                            <p className="text-xs text-foreground">
+                              <span className="text-text-muted">Instagram:</span> {client.instagram || "N/A"}
                             </p>
-                            <div className="mt-2 rounded-md border border-white/10 bg-black/20 p-2">
-                              <label className="inline-flex items-center gap-2 text-[11px] text-white/80">
+                            <div className="mt-2 rounded-md border border-border bg-surface-2 p-2">
+                              <label className="inline-flex items-center gap-2 text-[11px] text-foreground">
                                 <input
                                   type="checkbox"
                                   checked={client.digestEmailEnabled !== false}
@@ -3050,14 +2972,14 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                       digestFrequency: e.target.value as "weekly" | "biweekly" | "monthly",
                                     })
                                   }
-                                  className="w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white"
+                                  className="w-full rounded bg-surface-2 border border-border px-2 py-1 text-[11px] text-foreground"
                                 >
                                   <option value="weekly">Cada semana</option>
                                   <option value="biweekly">Cada 2 semanas</option>
                                   <option value="monthly">Cada mes</option>
                                 </select>
-                                <p className="mt-1 text-[10px] text-white/55">{digestScheduleLabel(client)}</p>
-                                <label className="mt-2 block text-[10px] text-white/60">
+                                <p className="mt-1 text-[10px] text-text-muted">{digestScheduleLabel(client)}</p>
+                                <label className="mt-2 block text-[10px] text-text-muted">
                                   Iniciar desde
                                   <input
                                     type="date"
@@ -3067,7 +2989,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                         digestStartDate: e.target.value,
                                       })
                                     }
-                                    className="mt-1 w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white"
+                                    className="mt-1 w-full rounded bg-surface-2 border border-border px-2 py-1 text-[11px] text-foreground"
                                   />
                                 </label>
                               </div>
@@ -3085,7 +3007,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                 />
                                 Check-in automático diario
                               </label>
-                              <label className="mt-1 block text-[10px] text-white/60">
+                              <label className="mt-1 block text-[10px] text-text-muted">
                                 Desde
                                 <input
                                   type="date"
@@ -3095,7 +3017,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                       wellnessAutoStartDate: e.target.value,
                                     })
                                   }
-                                  className="mt-1 w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white"
+                                  className="mt-1 w-full rounded bg-surface-2 border border-border px-2 py-1 text-[11px] text-foreground"
                                 />
                               </label>
                             </div>
@@ -3120,7 +3042,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                       weightRequestFrequency: e.target.value as "weekly" | "biweekly" | "monthly",
                                     })
                                   }
-                                  className="rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white"
+                                  className="rounded bg-surface-2 border border-border px-2 py-1 text-[11px] text-foreground"
                                 >
                                   <option value="monthly">Mensual</option>
                                   <option value="biweekly">Cada 2 semanas</option>
@@ -3134,10 +3056,10 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                       weightRequestStartDate: e.target.value,
                                     })
                                   }
-                                  className="rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white"
+                                  className="rounded bg-surface-2 border border-border px-2 py-1 text-[11px] text-foreground"
                                 />
                               </div>
-                              <p className="mt-1 text-[10px] text-white/55">
+                              <p className="mt-1 text-[10px] text-text-muted">
                                 Último peso:{" "}
                                 {typeof client.latestWeightKg === "number"
                                   ? `${client.latestWeightKg} kg (${formatShortDate(client.latestWeightAt || null)})`
@@ -3148,12 +3070,12 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                         </td>
                         <td className="px-4 py-3 text-sm min-w-[140px]">
                           <span
-                            className={`inline-flex items-center gap-1 px-2 py-1 rounded-full border text-xs ${
+                            className={`badge ${
                               isIntakeCurrentMonthPaid(client)
-                                ? "bg-success/20 text-success border-success/40"
+                                ? "badge-success"
                                 : client.paymentStatus === "pending"
-                                ? "bg-warning/20 text-warning border-warning/40"
-                                : "bg-danger/20 text-danger border-danger/40"
+                                ? "badge-warning"
+                                : "badge-danger"
                             }`}
                           >
                             <FaCircle className="h-2.5 w-2.5" />
@@ -3165,29 +3087,29 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                             const s = getWellnessStatus(client);
                             return (
                               <div className="space-y-1">
-                                <span className={`inline-flex items-center px-2 py-1 rounded-full border text-xs ${s.className}`}>
+                                <span className={`badge ${s.className}`}>
                                   {s.label}
                                 </span>
-                                <p className="text-[11px] text-white/55">
+                                <p className="text-[11px] text-text-muted">
                                   Último: {formatShortDate(client.lastWellnessCheckinAt || null)}
                                 </p>
                               </div>
                             );
                           })()}
                         </td>
-                        <td className="px-4 py-3 text-sm text-white/70 min-w-[100px] tabular-nums">
+                        <td className="px-4 py-3 text-sm text-text-muted min-w-[100px] tabular-nums">
                           {typeof client.pesoInicialKg === "number" && Number.isFinite(client.pesoInicialKg) ? (
-                            <span className="text-white/90 font-medium">
+                            <span className="text-foreground font-medium">
                               {Number.isInteger(client.pesoInicialKg)
                                 ? client.pesoInicialKg
                                 : client.pesoInicialKg.toFixed(1)}{" "}
                               kg
                             </span>
                           ) : (
-                            <span className="text-white/45">—</span>
+                            <span className="text-text-subtle">—</span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-sm text-white/70 min-w-[150px]">
+                        <td className="px-4 py-3 text-sm text-text-muted min-w-[150px]">
                           {client.createdAt
                             ? new Date(client.createdAt).toLocaleString("es-ES", {
                                 day: "2-digit",
@@ -3215,23 +3137,24 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
 
               {/* Mobile / Tablet */}
-              <div className="lg:hidden p-4 space-y-3">
+              <div className="mt-5 flex flex-col gap-3 lg:hidden">
                 {filteredIntakeClients.map((client) => (
                   <div
                     key={client.id}
                     className={`rounded-xl border p-3 ${
                       intakePlanGeneratingClientId === client.id
                         ? "border-info/40 bg-info/10"
-                        : "border-white/10 bg-black/20"
+                        : "border-border bg-surface-2"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-sm font-semibold text-white">{client.nombreCompleto || "N/A"}</p>
-                        <p className="text-[11px] text-white/55 mt-0.5">
+                        <p className="text-sm font-semibold text-foreground">{client.nombreCompleto || "N/A"}</p>
+                        <p className="text-[11px] text-text-muted mt-0.5">
                           {client.createdAt
                             ? `Creado: ${new Date(client.createdAt).toLocaleString("es-ES", {
                                 day: "2-digit",
@@ -3244,12 +3167,12 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                         </p>
                       </div>
                       <span
-                        className={`inline-flex items-center gap-1 px-2 py-1 rounded-full border text-[11px] ${
+                        className={`badge text-[11px] ${
                           isIntakeCurrentMonthPaid(client)
-                            ? "bg-success/20 text-success border-success/40"
+                            ? "badge-success"
                             : client.paymentStatus === "pending"
-                            ? "bg-warning/20 text-warning border-warning/40"
-                            : "bg-danger/20 text-danger border-danger/40"
+                            ? "badge-warning"
+                            : "badge-danger"
                         }`}
                       >
                         <FaCircle className="h-2.5 w-2.5" />
@@ -3258,22 +3181,22 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                     </div>
 
                     <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                      <p className="text-white/80"><span className="text-white/55">Email:</span> {client.email || "N/A"}</p>
-                      <p className="text-white/80"><span className="text-white/55">WhatsApp:</span> {client.whatsapp || "N/A"}</p>
-                      <p className="text-white/80"><span className="text-white/55">Instagram:</span> {client.instagram || "N/A"}</p>
-                      <p className="text-white/80"><span className="text-white/55">Servicio:</span> {client.servicioInteres || "N/A"}</p>
-                      <p className="text-white/80 sm:col-span-2"><span className="text-white/55">Objetivo:</span> {client.objetivoPrincipal || "N/A"}</p>
-                      <p className="text-white/80">
-                        <span className="text-white/55">Bienestar:</span>{" "}
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[10px] ${getWellnessStatus(client).className}`}>
+                      <p className="text-foreground"><span className="text-text-muted">Email:</span> {client.email || "N/A"}</p>
+                      <p className="text-foreground"><span className="text-text-muted">WhatsApp:</span> {client.whatsapp || "N/A"}</p>
+                      <p className="text-foreground"><span className="text-text-muted">Instagram:</span> {client.instagram || "N/A"}</p>
+                      <p className="text-foreground"><span className="text-text-muted">Servicio:</span> {client.servicioInteres || "N/A"}</p>
+                      <p className="text-foreground sm:col-span-2"><span className="text-text-muted">Objetivo:</span> {client.objetivoPrincipal || "N/A"}</p>
+                      <p className="text-foreground">
+                        <span className="text-text-muted">Bienestar:</span>{" "}
+                        <span className={`badge text-[10px] ${getWellnessStatus(client).className}`}>
                           {getWellnessStatus(client).label}
                         </span>
                       </p>
-                      <p className="text-white/70">
-                        <span className="text-white/55">Último check-in:</span> {formatShortDate(client.lastWellnessCheckinAt || null)}
+                      <p className="text-text-muted">
+                        <span className="text-text-muted">Último check-in:</span> {formatShortDate(client.lastWellnessCheckinAt || null)}
                       </p>
-                      <div className="sm:col-span-2 rounded-md border border-white/10 bg-black/20 p-2">
-                        <label className="inline-flex items-center gap-2 text-[11px] text-white/80">
+                      <div className="sm:col-span-2 rounded-md border border-border bg-surface-2 p-2">
+                        <label className="inline-flex items-center gap-2 text-[11px] text-foreground">
                           <input
                             type="checkbox"
                             checked={client.digestEmailEnabled !== false}
@@ -3292,14 +3215,14 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                               digestFrequency: e.target.value as "weekly" | "biweekly" | "monthly",
                             })
                           }
-                          className="mt-1 w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white"
+                          className="mt-1 w-full rounded bg-surface-2 border border-border px-2 py-1 text-[11px] text-foreground"
                         >
                           <option value="weekly">Cada semana</option>
                           <option value="biweekly">Cada 2 semanas</option>
                           <option value="monthly">Cada mes</option>
                         </select>
-                        <p className="mt-1 text-[10px] text-white/55">{digestScheduleLabel(client)}</p>
-                        <label className="mt-2 block text-[10px] text-white/60">
+                        <p className="mt-1 text-[10px] text-text-muted">{digestScheduleLabel(client)}</p>
+                        <label className="mt-2 block text-[10px] text-text-muted">
                           Iniciar desde
                           <input
                             type="date"
@@ -3309,7 +3232,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                 digestStartDate: e.target.value,
                               })
                             }
-                            className="mt-1 w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white"
+                            className="mt-1 w-full rounded bg-surface-2 border border-border px-2 py-1 text-[11px] text-foreground"
                           />
                         </label>
                         <label className="mt-2 inline-flex items-center gap-2 text-[11px] text-info/90">
@@ -3332,7 +3255,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                               wellnessAutoStartDate: e.target.value,
                             })
                           }
-                          className="mt-1 w-full rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white"
+                          className="mt-1 w-full rounded bg-surface-2 border border-border px-2 py-1 text-[11px] text-foreground"
                         />
                         <label className="mt-2 inline-flex items-center gap-2 text-[11px] text-foreground">
                           <input
@@ -3354,7 +3277,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                 weightRequestFrequency: e.target.value as "weekly" | "biweekly" | "monthly",
                               })
                             }
-                            className="rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white"
+                            className="rounded bg-surface-2 border border-border px-2 py-1 text-[11px] text-foreground"
                           >
                             <option value="monthly">Mensual</option>
                             <option value="biweekly">Cada 2 semanas</option>
@@ -3368,20 +3291,20 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                 weightRequestStartDate: e.target.value,
                               })
                             }
-                            className="rounded bg-white/5 border border-white/10 px-2 py-1 text-[11px] text-white"
+                            className="rounded bg-surface-2 border border-border px-2 py-1 text-[11px] text-foreground"
                           />
                         </div>
-                        <p className="mt-1 text-[10px] text-white/55">
+                        <p className="mt-1 text-[10px] text-text-muted">
                           Último peso:{" "}
                           {typeof client.latestWeightKg === "number"
                             ? `${client.latestWeightKg} kg (${formatShortDate(client.latestWeightAt || null)})`
                             : "sin registro"}
                         </p>
                       </div>
-                      <p className="text-white/80">
-                        <span className="text-white/55">Peso inicial:</span>{" "}
+                      <p className="text-foreground">
+                        <span className="text-text-muted">Peso inicial:</span>{" "}
                         {typeof client.pesoInicialKg === "number" && Number.isFinite(client.pesoInicialKg) ? (
-                          <span className="text-white/90 font-medium tabular-nums">
+                          <span className="text-foreground font-medium tabular-nums">
                             {Number.isInteger(client.pesoInicialKg)
                               ? client.pesoInicialKg
                               : client.pesoInicialKg.toFixed(1)}{" "}
@@ -3391,8 +3314,8 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                           "—"
                         )}
                       </p>
-                      <p className="text-white/70 sm:col-span-2">
-                        <span className="text-white/55">Trabajo:</span>{" "}
+                      <p className="text-text-muted sm:col-span-2">
+                        <span className="text-text-muted">Trabajo:</span>{" "}
                         {client.trabajoTurnos || client.diasTrabajo.length > 0
                           ? `${client.trabajoTurnos || "Sin horas"}${client.diasTrabajo.length > 0 ? ` · ${client.diasTrabajo.join(", ")}` : ""}`
                           : "N/A"}
@@ -3418,43 +3341,40 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
               </div>
             </>
           )}
-        </div>
+        </>
         )}
 
         {/* Lista de usuarios FitPlan */}
         {view === "fitplan" && (
-        <div className="relative overflow-hidden rounded-2xl border border-info/25 bg-gradient-to-br from-[#0b1e37] via-[#0f2847] to-[#0f3d3a] shadow-[0_16px_48px_-28px_rgba(34,211,238,0.45)] mb-6">
-          <div className="px-4 py-3 border-b border-white/10 bg-black/20">
-            <h2 className="text-base font-bold text-white">Usuarios FitPlan</h2>
-            <p className="text-[11px] text-white/55 mt-0.5">Cuentas registradas (sin admin)</p>
-          </div>
-          <div className="overflow-hidden bg-black/10">
+        <>
+          <p className="mt-5 text-xs text-text-muted">Cuentas registradas (sin admin)</p>
           {/* Vista de tabla para desktop */}
-          <div className="hidden lg:block overflow-x-auto">
+          <div className="mt-3 hidden overflow-hidden rounded-2xl border border-border lg:block">
+            <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-white/5 border-b border-white/10">
+              <thead className="bg-surface-2 border-b border-border">
                 <tr>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-white/55 uppercase tracking-wider">Nombre</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-white/55 uppercase tracking-wider">Contacto</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-white/55 uppercase tracking-wider">Plan</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-white/55 uppercase tracking-wider">Pago</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-white/55 uppercase tracking-wider">Edad</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-white/55 uppercase tracking-wider">Alt.</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-white/55 uppercase tracking-wider">Peso</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-white/55 uppercase tracking-wider">Estado</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-white/55 uppercase tracking-wider">Creado</th>
-                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-white/55 uppercase tracking-wider">Acciones</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider">Nombre</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider">Contacto</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider">Plan</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider">Pago</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider">Edad</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider">Alt.</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider">Peso</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider">Estado</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider">Creado</th>
+                  <th className="px-3 py-2 text-left text-[10px] font-semibold text-text-muted uppercase tracking-wider">Acciones</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/10">
+              <tbody className="divide-y divide-border">
                 {users.length === 0 ? (
                   <tr>
                     <td colSpan={10} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center gap-3">
-                        <p className="text-white/60 text-sm">
+                        <p className="text-text-muted text-sm">
                           La carga de usuarios está deshabilitada temporalmente
                         </p>
-                        <p className="text-white/40 text-xs">
+                        <p className="text-text-subtle text-xs">
                           Esta funcionalidad se habilitará próximamente
                         </p>
                       </div>
@@ -3470,13 +3390,13 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.05 }}
-                      className={`hover:bg-white/5 transition-colors border-l-4 group ${isNewUser ? "bg-success/10 border-success/70" : "border-transparent"}`}
+                      className={`hover:bg-surface-2 transition-colors border-l-4 group ${isNewUser ? "bg-success/10 border-success/70" : "border-transparent"}`}
                     >
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-white">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
                         <div className="flex items-center gap-2">
                           <span>{user.nombre || user.email || "N/A"}</span>
                           {isNewUser && (
-                            <span className="px-2 py-0.5 text-[10px] uppercase tracking-wide rounded-full bg-success/30 text-success border border-success/40">
+                            <span className="badge badge-success uppercase tracking-wide text-[10px]">
                               Nuevo
                             </span>
                           )}
@@ -3496,7 +3416,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                               </span>
                               {/* Tooltip (click en mobile, hover en desktop) */}
                               <div
-                                className={`absolute left-1/2 bottom-full z-[9999] mb-2 w-48 -translate-x-1/2 rounded-lg border border-white/20 bg-black/95 px-3 py-2 text-xs text-white shadow-xl transition-opacity duration-200 ${
+                                className={`absolute left-1/2 bottom-full z-[9999] mb-2 w-48 -translate-x-1/2 rounded-lg border border-border bg-black/95 px-3 py-2 text-xs text-foreground shadow-xl transition-opacity duration-200 ${
                                   locationTooltipOpenUserId === user.id
                                     ? "opacity-100 pointer-events-auto"
                                     : "opacity-0 pointer-events-none md:group-hover:opacity-100"
@@ -3505,21 +3425,21 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                               >
                                 <div className="space-y-1">
                                   {user.ciudad && (
-                                    <p className="text-white/90">
+                                    <p className="text-foreground">
                                       <span className="font-medium">Ciudad:</span> {user.ciudad}
                                     </p>
                                   )}
                                   {user.pais && (
-                                    <p className="text-white/90">
+                                    <p className="text-foreground">
                                       <span className="font-medium">País:</span> {user.pais}
                                     </p>
                                   )}
                                   {!user.ciudad && !user.pais && (
-                                    <p className="text-white/60">Ubicación no disponible</p>
+                                    <p className="text-text-muted">Ubicación no disponible</p>
                                   )}
                                 </div>
                                 <div className="absolute left-1/2 top-full -translate-x-1/2 -mt-1">
-                                  <div className="h-2 w-2 rotate-45 border-r border-b border-white/20 bg-black/95"></div>
+                                  <div className="h-2 w-2 rotate-45 border-r border-b border-border bg-black/95"></div>
                                 </div>
                               </div>
                             </div>
@@ -3537,7 +3457,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                               <FaEnvelope className="text-sm" />
                             </a>
                           ) : (
-                            <span className="text-white/40">N/A</span>
+                            <span className="text-text-subtle">N/A</span>
                           )}
                           {user.email && user.email.toLowerCase() !== "admin@fitplan-ai.com" && (
                             <button
@@ -3564,16 +3484,16 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {user.email?.toLowerCase() === "admin@fitplan-ai.com" ? (
-                          <span className="px-2 py-1 text-xs rounded-full bg-info/20 text-info border border-info/30">
+                          <span className="badge badge-info">
                             Admin
                           </span>
                         ) : user.premium ? (
                           <div className="flex flex-col gap-1">
-                            <span className="px-2 py-1 text-xs rounded-full bg-warning/20 text-warning border border-warning/30">
+                            <span className="badge badge-warning">
                               Premium
                             </span>
                             {user.premiumPlanType && (
-                              <span className="px-2 py-0.5 text-[10px] rounded-full bg-info/20 text-info border border-info/30">
+                              <span className="badge badge-info text-[10px]">
                                 {user.premiumPlanType === "monthly" 
                                   ? "Mensual" 
                                   : user.premiumPlanType === "quarterly"
@@ -3585,14 +3505,14 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                             )}
                           </div>
                         ) : (
-                          <span className="px-2 py-1 text-xs rounded-full bg-surface-2 text-muted border border-border">
+                          <span className="badge badge-neutral">
                             Regular
                           </span>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {user.email?.toLowerCase() === "admin@fitplan-ai.com" ? (
-                          <span className="px-2 py-1 text-xs rounded-full bg-surface-2 text-muted border border-border">
+                          <span className="badge badge-neutral">
                             N/A
                           </span>
                         ) : user.premium ? (
@@ -3635,7 +3555,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                             {/* Tooltip con información de vencimiento */}
                             {paymentStatus.expiresAt && (
                               <div 
-                                className={`absolute left-1/2 bottom-full z-50 mb-2 w-64 -translate-x-1/2 rounded-lg border border-white/20 bg-black/95 px-3 py-2 text-xs text-white shadow-xl transition-opacity duration-200 ${
+                                className={`absolute left-1/2 bottom-full z-50 mb-2 w-64 -translate-x-1/2 rounded-lg border border-border bg-black/95 px-3 py-2 text-xs text-foreground shadow-xl transition-opacity duration-200 ${
                                   // Mostrar en desktop con hover, en mobile con click
                                   tooltipOpenUserId === user.id 
                                     ? "opacity-100 pointer-events-auto md:pointer-events-none" 
@@ -3644,14 +3564,14 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 <div className="space-y-1">
-                                  <p className="font-semibold text-white">
+                                  <p className="font-semibold text-foreground">
                                     {paymentStatus.status === "expired" 
                                       ? "⚠️ Plan Vencido"
                                       : paymentStatus.status === "expiring"
                                       ? "⏰ Por Vencer"
                                       : "✅ Plan Activo"}
                                   </p>
-                                  <p className="text-white/80">
+                                  <p className="text-foreground">
                                     <span className="font-medium">Vencimiento:</span>{" "}
                                     {paymentStatus.expiresAt.toLocaleDateString('es-AR', { 
                                       day: '2-digit', 
@@ -3662,7 +3582,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                     })}
                                   </p>
                                   {paymentStatus.daysUntilExpiry !== null && (
-                                    <p className="text-white/80">
+                                    <p className="text-foreground">
                                       <span className="font-medium">
                                         {paymentStatus.daysUntilExpiry < 0 
                                           ? "Vencido hace:" 
@@ -3700,39 +3620,39 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                     }
                                     
                                     return amount !== null && !isNaN(amount) && amount > 0 ? (
-                                      <p className="text-white/80">
+                                      <p className="text-foreground">
                                         <span className="font-medium">Último pago:</span>{" "}
                                         ${amount.toLocaleString('es-AR')} ARS
                                         {!payment && user.premiumPlanType && (
-                                          <span className="text-white/50 text-[10px] ml-1">(estimado)</span>
+                                          <span className="text-text-subtle text-[10px] ml-1">(estimado)</span>
                                         )}
                                       </p>
                                     ) : null;
                                   })()}
                                   {user.premiumPlanType && (
-                                    <p className="text-white/60 text-[10px] mt-1 pt-1 border-t border-white/10">
+                                    <p className="text-text-muted text-[10px] mt-1 pt-1 border-t border-border">
                                       Plan: {user.premiumPlanType === "monthly" ? "Mensual" : user.premiumPlanType === "quarterly" ? "Trimestral" : "Anual"}
                                     </p>
                                   )}
                                 </div>
                                 {/* Flecha del tooltip */}
                                 <div className="absolute left-1/2 top-full -translate-x-1/2 -mt-1">
-                                  <div className="h-2 w-2 rotate-45 border-r border-b border-white/20 bg-black/95"></div>
+                                  <div className="h-2 w-2 rotate-45 border-r border-b border-border bg-black/95"></div>
                                 </div>
                               </div>
                             )}
                           </div>
                         ) : (
-                          <span className="px-2 py-1 text-xs rounded-full bg-surface-2 text-muted border border-border">
+                          <span className="badge badge-neutral">
                             Regular
                           </span>
                         )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-white/80">{user.edad || "N/A"}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-white/80">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">{user.edad || "N/A"}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
                         {user.alturaCm ? `${user.alturaCm} cm` : "N/A"}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-white/80">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
                         {user.peso ? `${user.peso} kg` : "N/A"}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
@@ -3754,7 +3674,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                               const status = getIMCStatus(user.peso, user.alturaCm);
                               if (status.status === "saludable") return null;
                               return (
-                                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-[9999] px-3 py-2 rounded-lg bg-black/95 border border-white/20 shadow-xl text-sm whitespace-nowrap pointer-events-auto">
+                                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-[9999] px-3 py-2 rounded-lg bg-black/95 border border-border shadow-xl text-sm whitespace-nowrap pointer-events-auto">
                                   {status.status === "bajo" && status.weightDifference && (
                                     <p className="text-info">
                                       {status.weightDifference.toFixed(1)} kg por debajo del peso ideal
@@ -3772,7 +3692,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-white/60">{formatDate(user.createdAt)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-text-muted">{formatDate(user.createdAt)}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <div className="flex items-center gap-1">
                           <AdminActionIcon icon={FaPen} label="Editar usuario" onClick={() => handleEdit(user)} />
@@ -3806,17 +3726,18 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                 )}
               </tbody>
             </table>
+            </div>
           </div>
 
           {/* Vista de cards para mobile y tablet */}
-          <div className="lg:hidden p-4 space-y-4">
+          <div className="mt-3 flex flex-col gap-3 lg:hidden">
             {users.length === 0 ? (
               <div className="text-center py-12">
                 <div className="flex flex-col items-center gap-3">
-                  <p className="text-white/60 text-sm">
+                  <p className="text-text-muted text-sm">
                     La carga de usuarios está deshabilitada temporalmente
                   </p>
-                  <p className="text-white/40 text-xs">
+                  <p className="text-text-subtle text-xs">
                     Esta funcionalidad se habilitará próximamente
                   </p>
                 </div>
@@ -3834,15 +3755,15 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                     className={`rounded-lg border p-4 space-y-3 group ${
                       isNewUser 
                         ? "bg-success/10 border-success/30 border-l-4 border-l-success" 
-                        : "bg-white/5 border-white/10"
+                        : "bg-surface-2 border-border"
                     }`}
                   >
                     {/* Header con nombre y badges */}
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-base font-semibold text-white">{user.nombre || user.email || "N/A"}</h3>
+                        <h3 className="text-base font-semibold text-foreground">{user.nombre || user.email || "N/A"}</h3>
                         {isNewUser && (
-                          <span className="px-2 py-0.5 text-[10px] uppercase tracking-wide rounded-full bg-success/30 text-success border border-success/40">
+                          <span className="badge badge-success uppercase tracking-wide text-[10px]">
                             Nuevo
                           </span>
                         )}
@@ -3862,7 +3783,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                             </span>
                             {/* Tooltip (click en mobile, hover en desktop) */}
                             <div
-                              className={`absolute left-1/2 bottom-full z-[9999] mb-2 w-48 -translate-x-1/2 rounded-lg border border-white/20 bg-black/95 px-3 py-2 text-xs text-white shadow-xl transition-opacity duration-200 ${
+                              className={`absolute left-1/2 bottom-full z-[9999] mb-2 w-48 -translate-x-1/2 rounded-lg border border-border bg-black/95 px-3 py-2 text-xs text-foreground shadow-xl transition-opacity duration-200 ${
                                 locationTooltipOpenUserId === user.id
                                   ? "opacity-100 pointer-events-auto"
                                   : "opacity-0 pointer-events-none md:group-hover:opacity-100"
@@ -3871,36 +3792,36 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                             >
                               <div className="space-y-1">
                                 {user.ciudad && (
-                                  <p className="text-white/90">
+                                  <p className="text-foreground">
                                     <span className="font-medium">Ciudad:</span> {user.ciudad}
                                   </p>
                                 )}
                                 {user.pais && (
-                                  <p className="text-white/90">
+                                  <p className="text-foreground">
                                     <span className="font-medium">País:</span> {user.pais}
                                   </p>
                                 )}
                                 {!user.ciudad && !user.pais && (
-                                  <p className="text-white/60">Ubicación no disponible</p>
+                                  <p className="text-text-muted">Ubicación no disponible</p>
                                 )}
                               </div>
                               <div className="absolute left-1/2 top-full -translate-x-1/2 -mt-1">
-                                <div className="h-2 w-2 rotate-45 border-r border-b border-white/20 bg-black/95"></div>
+                                <div className="h-2 w-2 rotate-45 border-r border-b border-border bg-black/95"></div>
                               </div>
                             </div>
                           </div>
                         )}
                         {user.email?.toLowerCase() === "admin@fitplan-ai.com" ? (
-                          <span className="px-2 py-1 text-xs rounded-full bg-info/20 text-info border border-info/30">
+                          <span className="badge badge-info">
                             Admin
                           </span>
                         ) : user.premium ? (
                           <>
-                            <span className="px-2 py-1 text-xs rounded-full bg-warning/20 text-warning border border-warning/30">
+                            <span className="badge badge-warning">
                               Premium
                             </span>
                             {user.premiumPlanType && (
-                              <span className="px-2 py-0.5 text-[10px] rounded-full bg-info/20 text-info border border-info/30">
+                              <span className="badge badge-info text-[10px]">
                                 {user.premiumPlanType === "monthly" 
                                   ? "Mensual" 
                                   : user.premiumPlanType === "quarterly"
@@ -3912,12 +3833,12 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                             )}
                           </>
                         ) : (
-                          <span className="px-2 py-1 text-xs rounded-full bg-surface-2 text-muted border border-border">
+                          <span className="badge badge-neutral">
                             Regular
                           </span>
                         )}
                       </div>
-                      <p className="text-white/40 text-xs">
+                      <p className="text-text-subtle text-xs">
                         Última conexión: {formatDateTime(user.lastLogin)}
                       </p>
                     </div>
@@ -3954,26 +3875,26 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                           )}
                         </>
                       ) : (
-                        <span className="text-white/40 text-sm">N/A</span>
+                        <span className="text-text-subtle text-sm">N/A</span>
                       )}
                     </div>
 
                     {/* Información del usuario */}
                     <div className="grid grid-cols-2 gap-3 text-sm">
                       <div>
-                        <p className="text-white/60 text-xs mb-0.5">Edad</p>
-                        <p className="text-white font-medium">{user.edad || "N/A"} años</p>
+                        <p className="text-text-muted text-xs mb-0.5">Edad</p>
+                        <p className="text-foreground font-medium">{user.edad || "N/A"} años</p>
                       </div>
                       <div>
-                        <p className="text-white/60 text-xs mb-0.5">Altura</p>
-                        <p className="text-white font-medium">{user.alturaCm ? `${user.alturaCm} cm` : "N/A"}</p>
+                        <p className="text-text-muted text-xs mb-0.5">Altura</p>
+                        <p className="text-foreground font-medium">{user.alturaCm ? `${user.alturaCm} cm` : "N/A"}</p>
                       </div>
                       <div>
-                        <p className="text-white/60 text-xs mb-0.5">Peso</p>
-                        <p className="text-white font-medium">{user.peso ? `${user.peso} kg` : "N/A"}</p>
+                        <p className="text-text-muted text-xs mb-0.5">Peso</p>
+                        <p className="text-foreground font-medium">{user.peso ? `${user.peso} kg` : "N/A"}</p>
                       </div>
                       <div>
-                        <p className="text-white/60 text-xs mb-0.5">Estado</p>
+                        <p className="text-text-muted text-xs mb-0.5">Estado</p>
                         <div className="flex items-center">
                           <div className="relative group">
                             <div
@@ -3992,7 +3913,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                               const status = getIMCStatus(user.peso, user.alturaCm);
                               if (status.status === "saludable") return null;
                               return (
-                                <div className="absolute left-0 top-full mt-2 z-[9999] px-3 py-2 rounded-lg bg-black/95 border border-white/20 shadow-xl text-sm whitespace-nowrap pointer-events-auto">
+                                <div className="absolute left-0 top-full mt-2 z-[9999] px-3 py-2 rounded-lg bg-black/95 border border-border shadow-xl text-sm whitespace-nowrap pointer-events-auto">
                                   {status.status === "bajo" && status.weightDifference && (
                                     <p className="text-info">
                                       {status.weightDifference.toFixed(1)} kg por debajo del peso ideal
@@ -4011,9 +3932,9 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                         </div>
                       </div>
                       <div>
-                        <p className="text-white/60 text-xs mb-0.5">Estado de Pago</p>
+                        <p className="text-text-muted text-xs mb-0.5">Estado de Pago</p>
                         {user.email?.toLowerCase() === "admin@fitplan-ai.com" ? (
-                          <span className="px-2 py-1 text-xs rounded-full bg-surface-2 text-muted border border-border">
+                          <span className="badge badge-neutral">
                             N/A
                           </span>
                         ) : user.premium ? (
@@ -4056,7 +3977,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                             {/* Tooltip con información de vencimiento */}
                             {paymentStatus.expiresAt && (
                               <div 
-                                className={`absolute left-1/2 bottom-full z-50 mb-2 w-64 -translate-x-1/2 rounded-lg border border-white/20 bg-black/95 px-3 py-2 text-xs text-white shadow-xl transition-opacity duration-200 ${
+                                className={`absolute left-1/2 bottom-full z-50 mb-2 w-64 -translate-x-1/2 rounded-lg border border-border bg-black/95 px-3 py-2 text-xs text-foreground shadow-xl transition-opacity duration-200 ${
                                   tooltipOpenUserId === user.id 
                                     ? "opacity-100 pointer-events-auto" 
                                     : "opacity-0 pointer-events-none"
@@ -4064,14 +3985,14 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 <div className="space-y-1">
-                                  <p className="font-semibold text-white">
+                                  <p className="font-semibold text-foreground">
                                     {paymentStatus.status === "expired" 
                                       ? "⚠️ Plan Vencido"
                                       : paymentStatus.status === "expiring"
                                       ? "⏰ Por Vencer"
                                       : "✅ Plan Activo"}
                                   </p>
-                                  <p className="text-white/80">
+                                  <p className="text-foreground">
                                     <span className="font-medium">Vencimiento:</span>{" "}
                                     {paymentStatus.expiresAt.toLocaleDateString('es-AR', { 
                                       day: '2-digit', 
@@ -4082,7 +4003,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                     })}
                                   </p>
                                   {paymentStatus.daysUntilExpiry !== null && (
-                                    <p className="text-white/80">
+                                    <p className="text-foreground">
                                       <span className="font-medium">
                                         {paymentStatus.daysUntilExpiry < 0 
                                           ? "Vencido hace:" 
@@ -4116,36 +4037,36 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                     }
                                     
                                     return amount !== null && !isNaN(amount) && amount > 0 ? (
-                                      <p className="text-white/80">
+                                      <p className="text-foreground">
                                         <span className="font-medium">Último pago:</span>{" "}
                                         ${amount.toLocaleString('es-AR')} ARS
                                         {!payment && user.premiumPlanType && (
-                                          <span className="text-white/50 text-[10px] ml-1">(estimado)</span>
+                                          <span className="text-text-subtle text-[10px] ml-1">(estimado)</span>
                                         )}
                                       </p>
                                     ) : null;
                                   })()}
                                   {user.premiumPlanType && (
-                                    <p className="text-white/60 text-[10px] mt-1 pt-1 border-t border-white/10">
+                                    <p className="text-text-muted text-[10px] mt-1 pt-1 border-t border-border">
                                       Plan: {user.premiumPlanType === "monthly" ? "Mensual" : user.premiumPlanType === "quarterly" ? "Trimestral" : "Anual"}
                                     </p>
                                   )}
                                 </div>
                                 <div className="absolute left-1/2 top-full -translate-x-1/2 -mt-1">
-                                  <div className="h-2 w-2 rotate-45 border-r border-b border-white/20 bg-black/95"></div>
+                                  <div className="h-2 w-2 rotate-45 border-r border-b border-border bg-black/95"></div>
                                 </div>
                               </div>
                             )}
                           </div>
                         ) : (
-                          <span className="px-2 py-1 text-xs rounded-full bg-surface-2 text-muted border border-border">
+                          <span className="badge badge-neutral">
                             Regular
                           </span>
                         )}
                       </div>
                       <div>
-                        <p className="text-white/60 text-xs mb-0.5">Creado</p>
-                        <p className="text-white font-medium text-xs">{formatDate(user.createdAt)}</p>
+                        <p className="text-text-muted text-xs mb-0.5">Creado</p>
+                        <p className="text-foreground font-medium text-xs">{formatDate(user.createdAt)}</p>
                       </div>
                     </div>
 
@@ -4190,8 +4111,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
               })
             )}
           </div>
-        </div>
-        </div>
+        </>
         )}
 
         {/* Modal de edición */}

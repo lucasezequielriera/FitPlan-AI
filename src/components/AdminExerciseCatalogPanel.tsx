@@ -378,14 +378,14 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
 
   const panelBody = (
     <>
-      <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-white/10">
+      <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-border">
         <div className="flex items-center gap-2 min-w-0">
-          <FaDumbbell className="text-cyan-400 text-lg shrink-0" />
+          <FaDumbbell className="text-info text-lg shrink-0" />
           <div className="min-w-0">
-            <h2 className={`font-semibold text-white ${isPage ? "text-xl sm:text-2xl" : "text-lg"}`}>Catálogo global de ejercicios</h2>
-            <p className="text-xs text-white/55 mt-0.5 leading-relaxed">
+            <h2 className={`font-semibold text-foreground ${isPage ? "text-xl sm:text-2xl" : "text-lg"}`}>Catálogo global de ejercicios</h2>
+            <p className="text-xs text-text-muted mt-0.5 leading-relaxed">
               Cada entrada fija la ilustración para ese nombre: bien un ID de wger, bien imagen o GIF en{" "}
-              <code className="text-violet-300/90">public/ejercicios/</code> (puedes poner solo el nombre del archivo o la URL completa). El
+              <code className="text-phase-maintenance/90">public/ejercicios/</code> (puedes poner solo el nombre del archivo o la URL completa). El
               nombre del ejercicio debe coincidir con el plan (típicamente lo que va antes del ·). Los vídeos de técnica se enlazan con
               Cloudinary o URL directa en el plan (sección «Vídeos propios del coach» en el detalle del plan).
             </p>
@@ -395,7 +395,7 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-lg text-white/70 hover:text-white hover:bg-white/10 shrink-0"
+            className="p-2 rounded-lg text-text-muted hover:text-foreground hover:bg-surface-2 shrink-0"
             aria-label="Cerrar"
           >
             <FaTimes />
@@ -412,14 +412,14 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
             <div className="flex items-start gap-2">
               <FaTags className="text-warning/90 mt-0.5 shrink-0" />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-white/90">Ejercicios que aparecen en planes</p>
-                <p className="text-[11px] text-white/45 mt-1 leading-relaxed">
-                  Agrupados por <span className="text-white/60">muscle_group</span> (planes intake recientes y planes de app). Tocá un nombre para copiarlo abajo.{" "}
+                <p className="text-sm font-medium text-foreground">Ejercicios que aparecen en planes</p>
+                <p className="text-[11px] text-text-subtle mt-1 leading-relaxed">
+                  Agrupados por <span className="text-text-muted">muscle_group</span> (planes intake recientes y planes de app). Tocá un nombre para copiarlo abajo.{" "}
                   <span className="text-success/80">En catálogo</span> = asignación tuya; puedes pulsar{" "}
-                  <span className="text-white/55">Comprobar wger</span> para ver cuáles no tienen ni catálogo ni coincidencia automática en wger.
+                  <span className="text-text-muted">Comprobar wger</span> para ver cuáles no tienen ni catálogo ni coincidencia automática en wger.
                 </p>
                 {planIndexMeta && (
-                  <p className="text-[10px] text-white/35 mt-1.5 font-mono">
+                  <p className="text-[10px] text-text-subtle mt-1.5 font-mono">
                     {planIndexMeta.uniqueInPlans} nombres únicos · {planIndexMeta.catalogEntryCount} entradas catálogo · intake {planIndexMeta.intakeDocsWithTraining}/
                     {planIndexMeta.intakeDocsScanned} con entreno · planes {planIndexMeta.planesDocsWithTraining}/{planIndexMeta.planesDocsScanned}
                   </p>
@@ -430,9 +430,9 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
               <div className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger">{planIndexError}</div>
             )}
             {planIndexLoading ? (
-              <p className="text-sm text-white/45">Cargando índice desde Firestore…</p>
+              <p className="text-sm text-text-subtle">Cargando índice desde Firestore…</p>
             ) : muscleGroups.length === 0 && allPlanExercises.length === 0 ? (
-              <p className="text-sm text-white/45">No se encontraron ejercicios de entrenamiento en los planes escaneados.</p>
+              <p className="text-sm text-text-subtle">No se encontraron ejercicios de entrenamiento en los planes escaneados.</p>
             ) : (
               <>
                 <div className="flex flex-wrap items-center gap-2">
@@ -456,7 +456,7 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
                   <div className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger">{coverageError}</div>
                 )}
                 {coverageMeta && coverageRan && (
-                  <p className="text-[10px] text-white/40 font-mono leading-relaxed">
+                  <p className="text-[10px] text-text-subtle font-mono leading-relaxed">
                     Sin catálogo en planes: {coverageMeta.notInCatalogCount ?? "—"} · Consultados wger esta vez: {coverageMeta.probedThisRequest ?? "—"}
                     {(coverageMeta.skippedDueToProbesLimit ?? 0) > 0
                       ? ` · Sin consultar aún: ${coverageMeta.skippedDueToProbesLimit} (límite ${coverageMeta.maxResolve ?? 20} por petición; repite o sube ?maxResolve= en la API)`
@@ -470,7 +470,7 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
                     className={`px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors ${
                       selectedMuscleKey === "all"
                         ? "bg-warning/30 border-warning/50 text-warning"
-                        : "bg-black/35 border-white/12 text-white/55 hover:text-white/75"
+                        : "bg-surface-2 border-border text-text-muted hover:text-foreground"
                     }`}
                   >
                     Todas ({allPlanExercises.length}
@@ -487,7 +487,7 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
                     className={`px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors max-w-[220px] truncate ${
                       selectedMuscleKey === "no_media"
                         ? "bg-danger/30 border-danger/45 text-danger"
-                        : "bg-black/35 border-white/12 text-white/55 hover:text-white/75 disabled:opacity-40 disabled:cursor-not-allowed"
+                        : "bg-surface-2 border-border text-text-muted hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed"
                     }`}
                   >
                     Solo sin ilustración ({noMediaCount})
@@ -499,8 +499,8 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
                       onClick={() => setSelectedMuscleKey(g.key)}
                       className={`px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors max-w-[200px] truncate ${
                         selectedMuscleKey === g.key
-                          ? "bg-cyan-500/25 border-cyan-400/45 text-cyan-100"
-                          : "bg-black/35 border-white/12 text-white/55 hover:text-white/75"
+                          ? "bg-info/25 border-info/45 text-info"
+                          : "bg-surface-2 border-border text-text-muted hover:text-foreground"
                       }`}
                       title={g.label}
                     >
@@ -508,21 +508,21 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
                       {g.missingInCatalog > 0 ? (
                         <span className="text-warning/85"> · {g.missingInCatalog} sin cat.</span>
                       ) : (
-                        <span className="text-white/35"> · ok</span>
+                        <span className="text-text-subtle"> · ok</span>
                       )}
                     </button>
                   ))}
                 </div>
-                <div className={`${planListScrollClass} overflow-y-auto rounded-lg border border-white/10 bg-black/30 divide-y divide-white/5`}>
+                <div className={`${planListScrollClass} overflow-y-auto rounded-lg border border-border bg-surface-2 divide-y divide-border`}>
                   {visiblePlanExercises.length === 0 ? (
-                    <p className="p-3 text-xs text-white/45">Sin ejercicios en este grupo.</p>
+                    <p className="p-3 text-xs text-text-subtle">Sin ejercicios en este grupo.</p>
                   ) : (
                     visiblePlanExercises.map((row) => (
                       <button
                         key={row.normKey}
                         type="button"
                         onClick={() => pickPlanExercise(row)}
-                        className="w-full text-left px-3 py-2 hover:bg-white/5 flex flex-wrap items-center gap-2 gap-y-1"
+                        className="w-full text-left px-3 py-2 hover:bg-surface-3 flex flex-wrap items-center gap-2 gap-y-1"
                       >
                         <span
                           className={`shrink-0 text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded inline-flex items-center gap-1 ${
@@ -533,7 +533,7 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
                                 : coverageRan && probedNormKeys.has(row.normKey)
                                   ? "bg-info/20 text-info border border-info/30"
                                   : coverageRan
-                                    ? "bg-white/10 text-white/55 border border-white/15"
+                                    ? "bg-surface-2 text-text-muted border border-border"
                                     : "bg-warning/20 text-warning border border-warning/30"
                           }`}
                         >
@@ -552,9 +552,9 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
                             "Sin chequear"
                           )}
                         </span>
-                        <span className="text-sm text-white/90 flex-1 min-w-[120px]">{row.label}</span>
+                        <span className="text-sm text-foreground flex-1 min-w-[120px]">{row.label}</span>
                         {row.muscleHint ? (
-                          <span className="text-[10px] text-white/40 w-full sm:w-auto sm:ml-auto truncate" title={row.muscleHint}>
+                          <span className="text-[10px] text-text-subtle w-full sm:w-auto sm:ml-auto truncate" title={row.muscleHint}>
                             {row.muscleHint}
                           </span>
                         ) : null}
@@ -566,21 +566,21 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
             )}
           </div>
 
-          <div className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
-            <p className="text-sm font-medium text-white/90">Buscar en wger</p>
+          <div className="rounded-lg border border-border bg-surface-2 p-4 space-y-3">
+            <p className="text-sm font-medium text-foreground">Buscar en wger</p>
             <div className="flex flex-wrap gap-2">
               <input
                 value={searchQ}
                 onChange={(e) => setSearchQ(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && void runSearch()}
                 placeholder="Ej. leg curl, bench press, jalón…"
-                className="flex-1 min-w-[200px] rounded-lg bg-black/40 border border-white/15 px-3 py-2 text-sm text-white placeholder:text-white/35"
+                className="flex-1 min-w-[200px] rounded-lg bg-surface-3 border border-border px-3 py-2 text-sm text-foreground placeholder:text-text-subtle"
               />
               <button
                 type="button"
                 onClick={() => void runSearch()}
                 disabled={searching || searchQ.trim().length < 2}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-500/25 border border-cyan-400/40 text-cyan-100 text-sm font-medium hover:bg-cyan-500/35 disabled:opacity-50"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-info/25 border border-info/40 text-info text-sm font-medium hover:bg-info/35 disabled:opacity-50"
               >
                 <FaSearch className="text-xs" />
                 {searching ? "Buscando…" : "Buscar"}
@@ -593,34 +593,34 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
                     key={hit.id}
                     type="button"
                     onClick={() => pickSearchHit(hit)}
-                    className="text-left rounded-lg border border-white/10 bg-black/30 overflow-hidden hover:border-cyan-500/50 transition-colors"
+                    className="text-left rounded-lg border border-border bg-surface-3 overflow-hidden hover:border-info/50 transition-colors"
                   >
-                    <div className="aspect-[4/3] bg-black/50 flex items-center justify-center">
+                    <div className="aspect-[4/3] bg-surface-3 flex items-center justify-center">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={hit.imageUrl} alt="" className="max-h-full max-w-full object-contain" loading="lazy" />
                     </div>
-                    <div className="px-2 py-1.5 text-[10px] text-white/80 leading-tight">
-                      <span className="font-mono text-cyan-300/90">#{hit.id}</span> {hit.name}
+                    <div className="px-2 py-1.5 text-[10px] text-foreground leading-tight">
+                      <span className="font-mono text-info/90">#{hit.id}</span> {hit.name}
                     </div>
                   </button>
                 ))}
               </div>
             )}
-            <p className="text-[11px] text-white/45">
+            <p className="text-[11px] text-text-subtle">
               Pulsa una tarjeta para modo wger: rellena el ID y cambia el nombre si hace falta que coincida con el plan.
             </p>
           </div>
 
-          <div className="rounded-lg border border-white/10 bg-white/5 p-4 space-y-3">
-            <p className="text-sm font-medium text-white/90">Añadir o actualizar</p>
+          <div className="rounded-lg border border-border bg-surface-2 p-4 space-y-3">
+            <p className="text-sm font-medium text-foreground">Añadir o actualizar</p>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => setMediaMode("wger")}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
                   mediaMode === "wger"
-                    ? "bg-cyan-500/25 border-cyan-400/50 text-cyan-100"
-                    : "bg-black/30 border-white/15 text-white/60 hover:text-white/80"
+                    ? "bg-info/25 border-info/50 text-info"
+                    : "bg-surface-3 border-border text-text-muted hover:text-foreground"
                 }`}
               >
                 Por ID wger
@@ -630,8 +630,8 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
                 onClick={() => setMediaMode("custom")}
                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
                   mediaMode === "custom"
-                    ? "bg-violet-500/25 border-violet-400/50 text-violet-100"
-                    : "bg-black/30 border-white/15 text-white/60 hover:text-white/80"
+                    ? "bg-phase-maintenance/25 border-phase-maintenance/50 text-phase-maintenance"
+                    : "bg-surface-3 border-border text-text-muted hover:text-foreground"
                 }`}
               >
                 <FaImage className="text-[10px]" />
@@ -642,8 +642,8 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
                 onClick={() => setMediaMode("video")}
                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
                   mediaMode === "video"
-                    ? "bg-emerald-500/25 border-emerald-400/50 text-emerald-100"
-                    : "bg-black/30 border-white/15 text-white/60 hover:text-white/80"
+                    ? "bg-success/25 border-success/50 text-success"
+                    : "bg-surface-3 border-border text-text-muted hover:text-foreground"
                 }`}
               >
                 <FaVideo className="text-[10px]" />
@@ -651,26 +651,26 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
               </button>
             </div>
             {mediaMode === "custom" ? (
-              <p className="text-[11px] text-violet-200/70">
-                Imágenes en <code className="text-violet-300/80">public/ejercicios/</code> o URL https; si no pones extensión se añade .webp o .gif según el botón de abajo.
+              <p className="text-[11px] text-phase-maintenance/70">
+                Imágenes en <code className="text-phase-maintenance/80">public/ejercicios/</code> o URL https; si no pones extensión se añade .webp o .gif según el botón de abajo.
               </p>
             ) : mediaMode === "video" ? (
-              <p className="text-[11px] text-emerald-200/80">
-                Pegá la URL completa del vídeo (p. ej. Cloudinary <code className="text-emerald-300/80">…/video/upload/…mp4</code>). No se añade ninguna extensión automática.
+              <p className="text-[11px] text-success/80">
+                Pegá la URL completa del vídeo (p. ej. Cloudinary <code className="text-success/80">…/video/upload/…mp4</code>). No se añade ninguna extensión automática.
               </p>
             ) : null}
             <input
               value={newLabel}
               onChange={(e) => setNewLabel(e.target.value)}
               placeholder="Nombre en el plan (ej. Hip thrust · 4 series → usa «Hip thrust» o el texto completo según salga en el plan)"
-              className="w-full rounded-lg bg-black/40 border border-white/15 px-3 py-2 text-sm text-white placeholder:text-white/35"
+              className="w-full rounded-lg bg-surface-3 border border-border px-3 py-2 text-sm text-foreground placeholder:text-text-subtle"
             />
             {mediaMode === "wger" ? (
               <input
                 value={newId}
                 onChange={(e) => setNewId(e.target.value)}
                 placeholder="ID wger (exerciseinfo)"
-                className="w-full rounded-lg bg-black/40 border border-white/15 px-3 py-2 text-sm text-white font-mono placeholder:text-white/35"
+                className="w-full rounded-lg bg-surface-3 border border-border px-3 py-2 text-sm text-foreground font-mono placeholder:text-text-subtle"
               />
             ) : mediaMode === "video" ? (
               <div className="space-y-2">
@@ -678,9 +678,9 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
                   value={customUrl}
                   onChange={(e) => setCustomUrl(e.target.value)}
                   placeholder="https://res.cloudinary.com/…/video/upload/…/archivo.mp4"
-                  className="w-full rounded-lg bg-black/40 border border-emerald-500/25 px-3 py-2 text-sm text-white placeholder:text-white/35"
+                  className="w-full rounded-lg bg-surface-3 border border-success/25 px-3 py-2 text-sm text-foreground placeholder:text-text-subtle"
                 />
-                <p className="text-[11px] text-white/45 leading-relaxed">
+                <p className="text-[11px] text-text-subtle leading-relaxed">
                   También .webm / .mov por https. Sin YouTube ni Vimeo.
                 </p>
               </div>
@@ -690,17 +690,17 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
                   value={customUrl}
                   onChange={(e) => setCustomUrl(e.target.value)}
                   placeholder="curl-femoral-tumbado  o  public/ejercicios/curl-femoral-tumbado  o  https://…"
-                  className="w-full rounded-lg bg-black/40 border border-white/15 px-3 py-2 text-sm text-white placeholder:text-white/35"
+                  className="w-full rounded-lg bg-surface-3 border border-border px-3 py-2 text-sm text-foreground placeholder:text-text-subtle"
                 />
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[11px] text-white/55">Si falta extensión:</span>
+                  <span className="text-[11px] text-text-muted">Si falta extensión:</span>
                   <button
                     type="button"
                     onClick={() => setCustomExt(".webp")}
                     className={`px-2 py-1 rounded-md text-[11px] font-medium border ${
                       customExt === ".webp"
-                        ? "bg-violet-500/25 border-violet-400/50 text-violet-100"
-                        : "bg-black/30 border-white/15 text-white/60 hover:text-white/80"
+                        ? "bg-phase-maintenance/25 border-phase-maintenance/50 text-phase-maintenance"
+                        : "bg-surface-3 border-border text-text-muted hover:text-foreground"
                     }`}
                   >
                     .webp
@@ -710,17 +710,17 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
                     onClick={() => setCustomExt(".gif")}
                     className={`px-2 py-1 rounded-md text-[11px] font-medium border ${
                       customExt === ".gif"
-                        ? "bg-violet-500/25 border-violet-400/50 text-violet-100"
-                        : "bg-black/30 border-white/15 text-white/60 hover:text-white/80"
+                        ? "bg-phase-maintenance/25 border-phase-maintenance/50 text-phase-maintenance"
+                        : "bg-surface-3 border-border text-text-muted hover:text-foreground"
                     }`}
                   >
                     .gif
                   </button>
-                  <span className="text-[11px] text-white/45">se concatena al nombre corto</span>
+                  <span className="text-[11px] text-text-subtle">se concatena al nombre corto</span>
                 </div>
-                <p className="text-[11px] text-white/45 leading-relaxed">
-                  Archivo en <code className="text-violet-300/80">public/ejercicios/</code>: puedes escribir solo el nombre (
-                  <code className="text-violet-300/80">mi-ejercicio</code>), o ruta completa, o URL https de imagen. Sin YouTube ni Vimeo.
+                <p className="text-[11px] text-text-subtle leading-relaxed">
+                  Archivo en <code className="text-phase-maintenance/80">public/ejercicios/</code>: puedes escribir solo el nombre (
+                  <code className="text-phase-maintenance/80">mi-ejercicio</code>), o ruta completa, o URL https de imagen. Sin YouTube ni Vimeo.
                 </p>
               </div>
             )}
@@ -728,7 +728,7 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
               type="button"
               onClick={() => void handleSave()}
               disabled={saving}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500/25 border border-emerald-400/40 text-emerald-100 text-sm font-medium hover:bg-emerald-500/35 disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-success/25 border border-success/40 text-success text-sm font-medium hover:bg-success/35 disabled:opacity-50"
             >
               <FaPlus className="text-xs" />
               {saving ? "Guardando…" : "Guardar en catálogo"}
@@ -737,40 +737,40 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
 
           <div>
             <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-medium text-white/90">Entradas guardadas ({entries.length})</p>
-              <button type="button" onClick={() => void load()} className="text-xs text-cyan-300 hover:text-cyan-200">
+              <p className="text-sm font-medium text-foreground">Entradas guardadas ({entries.length})</p>
+              <button type="button" onClick={() => void load()} className="text-xs text-info hover:underline underline-offset-2">
                 Recargar
               </button>
             </div>
             {loading ? (
-              <p className="text-sm text-white/50">Cargando…</p>
+              <p className="text-sm text-text-subtle">Cargando…</p>
             ) : entries.length === 0 ? (
-              <p className="text-sm text-white/50">Aún no hay asignaciones. La app seguirá usando solo la búsqueda automática.</p>
+              <p className="text-sm text-text-subtle">Aún no hay asignaciones. La app seguirá usando solo la búsqueda automática.</p>
             ) : (
               <ul className="space-y-2">
                 {entries.map((row) => (
                   <li
                     key={row.normKey}
-                    className="flex flex-wrap items-center gap-3 rounded-lg border border-white/10 bg-black/25 px-3 py-2 text-sm"
+                    className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm"
                   >
                     <span
                       className={`shrink-0 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded ${
                         row.source === "custom"
-                          ? "bg-violet-500/25 text-violet-200 border border-violet-400/30"
-                          : "bg-cyan-500/20 text-cyan-200 border border-cyan-400/30"
+                          ? "bg-phase-maintenance/25 text-phase-maintenance border border-phase-maintenance/30"
+                          : "bg-info/20 text-info border border-info/30"
                       }`}
                     >
                       {row.source === "custom" ? "Propio" : "wger"}
                     </span>
                     {row.source === "custom" ? (
-                      <span className="font-mono text-[11px] text-violet-200/90 truncate max-w-[220px]" title={row.customImageUrl}>
+                      <span className="font-mono text-[11px] text-phase-maintenance/90 truncate max-w-[220px]" title={row.customImageUrl}>
                         {row.customImageUrl || "—"}
                       </span>
                     ) : (
-                      <span className="font-mono text-cyan-300/90 shrink-0">#{row.wgerExerciseId ?? "—"}</span>
+                      <span className="font-mono text-info/90 shrink-0">#{row.wgerExerciseId ?? "—"}</span>
                     )}
-                    <span className="text-white/90 flex-1 min-w-[140px]">{row.label}</span>
-                    <span className="text-[10px] text-white/40 truncate max-w-[180px]" title={row.normKey}>
+                    <span className="text-foreground flex-1 min-w-[140px]">{row.label}</span>
+                    <span className="text-[10px] text-text-subtle truncate max-w-[180px]" title={row.normKey}>
                       {row.normKey}
                     </span>
                     <button
@@ -792,7 +792,7 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
 
   if (isPage) {
     return (
-      <div className="rounded-xl border border-white/15 bg-gray-900 overflow-hidden flex flex-col shadow-2xl w-full max-w-5xl mx-auto">
+      <div className="rounded-xl border border-border bg-surface overflow-hidden flex flex-col shadow-2xl w-full max-w-5xl mx-auto">
         {panelBody}
       </div>
     );
@@ -808,7 +808,7 @@ export default function AdminExerciseCatalogPanel(props: AdminExerciseCatalogPan
       <motion.div
         initial={{ opacity: 0, scale: 0.97 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="bg-gray-900 border border-white/15 rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl"
+        className="bg-surface border border-border rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {panelBody}
