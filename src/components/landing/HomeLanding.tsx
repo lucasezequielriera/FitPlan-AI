@@ -37,10 +37,15 @@ export default function HomeLanding({ locale }: HomeLandingProps) {
   const fadeUp = reduceMotion
     ? { initial: false as const }
     : { initial: { opacity: 0, y: 16 }, animate: { opacity: 1, y: 0 } };
-  const reveal = (margin?: string) =>
+  // OJO: no usar `whileInView` acá. Depende de IntersectionObserver, y el
+  // `html { overflow-x: hidden }` de globals.css lo deja sin disparar nunca en
+  // esta página: los elementos se quedaban en `opacity: 0` para siempre y la
+  // landing salía en blanco (pasó en producción). `animate` no depende del
+  // observer y entra igual al montar.
+  const reveal = () =>
     reduceMotion
       ? {}
-      : { initial: { opacity: 0, y: 12 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true, margin } };
+      : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } };
   const { user: authUser, loading: authLoading } = useAuthStore();
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   /** "Entrar" abre login; CTAs de alta abren registro. */
@@ -356,7 +361,7 @@ export default function HomeLanding({ locale }: HomeLandingProps) {
               {c.steps.map((item, i) => (
                 <motion.li
                   key={item.step}
-                  {...reveal("-40px")}
+                  {...reveal()}
                   transition={{ duration: 0.3, delay: i * 0.06 }}
                   className="relative rounded-2xl border border-[var(--landing-border)] bg-[var(--landing-surface)] p-5 sm:p-6"
                 >
