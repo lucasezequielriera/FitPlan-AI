@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { motion } from "framer-motion";
-import Navbar from "@/components/Navbar";
 import { useAuthStore } from "@/store/authStore";
 import { getIsAdminClient, adminFetch } from "@/lib/adminAuthClient";
 import { AdminShell } from "@/components/admin/AdminShell";
@@ -152,11 +151,8 @@ export default function AdminActividadPage() {
 
   if (authLoading || checking) {
     return (
-      <div className="min-h-screen bg-slate-950 text-white">
-        <Navbar />
-        <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center">
-          <div className="h-10 w-10 animate-spin rounded-full border-2 border-[var(--info)]/30 border-t-[var(--info)]" />
-        </div>
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-[var(--info)]/30 border-t-[var(--info)]" />
       </div>
     );
   }

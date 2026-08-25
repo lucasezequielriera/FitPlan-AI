@@ -1518,12 +1518,12 @@ function SendMessageModal({
 }
 
 // Componente Modal para ver mensajes (admin)
-function MessagesModal({ 
-  isOpen, 
-  onClose, 
+export function MessagesModal({
+  isOpen,
+  onClose,
   adminUserId,
   onMessagesUpdate
-}: { 
+}: {
   isOpen: boolean; 
   onClose: () => void;
   adminUserId: string;

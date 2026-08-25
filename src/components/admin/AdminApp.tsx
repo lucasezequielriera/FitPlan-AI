@@ -6,7 +6,6 @@ import { parseClientTrackingExcel } from "@/lib/intakePlanExcel";
 import { useAuthStore } from "@/store/authStore";
 import { getDbSafe, getAuthSafe } from "@/lib/firebase";
 import { adminFetch } from "@/lib/adminAuthClient";
-import Navbar from "@/components/Navbar";
 import { AdminShell, NAV_ITEMS, type AdminSectionId } from "@/components/admin/AdminShell";
 import { AdminSubTabs } from "@/components/admin/AdminSubTabs";
 import { AdminActionIcon } from "@/components/admin/AdminActionIcon";
@@ -2514,13 +2513,10 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
 
   if (authLoading || loading) {
     return (
-      <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
-        <Navbar />
-        <div className="relative flex items-center justify-center min-h-[calc(100vh-4rem)]">
-          <div className="text-center">
-            <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-border border-t-accent" />
-            <p className="text-sm text-text-muted">Cargando...</p>
-          </div>
+      <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background text-foreground">
+        <div className="text-center">
+          <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-border border-t-accent" />
+          <p className="text-sm text-text-muted">Cargando...</p>
         </div>
       </div>
     );
@@ -2528,13 +2524,9 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
 
   if (!isAdmin || error) {
     return (
-      <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
-        <Navbar />
-        <Navbar />
-        <div className="relative flex items-center justify-center min-h-[calc(100vh-4rem)]">
-          <div className="text-center p-8 rounded-xl bg-danger/10 border border-danger/30">
-            <p className="text-danger text-lg">{error || "Acceso denegado"}</p>
-          </div>
+      <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background text-foreground">
+        <div className="text-center p-8 rounded-xl bg-danger/10 border border-danger/30">
+          <p className="text-danger text-lg">{error || "Acceso denegado"}</p>
         </div>
       </div>
     );

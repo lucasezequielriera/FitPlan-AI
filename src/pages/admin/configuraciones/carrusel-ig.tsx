@@ -4,7 +4,6 @@ import { useRouter } from "next/router";
 import { motion } from "framer-motion";
 import { useAuthStore } from "@/store/authStore";
 import { getIsAdminClient, adminFetch } from "@/lib/adminAuthClient";
-import Navbar from "@/components/Navbar";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { AdminSubTabs } from "@/components/admin/AdminSubTabs";
@@ -192,11 +191,8 @@ export default function AdminCarruselIgPage() {
 
   if (authLoading || checking) {
     return (
-      <div className="min-h-screen bg-background">
-        <Navbar />
-        <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-accent" />
-        </div>
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-accent" />
       </div>
     );
   }

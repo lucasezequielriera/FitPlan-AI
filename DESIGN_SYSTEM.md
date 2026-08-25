@@ -341,6 +341,30 @@ Nada de esta tabla B crea categoría nueva: todo resuelve con `--accent`, `--inf
 
 Ambos puntos de 8.2 (A y B) están implementados. Lucas aprobó la propuesta de 4 tokens `--phase-hyrox-*` de 8.2-A sin ajustes; `frontend` la aplicó junto con el mapeo decorativo de la tabla B (8.2-B) en `src/pages/admin/hyrox.tsx` en la misma pasada. No queda nada pendiente de aprobación sobre la paleta de HYROX.
 
-## 9. Modo claro
+## 9. Notificaciones, Chat admin y Cerrar sesión se mueven al sidebar (decisión de Lucas, invalida parte de §7.3-A)
+
+Con las 12 vistas ya en `<AdminShell>` (§7) y el admin viéndose como la demo aprobada (§7 rollout), Lucas notó que quedaban **2 navs conviviendo** en el admin: la barra horizontal compartida (`Navbar.tsx`) arriba, y el sidebar nuevo (`AdminShell.tsx`) a la izquierda. Pidió sacar la horizontal del admin y mover, debajo de HYROX en el sidebar, las 3 funciones de admin que hoy solo viven en esa barra: **Notificaciones**, **Chat admin** y **Cerrar sesión**.
+
+Esto **invalida, para esas 3 funciones, la nota de §7.3-A** ("el shell no duplica cuenta/idioma/logout/notificaciones — eso se queda en `Navbar.tsx` tal cual está"). Implementado reusando lo que ya existía, sin duplicar lógica:
+- **Notificaciones**: ítem de sidebar que linkea a `/admin/actividad` (la vista real donde ya vivían), con badge de no leídos tomado del mismo `unreadCount` que ya calculaba el backend de `paymentNotifications`. No replica el dropdown con filtros/agrupado por día que tenía `Navbar.tsx` — eso queda simplificado a un link con contador, no una reimplementación 1:1.
+- **Chat admin**: abre el mismo `MessagesModal` que ya existía dentro de `Navbar.tsx` (ahora exportado desde ahí para poder importarlo en `AdminShell.tsx`), con el mismo endpoint de no leídos.
+- **Cerrar sesión**: mismo `handleLogout` que tenía el menú de avatar (actualiza `lastUsersCheck` del admin y desloguea).
+
+Los 3 están tanto en el sidebar desktop como en la tira mobile — si solo se agregaban al sidebar, el admin los perdía en teléfono.
+
+`Navbar.tsx` **no se tocó** para las vistas de cliente — la barra horizontal sigue existiendo tal cual para el resto de la app, solo se dejó de montar en el contexto admin. `<Navbar />` ya **no** se renderiza dentro de `AdminShell.tsx` — la duplicación temporal entre ambos navs (mientras se resolvía qué pasaba con el logo y el selector de idioma, ver más abajo) quedó cerrada.
+
+### 9.1 Resolución de lo que quedaba pendiente: logo, idioma, "Pendiente sync" e "Ir al panel admin"
+
+Lucas resolvió los 4 puntos que habían quedado abiertos al mover Notificaciones/Chat admin/Cerrar sesión (§9) y sacar `<Navbar />` del admin:
+
+- **Logo → home pública (`/`): se preserva**, como ítem **"Ver sitio"** al pie del sidebar desktop (con su propio borde superior, separado de `NAV_ITEMS` y de las 3 funciones de admin) y al final de la tira mobile. Tratamiento visual deliberadamente distinto al resto (`text-text-subtle` en vez de `text-text-muted`, ícono `FaExternalLinkAlt` — mismo ícono que ya usa el resto del admin para "esto te saca de esta pantalla", ver `backlog.tsx`/`metricas-rs.tsx`): es una salida del panel, no una sección más, y por eso no compite visualmente con los 7 destinos de navegación ni con las 3 funciones de cuenta.
+- **Selector de idioma ES/EN: NO se migra.** Ninguna de las 12 vistas de `/admin/*` usa `locale`/`ui()`/`dash()` — todas están en español hardcodeado (auditado: el hook `useAppLocale`/`ui()` de `Navbar.tsx` no se importa en ningún archivo de `src/pages/admin/**` ni en `AdminApp.tsx`). El selector nunca tuvo efecto real dentro del panel — cambiarlo ahí no cambiaba ni un string del admin. El usuario admin lo sigue teniendo disponible en las vistas de cliente (donde sí aplica, vía `Navbar.tsx` sin cambios), así que no se pierde la función, solo se saca de donde no hacía nada.
+- **Badge "Pendiente sync": NO se migra.** Es un indicador genérico de cola de sincronización de peso pendiente en el dispositivo, aplicable a cualquier usuario logueado (cliente o admin) — no es una función específica de administración, es estado de sesión. Se queda donde vive el resto del estado de sesión: `Navbar.tsx`, para las vistas de cliente. El admin, como usuario logueado, sigue viéndolo si navega fuera del panel.
+- **"Ir al panel admin" (shortcut del dropdown de avatar): se elimina, no se migra.** Quedaba redundante con el logo del sidebar de `AdminShell.tsx`, que ya lleva a `/admin` — mantenerlo hubiera sido dos caminos al mismo destino sin motivo.
+
+Con esto no queda nada abierto de §9: las 4 funciones que antes solo vivían en `Navbar.tsx` (Notificaciones, Chat admin, Cerrar sesión, Ver sitio) están accesibles desde `AdminShell.tsx`, tanto en desktop como en mobile, y `<Navbar />` dejó de montarse en el contexto admin.
+
+## 10. Modo claro
 
 Hoy la app es permanentemente oscura (no hay toggle ni variante clara). Si en el futuro se quiere soporte de modo claro, el punto de entrada es un solo lugar: redefinir el bloque `:root` de tokens bajo un selector `[data-theme="light"]` (mismos nombres de variable, valores distintos) — como todo el resto del sistema ya lee de variables, no haría falta tocar componentes.

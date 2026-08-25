@@ -149,7 +149,9 @@ export default function AdminDesignPreview() {
           </nav>
 
           <p className="px-2 text-[10px] leading-relaxed text-text-subtle">
-            Cuenta, idioma y notificaciones siguen en el menú del avatar (Navbar) — no se duplican acá.
+            Notificaciones, Chat admin y Cerrar sesión viven en el sidebar (debajo de HYROX) y &ldquo;Ver sitio&rdquo; al
+            pie, separado del resto (ver DESIGN_SYSTEM.md §9) — la barra horizontal (Navbar) ya no se monta en el admin.
+            No implementado en esta demo estática.
           </p>
         </aside>
 

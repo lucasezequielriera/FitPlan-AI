@@ -1,7 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import { useEffect, useState, type ComponentType } from "react";
-import Navbar from "@/components/Navbar";
+import { MessagesModal } from "@/components/Navbar";
+import { useAuthStore } from "@/store/authStore";
+import { getDbSafe } from "@/lib/firebase";
 import { adminFetch } from "@/lib/adminAuthClient";
 import {
   FaChartLine,
@@ -11,15 +14,29 @@ import {
   FaColumns,
   FaServer,
   FaBolt,
+  FaBell,
+  FaComment,
+  FaSignOutAlt,
+  FaExternalLinkAlt,
 } from "react-icons/fa";
 
 /**
- * Shell de navegación persistente del admin — DESIGN_SYSTEM.md §7.3-A.
+ * Shell de navegación persistente del admin — DESIGN_SYSTEM.md §7.3-A / §9.
  * Envuelve las 12 vistas reales de /admin/*. Reemplaza los breadcrumbs
  * sueltos ("← Volver al panel") y la falsa jerarquía de "Configuraciones".
  *
- * No duplica cuenta/idioma/logout/notificaciones — eso se queda en
- * Navbar.tsx tal cual, es correcto que sea compartido con la vista cliente.
+ * Pedido explícito de Lucas (2026-08-25): Notificaciones, Chat admin y
+ * Cerrar sesión se movieron acá abajo de HYROX, reusando el modal/endpoints
+ * que ya existían en Navbar.tsx (MessagesModal se exporta desde ahí) en vez
+ * de duplicar lógica. `<Navbar />` (la barra horizontal) ya NO se monta acá
+ * — la duplicación entre ambos navs quedó resuelta.
+ *
+ * "Ver sitio" (pie del sidebar / final de la tira mobile) preserva el único
+ * link a la home pública que ofrecía Navbar.tsx (el logo). Separado del
+ * resto de destinos con su propio borde: es una salida del panel, no una
+ * sección más. El selector de idioma ES/EN, el badge "Pendiente sync" y el
+ * shortcut "Ir al panel admin" del Navbar NO se migraron — ver DESIGN_SYSTEM.md
+ * §9 para el fundamento de cada uno.
  *
  * Ancho completo: sin max-w en el shell ni en el contenido (pedido
  * explícito de Lucas) — cada vista decide su propio ancho interno si
@@ -143,6 +160,58 @@ function useServicesStatusDot(): StatusDot | null {
   return dot;
 }
 
+/** Mensajes de "Chat admin" sin leer — mismo endpoint que usaba el botón de Navbar.tsx. */
+function useAdminUnreadMessages(adminUserId: string | null, refreshKey: number): number {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    if (!adminUserId) return;
+    let cancelled = false;
+    adminFetch(`/api/admin/messages?adminUserId=${adminUserId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled) setCount(data?.unreadCount || 0);
+      })
+      .catch(() => {
+        // Silencioso: si falla, no se muestra badge (no inventamos un número).
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [adminUserId, refreshKey]);
+
+  return count;
+}
+
+/**
+ * No leídas de "Notificaciones" — usa el mismo total que ya calcula el
+ * backend en paymentNotifications (`unreadCount`). No replica acá el merge
+ * con altas de usuarios nuevos que hacía el dropdown de Navbar.tsx: ese
+ * cálculo vive del lado cliente en Navbar y esta barra solo linkea a
+ * /admin/actividad, no reimplementa el dropdown completo.
+ */
+function useAdminUnreadNotifications(adminUserId: string | null): number {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    if (!adminUserId) return;
+    let cancelled = false;
+    adminFetch(`/api/admin/paymentNotifications?adminUserId=${adminUserId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled) setCount(data?.unreadCount || 0);
+      })
+      .catch(() => {
+        // Silencioso: si falla, no se muestra badge.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [adminUserId]);
+
+  return count;
+}
+
 function NavButton({ item, active, dot }: { item: NavItem; active: boolean; dot?: StatusDot | null }) {
   const Icon = item.icon;
   return (
@@ -171,14 +240,49 @@ function NavButton({ item, active, dot }: { item: NavItem; active: boolean; dot?
 }
 
 export function AdminShell({ active, children }: { active: AdminSectionId; children: React.ReactNode }) {
+  const router = useRouter();
   const servicesDot = useServicesStatusDot();
+  const authUser = useAuthStore((s) => s.user);
+  const [messagesModalOpen, setMessagesModalOpen] = useState(false);
+  const [messagesRefreshKey, setMessagesRefreshKey] = useState(0);
+  const unreadMessages = useAdminUnreadMessages(authUser?.uid ?? null, messagesRefreshKey);
+  const unreadNotifications = useAdminUnreadNotifications(authUser?.uid ?? null);
+
+  const handleAdminLogout = async () => {
+    if (authUser) {
+      try {
+        const db = getDbSafe();
+        if (db) {
+          const { doc, updateDoc, serverTimestamp } = await import("firebase/firestore");
+          await updateDoc(doc(db, "usuarios", authUser.uid), {
+            lastUsersCheck: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+        }
+      } catch (error) {
+        console.error("Error al actualizar lastUsersCheck en logout:", error);
+      }
+    }
+    await useAuthStore.getState().logout();
+    router.push("/");
+  };
 
   return (
     <div className="min-h-[100dvh] bg-background text-foreground">
-      <Navbar />
       <div className="flex w-full">
-        {/* ============= SIDEBAR (desktop) ============= */}
-        <aside className="sticky top-0 hidden h-[100dvh] w-[248px] shrink-0 flex-col border-r border-border bg-surface px-3 py-5 lg:flex">
+        {/* Reserva el ancho del sidebar en el layout flex — el sidebar real (abajo) usa
+            position:fixed y sale del flujo normal, ver nota ahí. */}
+        <div className="hidden h-[100dvh] w-[248px] shrink-0 lg:block" aria-hidden="true" />
+
+        {/* ============= SIDEBAR (desktop) =============
+            position: fixed, no sticky. `html`/`body` tienen `overflow-x: hidden`
+            (globals.css, parche para un desborde horizontal no relacionado con este
+            componente) — eso hace que `overflow-y` compute a `auto` en `html`, que pasa
+            a ser scroll container, y `position: sticky` termina posicionándose contra
+            ESE contenedor en vez del viewport (el bug clásico de "sticky que no pega").
+            `fixed` no tiene ese problema: se ancla al viewport salvo que un ancestro
+            tenga transform/filter/perspective, que no ocurre acá. */}
+        <aside className="fixed left-0 top-0 z-30 hidden h-[100dvh] w-[248px] flex-col border-r border-border bg-surface px-3 py-5 lg:flex">
           <Link href="/admin" className="mb-6 flex items-center gap-2.5 px-2">
             <span className="relative h-8 w-8 shrink-0 overflow-hidden rounded-lg bg-surface-2 ring-1 ring-border">
               <Image src="/brand/icon-social-transparent.svg" alt="" width={32} height={32} className="object-contain p-1" />
@@ -190,11 +294,57 @@ export function AdminShell({ active, children }: { active: AdminSectionId; child
             {NAV_ITEMS.map((item) => (
               <NavButton key={item.id} item={item} active={item.id === active} dot={servicesDot} />
             ))}
+
+            <div className="my-2 border-t border-border" role="separator" />
+
+            <button
+              type="button"
+              onClick={() => router.push("/admin/actividad")}
+              className="group flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium text-text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
+            >
+              <FaBell className="h-4 w-4 shrink-0" aria-hidden />
+              <span className="min-w-0 flex-1 truncate text-left">Notificaciones</span>
+              {unreadNotifications > 0 && (
+                <span className="shrink-0 rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold text-accent-ink">
+                  {unreadNotifications > 9 ? "9+" : unreadNotifications}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMessagesModalOpen(true)}
+              className="group flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium text-text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
+            >
+              <FaComment className="h-4 w-4 shrink-0" aria-hidden />
+              <span className="min-w-0 flex-1 truncate text-left">Chat admin</span>
+              {unreadMessages > 0 && (
+                <span className="shrink-0 rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold text-accent-ink">
+                  {unreadMessages > 9 ? "9+" : unreadMessages}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void handleAdminLogout()}
+              className="group flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium text-text-muted transition-colors hover:bg-danger/10 hover:text-danger"
+            >
+              <FaSignOutAlt className="h-4 w-4 shrink-0" aria-hidden />
+              <span className="min-w-0 flex-1 truncate text-left">Cerrar sesión</span>
+            </button>
           </nav>
 
-          <p className="px-2 text-[10px] leading-relaxed text-text-subtle">
-            Cuenta, idioma y notificaciones siguen en el menú del avatar (arriba) — no se duplican acá.
-          </p>
+          {/* "Ver sitio": salida del panel (home pública), no una sección de admin más — separada al pie. */}
+          <div className="mt-2 border-t border-border pt-2">
+            <Link
+              href="/"
+              className="group flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium text-text-subtle transition-colors hover:bg-surface-2 hover:text-text-muted"
+            >
+              <FaExternalLinkAlt className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span className="min-w-0 flex-1 truncate text-left">Ver sitio</span>
+            </Link>
+          </div>
         </aside>
 
         {/* ============= MOBILE NAV: tira horizontal ============= */}
@@ -223,11 +373,67 @@ export function AdminShell({ active, children }: { active: AdminSectionId; child
               </Link>
             );
           })}
+
+          <span className="my-1 w-px shrink-0 bg-border" aria-hidden />
+
+          <button
+            type="button"
+            onClick={() => router.push("/admin/actividad")}
+            className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-text-muted"
+          >
+            <FaBell className="h-3.5 w-3.5" aria-hidden />
+            Notificaciones
+            {unreadNotifications > 0 && (
+              <span className="shrink-0 rounded-full bg-accent px-1.5 py-0.5 text-[9px] font-semibold text-accent-ink">
+                {unreadNotifications > 9 ? "9+" : unreadNotifications}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setMessagesModalOpen(true)}
+            className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-text-muted"
+          >
+            <FaComment className="h-3.5 w-3.5" aria-hidden />
+            Chat admin
+            {unreadMessages > 0 && (
+              <span className="shrink-0 rounded-full bg-accent px-1.5 py-0.5 text-[9px] font-semibold text-accent-ink">
+                {unreadMessages > 9 ? "9+" : unreadMessages}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleAdminLogout()}
+            className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-text-muted"
+          >
+            <FaSignOutAlt className="h-3.5 w-3.5" aria-hidden />
+            Cerrar sesión
+          </button>
+
+          <span className="my-1 w-px shrink-0 bg-border" aria-hidden />
+
+          <Link
+            href="/"
+            className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-text-subtle"
+          >
+            <FaExternalLinkAlt className="h-3 w-3" aria-hidden />
+            Ver sitio
+          </Link>
         </div>
 
         {/* ============= CONTENIDO ============= */}
         <main className="min-w-0 flex-1 px-4 pb-24 pt-6 sm:px-6 lg:px-8 lg:pb-8 lg:pt-8">{children}</main>
       </div>
+
+      {messagesModalOpen && authUser && (
+        <MessagesModal
+          isOpen={messagesModalOpen}
+          onClose={() => setMessagesModalOpen(false)}
+          adminUserId={authUser.uid}
+          onMessagesUpdate={() => setMessagesRefreshKey((k) => k + 1)}
+        />
+      )}
     </div>
   );
 }

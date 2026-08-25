@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from "react";
+import { useCallback, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import Image from "next/image";
@@ -97,26 +97,15 @@ export default function HomeLanding({ locale }: HomeLandingProps) {
     }
   }, [router, locale]);
 
-  useEffect(() => {
+  // Decisión de Lucas (2026-08-25): la landing YA NO redirige automáticamente a
+  // usuarios logueados a /admin, /dashboard o /create-plan — se muestra siempre,
+  // igual que a un visitante anónimo. `checkUserPlans` se conserva tal cual (no se
+  // toca su lógica de a dónde mandar a cada tipo de usuario), pero ahora corre solo
+  // como destino del CTA "Ir a mi panel" (click explícito), no como efecto al montar.
+  const goToMyPanel = () => {
     if (authLoading) return;
-    if (authUser) {
-      checkUserPlans();
-    }
-  }, [authUser, authLoading, checkUserPlans]);
-
-  if (authUser && !authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-4">
-        <div className="text-center">
-          <div
-            className="animate-spin rounded-full h-10 w-10 border-2 border-[var(--landing-border)] border-t-[var(--landing-accent)] mx-auto mb-4"
-            aria-hidden
-          />
-          <p className="text-[var(--landing-muted)] text-sm">{c.redirecting}</p>
-        </div>
-      </div>
-    );
-  }
+    checkUserPlans();
+  };
 
   const faqJsonLd = {
     "@context": "https://schema.org",
@@ -279,11 +268,19 @@ export default function HomeLanding({ locale }: HomeLandingProps) {
             </nav>
             <button
               type="button"
-              onClick={() => openLoginModal("login")}
-              className="inline-flex items-center gap-1.5 sm:gap-2 rounded-xl px-2.5 py-2 sm:px-3 text-xs sm:text-sm font-medium text-[var(--foreground)] ring-1 ring-[var(--landing-border)] bg-[var(--landing-surface)] hover:bg-[var(--landing-surface-2)] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)] touch-manipulation"
+              onClick={authLoading ? undefined : authUser ? goToMyPanel : () => openLoginModal("login")}
+              disabled={authLoading}
+              aria-busy={authLoading}
+              className="inline-flex items-center gap-1.5 sm:gap-2 rounded-xl px-2.5 py-2 sm:px-3 text-xs sm:text-sm font-medium text-[var(--foreground)] ring-1 ring-[var(--landing-border)] bg-[var(--landing-surface)] hover:bg-[var(--landing-surface-2)] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)] touch-manipulation disabled:cursor-default disabled:opacity-70"
             >
               <FaSignInAlt className="h-3.5 w-3.5 opacity-80" aria-hidden />
-              {c.signIn}
+              {authLoading ? (
+                <span className="inline-block h-3.5 w-12 animate-pulse rounded bg-current/15" aria-hidden />
+              ) : authUser ? (
+                c.goToPanel
+              ) : (
+                c.signIn
+              )}
             </button>
           </div>
         </div>
@@ -313,10 +310,18 @@ export default function HomeLanding({ locale }: HomeLandingProps) {
           >
             <button
               type="button"
-              onClick={() => openLoginModal("signup")}
-              className="inline-flex w-full sm:w-auto min-h-[48px] items-center justify-center gap-2 rounded-2xl bg-[var(--landing-accent)] px-6 py-3.5 sm:px-7 sm:py-4 text-base font-semibold text-[#0a1628] shadow-lg shadow-black/20 hover:brightness-110 active:scale-[0.99] transition outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] touch-manipulation"
+              onClick={authLoading ? undefined : authUser ? goToMyPanel : () => openLoginModal("signup")}
+              disabled={authLoading}
+              aria-busy={authLoading}
+              className="inline-flex w-full sm:w-auto min-h-[48px] items-center justify-center gap-2 rounded-2xl bg-[var(--landing-accent)] px-6 py-3.5 sm:px-7 sm:py-4 text-base font-semibold text-[#0a1628] shadow-lg shadow-black/20 hover:brightness-110 active:scale-[0.99] transition outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] touch-manipulation disabled:cursor-default disabled:opacity-70"
             >
-              {c.ctaStart}
+              {authLoading ? (
+                <span className="inline-block h-4 w-28 animate-pulse rounded bg-current/20" aria-hidden />
+              ) : authUser ? (
+                c.goToPanel
+              ) : (
+                c.ctaStart
+              )}
               <FaArrowRight className="h-4 w-4 shrink-0" aria-hidden />
             </button>
             <button
@@ -327,7 +332,11 @@ export default function HomeLanding({ locale }: HomeLandingProps) {
               <FaLeaf className="h-4 w-4 shrink-0 text-[var(--landing-accent)]" aria-hidden />
               {c.ctaPremium}
             </button>
-            <p className="text-sm text-[var(--landing-muted)] text-pretty sm:w-full sm:pl-0 pt-0.5">{c.ctaHint}</p>
+            {/* "Iniciá sesión para..." solo aplica a un visitante sin sesión — no tiene sentido
+                mostrárselo a un usuario ya logueado (decisión de Lucas, ver goToMyPanel). */}
+            {!authUser && (
+              <p className="text-sm text-[var(--landing-muted)] text-pretty sm:w-full sm:pl-0 pt-0.5">{c.ctaHint}</p>
+            )}
           </motion.div>
         </section>
 
@@ -447,10 +456,18 @@ export default function HomeLanding({ locale }: HomeLandingProps) {
             <p className="text-sm text-[var(--landing-muted)] max-w-lg mx-auto text-pretty">{c.closingText}</p>
             <button
               type="button"
-              onClick={() => openLoginModal("signup")}
-              className="mt-6 inline-flex w-full sm:w-auto min-h-[48px] items-center justify-center gap-2 rounded-2xl bg-[var(--landing-accent)] px-6 py-3.5 text-sm font-semibold text-[#0a1628] hover:brightness-110 transition outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] touch-manipulation max-w-md mx-auto"
+              onClick={authLoading ? undefined : authUser ? goToMyPanel : () => openLoginModal("signup")}
+              disabled={authLoading}
+              aria-busy={authLoading}
+              className="mt-6 inline-flex w-full sm:w-auto min-h-[48px] items-center justify-center gap-2 rounded-2xl bg-[var(--landing-accent)] px-6 py-3.5 text-sm font-semibold text-[#0a1628] hover:brightness-110 transition outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] touch-manipulation max-w-md mx-auto disabled:cursor-default disabled:opacity-70"
             >
-              {c.closingCta}
+              {authLoading ? (
+                <span className="inline-block h-4 w-28 animate-pulse rounded bg-current/20" aria-hidden />
+              ) : authUser ? (
+                c.goToPanel
+              ) : (
+                c.closingCta
+              )}
               <FaArrowRight className="h-4 w-4" aria-hidden />
             </button>
           </div>

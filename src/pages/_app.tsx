@@ -28,6 +28,10 @@ const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], weight: ["500", "700"],
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter();
+  // El panel admin (/admin/*) tiene su propio shell de navegación (AdminShell.tsx,
+  // DESIGN_SYSTEM.md §7/§9) — el footer legal/marketing (términos, disclaimer) es
+  // contenido cara al cliente final, no corresponde ahí. Pedido explícito de Lucas.
+  const isAdminRoute = router.pathname.startsWith("/admin");
   const initializeAuth = useAuthStore((state) => state.initializeAuth);
   const ga4Id = process.env.NEXT_PUBLIC_GA4_ID;
   const metaPixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID;
@@ -205,7 +209,7 @@ export default function App({ Component, pageProps }: AppProps) {
       <div className={`${inter.className} ${spaceGrotesk.variable} min-h-screen flex flex-col`}>
         <AppLocaleProvider>
           <Component {...pageProps} />
-          <Footer />
+          {!isAdminRoute && <Footer />}
           <ContactButton />
           <CookieConsentBanner />
         </AppLocaleProvider>

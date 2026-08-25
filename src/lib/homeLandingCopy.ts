@@ -9,10 +9,11 @@ const SITE = "https://www.fitplan-ai.com";
 export interface HomeLandingCopy {
   locale: LandingLocale;
   htmlLang: string;
-  redirecting: string;
   skipToContent: string;
   navLangAria: string;
   signIn: string;
+  /** CTA para usuario ya logueado (header, hero y cierre) — reemplaza signIn/ctaStart/closingCta cuando hay sesión. */
+  goToPanel: string;
   logoHref: string;
   mainId: string;
   heroBadge: string;
@@ -63,10 +64,10 @@ export interface HomeLandingCopy {
 const es: HomeLandingCopy = {
   locale: "es",
   htmlLang: "es",
-  redirecting: "Redirigiendo…",
   skipToContent: "Ir al contenido",
   navLangAria: "Idioma",
   signIn: "Entrar",
+  goToPanel: "Ir a mi panel",
   logoHref: "/",
   mainId: "contenido-principal",
   heroBadge: "Nutrición + entrenamiento con IA",
@@ -176,10 +177,10 @@ const es: HomeLandingCopy = {
 const en: HomeLandingCopy = {
   locale: "en",
   htmlLang: "en",
-  redirecting: "Redirecting…",
   skipToContent: "Skip to content",
   navLangAria: "Language",
   signIn: "Sign in",
+  goToPanel: "Go to my panel",
   logoHref: "/en",
   mainId: "main-content",
   heroBadge: "Nutrition + training with AI",
