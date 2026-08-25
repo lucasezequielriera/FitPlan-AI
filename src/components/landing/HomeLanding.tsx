@@ -34,19 +34,19 @@ export default function HomeLanding({ locale }: HomeLandingProps) {
   // Accesibilidad: si el usuario tiene prefers-reduced-motion, no animamos
   // (DESIGN_SYSTEM.md §7.3-D — deuda detectada de paso en la auditoría del admin).
   const reduceMotion = useReducedMotion();
-  const fadeUp = reduceMotion
-    ? { initial: false as const }
-    : { initial: { opacity: 0, y: 16 }, animate: { opacity: 1, y: 0 } };
-  // OJO: no usar `whileInView` acá. Depende de IntersectionObserver, y el
-  // `html { overflow-x: hidden }` de globals.css lo deja sin disparar nunca en
-  // esta página: los elementos se quedaban en `opacity: 0` para siempre y la
-  // landing salía en blanco (pasó en producción). `animate` no depende del
-  // observer y entra igual al montar.
-  const reveal = () =>
-    reduceMotion
-      ? {}
-      : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 } };
-  const { user: authUser, loading: authLoading } = useAuthStore();
+  // NO devolver `initial: { opacity: 0 }` acá. En build de producción
+  // framer-motion serializa ese estado inicial en el HTML del servidor y la
+  // hidratación no llegaba a disparar la animación: el hero, los CTAs y las
+  // tarjetas quedaban invisibles para siempre (la landing salió en blanco en
+  // producción, dos veces). Solo animamos `y`, que como mucho deja el
+  // contenido unos píxeles corrido — nunca oculto.
+  //
+  // Regla para esta pantalla: la visibilidad del contenido no puede depender
+  // de que el JS hidrate. Si se quiere recuperar el fade de entrada, hacerlo
+  // con CSS (@keyframes + prefers-reduced-motion), no con JS.
+  const fadeUp = reduceMotion ? { initial: false as const } : { initial: { y: 16 }, animate: { y: 0 } };
+  const reveal = () => (reduceMotion ? {} : { initial: { y: 12 }, animate: { y: 0 } });
+  const { user: authUser } = useAuthStore();
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   /** "Entrar" abre login; CTAs de alta abren registro. */
   const [loginModalMode, setLoginModalMode] = useState<"login" | "signup">("login");
@@ -108,7 +108,8 @@ export default function HomeLanding({ locale }: HomeLandingProps) {
   // toca su lógica de a dónde mandar a cada tipo de usuario), pero ahora corre solo
   // como destino del CTA "Ir a mi panel" (click explícito), no como efecto al montar.
   const goToMyPanel = () => {
-    if (authLoading) return;
+    // Sin gate por authLoading: si todavía no resolvió, checkUserPlans cae en su
+    // propio fallback (create-plan) en vez de dejar el botón muerto.
     checkUserPlans();
   };
 
@@ -273,15 +274,11 @@ export default function HomeLanding({ locale }: HomeLandingProps) {
             </nav>
             <button
               type="button"
-              onClick={authLoading ? undefined : authUser ? goToMyPanel : () => openLoginModal("login")}
-              disabled={authLoading}
-              aria-busy={authLoading}
+              onClick={authUser ? goToMyPanel : () => openLoginModal("login")}
               className="inline-flex items-center gap-1.5 sm:gap-2 rounded-xl px-2.5 py-2 sm:px-3 text-xs sm:text-sm font-medium text-[var(--foreground)] ring-1 ring-[var(--landing-border)] bg-[var(--landing-surface)] hover:bg-[var(--landing-surface-2)] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)] touch-manipulation disabled:cursor-default disabled:opacity-70"
             >
               <FaSignInAlt className="h-3.5 w-3.5 opacity-80" aria-hidden />
-              {authLoading ? (
-                <span className="inline-block h-3.5 w-12 animate-pulse rounded bg-current/15" aria-hidden />
-              ) : authUser ? (
+              {authUser ? (
                 c.goToPanel
               ) : (
                 c.signIn
@@ -315,14 +312,10 @@ export default function HomeLanding({ locale }: HomeLandingProps) {
           >
             <button
               type="button"
-              onClick={authLoading ? undefined : authUser ? goToMyPanel : () => openLoginModal("signup")}
-              disabled={authLoading}
-              aria-busy={authLoading}
+              onClick={authUser ? goToMyPanel : () => openLoginModal("signup")}
               className="inline-flex w-full sm:w-auto min-h-[48px] items-center justify-center gap-2 rounded-2xl bg-[var(--landing-accent)] px-6 py-3.5 sm:px-7 sm:py-4 text-base font-semibold text-[#0a1628] shadow-lg shadow-black/20 hover:brightness-110 active:scale-[0.99] transition outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] touch-manipulation disabled:cursor-default disabled:opacity-70"
             >
-              {authLoading ? (
-                <span className="inline-block h-4 w-28 animate-pulse rounded bg-current/20" aria-hidden />
-              ) : authUser ? (
+              {authUser ? (
                 c.goToPanel
               ) : (
                 c.ctaStart
@@ -461,14 +454,10 @@ export default function HomeLanding({ locale }: HomeLandingProps) {
             <p className="text-sm text-[var(--landing-muted)] max-w-lg mx-auto text-pretty">{c.closingText}</p>
             <button
               type="button"
-              onClick={authLoading ? undefined : authUser ? goToMyPanel : () => openLoginModal("signup")}
-              disabled={authLoading}
-              aria-busy={authLoading}
+              onClick={authUser ? goToMyPanel : () => openLoginModal("signup")}
               className="mt-6 inline-flex w-full sm:w-auto min-h-[48px] items-center justify-center gap-2 rounded-2xl bg-[var(--landing-accent)] px-6 py-3.5 text-sm font-semibold text-[#0a1628] hover:brightness-110 transition outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] touch-manipulation max-w-md mx-auto disabled:cursor-default disabled:opacity-70"
             >
-              {authLoading ? (
-                <span className="inline-block h-4 w-28 animate-pulse rounded bg-current/20" aria-hidden />
-              ) : authUser ? (
+              {authUser ? (
                 c.goToPanel
               ) : (
                 c.closingCta
