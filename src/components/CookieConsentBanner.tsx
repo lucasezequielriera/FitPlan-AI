@@ -37,7 +37,7 @@ export default function CookieConsentBanner() {
         };
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-[11000] p-3 sm:p-4">
+    <div className="cookie-consent-banner fixed inset-x-0 bottom-0 z-[11000] p-3 sm:p-4 transition-[bottom] duration-200">
       <div className="mx-auto max-w-4xl rounded-2xl border border-[var(--border)] bg-[color-mix(in_oklab,var(--background)_95%,#0f172a)] backdrop-blur-md p-4 sm:p-5 shadow-2xl">
         <p className="text-sm font-bold text-[var(--foreground)]">{copy.title}</p>
         <p className="mt-2 text-xs sm:text-sm text-[var(--text-muted)]">{copy.body}</p>

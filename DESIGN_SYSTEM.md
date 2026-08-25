@@ -368,3 +368,147 @@ Con esto no queda nada abierto de §9: las 4 funciones que antes solo vivían en
 ## 10. Modo claro
 
 Hoy la app es permanentemente oscura (no hay toggle ni variante clara). Si en el futuro se quiere soporte de modo claro, el punto de entrada es un solo lugar: redefinir el bloque `:root` de tokens bajo un selector `[data-theme="light"]` (mismos nombres de variable, valores distintos) — como todo el resto del sistema ya lee de variables, no haría falta tocar componentes.
+
+## 11. Navbar de cliente — rediseño y reestructuración (decisión de `diseño`, fase de definición)
+
+Encargo de Lucas: rediseñar y reestructurar `src/components/Navbar.tsx`. Con el admin ya migrado a `<AdminShell>` (§7-§9), `Navbar.tsx` **hoy solo sirve a las vistas de cliente** (`<Navbar />` ya no se monta en el admin) — hay libertad total para rediseñarlo sin romper nada del panel. Esta sección es la spec; **no implementada todavía**, es entrega para que `frontend` la construya. Demo funcionando en `/client-navbar-preview` (página aislada, estado simulado con toggles, no toca las vistas reales — mismo patrón que `/design-preview` y `/admin-design-preview`). Capturas verificadas con Chrome headless en 1440×900 (desktop) y 390×844 (mobile), en los 4 estados relevantes (sin sesión, cliente sin plan, cliente con plan, admin navegando su propio dashboard/plan).
+
+### 11.1 Diagnóstico: qué hace hoy `Navbar.tsx` y dónde está la fricción
+
+Auditado el archivo completo (2067 líneas — incluye, además del nav, dos modales exportados: `SendMessageModal` y `MessagesModal`, este último reusado por `AdminShell.tsx` para el chat admin, ver §9; ninguno de los dos se toca en esta propuesta).
+
+Qué provee hoy, todo en una sola fila horizontal fija arriba (`fixed`, correcto — no usa `sticky`; el histórico bug de `overflow-x:hidden` en `html`/`body` que rompía `position: sticky` ya se eliminó, ver §14, pero no hay motivo para migrar este nav de `fixed` a `sticky` solo porque ahora es viable):
+- Logo (ícono+wordmark) → siempre a `/`, la home **pública** de marketing, incluso con sesión iniciada.
+- Selector de idioma ES/EN — visible en la fila principal solo si `!authUser`; con sesión, el mismo control se duplica dentro del menú desplegable del avatar.
+- Cliente no-admin: pill con 2 íconos (mensajes de chat con el coach, calendario de días de gym), agrupados.
+- Admin (incluido cuando el propio Lucas navega su plan personal, ver más abajo): campana de notificaciones (con panel de filtros/agrupado por día) + botón de chat admin, sueltos, sin agrupar.
+- Badge "Pendiente sync" (cola de peso offline) — pill propia, aparece intercalada entre los íconos cuando hay registros pendientes.
+- Botón de avatar → menú desplegable (portal) con: acceso a "mi dashboard/crear plan/panel admin" (shortcut redundante, duplica lo que ya hace el logo o la navegación real), selector de idioma (duplicado del de arriba), cerrar sesión.
+
+Problemas concretos encontrados:
+
+1. **El logo no lleva a "casa".** Para un usuario logueado, tocar el logo saca de la app a la landing de marketing — un patrón que rompe la expectativa estándar ("logo = volver a mi inicio") y es, además, inconsistente con el propio menú de avatar, que sí tiene un ítem separado ("ir a mi dashboard") para llegar ahí. Dos caminos, ninguno obvio.
+2. **Idioma duplicado.** Vive en 2 lugares distintos según estado de sesión (fila principal si no hay sesión, dentro del dropdown si la hay) — nunca conviven, pero tampoco hay una sola ubicación estable.
+3. **Cero navegación de producto real.** A pesar de ser "el navbar", no tiene ningún link entre pantallas (dashboard ↔ plan ↔ mensajes) — la única forma de moverse entre ellas sin usar el botón atrás del navegador es el ítem dinámico único del menú de avatar. Es, en la práctica, una barra de cuenta/utilidades, no una barra de navegación.
+4. **Todo compite por el mismo espacio horizontal**, con una lógica condicional pesada (auth/admin/premium/idioma/notificaciones/sync) que en mobile se resuelve angostando cada ítem a solo ícono — target táctil real de 36×40px, por debajo de las 44px recomendadas.
+5. **Reachability en mobile.** La app se usa mayormente entrenando, con el teléfono en una mano — un nav fijo **arriba** obliga a estirar el pulgar a la zona más difícil de alcanzar en el "mapa de zonas de pulgar" de uso con una mano (Hoober et al.); ninguna acción de uso frecuente (ver plan de hoy, marcar una serie, chequear progreso) está en la zona cómoda.
+6. **Viola la regla nueva de motion de producción (encontrada auditando, no introducida por esta propuesta).** Varios elementos del nav actual (`motion.div`/`motion.button` del pill de mensajes+calendario, campana/chat admin, botón de avatar) usan `initial={{ opacity: 0, ... }}` de framer-motion — exactamente el patrón que Lucas pidió prohibir hoy en producción (queda serializado en el HTML del build; si la hidratación no dispara, el contenido queda invisible). Esto **ya está en código real de cliente**, no en una demo — lo marco acá porque cualquier implementación nueva tiene que evitarlo, y de paso porque es un hallazgo que vale la pena que `frontend` revise en el archivo actual independientemente de esta reestructuración.
+
+### 11.2 Vistas de cliente auditadas y qué necesita cada una
+
+`Navbar.tsx` se monta hoy en: `create-plan.tsx`, `dashboard.tsx`, `plan.tsx`, `payment/{success,pending,failure}.tsx`, `legal/*.tsx` (6 páginas). **No** se monta en `formulario-de-inicio.tsx` (ni su variante `/en`) — correcto tal cual está: es un formulario público de una sola tarea, sin necesidad de chrome de navegación, y esta propuesta no le agrega nada. Tampoco existe hoy una pantalla de "perfil" dedicada — la cuenta (idioma, cerrar sesión) vive solo en el menú de avatar; lo que la propuesta llama "Cuenta" más abajo es la evolución de ese mismo menú, no una pantalla nueva.
+
+- **`create-plan.tsx`** — flujo lineal de una sola tarea (completar datos → generar plan). No tiene destinos hermanos a los que navegar mientras se está en el medio del flujo.
+- **`dashboard.tsx`** — pantalla "hub": progreso, racha, accesos al plan. Es el destino natural de "Inicio".
+- **`plan.tsx`** — 5857 líneas, la pantalla de mayor uso real (rutina del día, registro de series, nutrición, calendario) — es donde más importa la alcanzabilidad con el pulgar.
+- **`payment/*.tsx`, `legal/*.tsx`** — pantallas de una sola tarea o de solo lectura, fuera del "loop" diario de entrenar.
+
+### 11.3 La decisión central: top bar en desktop, top bar mínima + tab bar inferior en mobile — no un horizontal único para todo
+
+**Se abandona el navbar horizontal único como patrón universal.** Se separa por breakpoint, con una razón distinta para cada uno — no es la misma solución "escalada", son dos patrones con justificación propia:
+
+- **Mobile (`< md`): tab bar inferior fija + top bar mínima.** Es el patrón estándar de las apps de fitness que se usan con el teléfono en la mano durante el entrenamiento (Strava, Hevy, Strong, Nike Training Club) precisamente porque resuelve el problema de alcanzabilidad del punto 11.1.5: la franja inferior de la pantalla es la zona de pulgar más cómoda en el agarre de una mano, y ahí es donde hoy no hay nada. Mover ahí Inicio/Mi plan/Mensajes/Cuenta pone exactamente las 4 cosas que se usan seguido donde el pulgar ya está.
+- **Desktop (`md:` y arriba): se mantiene top bar horizontal, pero con navegación real.** El argumento de alcanzabilidad con el pulgar **no aplica** en desktop (mouse, no una mano sosteniendo el teléfono) — replicar la tab bar abajo en desktop no resolvería ningún problema real y rompería la convención de navegación web que cualquier usuario ya conoce (nav arriba). Aplicar el mismo criterio de fondo que ya usó `AdminShell` en §7.3-A (sidebar fijo en desktop, tira de pills abajo en mobile: mismo shell, forma distinta por breakpoint) — acá, mismo principio, forma más liviana porque el cliente tiene 3 destinos, no 7: no hace falta un sidebar completo, alcanza con la fila horizontal ya existente, decluttered y con links reales.
+
+Esto también responde el punto 4 del encargo (reusar patrones ya definidos para el admin sin copiar el sidebar tal cual): se reutiliza el **criterio** (shell persistente, tratamiento de "activo" = `bg-accent/12 text-accent`, mismo que `AdminShell.tsx`), no la forma (el cliente no necesita 7 secciones ni un sidebar vertical).
+
+### 11.4 Estructura propuesta
+
+**A. Mobile — top bar mínima** (`fixed inset-x-0 top-0`, ~52px, mismo tratamiento visual que hoy: `bg-[color-mix(in_oklab,var(--background)_88%,transparent)] backdrop-blur-md border-b border-border`, respeta `env(safe-area-inset-top)`):
+- Logo (ícono solo, sin wordmark, como ya es hoy en mobile) → **corrige el bug del punto 11.1.1**: siempre a la home real del usuario (`/dashboard` si tiene plan, `/create-plan` si no, `/admin` si es admin, `/` solo si no hay sesión).
+- Con sesión + plan (tab bar visible, ver B): nada más acá — todo lo demás vive en la tab bar y su hoja de "Cuenta". Sin esto, el header quedaría vacío la mayor parte del tiempo, que es exactamente el objetivo: dejarle el espacio de trabajo a la pantalla.
+- Sin sesión: idioma ES/EN + botón "Iniciar sesión" (igual que hoy).
+- Con sesión pero sin plan todavía (`create-plan`, tab bar oculta): botón de cuenta (avatar) visible acá arriba, como único acceso a idioma/logout durante el flujo — no se le agrega una tab bar a un flujo de una sola tarea (mismo criterio que ya se aplicó, sin decirlo, al no montar `Navbar` en `formulario-de-inicio.tsx`: agregar navegación a un flujo lineal invita a abandonarlo a mitad de camino, no ayuda).
+
+**B. Mobile — tab bar inferior** (`fixed inset-x-0 bottom-0`, no `sticky` — mismo motivo que el resto de la app; `bg-[color-mix(in_oklab,var(--background)_88%,transparent)] backdrop-blur-md border-t border-border`, `padding-bottom: env(safe-area-inset-bottom)`), **solo con sesión + plan** (o admin con plan personal — ver 11.5):
+1. **Inicio** → `/dashboard`.
+2. **Mi plan** → `/plan` (ícono con punto de aviso en `--warning` cuando hay "Pendiente sync" — reemplaza la pill propia que existe hoy, ver 11.1: el aviso vive donde se resuelve, no flotando aparte).
+3. **Mensajes** → abre `UserMessagesModal` (cliente) o `MessagesModal` (admin, chat con todos los clientes) — mismo componente que ya existe, sin reimplementar. Badge de contador reusa `userMessagesCount`/`messagesCount` ya calculados.
+4. **Cuenta** → abre una hoja inferior (`bottom sheet`, ancla natural: la propia tab bar) con lo que hoy vive en el dropdown de avatar + lo que en desktop pasa a la fila principal: idioma, "Pendiente sync" (detalle textual, además del punto en el ícono), notificaciones + chat admin si es admin, "Ver sitio" (mismo tratamiento visual secundario que ya definió `AdminShell.tsx` — `text-text-subtle`, ícono de salida), cerrar sesión.
+
+Tratamiento de estado activo/inactivo idéntico al de `AdminShell.tsx`: activo = ícono+label en `--accent`; inactivo = `--text-muted`. Tap target mínimo 44×44 (hoy 36-40px en el nav actual — se corrige acá, es mi responsabilidad directa de accesibilidad).
+
+**C. Desktop — top bar única, decluttered** (misma altura/fondo que hoy):
+- Logo (ícono+wordmark) con la misma corrección de destino del punto A.
+- Links inline: Inicio / Mi plan (o "Crear plan" si `!hasPlan`) / Mensajes — mismo tratamiento `bg-accent/12 text-accent` en el activo que `AdminShell`. **Esto es lo que hoy no existe en absoluto** (punto 11.1.3): la barra pasa a ser, por primera vez, navegación real.
+- Cluster derecho: idioma ES/EN (**una sola ubicación, ya no duplicada** entre logged-in/logged-out — corrige 11.1.2), notificaciones+chat admin si es admin, pill "Pendiente sync" si aplica (hay espacio de sobra en desktop, se mantiene igual que hoy), botón de avatar → mismo dropdown de hoy pero recortado: sin idioma (ya está arriba) y sin el shortcut "ir a mi dashboard/panel" (ya redundante con el logo y los links inline) — queda solo estado premium/conectado + cerrar sesión.
+
+**D. Legal y pago** (`legal/*.tsx`, `payment/*.tsx`): mantienen la top bar mínima (logo + idioma), **sin tab bar** en mobile — no son parte del loop diario de entrenar, y forzar navegación de producto sobre una pantalla de confirmación de pago agrega riesgo (alguien a mitad de un checkout tocando "Mi plan" por error) sin ningún beneficio.
+
+### 11.5 Caso admin-como-cliente (Lucas usando su propio plan)
+
+`isAdmin` no desaparece de este archivo: cuando el propio admin navega `/dashboard` o `/plan` para su entrenamiento personal (HYROX), sigue siendo un cliente más a efectos de este nav — usa la misma tab bar (Inicio/Mi plan/Mensajes/Cuenta), solo que "Mensajes" abre el chat con todos los clientes en vez del propio, y "Cuenta" suma notificaciones + chat admin (que hoy son 2 íconos sueltos en la fila principal, y acá se pliegan en la hoja para no ocupar espacio en un camino secundario — su superficie principal de trabajo sigue siendo `AdminShell`, esto es solo su uso personal de la app).
+
+### 11.6 Motion y accesibilidad (mi responsabilidad directa)
+
+- **Sin animación de entrada por opacidad en ningún elemento del chrome** (top bar, tab bar, íconos, botones) — corrige el punto 11.1.6, que ya está en producción y no debería repetirse acá. El chrome persistente aparece de inmediato, no se anima al montar.
+- El único motion admitido es el que ya existe y es correcto: el "wiggle" (`scale`/`rotate` en loop) del ícono de mensajes cuando hay no leídos — es una animación de un elemento ya visible, no una entrada; se envuelve en `useReducedMotion()` (no lo está hoy, tampoco en el resto del nav — deuda ya señalada para el admin en §7.3-D, se extiende acá).
+- La hoja de "Cuenta" (bottom sheet) puede animar posición (`y` desde abajo, con `useReducedMotion()` desactivándolo) — nunca opacidad desde 0, coherente con la regla nueva.
+- Tap targets ≥44×44 en toda la tab bar (ver 11.4-B).
+- `aria-current="page"` en el tab activo, `aria-label`/`title` en cada ícono de la tab bar y de la hoja de cuenta.
+
+### 11.7 Qué no requirió tocar nada del árbol de tokens
+
+Toda la propuesta se resuelve con tokens/clases ya existentes (`--accent`, `--surface`/`--surface-2`, `--warning`, `--text-muted`/`--text-subtle`, `.btn*`, `.badge*`, `env(safe-area-inset-*)`) y el mismo criterio de "activo" que ya aprobó `AdminShell.tsx`. No hay ninguna categoría de token nueva ni ningún asset de marca nuevo — el logo no se toca. Por eso esta sección no necesitó pasar por Lucas antes de proponerse.
+
+### 11.8 Pendiente para `frontend` (implementación, fuera de esta entrega)
+
+1. Dividir `Navbar.tsx`: separar el nav (top bar + tab bar) de los 2 modales que hoy exporta (`SendMessageModal`, `MessagesModal` — este último seguirá siendo importado por `AdminShell.tsx`, no cambia su contrato).
+2. Construir la top bar mínima + tab bar de mobile (11.4-A/B) y la top bar decluttered de desktop (11.4-C), montadas en `dashboard.tsx`/`plan.tsx`/`create-plan.tsx` según 11.4/11.5; `legal/*`/`payment/*` según 11.4-D.
+3. Corregir el destino del logo (11.4-A/C) — este punto es independiente del resto y podría salir primero, es una corrección de bug de 1 línea de lógica.
+4. Aplicar `useReducedMotion()` al wiggle de mensajes y quitar los `initial={{opacity:0,...}}` del nav actual (11.1.6/11.6) — válido incluso si el resto de esta reestructuración se implementa después.
+5. Agregar el padding inferior (`env(safe-area-inset-bottom)` + alto de la tab bar) a `dashboard.tsx`/`plan.tsx`/`create-plan.tsx` para que el último elemento de cada pantalla no quede tapado por la tab bar fija en mobile (ver spacer de referencia en la demo).
+6. Implementar el mecanismo de coexistencia entre `CookieConsentBanner` y la tab bar fija en mobile — ver 11.9 (hallazgo posterior a la propuesta original, con decisión y mecanismo ya definidos, nada pendiente de mi parte).
+
+Demo de referencia (no implementación real, datos/estado simulados): `src/pages/client-navbar-preview.tsx` → `/client-navbar-preview` (toggle de estado arriba: sin sesión / cliente sin plan / cliente con plan / admin con plan propio, más checkboxes de mensajes sin leer / pendiente sync / premium / banner de cookies visible — este último para verificar el mecanismo de 11.9).
+
+### 11.9 Hallazgo posterior: el banner de cookies tapa la tab bar en mobile (resuelto)
+
+Reportado al revisar la demo a 430px: `CookieConsentBanner` (montado globalmente desde `_app.tsx`, sin excluir rutas de cliente ni admin — línea 214) y la tab bar de 11.4-B son ambos `fixed`/`bottom-0`. El banner (`z-[11000]`) queda por encima y **tapa por completo** Inicio/Mi plan/Mensajes/Cuenta. No es un artefacto de la demo: cualquier usuario nuevo en mobile va a tener la navegación tapada en su primera sesión — justo cuando más la necesita para orientarse — hasta que decida sobre las cookies.
+
+**Restricción de partida, no negociable:** el banner no es decorativo, es de cumplimiento legal (GA4/Meta Pixel/TikTok Pixel dependen de esa decisión) — no se puede ocultar, recortar contenido, ni darle menos jerarquía visual a "Solo esenciales" que a "Aceptar todo".
+
+**Opciones consideradas y descartadas:**
+- *Ocultar la tab bar mientras el banner esté visible:* deja al usuario nuevo sin forma de navegar en el momento exacto en que más la necesita — cambia un problema visual por uno funcional, peor.
+- *Banner más compacto en mobile:* no resuelve la superposición en sí (seguiría compitiendo por el mismo carril si no cambia de posición), y el banner ya es razonablemente compacto (título + 1 párrafo + 2 botones) — recortarlo más arriesga legibilidad sin resolver la causa real.
+
+**Decisión: el banner se apila arriba de la tab bar, nunca se superpone.** En mobile, cuando hay una barra de navegación fija al fondo (la tab bar de cliente de esta propuesta, o la tira de pills de `AdminShell.tsx`, que tiene exactamente el mismo problema — ver nota abajo), el banner sube su posición para dejarla completamente visible debajo. Ambas funciones — decidir sobre cookies y navegar — quedan disponibles al mismo tiempo, sin comprometer ninguna. El costo (el banner ocupa más alto temporalmente y puede tapar parcialmente el contenido scrolleable de la página, no la navegación) es aceptable: aparece una sola vez por usuario y desaparece en cuanto se toca cualquiera de los dos botones.
+
+**Mecanismo (para `frontend`, CSS puro, sin categoría de token nueva):**
+- Cada componente que monta una barra fija al fondo en mobile (`<ClientTabBar>` de esta propuesta, y la tira de pills de `AdminShell.tsx` ~línea 351, que **hoy tiene el mismo bug** porque `CookieConsentBanner` tampoco excluye rutas `/admin/*`) agrega, mientras está montado, la clase `has-bottom-nav` a `document.body` en un `useEffect` (con cleanup al desmontar) — mismo patrón que ya usa el propio `CookieConsentBanner` para leer estado externo al montar.
+- Nueva regla en `globals.css`:
+  ```css
+  @media (max-width: 767px) {
+    body.has-bottom-nav .cookie-consent-banner {
+      bottom: calc(64px + env(safe-area-inset-bottom));
+    }
+  }
+  ```
+- `CookieConsentBanner.tsx` agrega la clase `cookie-consent-banner` a su `<div>` raíz (hoy solo tiene utilities, sin ningún gancho) para que la regla de arriba lo alcance sin acoplarlo al layout que lo rodea.
+- `64px` es una altura conservadora que cubre ambas barras (tab bar de cliente ~60px, tira de pills del admin ~56-60px); `frontend` puede ajustarla una vez las mida en el DOM real — no hace falta que coincida al pixel, solo que alcance para no tapar ningún ítem.
+- Desktop (`md:` y superior) no cambia: ninguna de las dos barras existe ahí.
+- Mobile sin barra inferior (`create-plan` sin plan, `legal/*`, `payment/*`, y cualquier vista `/admin/*` — hoy no aplica porque el admin usa `AdminShell` en todas sus rutas, pero el mecanismo ya lo cubre igual): `has-bottom-nav` nunca se agrega, el banner se queda en `bottom-0` como hoy.
+
+## 12. El bug del `overflow-x: hidden` global — causa raíz corregida, restricción eliminada
+
+Este bug causó **tres incidentes distintos** en producción a lo largo del tiempo. Quedaba documentado en varios comentarios sueltos del código como "bug conocido" a esquivar (`AdminShell.tsx`, `client-navbar-preview.tsx`, §11.1/§11.4 más arriba); esta sección es el post-mortem y el estado final.
+
+**La cadena completa:**
+
+1. `.btn` (§2) tenía `display: inline-flex` sin `max-width` ni `min-width: 0`. El texto de un botón es, dentro de ese `inline-flex`, un flex item con `min-width: auto` implícito — sin un `max-width` que fuerce al botón a encogerse, el flex item nunca tiene motivo para wrappear, y el botón crece a `max-content`. Con un label largo (ej. "Copiar enlace del formulario", en `AdminApp.tsx`) eso empuja el ancho del `<html>` entero en pantallas chicas.
+2. Para tapar ese síntoma se agregó `overflow-x: hidden; max-width: 100vw` en `html` y en `body` (`globals.css`).
+3. Ese `overflow-x: hidden` en `html` lo convierte en scroll container (el spec computa `overflow-y: auto` cuando un solo eje no es `visible`), y eso rompía dos cosas más: **`position: sticky`** (el sidebar del admin no quedaba fijo al viewport — se esquivó migrando a `position: fixed`, que sí funciona bien y **no se revirtió**, no había motivo) y el **`IntersectionObserver`** (los `whileInView` de framer-motion de la landing no disparaban contra el viewport real, la landing pública salió en blanco en producción).
+
+**Fix aplicado (`globals.css`):**
+- `.btn` ahora tiene `max-width: 100%; min-width: 0`. Un botón con texto largo se limita al ancho de su contenedor y el texto wrappea a más de una línea en vez de desbordar.
+- Se eliminó `overflow-x: hidden` y `max-width: 100vw` de `html` y de `body`. **No reponer este parche si vuelve a aparecer un desborde horizontal** — el origen real casi siempre va a ser un elemento con ancho implícito `max-content` sin `max-width`/`min-width: 0` (como era el caso de `.btn`), no algo que se resuelva ocultando el eje X del documento entero.
+
+**Segundo origen encontrado al verificar (mismo bug, otro disparador — `_app.tsx`):** con el parche de `html`/`body` ya sacado, `/legal/disclaimer` y `/legal/liability` seguían desbordando 3px a 320px. Causa distinta a la de `.btn`, pero de la misma familia: el wrapper raíz de `_app.tsx` es `flex flex-col`, y **cada página es, por lo tanto, un flex item de ese contenedor** (`<Component {...pageProps} />` se renderiza como hijo directo, `AppLocaleProvider` no agrega nodo propio). Cuando la página usa el patrón común `max-w-* mx-auto` en su elemento raíz (ej. `legal/*.tsx`), los márgenes cruzados en `auto` desactivan `align-items: stretch` (regla del spec de flexbox: stretch solo aplica si *ninguno* de los márgenes del eje cruzado es `auto`) — en vez de ocupar el ancho disponible y envolver texto como haría un bloque normal, el item se dimensiona a su `max-content` (como si el texto nunca pudiera envolver), y en pantallas angostas con un heading largo (ej. "Descargo de Responsabilidad Médica" en `text-4xl font-bold`) eso desborda el documento. Fix: `[&>*]:min-w-0 [&>*]:w-full` en el wrapper de `_app.tsx` — `w-full` es el que resuelve esto (da un ancho definido, así que el caso especial de flexbox no aplica y el contenido vuelve a envolver); `min-w-0` es defensa adicional contra el `min-width: auto` implícito de flex items. Ver comentario en `src/pages/_app.tsx` línea ~209.
+
+**Verificación:** con `npm run build && npm run start` (los incidentes anteriores de esta familia no se reproducían en `npm run dev`, solo en build de producción), chequeando `document.documentElement.scrollWidth <= window.innerWidth` en landing (`/`, `/en`), `/create-plan`, `/formulario-de-inicio`, `/dashboard`, `/plan`, `/design-preview`, `/admin-design-preview`, `/client-navbar-preview`, `/payment/success` y las 7 `legal/*`, a 320px/390px/430px (51 combinaciones): sin desborde horizontal en ninguna, incluyendo las dos que fallaban antes del segundo fix.
+
+Confirmado que se desbloqueó lo que el parche rompía: `position: sticky` vuelve a posicionarse contra el viewport (verificado en `admin-design-preview.tsx`: el sidebar pasa de su posición estática a `top: 0` al scrollear, comportamiento correcto), y los `whileInView` (`adminMotion.ts`, `admin-design-preview.tsx`) vuelven a resolver `opacity: 1` al entrar en viewport vía `IntersectionObserver`. `html`/`body` quedaron con `overflow: visible` (el default real del navegador), confirmando que ya no son scroll containers artificiales.
+
+**Restricción aparte, no relacionada con `overflow-x` pero igual de no-negociable:** no usar `initial: { opacity: 0 }` de framer-motion en contenido que se pinta sin interacción del usuario (hero, tarjetas de landing, cualquier cosa presente en el HTML servido por SSR). En build de producción ese estado inicial se serializa en el HTML del servidor; si la hidratación no llega a disparar la animación, el contenido queda invisible para siempre — es justo lo que rompió la landing la segunda vez. Animar solo posición (`y`, `x`, `scale`) o hacerlo con CSS puro (`@keyframes` + `prefers-reduced-motion`). Este patrón sigue vivo hoy en código de cliente real fuera de esta corrección — ver §11.1 punto 6 y §11.8 punto 4 (`Navbar.tsx`, pendiente de implementación de §11) — no se tocó acá por estar fuera del alcance de este fix, que es específicamente el de `overflow-x`.
+
+**No hace falta pedirle nada a `diseño` para este fix**: no cambia ningún token, color, ni patrón visual — es una corrección de layout puro sobre reglas ya existentes.

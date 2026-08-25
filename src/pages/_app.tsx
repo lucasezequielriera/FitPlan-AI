@@ -206,7 +206,25 @@ export default function App({ Component, pageProps }: AppProps) {
           `}
         </Script>
       ) : null}
-      <div className={`${inter.className} ${spaceGrotesk.variable} min-h-screen flex flex-col`}>
+      {/* [&>*]:min-w-0 [&>*]:w-full: cada página (y Footer) es un flex item de
+          este contenedor columna. Dos problemas distintos sin esto, ambos con
+          el mismo síntoma (desborde horizontal en pantallas chicas, mismo
+          mecanismo de fondo que el bug de `.btn`, ver DESIGN_SYSTEM.md §12,
+          pero acá a nivel raíz: afecta a CUALQUIER pantalla):
+          1. `min-w-0` neutraliza el `min-width: auto` implícito de un flex
+             item, que si no se resuelve contra el min-content del contenido.
+          2. `w-full` es el que de verdad importa acá: cualquier página cuyo
+             nodo raíz use `mx-auto` para centrar un `max-w-*` (patrón muy
+             común, ej. legal/*.tsx) pierde el comportamiento normal de bloque
+             ("ocupar el ancho disponible y envolver texto") porque, como flex
+             item con `width: auto` + márgenes cruzados en auto, el spec de
+             flexbox NO aplica `align-items: stretch` — en cambio dimensiona
+             el item a su max-content (como si el texto nunca pudiera
+             envolver), y en pantallas angostas eso desborda el documento en
+             vez de envolver. `w-full` fuerza un ancho definido (100% del
+             contenedor) para que ese caso especial de flexbox no aplique y el
+             contenido vuelva a envolver como en cualquier bloque normal. */}
+      <div className={`${inter.className} ${spaceGrotesk.variable} min-h-screen flex flex-col [&>*]:min-w-0 [&>*]:w-full`}>
         <AppLocaleProvider>
           <Component {...pageProps} />
           {!isAdminRoute && <Footer />}

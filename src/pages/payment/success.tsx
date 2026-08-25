@@ -195,8 +195,8 @@ export default function PaymentSuccess() {
       <Navbar />
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] px-4 py-12">
         <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
+          initial={{ y: 12, scale: 0.9 }}
+          animate={{ y: 0, scale: 1 }}
           className="max-w-md w-full text-center"
         >
           {premium ? (

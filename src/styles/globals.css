@@ -124,11 +124,6 @@
   --color-phase-hyrox-taper: var(--phase-hyrox-taper);
 }
 
-html {
-  overflow-x: hidden;
-  max-width: 100vw;
-}
-
 body {
   background: radial-gradient(1200px 600px at 80% -10%, color-mix(in oklab, var(--brand-start) 15%, transparent) 0%, transparent 60%),
               radial-gradient(1000px 600px at -10% 20%, color-mix(in oklab, var(--brand-mid) 18%, transparent) 0%, transparent 60%),
@@ -136,8 +131,6 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
   min-height: 100dvh;
-  overflow-x: hidden;
-  max-width: 100vw;
 }
 
 .glass {
@@ -176,6 +169,17 @@ body {
   padding: 0.625rem 1.25rem;
   transition: filter 0.15s ease, transform 0.1s ease;
   border: 1px solid transparent;
+  /* Causa raíz del desborde horizontal histórico (ver DESIGN_SYSTEM.md):
+     sin esto, un botón con texto largo (ej. "Copiar enlace del formulario")
+     no tiene motivo para encogerse — su ancho implícito es max-content y
+     en pantallas chicas empuja el ancho del <html> entero. `max-width: 100%`
+     lo limita al ancho de su contenedor; `min-width: 0` permite que el
+     texto (flex item interno) se achique por debajo de su max-content y
+     envuelva en vez de desbordar. NO reponer `overflow-x: hidden` en
+     html/body como parche: ataca acá si vuelve a aparecer un botón que
+     desborda. */
+  max-width: 100%;
+  min-width: 0;
 }
 .btn:active {
   transform: scale(0.98);
@@ -365,4 +369,23 @@ select.bg-transparent {
 
 .shimmer-animation {
   animation: shimmer 3s infinite;
+}
+
+/* Coexistencia entre CookieConsentBanner y cualquier barra fija al fondo en
+   mobile (DESIGN_SYSTEM.md §11.9). Cualquier componente que monte una barra
+   así agrega `has-bottom-nav` a <body> mientras está montado (con cleanup al
+   desmontar) — ver AdminShell.tsx. El banner (`.cookie-consent-banner`) sube
+   su posición para no taparla.
+   Valor: medido con Chrome headless (fixture con el CSS compilado real y el
+   markup de la tira, incluyendo un badge "9+" de notificaciones) a 390px de
+   ancho: 45px, no los 64px que estimó `diseño` en la spec — se deja 56px
+   (45px + margen de seguridad) en vez del número exacto para tolerar
+   redondeo entre navegadores/zoom. Si en el futuro se implementa la tab bar
+   de cliente de DESIGN_SYSTEM.md §11.4-B y su altura real es distinta,
+   ajustar acá (mismo valor para ambas por simplicidad, salvo que difieran
+   mucho). */
+@media (max-width: 767px) {
+  body.has-bottom-nav .cookie-consent-banner {
+    bottom: calc(56px + env(safe-area-inset-bottom));
+  }
 }

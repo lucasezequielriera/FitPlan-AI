@@ -1129,7 +1129,7 @@ export default function CreatePlan() {
       <div className="relative z-[1] px-3 py-6 sm:px-5 sm:py-10 md:px-8">
         <div className="mx-auto w-full max-w-3xl">
           <motion.div
-            initial={{ opacity: 0, y: 16 }}
+            initial={{ y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
             className="relative overflow-hidden rounded-3xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--background)_82%,#0a0f18)] p-6 shadow-[0_24px_80px_-32px_rgba(0,0,0,0.75)] ring-1 ring-[color-mix(in_oklab,var(--foreground)_6%,transparent)] backdrop-blur-xl md:p-8"
@@ -1411,7 +1411,7 @@ export default function CreatePlan() {
                 </label>
                 {form.objetivo && cpGoalLong(locale, form.objetivo) && (
                   <motion.div
-                    initial={{ opacity: 0, y: -8 }}
+                    initial={{ y: -8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.2 }}
                     className={`${infoBox} w-full`}
@@ -1685,7 +1685,7 @@ export default function CreatePlan() {
                   const dietaSeleccionada = form.tipoDieta || "estandar";
                   return cpDietLong(locale, dietaSeleccionada) && (
                     <motion.div
-                      initial={{ opacity: 0, y: -8 }}
+                      initial={{ y: -8 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.2 }}
                       className={`${infoBox} w-full`}
@@ -1811,7 +1811,7 @@ export default function CreatePlan() {
               </label>
                 {cpIntensityLong(locale, form.intensidad) && (
                   <motion.div
-                    initial={{ opacity: 0, y: -8 }}
+                    initial={{ y: -8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.2 }}
                     className={`${infoBox} w-full min-w-0 max-w-full py-2.5`}

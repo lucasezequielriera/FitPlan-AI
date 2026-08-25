@@ -151,8 +151,8 @@ export default function TransformacionFitPlanLanding() {
       <main className="px-4 md:px-6">
         <section className="max-w-6xl mx-auto pt-10 pb-6">
           <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={{ y: 12 }}
+            animate={{ y: 0 }}
             transition={{ duration: 0.5 }}
             className="rounded-3xl border border-cyan-400/25 bg-gradient-to-br from-blue-500/14 via-cyan-500/10 to-emerald-500/12 p-6 md:p-10"
           >

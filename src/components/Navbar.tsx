@@ -705,8 +705,8 @@ export default function Navbar() {
             <>
               {!isAdmin && (
                 <motion.div
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
+                  initial={{ y: 4 }}
+                  animate={{ y: 0 }}
                   className="flex w-auto shrink-0 items-stretch rounded-xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--landing-surface)_92%,transparent)] p-0.5 shadow-[0_10px_36px_-18px_rgba(45,212,191,0.35)] ring-1 ring-[color-mix(in_oklab,var(--foreground)_5%,transparent)] sm:rounded-2xl sm:p-1"
                   role="group"
                   aria-label="Mensajes y calendario de gym"
@@ -792,8 +792,8 @@ export default function Navbar() {
                   <motion.button
                     ref={adminBellButtonRef}
                     type="button"
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
+                    initial={{ y: 4 }}
+                    animate={{ y: 0 }}
                     onClick={(e) => {
                       e.stopPropagation();
                       openAdminNotifications();
@@ -918,8 +918,8 @@ export default function Navbar() {
 
                   <motion.button
                     type="button"
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
+                    initial={{ y: 4 }}
+                    animate={{ y: 0 }}
                     onClick={(e) => {
                       e.stopPropagation();
                       setMessagesModalOpen(true);
@@ -985,8 +985,8 @@ export default function Navbar() {
               <div className="relative shrink-0" ref={userMenuRef}>
                 <motion.button
                   type="button"
-                  initial={{ opacity: 0, x: 8 }}
-                  animate={{ opacity: 1, x: 0 }}
+                  initial={{ x: 8 }}
+                  animate={{ x: 0 }}
                   onClick={() => setUserMenuOpen((o) => !o)}
                   aria-expanded={userMenuOpen}
                   aria-haspopup="menu"

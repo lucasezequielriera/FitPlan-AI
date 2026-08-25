@@ -248,6 +248,18 @@ export function AdminShell({ active, children }: { active: AdminSectionId; child
   const unreadMessages = useAdminUnreadMessages(authUser?.uid ?? null, messagesRefreshKey);
   const unreadNotifications = useAdminUnreadNotifications(authUser?.uid ?? null);
 
+  // La tira de pills de abajo (mobile) es fixed/bottom-0, igual que
+  // CookieConsentBanner — sin esto, el banner de cookies tapa por completo
+  // la navegación de admin en mobile hasta que el usuario decide sobre
+  // cookies (DESIGN_SYSTEM.md §11.9). `has-bottom-nav` en <body> activa la
+  // regla en globals.css que sube el banner por encima de esta tira.
+  useEffect(() => {
+    document.body.classList.add("has-bottom-nav");
+    return () => {
+      document.body.classList.remove("has-bottom-nav");
+    };
+  }, []);
+
   const handleAdminLogout = async () => {
     if (authUser) {
       try {
@@ -275,13 +287,13 @@ export function AdminShell({ active, children }: { active: AdminSectionId; child
         <div className="hidden h-[100dvh] w-[248px] shrink-0 lg:block" aria-hidden="true" />
 
         {/* ============= SIDEBAR (desktop) =============
-            position: fixed, no sticky. `html`/`body` tienen `overflow-x: hidden`
-            (globals.css, parche para un desborde horizontal no relacionado con este
-            componente) — eso hace que `overflow-y` compute a `auto` en `html`, que pasa
-            a ser scroll container, y `position: sticky` termina posicionándose contra
-            ESE contenedor en vez del viewport (el bug clásico de "sticky que no pega").
-            `fixed` no tiene ese problema: se ancla al viewport salvo que un ancestro
-            tenga transform/filter/perspective, que no ocurre acá. */}
+            position: fixed, no sticky. Históricamente `html`/`body` tenían
+            `overflow-x: hidden` como parche global (ya eliminado, ver
+            DESIGN_SYSTEM.md) que convertía a `html` en scroll container y
+            rompía `position: sticky` (se posicionaba contra ese contenedor
+            en vez del viewport). Ya no aplica esa restricción, pero se deja
+            `fixed` de todas formas: funciona bien y no hay motivo para
+            migrar a `sticky` solo porque ahora es viable. */}
         <aside className="fixed left-0 top-0 z-30 hidden h-[100dvh] w-[248px] flex-col border-r border-border bg-surface px-3 py-5 lg:flex">
           <Link href="/admin" className="mb-6 flex items-center gap-2.5 px-2">
             <span className="relative h-8 w-8 shrink-0 overflow-hidden rounded-lg bg-surface-2 ring-1 ring-border">

@@ -133,8 +133,8 @@ export default function FormularioDeInicioPage() {
       <div className="px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-10">
         <div className="mx-auto max-w-4xl">
           <motion.div
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={{ y: 14 }}
+            animate={{ y: 0 }}
             className="overflow-hidden rounded-2xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--background)_94%,#0f172a)] shadow-[0_24px_60px_-28px_rgba(45,212,191,0.18)]"
           >
             <div className="relative border-b border-[var(--landing-border)]/80 bg-gradient-to-br from-[color-mix(in_oklab,var(--landing-accent)_14%,transparent)] via-[var(--landing-surface)] to-[color-mix(in_oklab,#6366f1_10%,transparent)] px-5 py-6 md:px-8 md:py-8">

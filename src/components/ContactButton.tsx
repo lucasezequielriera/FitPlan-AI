@@ -17,8 +17,8 @@ export default function ContactButton() {
       href={googleFormUrl}
       target="_blank"
       rel="noopener noreferrer"
-      initial={{ opacity: 0, scale: 0.85 }}
-      animate={{ opacity: 1, scale: 1 }}
+      initial={{ y: 12, scale: 0.85 }}
+      animate={{ y: 0, scale: 1 }}
       transition={{
         type: "spring",
         stiffness: 280,
