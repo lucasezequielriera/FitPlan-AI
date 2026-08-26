@@ -753,13 +753,28 @@ export default function FormularioDeInicioPage() {
                   </div>
                 )}
 
+                {/* El botón está bloqueado hasta que se marque el consentimiento. Antes
+                    eso se mostraba con `opacity-50` sobre el lima, y el resultado era un
+                    verde oliva apagado que parecía un error de renderizado en vez de un
+                    estado deshabilitado. Ahora el bloqueado usa una superficie neutra
+                    (se lee como inactivo, no como roto) y se explica el motivo debajo. */}
                 <button
                   type="submit"
                   disabled={loading || !form.consentimiento}
-                  className="w-full min-h-[48px] rounded-xl bg-[var(--landing-accent)] px-6 py-3 text-sm font-semibold text-[#0a1628] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] sm:w-auto sm:min-w-[12rem]"
+                  aria-describedby={!form.consentimiento ? "submit-bloqueado" : undefined}
+                  className={`min-h-[48px] w-auto self-start rounded-xl px-8 py-3 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] ${
+                    loading || !form.consentimiento
+                      ? "cursor-not-allowed border border-[var(--landing-border)] bg-[var(--landing-surface-2)] text-[var(--landing-muted)]"
+                      : "bg-[var(--landing-accent)] text-accent-ink hover:brightness-110"
+                  }`}
                 >
                   {loading ? copy.submitSending : copy.submitCta}
                 </button>
+                {!form.consentimiento && !loading && (
+                  <p id="submit-bloqueado" className="text-xs text-[var(--landing-muted)]">
+                    {copy.submitNeedsConsent}
+                  </p>
+                )}
               </section>
             </form>
             </div>

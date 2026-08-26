@@ -171,6 +171,7 @@ export interface IntakeFormCopy {
   selectPlaceholder: string;
   submitSending: string;
   submitCta: string;
+  submitNeedsConsent: string;
   successMsg: string;
   submitErrorGeneric: string;
   consentText: string;
@@ -214,6 +215,7 @@ const COPY_ES: IntakeFormCopy = {
   selectPlaceholder: "Seleccionar...",
   submitSending: "Enviando...",
   submitCta: "Enviar formulario",
+  submitNeedsConsent: "Marca la casilla de arriba para poder enviar el formulario.",
   successMsg: "¡Perfecto, ya enviaste el formulario! Te hablaré por WhatsApp para iniciar el proceso.",
   submitErrorGeneric: "No se pudo enviar el formulario.",
   consentText:
@@ -261,6 +263,7 @@ const COPY_EN: IntakeFormCopy = {
   selectPlaceholder: "Select…",
   submitSending: "Sending…",
   submitCta: "Submit form",
+  submitNeedsConsent: "Check the box above to submit the form.",
   successMsg: "All set—we received your form! I’ll reach out on WhatsApp to get started.",
   submitErrorGeneric: "We couldn’t submit the form.",
   consentText:
