@@ -237,7 +237,11 @@ export default function App({ Component, pageProps }: AppProps) {
             <Component {...pageProps} />
           </div>
           {!isAdminRoute && <Footer />}
-          <ContactButton />
+          {/* El botón de contacto abre un formulario de soporte para clientes
+              finales: dentro del panel no tiene sentido (Lucas es el único
+              admin) y competía por el borde inferior con la barra de nav y el
+              banner de cookies. Mismo criterio que el footer. */}
+          {!isAdminRoute && <ContactButton />}
           <CookieConsentBanner />
         </AppLocaleProvider>
       </div>

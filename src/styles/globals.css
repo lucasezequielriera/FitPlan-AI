@@ -417,7 +417,12 @@ body.has-cookie-banner .contact-fab {
    y con mayor especificidad, así gana cuando concurren las dos clases. */
 /* Acotada al mismo rango que la regla que sube el banner: por encima de 767px
    el banner no se desplaza, así que sumar el alto de la barra acá empujaría el
-   botón de más. */
+   botón de más.
+
+   Hoy esta regla no se dispara: `has-bottom-nav` solo existe en el admin, y el
+   botón de contacto dejó de renderizarse ahí (ver _app.tsx). Se mantiene porque
+   vuelve a ser necesaria en cuanto se implemente la tab bar de cliente
+   (DESIGN_SYSTEM.md §11.4-B), donde sí conviven barra inferior y botón. */
 @media (max-width: 767px) {
   body.has-bottom-nav.has-cookie-banner .contact-fab {
     bottom: calc(
