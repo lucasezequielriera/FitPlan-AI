@@ -4,6 +4,7 @@ import { useRouter } from "next/router";
 import type { UserInput, Goal, PlanAIResponse } from "@/types/plan";
 import { useAppLocale, type AppLocale } from "@/contexts/AppLocaleContext";
 import { dash, dashFmt } from "@/lib/i18n/appUi";
+import { MODAL_BACKDROP_CLASS, MODAL_BACKDROP_MOTION, MODAL_PANEL_CLASS, MODAL_PANEL_MOTION } from "@/lib/modalShell";
 
 const ENERGY_OPT: Record<string, { es: string; en: string }> = {
   muy_baja: { es: "Muy baja", en: "Very low" },
@@ -300,21 +301,12 @@ export default function PlanContinuityModal({ isOpen, onClose, planData, registr
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4">
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={onClose}
-          className="absolute inset-0 bg-black/75 backdrop-blur-md"
-        />
+        <motion.div {...MODAL_BACKDROP_MOTION} onClick={onClose} className={`absolute inset-0 ${MODAL_BACKDROP_CLASS}`} />
 
         <motion.div
-          initial={{ scale: 0.96, opacity: 0, y: 14 }}
-          animate={{ scale: 1, opacity: 1, y: 0 }}
-          exit={{ scale: 0.96, opacity: 0, y: 14 }}
-          transition={{ type: "spring", damping: 26, stiffness: 320 }}
+          {...MODAL_PANEL_MOTION}
           onClick={(e) => e.stopPropagation()}
-          className="relative z-10 flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--background)_86%,#0a0f18)] shadow-[0_40px_100px_-36px_rgba(0,0,0,0.9)] ring-1 ring-[color-mix(in_oklab,var(--foreground)_5%,transparent)]"
+          className={`relative z-10 flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden ${MODAL_PANEL_CLASS}`}
         >
           <div
             className="pointer-events-none absolute inset-0 opacity-[0.45]"
@@ -473,11 +465,7 @@ export default function PlanContinuityModal({ isOpen, onClose, planData, registr
                   />
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleAnalyze}
-                  className="w-full rounded-xl bg-gradient-to-r from-[var(--brand-start)] via-[var(--brand-mid)] to-[var(--brand-end)] py-3 text-sm font-semibold text-accent-ink shadow-[0_14px_40px_-18px_color-mix(in_oklab,var(--brand-mid)_45%,transparent)] transition hover:brightness-110"
-                >
+                <button type="button" onClick={handleAnalyze} className="btn btn-primary w-full">
                   {dash(locale, "continuityAnalyzeCta")}
                 </button>
               </div>
@@ -497,7 +485,12 @@ export default function PlanContinuityModal({ isOpen, onClose, planData, registr
 
             {step === "suggestion" && analysis && (
               <div className="space-y-5">
-                <div className="rounded-2xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--foreground)_4%,transparent)] p-4 sm:p-5">
+                {/* Análisis + alternativas consolidados en un único contenedor con
+                    separador interno en vez de una caja nueva por sección — la
+                    sugerencia recomendada se mantiene aparte porque su tratamiento
+                    destacado sí comunica algo real (es la recomendación principal,
+                    no una sección más), DESIGN_SYSTEM.md §13.4-C. */}
+                <div className="card-surface p-4 sm:p-5">
                   <h3 className="text-sm font-semibold text-[var(--foreground)]">
                     {dash(locale, "continuityAnalysisBlock")}
                   </h3>
@@ -548,6 +541,35 @@ export default function PlanContinuityModal({ isOpen, onClose, planData, registr
                       </div>
                     )}
                   </div>
+
+                  {analysis.objetivosAlternativos.length > 0 && (
+                    <div className="mt-5 border-t border-border pt-5">
+                      <h3 className="text-sm font-semibold text-[var(--foreground)]">
+                        {dash(locale, "continuityOtherOptions")}
+                      </h3>
+                      <div className="mt-3 space-y-2">
+                        {analysis.objetivosAlternativos.map((alt, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            className={`w-full rounded-xl border p-3.5 text-left transition ${
+                              objetivoSeleccionado === alt.objetivo && !usarSugerencia
+                                ? "border-[color-mix(in_oklab,var(--landing-accent)_55%,transparent)] bg-[color-mix(in_oklab,var(--landing-accent)_12%,transparent)] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+                                : "border-[var(--landing-border)] bg-[var(--landing-surface)] hover:border-[color-mix(in_oklab,var(--foreground)_14%,transparent)]"
+                            }`}
+                            onClick={() => {
+                              setUsarSugerencia(false);
+                              setObjetivoSeleccionado(alt.objetivo);
+                            }}
+                          >
+                            <p className="font-semibold text-[var(--foreground)]">{alt.objetivo}</p>
+                            <p className="mt-1 text-sm text-[var(--landing-muted)]">{alt.razon}</p>
+                            <p className="mt-1 text-xs text-[var(--landing-muted)]/80">{alt.adecuadoPara}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div
@@ -587,35 +609,6 @@ export default function PlanContinuityModal({ isOpen, onClose, planData, registr
                     </label>
                   </div>
                 </div>
-
-                {analysis.objetivosAlternativos.length > 0 && (
-                  <div className="rounded-2xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--foreground)_3%,transparent)] p-4 sm:p-5">
-                    <h3 className="text-sm font-semibold text-[var(--foreground)]">
-                      {dash(locale, "continuityOtherOptions")}
-                    </h3>
-                    <div className="mt-3 space-y-2">
-                      {analysis.objetivosAlternativos.map((alt, i) => (
-                        <button
-                          key={i}
-                          type="button"
-                          className={`w-full rounded-xl border p-3.5 text-left transition ${
-                            objetivoSeleccionado === alt.objetivo && !usarSugerencia
-                              ? "border-[color-mix(in_oklab,var(--landing-accent)_55%,transparent)] bg-[color-mix(in_oklab,var(--landing-accent)_12%,transparent)] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
-                              : "border-[var(--landing-border)] bg-[var(--landing-surface)] hover:border-[color-mix(in_oklab,var(--foreground)_14%,transparent)]"
-                          }`}
-                          onClick={() => {
-                            setUsarSugerencia(false);
-                            setObjetivoSeleccionado(alt.objetivo);
-                          }}
-                        >
-                          <p className="font-semibold text-[var(--foreground)]">{alt.objetivo}</p>
-                          <p className="mt-1 text-sm text-[var(--landing-muted)]">{alt.razon}</p>
-                          <p className="mt-1 text-xs text-[var(--landing-muted)]/80">{alt.adecuadoPara}</p>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
 
                 <button
                   type="button"

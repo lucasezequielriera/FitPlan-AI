@@ -308,10 +308,11 @@ export default function PremiumPlanModal({
       }}
     >
       <motion.div
-        initial={{ opacity: 0, scale: 0.98, y: 16 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.98, y: 16 }}
-        className="relative bg-[color-mix(in_oklab,var(--background)_95%,#0f172a)] sm:rounded-2xl rounded-t-2xl border border-[var(--landing-border)] border-b-0 sm:border-b p-3 pt-12 sm:p-6 sm:pt-6 max-w-5xl w-full max-h-[min(92dvh,100dvh)] sm:max-h-[92vh] overflow-y-auto overscroll-contain shadow-2xl pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-6"
+        initial={{ y: 16 }}
+        animate={{ y: 0 }}
+        exit={{ y: 16 }}
+        transition={{ type: "spring", damping: 26, stiffness: 320 }}
+        className="relative bg-[color-mix(in_oklab,var(--background)_88%,#0a0f18)] sm:rounded-2xl rounded-t-2xl border border-border border-b-0 sm:border-b p-3 pt-12 sm:p-6 sm:pt-6 max-w-5xl w-full max-h-[min(92dvh,100dvh)] sm:max-h-[92vh] overflow-y-auto overscroll-contain shadow-[0_40px_100px_-36px_rgba(0,0,0,0.9)] ring-1 ring-[color-mix(in_oklab,var(--foreground)_5%,transparent)] pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-6"
         onClick={(e) => e.stopPropagation()}
         lang={locale}
       >
@@ -399,37 +400,36 @@ export default function PremiumPlanModal({
             ))}
           </ul>
 
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-sm text-left min-w-0">
-              <thead>
-                <tr className="border-b border-[var(--landing-border)]">
-                  <th className="px-3 py-3 font-medium text-[var(--foreground)] w-[min(50%,28rem)]"></th>
-                  <th className="px-2 py-3 font-semibold text-center text-[var(--landing-muted)] w-[12%]">{copy.colFree}</th>
-                  <th className="px-2 py-3 font-semibold text-center text-[var(--landing-accent)] w-[12%]">{copy.colPremium}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {compareRows.map((row) => (
-                  <tr key={row.label} className="border-b border-[var(--landing-border)]/80 last:border-0">
-                    <td className="px-3 py-2.5 text-[var(--foreground)]/90 leading-snug text-pretty">{row.label}</td>
-                    <td className="px-2 py-2.5 text-center align-middle">
-                      {row.free ? (
-                        <FaCheck className="inline h-4 w-4 text-success" aria-label="Yes" />
-                      ) : (
-                        <FaTimes className="inline h-4 w-4 text-white/25" aria-label="No" />
-                      )}
-                    </td>
-                    <td className="px-2 py-2.5 text-center align-middle">
-                      {row.premium ? (
-                        <FaCheck className="inline h-4 w-4 text-[var(--landing-accent)]" aria-label="Yes" />
-                      ) : (
-                        <FaTimes className="inline h-4 w-4 text-white/25" aria-label="No" />
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          {/* Filas compactas en un único contenedor — nunca un <table> real
+              (DESIGN_SYSTEM.md §13.4-B, mismo patrón ya aprobado para el admin
+              en §7.3-C). */}
+          <div className="hidden md:block">
+            <div className="grid grid-cols-[1fr_5rem_5rem] gap-2 border-b border-[var(--landing-border)] px-3 py-3">
+              <span />
+              <span className="text-center text-sm font-semibold text-[var(--landing-muted)]">{copy.colFree}</span>
+              <span className="text-center text-sm font-semibold text-[var(--landing-accent)]">{copy.colPremium}</span>
+            </div>
+            <div className="divide-y divide-[var(--landing-border)]/80">
+              {compareRows.map((row) => (
+                <div key={row.label} className="grid grid-cols-[1fr_5rem_5rem] items-center gap-2 px-3 py-2.5">
+                  <span className="text-sm leading-snug text-pretty text-[var(--foreground)]/90">{row.label}</span>
+                  <span className="flex items-center justify-center">
+                    {row.free ? (
+                      <FaCheck className="h-4 w-4 text-success" aria-label="Yes" />
+                    ) : (
+                      <FaTimes className="h-4 w-4 text-white/25" aria-label="No" />
+                    )}
+                  </span>
+                  <span className="flex items-center justify-center">
+                    {row.premium ? (
+                      <FaCheck className="h-4 w-4 text-[var(--landing-accent)]" aria-label="Yes" />
+                    ) : (
+                      <FaTimes className="h-4 w-4 text-white/25" aria-label="No" />
+                    )}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
 

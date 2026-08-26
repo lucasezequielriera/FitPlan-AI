@@ -4,6 +4,7 @@ import Head from "next/head";
 import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
 import { createPortal } from "react-dom";
+import { FaCrown, FaUserFriends, FaWeight } from "react-icons/fa";
 import { useAuthStore } from "@/store/authStore";
 import { usePlanStore } from "@/store/planStore";
 import { getDbSafe, getAuthSafe } from "@/lib/firebase";
@@ -12,9 +13,11 @@ import Navbar from "@/components/Navbar";
 import { useAppLocale, type AppLocale } from "@/contexts/AppLocaleContext";
 import { dash, dashFmt, goalLabel } from "@/lib/i18n/appUi";
 import type { RegistroPeso, SavedPlan } from "@/types/savedPlan";
-import { DashboardPlanCard } from "@/components/dashboard/DashboardPlanCard";
+import { DashboardPlanHero } from "@/components/dashboard/DashboardPlanHero";
+import { DashboardPlanRow } from "@/components/dashboard/DashboardPlanRow";
 import { loadCachedDashboardPlans, saveCachedDashboardPlans } from "@/lib/planLocalCache";
 import { applyPendingWeightOps, clearPendingWeightOps, enqueueWeightOp, loadPendingWeightOps } from "@/lib/weightSyncQueue";
+import { MODAL_BACKDROP_CLASS, MODAL_BACKDROP_MOTION, MODAL_PANEL_CLASS, MODAL_PANEL_MOTION } from "@/lib/modalShell";
 
 const PremiumPlanModal = dynamic(() => import("@/components/PremiumPlanModal"), { ssr: false });
 const PlanContinuityModal = dynamic(() => import("@/components/PlanContinuityModal"), { ssr: false });
@@ -46,6 +49,9 @@ export default function Dashboard() {
   const [personalTrainerReason, setPersonalTrainerReason] = useState("");
   const [trainerPreference, setTrainerPreference] = useState<"hombre" | "mujer" | null>(null);
   const [cacheNotice, setCacheNotice] = useState<string | null>(null);
+  const [quickWeightValue, setQuickWeightValue] = useState("");
+  const [quickWeightSaving, setQuickWeightSaving] = useState(false);
+  const [quickWeightNotice, setQuickWeightNotice] = useState<string | null>(null);
 
   const trainerWhatsappUrl = "https://wa.me/34627043397";
 
@@ -106,6 +112,47 @@ export default function Dashboard() {
       setPersonalTrainerNotice(message);
     } finally {
       setPersonalTrainerLoading(false);
+    }
+  };
+
+  // Carga rápida de peso desde la sidebar de desktop (DESIGN_SYSTEM.md §13.3)
+  // — mismo criterio de "upsert por fecha" que usa el formulario completo del
+  // modal de progreso, pero sin abrir el modal ni depender de su estado local.
+  const handleQuickSaveWeight = async (planId: string) => {
+    const peso = parseFloat(quickWeightValue);
+    if (isNaN(peso) || peso <= 0) {
+      setQuickWeightNotice(dash(locale, "sidebarWeightError"));
+      return;
+    }
+    setQuickWeightSaving(true);
+    setQuickWeightNotice(null);
+    try {
+      const db = getDbSafe();
+      if (!db) throw new Error("no-db");
+      const fechaActual = new Date();
+      const año = fechaActual.getFullYear();
+      const mes = String(fechaActual.getMonth() + 1).padStart(2, "0");
+      const dia = String(fechaActual.getDate()).padStart(2, "0");
+      const fechaISO = `${año}-${mes}-${dia}`;
+
+      const planRef = doc(db, "planes", planId);
+      const planDoc = await getDoc(planRef);
+      const registrosActuales: RegistroPeso[] = planDoc.exists() ? planDoc.data().registrosPeso || [] : [];
+      const nuevoRegistro = { fecha: fechaISO, peso, timestamp: fechaActual };
+      const idx = registrosActuales.findIndex((r) => r.fecha === fechaISO);
+      const registrosActualizados =
+        idx >= 0
+          ? registrosActuales.map((r, i) => (i === idx ? nuevoRegistro : r))
+          : [...registrosActuales, nuevoRegistro];
+
+      await updateDoc(planRef, { registrosPeso: registrosActualizados, updatedAt: serverTimestamp() });
+      setQuickWeightValue("");
+      setQuickWeightNotice(dash(locale, "sidebarWeightSaved"));
+    } catch (err) {
+      console.error("Error al guardar peso rápido:", err);
+      setQuickWeightNotice(dash(locale, "sidebarWeightError"));
+    } finally {
+      setQuickWeightSaving(false);
     }
   };
 
@@ -383,6 +430,13 @@ export default function Dashboard() {
     return Math.max(0, Math.ceil(remaining)); // Redondear hacia arriba para mostrar días completos restantes
   };
 
+  // Jerarquía de la reestructuración (DESIGN_SYSTEM.md §13.2): el plan activo
+  // es el más reciente no completado (o el único, para la mayoría de usuarios)
+  // — el resto es historial de referencia, no la tarea principal.
+  const activePlan = plans.find((p) => !p.completado) ?? plans[0] ?? null;
+  const otherPlans = activePlan ? plans.filter((p) => p.id !== activePlan.id) : [];
+  const hasOtherPlans = otherPlans.length > 0;
+
   if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -408,188 +462,251 @@ export default function Dashboard() {
         <meta property="og:url" content="https://www.fitplan-ai.com/dashboard" />
       </Head>
       <Navbar />
-      <div className="relative z-[1] px-3 py-6 sm:px-5 sm:py-10 md:px-8 max-w-full overflow-x-hidden">
+      {/* Padding inferior reservado para la tab bar de cliente de DESIGN_SYSTEM.md
+          §11.4-B (todavía no implementada) — mismo mecanismo de variable CSS
+          medida que ya usa AdminShell.tsx para `--admin-bottom-nav-h` (ver
+          globals.css). Hasta que esa barra publique `--client-bottom-nav-h`
+          con ResizeObserver, se usa el fallback de 4rem. Solo aplica en mobile
+          (`< lg`), que es donde vivirá esa barra fija. */}
+      <div className="relative z-[1] px-3 py-6 pb-[calc(var(--client-bottom-nav-h,4rem)+env(safe-area-inset-bottom))] sm:px-5 sm:py-10 md:px-8 lg:pb-10 max-w-full overflow-x-hidden">
         <div className="mx-auto max-w-6xl w-full">
           {cacheNotice ? (
             <div className="mb-4 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
               {cacheNotice}
             </div>
           ) : null}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-            className="relative"
-          >
+          {/* Nunca `initial: { opacity: 0 }` (DESIGN_SYSTEM.md §12) — anima solo posición. */}
+          <motion.div initial={{ y: 16 }} animate={{ y: 0 }} transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }} className="relative">
             <div className="relative w-full overflow-x-hidden">
-            <header className="mb-8 sm:mb-10">
-              <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-                <div className="min-w-0 max-w-2xl">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--landing-muted)]">FitPlan</p>
-                  <h1 className="font-display mt-1 text-3xl font-bold tracking-tight text-[var(--foreground)] sm:text-4xl">
-                    {dash(locale, "heading")}
-                  </h1>
-                  <p className="mt-2 text-sm leading-relaxed text-[var(--landing-muted)] sm:text-base">
-                    {dash(locale, "subtitle")}
-                  </p>
-                </div>
-                <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
-                  {personalTrainerAssigned ? (
-                    <button
-                      type="button"
-                      onClick={() => window.open(trainerWhatsappUrl, "_blank", "noopener,noreferrer")}
-                      aria-label={dash(locale, "contactTrainer")}
-                      title={dash(locale, "contactTrainer")}
-                      className="group inline-flex max-w-full items-center justify-center gap-2 rounded-xl border border-[color-mix(in_oklab,var(--brand-end)_40%,transparent)] bg-[color-mix(in_oklab,var(--brand-end)_14%,transparent)] px-4 py-2.5 text-sm font-medium text-[var(--foreground)] shadow-[0_8px_28px_-12px_color-mix(in_oklab,var(--brand-end)_50%,transparent)] transition-all hover:bg-[color-mix(in_oklab,var(--brand-end)_20%,transparent)] sm:gap-0 sm:px-3 sm:py-2.5 sm:hover:gap-2 sm:hover:px-4"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                        className="h-4 w-4 shrink-0 opacity-90"
-                        aria-hidden
-                      >
-                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-                      </svg>
-                      <span className="whitespace-nowrap max-sm:inline sm:inline-block sm:max-w-0 sm:overflow-hidden sm:opacity-0 sm:transition-[max-width,opacity] sm:duration-200 sm:ease-out sm:group-hover:max-w-[min(18rem,calc(100vw-6rem))] sm:group-hover:opacity-100 sm:group-focus-within:max-w-[min(18rem,calc(100vw-6rem))] sm:group-focus-within:opacity-100">
-                        {dash(locale, "contactTrainer")}
-                      </span>
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setPersonalTrainerModalOpen(true)}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-[color-mix(in_oklab,var(--landing-accent)_45%,transparent)] bg-[color-mix(in_oklab,var(--landing-accent)_16%,transparent)] px-4 py-2.5 text-sm font-medium text-[var(--foreground)] transition hover:bg-[color-mix(in_oklab,var(--landing-accent)_24%,transparent)]"
-                    >
-                      {dash(locale, "requestTrainer")}
-                    </button>
-                  )}
-                </div>
-              </div>
+              {/* Header mínimo — sin CTAs compitiendo (DESIGN_SYSTEM.md §13.2-A) */}
+              <header className="mb-6 sm:mb-8">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-text-subtle">FitPlan</p>
+                <h1 className="font-display mt-1 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+                  {dash(locale, "heading")}
+                </h1>
+                <p className="mt-1 text-sm text-text-muted sm:text-base">{dash(locale, "subtitle")}</p>
+              </header>
 
               {personalTrainerNotice && (
-                <div className="mt-6 rounded-2xl border border-[color-mix(in_oklab,var(--brand-end)_30%,transparent)] bg-[color-mix(in_oklab,var(--brand-end)_10%,transparent)] px-4 py-3 text-sm leading-relaxed text-[var(--foreground)] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-                  <span className="mr-2 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--brand-end)] shadow-[0_0_10px_color-mix(in_oklab,var(--brand-end)_80%,transparent)]" aria-hidden />
+                <div className="mb-6 rounded-2xl border border-success/30 bg-success/10 px-4 py-3 text-sm leading-relaxed text-foreground">
                   {personalTrainerNotice}
                 </div>
               )}
 
-              <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-                {!isPremium && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!authUser) {
-                        alert(dash(locale, "registerPremium"));
-                        return;
-                      }
-                      setPremiumModalOpen(true);
-                    }}
-                    disabled={processingPayment}
-                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[var(--brand-start)] via-[var(--brand-mid)] to-[var(--brand-end)] px-5 py-2.5 text-sm font-semibold text-accent-ink shadow-[0_12px_36px_-16px_color-mix(in_oklab,var(--brand-mid)_55%,transparent)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                      className="h-4 w-4 shrink-0 opacity-95"
-                    >
-                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                    </svg>
-                    {dash(locale, "premium")}
+              {error && (
+                <div className="mb-6 rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
+                  {error}
+                </div>
+              )}
+
+              {plans.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-border bg-surface px-6 py-14 text-center">
+                  <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-surface-2 ring-1 ring-border">
+                    <span className="text-4xl" aria-hidden>
+                      📋
+                    </span>
+                  </div>
+                  <h2 className="font-display text-xl font-semibold text-foreground">{dash(locale, "noPlansTitle")}</h2>
+                  <p className="mx-auto mt-2 max-w-md text-sm text-text-muted">{dash(locale, "noPlansBody")}</p>
+                  <button type="button" onClick={handleCreateNew} className="btn btn-primary mx-auto mt-8">
+                    {dash(locale, "createFirst")}
                   </button>
-                )}
-                {!isPremium && plans.length >= 1 ? (
-                  <div className="group relative flex-1 sm:flex-none">
-                    <button
-                      type="button"
-                      disabled
-                      className="w-full rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] px-5 py-2.5 text-sm font-medium text-[var(--landing-muted)] opacity-60 sm:w-auto"
-                    >
-                      {dash(locale, "newPlan")}
-                    </button>
-                    <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 -translate-x-1/2 rounded-lg border border-warning/25 bg-[color-mix(in_oklab,#0f172a_95%,black)] px-3 py-2 text-xs text-[color-mix(in_oklab,var(--warning)_60%,var(--foreground))] opacity-0 shadow-xl transition-opacity group-hover:opacity-100">
-                      {dash(locale, "newPlanLocked")}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_320px] lg:gap-6">
+                  {/* Columna principal (DESIGN_SYSTEM.md §13.3) */}
+                  <div className="flex flex-col gap-5">
+                    {activePlan && (
+                      <DashboardPlanHero
+                        plan={activePlan}
+                        locale={locale}
+                        onOpenPlan={() => handlePlanClick(activePlan)}
+                        onProgressClick={(e) => {
+                          e.stopPropagation();
+                          setPlanForProgress(activePlan);
+                          setProgressModalOpen(true);
+                        }}
+                        onContinuityClick={(e) => {
+                          e.stopPropagation();
+                          setPlanForContinuity(activePlan);
+                          setContinuityModalOpen(true);
+                        }}
+                        calculateProgress={calculateProgress}
+                        calculateDaysRemaining={calculateDaysRemaining}
+                      />
+                    )}
+
+                    {/* Acciones rápidas — visibles siempre, con más presencia en mobile (§13.3) */}
+                    {activePlan && (
+                      <div className="grid grid-cols-2 gap-3 lg:hidden">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPlanForProgress(activePlan);
+                            setProgressModalOpen(true);
+                          }}
+                          className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/30"
+                        >
+                          {dash(locale, "cardOpenProgress")}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPlanForProgress(activePlan);
+                            setProgressModalOpen(true);
+                          }}
+                          className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/30"
+                        >
+                          {dash(locale, "quickActionWeight")}
+                        </button>
+                      </div>
+                    )}
+
+                    {(hasOtherPlans || isPremium) && (
+                      <section className="card-surface p-4 sm:p-5">
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-text-subtle">
+                            {dash(locale, "otherPlansTitle")}
+                          </p>
+                          {isPremium && (
+                            <button type="button" onClick={handleCreateNew} className="btn btn-secondary px-3 py-1.5 text-xs">
+                              {dash(locale, "newPlanShort")}
+                            </button>
+                          )}
+                        </div>
+                        {hasOtherPlans ? (
+                          <div className="divide-y divide-border">
+                            {otherPlans.map((plan) => (
+                              <DashboardPlanRow
+                                key={plan.id}
+                                plan={plan}
+                                locale={locale}
+                                isPremium={isPremium}
+                                onRowClick={() => handlePlanClick(plan)}
+                                onDeleteClick={(e) => handleDeleteClick(e, plan)}
+                                calculateProgress={calculateProgress}
+                              />
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-text-muted">{dash(locale, "otherPlansEmpty")}</p>
+                        )}
+                      </section>
+                    )}
+
+                    {/* Franja de upsell — al final, no compite con el contenido principal (§13.2-D) */}
+                    {!isPremium && (
+                      <section className="card-surface flex flex-col items-start justify-between gap-3 p-4 sm:flex-row sm:items-center sm:p-5">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/12 text-accent">
+                            <FaCrown className="h-4 w-4" aria-hidden />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-foreground">{dash(locale, "upsellPremiumTitle")}</p>
+                            <p className="text-xs text-text-muted">{dash(locale, "upsellPremiumBody")}</p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!authUser) {
+                              alert(dash(locale, "registerPremium"));
+                              return;
+                            }
+                            setPremiumModalOpen(true);
+                          }}
+                          disabled={processingPayment}
+                          className="btn btn-primary w-full sm:w-auto"
+                        >
+                          {dash(locale, "viewPremiumPlans")}
+                        </button>
+                      </section>
+                    )}
+
+                    {/* Enlace secundario a entrenador personal — no compite con el hero (§13.3) */}
+                    <div className="lg:hidden">
+                      {personalTrainerAssigned ? (
+                        <button
+                          type="button"
+                          onClick={() => window.open(trainerWhatsappUrl, "_blank", "noopener,noreferrer")}
+                          className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-surface px-4 py-3 text-xs font-medium text-text-muted transition hover:border-accent/30 hover:text-foreground"
+                        >
+                          <FaUserFriends className="h-3.5 w-3.5" aria-hidden />
+                          {dash(locale, "contactTrainer")}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setPersonalTrainerModalOpen(true)}
+                          className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-surface px-4 py-3 text-xs font-medium text-text-muted transition hover:border-accent/30 hover:text-foreground"
+                        >
+                          <FaUserFriends className="h-3.5 w-3.5" aria-hidden />
+                          {dash(locale, "requestTrainer")}
+                        </button>
+                      )}
                     </div>
                   </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleCreateNew}
-                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[var(--brand-start)] via-[var(--brand-mid)] to-[var(--brand-end)] px-5 py-2.5 text-sm font-semibold text-accent-ink shadow-[0_12px_40px_-18px_color-mix(in_oklab,var(--brand-mid)_50%,transparent)] transition hover:brightness-110 sm:flex-none"
-                  >
-                    {dash(locale, "newPlan")}
-                  </button>
-                )}
-              </div>
-            </header>
 
-            {error && (
-              <div className="mb-8 rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
-                {error}
-              </div>
-            )}
-
-            {plans.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--foreground)_3%,transparent)] px-6 py-14 text-center">
-                <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--landing-surface)] ring-1 ring-[var(--landing-border)]">
-                  <span className="text-4xl" aria-hidden>
-                    📋
-                  </span>
+                  {/* Sidebar — solo desktop, usa el ancho que mobile no tiene (§13.3) */}
+                  <aside className="hidden flex-col gap-4 lg:flex">
+                    {!isPremium && (
+                      <SidebarCard icon={<FaCrown className="h-4 w-4" aria-hidden />} title={dash(locale, "upsellPremiumTitle")} body={dash(locale, "upsellPremiumBody")}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!authUser) {
+                              alert(dash(locale, "registerPremium"));
+                              return;
+                            }
+                            setPremiumModalOpen(true);
+                          }}
+                          className="btn btn-primary mt-3 w-full"
+                        >
+                          {dash(locale, "viewPremiumPlans")}
+                        </button>
+                      </SidebarCard>
+                    )}
+                    {activePlan && (
+                      <SidebarCard icon={<FaWeight className="h-4 w-4" aria-hidden />} title={dash(locale, "sidebarWeightTitle")} body={dash(locale, "sidebarWeightBody")}>
+                        <div className="mt-3 flex gap-2">
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={quickWeightValue}
+                            onChange={(e) => setQuickWeightValue(e.target.value)}
+                            placeholder="kg"
+                            className="min-w-0 flex-1 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground placeholder:text-text-subtle focus:outline-none focus:ring-2 focus:ring-accent/40"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleQuickSaveWeight(activePlan.id)}
+                            disabled={quickWeightSaving}
+                            className="btn btn-secondary shrink-0 px-3"
+                          >
+                            {quickWeightSaving ? dash(locale, "progressSaving") : dash(locale, "progressSave")}
+                          </button>
+                        </div>
+                        {quickWeightNotice && <p className="mt-2 text-xs text-text-muted">{quickWeightNotice}</p>}
+                      </SidebarCard>
+                    )}
+                    <SidebarCard icon={<FaUserFriends className="h-4 w-4" aria-hidden />} title={dash(locale, "sidebarTrainerTitle")} body={dash(locale, "sidebarTrainerBody")}>
+                      {personalTrainerAssigned ? (
+                        <button
+                          type="button"
+                          onClick={() => window.open(trainerWhatsappUrl, "_blank", "noopener,noreferrer")}
+                          className="btn btn-secondary mt-3 w-full"
+                        >
+                          {dash(locale, "sidebarTrainerContact")}
+                        </button>
+                      ) : (
+                        <button type="button" onClick={() => setPersonalTrainerModalOpen(true)} className="btn btn-secondary mt-3 w-full">
+                          {dash(locale, "sidebarTrainerRequest")}
+                        </button>
+                      )}
+                    </SidebarCard>
+                  </aside>
                 </div>
-                <h2 className="font-display text-xl font-semibold text-[var(--foreground)]">{dash(locale, "noPlansTitle")}</h2>
-                <p className="mx-auto mt-2 max-w-md text-sm text-[var(--landing-muted)]">{dash(locale, "noPlansBody")}</p>
-                <button
-                  type="button"
-                  onClick={handleCreateNew}
-                  className="mt-8 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[var(--brand-start)] via-[var(--brand-mid)] to-[var(--brand-end)] px-6 py-3 text-sm font-semibold text-accent-ink shadow-lg transition hover:brightness-110"
-                >
-                  {dash(locale, "createFirst")}
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3 lg:gap-6">
-                {plans.map((plan) => {
-                  const phase = plan.planMultiFase?.faseActual;
-                  const accentBar =
-                    plan.isOldest
-                      ? "bg-gradient-to-r from-[color-mix(in_oklab,var(--foreground)_40%,transparent)] via-[color-mix(in_oklab,var(--foreground)_28%,transparent)] to-[color-mix(in_oklab,var(--info)_80%,transparent)]"
-                      : phase === "BULK"
-                        ? "bg-gradient-to-r from-[var(--phase-bulk)] to-[color-mix(in_oklab,var(--phase-bulk)_70%,white)]"
-                        : phase === "CUT"
-                          ? "bg-gradient-to-r from-[var(--phase-cut)] to-[color-mix(in_oklab,var(--phase-cut)_70%,white)]"
-                          : phase === "LEAN_BULK"
-                            ? "bg-gradient-to-r from-[var(--phase-lean-bulk)] to-[color-mix(in_oklab,var(--phase-lean-bulk)_70%,white)]"
-                            : phase === "MANTENIMIENTO"
-                              ? "bg-gradient-to-r from-[var(--phase-maintenance)] to-[color-mix(in_oklab,var(--phase-maintenance)_70%,white)]"
-                              : "bg-gradient-to-r from-[var(--brand-start)] via-[var(--brand-mid)] to-[var(--brand-end)]";
-
-                  return (
-                    <DashboardPlanCard
-                      key={plan.id}
-                      plan={plan}
-                      locale={locale}
-                      isPremium={isPremium}
-                      accentBar={accentBar}
-                      onCardClick={() => handlePlanClick(plan)}
-                      onProgressClick={(e) => {
-                        e.stopPropagation();
-                        setPlanForProgress(plan);
-                        setProgressModalOpen(true);
-                      }}
-                      onDeleteClick={(e) => handleDeleteClick(e, plan)}
-                      calculateProgress={calculateProgress}
-                      calculateDaysRemaining={calculateDaysRemaining}
-                      onContinuityClick={(e) => {
-                        e.stopPropagation();
-                        setPlanForContinuity(plan);
-                        setContinuityModalOpen(true);
-                      }}
-                    />
-                  );
-                })}
-              </div>
-            )}
+              )}
             </div>
           </motion.div>
         </div>
@@ -602,23 +719,19 @@ export default function Dashboard() {
             <>
               {/* Backdrop */}
               <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
+                {...MODAL_BACKDROP_MOTION}
                 onClick={handleCancelDelete}
-                className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9999]"
+                className={`${MODAL_BACKDROP_CLASS} z-[9999]`}
               />
-              
+
               {/* Modal */}
-              <div 
+              <div
                 className="pointer-events-none fixed inset-0 z-[10000] flex items-center justify-center p-4"
               >
                 <motion.div
-                  initial={{ scale: 0.9, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.9, opacity: 0 }}
+                  {...MODAL_PANEL_MOTION}
                   onClick={(e) => e.stopPropagation()}
-                  className="pointer-events-auto w-full max-w-md rounded-xl border border-white/10 bg-black/95 p-6 shadow-2xl"
+                  className={`pointer-events-auto w-full max-w-md p-6 ${MODAL_PANEL_CLASS}`}
                 >
                   <div className="mb-4">
                     <div className="flex items-center justify-center w-12 h-12 rounded-full bg-danger/20 mb-4 mx-auto">
@@ -673,20 +786,15 @@ export default function Dashboard() {
           {progressModalOpen && planForProgress && (
             <>
               <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
+                {...MODAL_BACKDROP_MOTION}
                 onClick={() => setProgressModalOpen(false)}
-                className="fixed inset-0 z-[9999] bg-black/75 backdrop-blur-md"
+                className={`${MODAL_BACKDROP_CLASS} z-[9999]`}
               />
               <div className="pointer-events-none fixed inset-0 z-[10000] flex items-center justify-center p-3 sm:p-4">
                 <motion.div
-                  initial={{ scale: 0.96, opacity: 0, y: 14 }}
-                  animate={{ scale: 1, opacity: 1, y: 0 }}
-                  exit={{ scale: 0.96, opacity: 0, y: 14 }}
-                  transition={{ type: "spring", damping: 26, stiffness: 320 }}
+                  {...MODAL_PANEL_MOTION}
                   onClick={(e) => e.stopPropagation()}
-                  className="pointer-events-auto flex max-h-[min(92vh,calc(100vh-2rem))] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--background)_86%,#0a0f18)] shadow-[0_40px_100px_-36px_rgba(0,0,0,0.9)] ring-1 ring-[color-mix(in_oklab,var(--foreground)_5%,transparent)]"
+                  className={`pointer-events-auto flex max-h-[min(92vh,calc(100vh-2rem))] w-full max-w-4xl flex-col overflow-hidden ${MODAL_PANEL_CLASS}`}
                 >
                   <div
                     className="pointer-events-none absolute inset-0 opacity-[0.4]"
@@ -725,20 +833,15 @@ export default function Dashboard() {
           {freeExpiredModalOpen && (
             <>
               <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[10001] bg-black/75 backdrop-blur-md"
+                {...MODAL_BACKDROP_MOTION}
+                className={`${MODAL_BACKDROP_CLASS} z-[10001]`}
                 onClick={() => setFreeExpiredModalOpen(false)}
               />
               <div className="pointer-events-none fixed inset-0 z-[10002] flex items-center justify-center p-3 sm:p-4">
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.96, y: 16 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.96, y: 16 }}
-                  transition={{ type: "spring", damping: 26, stiffness: 320 }}
+                  {...MODAL_PANEL_MOTION}
                   onClick={(e) => e.stopPropagation()}
-                  className="pointer-events-auto relative w-full max-w-lg overflow-hidden rounded-2xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--background)_88%,#0a0f18)] shadow-[0_40px_100px_-40px_rgba(0,0,0,0.92)] ring-1 ring-[color-mix(in_oklab,var(--foreground)_6%,transparent)]"
+                  className={`pointer-events-auto relative w-full max-w-lg overflow-hidden ${MODAL_PANEL_CLASS}`}
                 >
                   <div
                     className="pointer-events-none absolute inset-0 opacity-[0.5]"
@@ -789,7 +892,7 @@ export default function Dashboard() {
                           setFreeExpiredModalOpen(false);
                           setPremiumModalOpen(true);
                         }}
-                        className="order-1 rounded-xl bg-gradient-to-r from-[var(--brand-start)] via-[var(--brand-mid)] to-[var(--brand-end)] px-5 py-2.5 text-sm font-semibold text-accent-ink shadow-[0_14px_40px_-18px_color-mix(in_oklab,var(--brand-mid)_55%,transparent)] transition hover:brightness-110 sm:order-2"
+                        className="btn btn-primary order-1 sm:order-2"
                       >
                         {dash(locale, "viewPremiumPlans")}
                       </button>
@@ -831,23 +934,17 @@ export default function Dashboard() {
         {personalTrainerModalOpen && (
           <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4">
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+              {...MODAL_BACKDROP_MOTION}
+              className={MODAL_BACKDROP_CLASS}
               onClick={() => setPersonalTrainerModalOpen(false)}
             />
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 12 }}
-              className="relative z-10 w-full max-w-3xl rounded-2xl border border-[var(--landing-border)] bg-[var(--background)] p-4 shadow-[0_24px_80px_-32px_rgba(0,0,0,0.85)] ring-1 ring-[color-mix(in_oklab,var(--foreground)_6%,transparent)] sm:p-6"
+              {...MODAL_PANEL_MOTION}
+              className={`relative z-10 w-full max-w-3xl p-4 sm:p-6 ${MODAL_PANEL_CLASS}`}
             >
               <div className="mb-4 flex items-start justify-between gap-3 border-b border-[var(--landing-border)] pb-4">
                 <div>
-                  <span className="inline-flex rounded-full border border-[color-mix(in_oklab,var(--brand-end)_45%,transparent)] bg-[color-mix(in_oklab,var(--brand-end)_15%,transparent)] px-2.5 py-1 text-[11px] font-medium text-[var(--foreground)]">
-                    Soporte humano
-                  </span>
+                  <span className="badge badge-info">Soporte humano</span>
                   <h2 className="font-display mt-2 text-lg font-semibold text-[var(--foreground)] sm:text-xl">{dash(locale, "ptModalTitle")}</h2>
                   <p className="mt-2 text-sm text-[var(--landing-muted)]">{dash(locale, "ptModalBody")}</p>
                 </div>
@@ -872,15 +969,13 @@ export default function Dashboard() {
                     onClick={() => setTrainerPreference("hombre")}
                     className={`rounded-xl border p-4 text-left transition-all ${
                       trainerPreference === "hombre"
-                        ? "border-[color-mix(in_oklab,var(--brand-end)_50%,transparent)] bg-[color-mix(in_oklab,var(--brand-end)_15%,transparent)] shadow-[0_10px_28px_-16px_rgba(16,185,129,0.45)]"
+                        ? "border-accent/50 bg-accent/15 shadow-[0_10px_28px_-16px_color-mix(in_oklab,var(--accent)_50%,transparent)]"
                         : "border-[var(--landing-border)] bg-[var(--landing-surface)] hover:bg-[var(--landing-surface-2)]"
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <p className="text-sm font-semibold text-[var(--foreground)]">{dash(locale, "ptMaleTitle")}</p>
-                      <span className="rounded-full border border-[color-mix(in_oklab,var(--brand-end)_45%,transparent)] bg-[color-mix(in_oklab,var(--brand-end)_15%,transparent)] px-2 py-0.5 text-[11px] text-[var(--foreground)]">
-                        {dash(locale, "ptMaleBadge")}
-                      </span>
+                      <span className="badge badge-neutral">{dash(locale, "ptMaleBadge")}</span>
                     </div>
                     <p className="mt-2 text-xs text-[var(--landing-muted)]">{dash(locale, "ptMaleDesc")}</p>
                   </button>
@@ -889,15 +984,13 @@ export default function Dashboard() {
                     onClick={() => setTrainerPreference("mujer")}
                     className={`rounded-xl border p-4 text-left transition-all ${
                       trainerPreference === "mujer"
-                        ? "border-[color-mix(in_oklab,var(--landing-accent)_50%,transparent)] bg-[color-mix(in_oklab,var(--landing-accent)_16%,transparent)] shadow-[0_10px_28px_-16px_color-mix(in_oklab,var(--landing-accent)_50%,transparent)]"
+                        ? "border-accent/50 bg-accent/15 shadow-[0_10px_28px_-16px_color-mix(in_oklab,var(--accent)_50%,transparent)]"
                         : "border-[var(--landing-border)] bg-[var(--landing-surface)] hover:bg-[var(--landing-surface-2)]"
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <p className="text-sm font-semibold text-[var(--foreground)]">{dash(locale, "ptFemaleTitle")}</p>
-                      <span className="rounded-full border border-[color-mix(in_oklab,var(--landing-accent)_45%,transparent)] bg-[color-mix(in_oklab,var(--landing-accent)_15%,transparent)] px-2 py-0.5 text-[11px] text-[var(--foreground)]">
-                        {dash(locale, "ptFemaleBadge")}
-                      </span>
+                      <span className="badge badge-neutral">{dash(locale, "ptFemaleBadge")}</span>
                     </div>
                     <p className="mt-2 text-xs text-[var(--landing-muted)]">{dash(locale, "ptFemaleDesc")}</p>
                   </button>
@@ -930,7 +1023,7 @@ export default function Dashboard() {
                   type="button"
                   onClick={handleRequestPersonalTrainer}
                   disabled={personalTrainerLoading || !trainerPreference}
-                  className="flex-1 rounded-xl bg-gradient-to-r from-[var(--brand-start)] to-[var(--brand-end)] px-4 py-2 text-sm font-medium text-accent-ink transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="btn btn-primary flex-1"
                 >
                   {personalTrainerLoading ? dash(locale, "ptProcessing") : dash(locale, "ptYesWant")}
                 </button>
@@ -939,6 +1032,30 @@ export default function Dashboard() {
           </div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+/** Tarjeta corta de la sidebar de desktop (DESIGN_SYSTEM.md §13.3) — premium / registrar peso / entrenador. */
+function SidebarCard({
+  icon,
+  title,
+  body,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  body: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="card-surface p-4">
+      <div className="flex items-center gap-2 text-accent">
+        {icon}
+        <p className="text-sm font-semibold text-foreground">{title}</p>
+      </div>
+      <p className="mt-1.5 text-xs text-text-muted">{body}</p>
+      {children}
     </div>
   );
 }
@@ -1489,6 +1606,23 @@ function ProgressModalContent({ plan, onClose, locale }: { plan: SavedPlan; onCl
       : Number(planData?.duracion_plan_dias) || 30;
   const pct = Math.min(100, Math.max(0, progresoPlan.porcentaje));
 
+  // Consolidación del modal de progreso (DESIGN_SYSTEM.md §13.4-A): antes había
+  // una segunda caja "% del plan" que repetía el mismo número que ya muestra el
+  // centro del anillo — se elimina y se deja una sola caja de estado con el
+  // dato que el anillo no cubre (peso inicial → actual).
+  const pesoInicial = typeof user?.pesoKg === "number" ? user.pesoKg : Number(user?.pesoKg) || 0;
+  const ultimoRegistro =
+    registrosPeso.length > 0 ? [...registrosPeso].sort((a, b) => b.fecha.localeCompare(a.fecha))[0] : null;
+  const pesoActual = ultimoRegistro ? ultimoRegistro.peso : pesoInicial;
+  const deltaPeso = pesoActual - pesoInicial;
+  const objetivoPlan = user?.objetivo || "mantener";
+  const deltaEsPositivo =
+    objetivoPlan === "ganar_masa" || objetivoPlan === "volumen"
+      ? deltaPeso > 0
+      : objetivoPlan === "perder_grasa" || objetivoPlan === "corte"
+        ? deltaPeso < 0
+        : Math.abs(deltaPeso) < 1;
+
   return (
     <div className="relative px-5 pb-6 pt-5 sm:px-7 sm:pb-8 sm:pt-6">
       {syncNotice ? (
@@ -1555,21 +1689,19 @@ function ProgressModalContent({ plan, onClose, locale }: { plan: SavedPlan; onCl
             </p>
           </div>
         </div>
-        <div className="grid flex-1 grid-cols-2 gap-3 sm:max-w-md">
-          <div className="rounded-xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--foreground)_4%,transparent)] px-3 py-2.5">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--landing-muted)]">
-              {dash(locale, "progressInitialWeight")}
-            </p>
-            <p className="font-display mt-0.5 text-sm font-semibold text-[var(--foreground)]">
-              {typeof user?.pesoKg === "number" ? user.pesoKg : Number(user?.pesoKg) || 0} kg
-            </p>
-          </div>
-          <div className="rounded-xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--foreground)_4%,transparent)] px-3 py-2.5">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--landing-muted)]">
-              {dash(locale, "progressPlanPercent")}
-            </p>
-            <p className="font-display mt-0.5 text-sm font-semibold text-[var(--foreground)]">{pct.toFixed(0)}%</p>
-          </div>
+        <div className="flex-1 rounded-xl border border-border bg-surface-2 px-4 py-3 sm:max-w-md">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-text-subtle">
+            {dash(locale, "progressWeightInitialToCurrent")}
+          </p>
+          <p className="font-display mt-0.5 text-sm font-semibold text-foreground">
+            {pesoInicial} kg{" "}
+            {registrosPeso.length > 0 && (
+              <span className={deltaEsPositivo ? "text-success" : "text-warning"}>
+                → {pesoActual} kg ({deltaPeso > 0 ? "+" : ""}
+                {deltaPeso.toFixed(1)} kg)
+              </span>
+            )}
+          </p>
         </div>
       </div>
 
@@ -1603,12 +1735,7 @@ function ProgressModalContent({ plan, onClose, locale }: { plan: SavedPlan; onCl
                   }
                 }}
               />
-              <button
-                type="button"
-                onClick={handleGuardarPeso}
-                disabled={guardando}
-                className="shrink-0 rounded-xl bg-gradient-to-r from-[var(--brand-start)] via-[var(--brand-mid)] to-[var(--brand-end)] px-5 py-2.5 text-sm font-semibold text-accent-ink shadow-[0_10px_32px_-16px_color-mix(in_oklab,var(--brand-mid)_45%,transparent)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-              >
+              <button type="button" onClick={handleGuardarPeso} disabled={guardando} className="btn btn-primary shrink-0">
                 {guardando ? dash(locale, "progressSaving") : dash(locale, "progressSave")}
               </button>
             </div>
@@ -1757,23 +1884,18 @@ function ProgressModalContent({ plan, onClose, locale }: { plan: SavedPlan; onCl
           <>
             {/* Backdrop */}
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+              {...MODAL_BACKDROP_MOTION}
               onClick={() => {
                 setMostrarConfirmacion(false);
                 setRegistroAEliminar(null);
               }}
-              className="fixed inset-0 z-[10001] bg-black/75 backdrop-blur-md"
+              className={`${MODAL_BACKDROP_CLASS} z-[10001]`}
             />
             <div className="pointer-events-none fixed inset-0 z-[10002] flex items-center justify-center p-3 sm:p-4">
               <motion.div
-                initial={{ scale: 0.96, opacity: 0, y: 10 }}
-                animate={{ scale: 1, opacity: 1, y: 0 }}
-                exit={{ scale: 0.96, opacity: 0, y: 10 }}
-                transition={{ type: "spring", damping: 26, stiffness: 360 }}
+                {...MODAL_PANEL_MOTION}
                 onClick={(e) => e.stopPropagation()}
-                className="pointer-events-auto w-full max-w-md overflow-hidden rounded-2xl border border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--background)_90%,#0a0f18)] p-6 shadow-[0_32px_80px_-36px_rgba(0,0,0,0.9)] ring-1 ring-[color-mix(in_oklab,var(--foreground)_6%,transparent)]"
+                className={`pointer-events-auto w-full max-w-md overflow-hidden p-6 ${MODAL_PANEL_CLASS}`}
               >
                 <div className="mb-4">
                   <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-danger/35 bg-danger/10">

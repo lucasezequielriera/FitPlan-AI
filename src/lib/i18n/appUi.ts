@@ -290,6 +290,33 @@ export const dashboardUi = {
   cardFooterHint: { es: "Pulsa para abrir el plan completo", en: "Tap to open your full plan" },
   cardOpenProgress: { es: "Progreso", en: "Progress" },
 
+  /** Dashboard — reestructuración DESIGN_SYSTEM.md §13 */
+  activePlanLabel: { es: "Plan activo", en: "Active plan" },
+  viewMyPlan: { es: "Ver mi plan", en: "View my plan" },
+  quickActionWeight: { es: "Registrar peso", en: "Log weight" },
+  otherPlansTitle: { es: "Otros planes", en: "Other plans" },
+  otherPlansEmpty: { es: "Todavía no tenés otros planes.", en: "You don't have other plans yet." },
+  newPlanShort: { es: "+ Nuevo plan", en: "+ New plan" },
+  noPhaseLabel: { es: "Sin fase", en: "No phase" },
+  upsellPremiumTitle: { es: "Hazte premium", en: "Go Premium" },
+  upsellPremiumBody: {
+    es: "Planes ilimitados y acceso completo a tu historial.",
+    en: "Unlimited plans and full access to your history.",
+  },
+  sidebarWeightTitle: { es: "Registrar peso", en: "Log weight" },
+  sidebarWeightBody: { es: "Carga rápida, sin abrir el detalle.", en: "Quick entry, no need to open the detail." },
+  sidebarWeightSaved: { es: "Peso guardado.", en: "Weight saved." },
+  sidebarWeightError: { es: "No se pudo guardar el peso.", en: "Could not save the weight." },
+  sidebarTrainerTitle: { es: "Entrenador personal", en: "Personal trainer" },
+  sidebarTrainerBody: {
+    es: "Soporte humano vía WhatsApp para tu plan.",
+    en: "Human support via WhatsApp for your plan.",
+  },
+  sidebarTrainerRequest: { es: "Solicitar", en: "Request" },
+  sidebarTrainerContact: { es: "Contactar", en: "Contact" },
+  daysRemainingShort: { es: "días restantes", en: "days left" },
+  progressWeightInitialToCurrent: { es: "Peso inicial → actual", en: "Starting → current weight" },
+
   /** Modal mensajes (UserMessagesModal) */
   msgBackList: { es: "Volver a la lista", en: "Back to list" },
   msgTitle: { es: "Mis mensajes", en: "My messages" },

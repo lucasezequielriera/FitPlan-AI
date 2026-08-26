@@ -512,3 +512,117 @@ Confirmado que se desbloqueó lo que el parche rompía: `position: sticky` vuelv
 **Restricción aparte, no relacionada con `overflow-x` pero igual de no-negociable:** no usar `initial: { opacity: 0 }` de framer-motion en contenido que se pinta sin interacción del usuario (hero, tarjetas de landing, cualquier cosa presente en el HTML servido por SSR). En build de producción ese estado inicial se serializa en el HTML del servidor; si la hidratación no llega a disparar la animación, el contenido queda invisible para siempre — es justo lo que rompió la landing la segunda vez. Animar solo posición (`y`, `x`, `scale`) o hacerlo con CSS puro (`@keyframes` + `prefers-reduced-motion`). Este patrón sigue vivo hoy en código de cliente real fuera de esta corrección — ver §11.1 punto 6 y §11.8 punto 4 (`Navbar.tsx`, pendiente de implementación de §11) — no se tocó acá por estar fuera del alcance de este fix, que es específicamente el de `overflow-x`.
 
 **No hace falta pedirle nada a `diseño` para este fix**: no cambia ningún token, color, ni patrón visual — es una corrección de layout puro sobre reglas ya existentes.
+
+## 13. Dashboard de cliente — reestructuración (decisión de `diseño`, fase de definición)
+
+Encargo de Lucas: reestructurar `src/pages/dashboard.tsx` y `src/components/dashboard/DashboardPlanCard.tsx`, **más los modales que abre** — nombrados explícitamente: "muchas cards juntas que no tenían sentido... incluidas las tablas y los modals". Partir de cero la organización de la información, no envolver la estructura vieja en el marco nuevo (antecedente del admin: primera pasada rechazada por hacer justo eso). Esta sección es la spec; **no implementada todavía**. Demo en `/dashboard-design-preview` (mismo patrón que `/design-preview`, `/admin-design-preview`, `/client-navbar-preview`), verificada con Chrome headless a 1440×900 y 390×844.
+
+### 13.1 Diagnóstico: qué hace hoy el dashboard y dónde está el desorden
+
+Auditados `dashboard.tsx` (1839 líneas, incluye el modal de progreso inline) y `DashboardPlanCard.tsx` (368 líneas), más `PremiumPlanModal.tsx` y `PlanContinuityModal.tsx` (los 2 modales "pesados" que abre, además de los 3 de confirmación/aviso ya inline en `dashboard.tsx`).
+
+**A. El header compite consigo mismo antes de mostrar nada del plan.** Antes de llegar a un solo dato del plan del usuario, la pantalla apila: saludo + subtítulo → botón "Contactar entrenador" o "Pedir entrenador personal" → aviso de entrenador asignado (condicional) → botón "Hazte premium" → botón "Nuevo plan" (o su versión deshabilitada con tooltip). Son hasta 3 CTAs de temas distintos (soporte humano, upsell, gestión de planes) en la misma fila visual, todos con el mismo peso, antes de que aparezca una sola tarjeta de plan. En mobile esto empuja el contenido real varias pantallas hacia abajo.
+
+**B. `DashboardPlanCard` es una tarjeta que intenta ser 7 cosas a la vez.** Por tarjeta: título + fecha, 2 botones de acción (progreso/eliminar), badge de fase, badge de dificultad, caja "de un vistazo" con objetivo/peso/calorías, aviso de lesiones adaptadas, bloque de progreso (simple o multi-fase con 2 barras), y footer "click para abrir". Ocho bloques de información con el mismo peso visual, repetidos sin jerarquía interna — y ese mismo tratamiento "todo incluido" se repite en una grilla para **cada** plan que tenga el usuario (hasta 20). Es exactamente "muchas cards juntas que no tenían sentido y ocupaban lugar": un usuario premium con 3-4 planes ve 3-4 tarjetas igual de densas compitiendo por atención, sin que quede claro cuál es el plan que está usando hoy.
+
+**C. No hay jerarquía entre "mi plan activo" y "mis planes anteriores".** El grid trata todos los planes igual (mismo tamaño de tarjeta, mismo detalle), cuando en la práctica hay uno solo relevante para "qué hago hoy" y el resto es historial. Esto es la causa raíz de B, no solo sobredimensión de la tarjeta.
+
+**D. El modal de progreso duplica su propio dato.** Muestra un anillo grande con el % de avance del plan, y al lado 2 cajas más ("Peso inicial", "% del plan") donde la segunda repite el número que ya está en el centro del anillo. Debajo, formulario de carga de peso + historial de registros, y a la derecha (en desktop) un gráfico de barras con los últimos 6 registros — funcionalmente correcto, pero con una caja de información redundante que no aporta nada nuevo.
+
+**E. `PremiumPlanModal.tsx` tiene una tabla HTML real** (`<table>`, línea 403) para comparar planes — lo que Lucas nombró explícitamente como "las tablas" a sacar. Vive arriba de una grilla de tarjetas de planes que sí sigue un patrón correcto (`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3`) — la tabla es información redundante con esas tarjetas, no complementaria.
+
+**F. `PlanContinuityModal.tsx` es una sucesión de tarjetas-dentro-de-tarjetas.** Cada grupo de 2 campos relacionados (`grid grid-cols-1 sm:grid-cols-2`) vive en su propia caja `rounded-2xl border`, y esas cajas se apilan una tras otra durante todo el wizard — mismo síntoma que B pero en formato formulario en vez de tarjeta de resumen.
+
+**G. El chrome de los modales no es consistente entre sí.** Los 6 modales que vive dentro de este alcance (eliminar plan, progreso, premium expirado, continuidad, entrenador personal, y los internos de confirmación) usan cada uno su propia combinación de `border`/`shadow`/`color-mix` de fondo, ligeramente distinta entre sí — ninguno reutiliza literalmente el mismo backdrop/panel que otro. No es un problema de tokens (todos usan tokens válidos), es falta de un patrón de "shell de modal" único, igual que el problema que tenían los headers del admin antes de §7.3-B.
+
+**H. Viola la regla nueva de motion.** `dashboard.tsx` usa `initial={{ opacity: 0, ... }}` en el `motion.div` del contenido principal (línea 419) y en **todos** los backdrops/paneles de sus 5 modales inline — el mismo patrón que ya rompió la landing dos veces y que se prohibió hoy. `DashboardPlanCard.tsx` también lo usa en su propio `motion.div` (línea 85) y en el botón "Preparar continuidad" (línea 259). Esto hay que corregirlo exista o no la reestructuración completa.
+
+### 13.2 La decisión central: qué ve primero el usuario, y por qué
+
+El dashboard hoy se organiza como **un gestor de planes** (una grilla igual de densa para todos los planes que el usuario tenga). Pero el caso de uso real, la mayoría de las veces que alguien abre `/dashboard`, es **"¿cómo va mi plan activo y cómo entro a entrenar hoy"** — no "quiero comparar mis 4 planes". Con `Navbar.tsx` ya rediseñado en §11 como hub de navegación (dashboard = "Inicio"), el dashboard no necesita seguir cargando con toda la responsabilidad de gestión de planes con el mismo peso que la de mostrar el estado actual.
+
+**Jerarquía elegida, de mayor a menor prioridad:**
+1. **Plan activo** — el más reciente no completado (o el único, para el ~80% de usuarios que tiene uno solo). Tratamiento de "hero": nombre, fase/progreso, y **un solo** CTA primario ("Ver mi plan" → `/plan`, que es donde realmente se entrena/registra). Es la respuesta directa a "qué hago hoy".
+2. **Acciones rápidas ligadas al plan activo** — registrar peso, ver progreso detallado. Ligadas visualmente al hero, no sueltas en el header.
+3. **Otros planes** (si hay más de uno — típicamente solo premium) — lista compacta, no tarjetas completas. Es historial de referencia, no la tarea principal.
+4. **Todo lo demás** (upsell a premium, entrenador personal) — existe y sigue siendo accesible, pero dejó de competir por el primer scroll. Baja de "3 botones en el header" a una franja/tarjeta secundaria, después del contenido real.
+
+No agrego métricas nuevas (ej. "racha") que no existen hoy en el modelo de datos — la spec trabaja solo con lo que `dashboard.tsx` ya calcula (`calculateProgress`, `calculateDaysRemaining`, fase de `planMultiFase`, `registrosPeso`). Si en el futuro se quiere una métrica de racha/adherencia real, es una decisión de `producto` (qué se mide, con qué datos), no de esta pasada de diseño.
+
+### 13.3 Desktop y mobile como problemas distintos
+
+**Mobile (`< lg`): una sola columna, orden por prioridad, scroll vertical.** Es la superficie de "estoy entrenando con el teléfono en una mano" (mismo criterio que §11.3) — no hay espacio para dos ejes a la vez, así que el orden vertical *es* la jerarquía:
+1. Header mínimo (saludo corto, sin CTAs compitiendo).
+2. Tarjeta del plan activo (hero compacto: fase/progreso + 1 CTA ancho "Ver mi plan").
+3. Fila de 2 acciones rápidas, iconos grandes (≥44×44 tap target): "Progreso" / "Registrar peso".
+4. Lista compacta de otros planes (si hay) — filas, no tarjetas.
+5. Franja de upsell premium (si `!isPremium`) — al final, no al principio.
+6. Enlace secundario a entrenador personal (texto/link, no botón destacado) — dentro de la franja de arriba o justo debajo, no en el header.
+7. **Padding inferior reservado** (`pb-24` o equivalente + `env(safe-area-inset-bottom)`) para la tab bar fija de §11 — el último elemento (franja de upsell) no debe quedar tapado.
+
+**Desktop (`lg:` y arriba): hero + sidebar, dos ejes a la vez.** Hay espacio real, así que no hace falta apilar todo verticalmente como en mobile — mismo criterio que ya usó `AdminShell` (§7.3-A) y el navbar de cliente (§11.3): mismo principio (contenido principal + carril secundario), forma propia porque acá el carril secundario es 3 tarjetas de acción, no una lista de navegación.
+- **Columna principal (`~2/3`, ej. `lg:grid-cols-[1fr_320px]`):** tarjeta hero del plan activo (más espaciosa que en mobile: progreso + fase + stats inline en una fila, no apilados) y, debajo, la lista compacta de "otros planes" como filas de `.card-surface` (título/fecha/fase/progreso/chevron) — nunca un `<table>` real (mismo criterio que ya se fijó para el admin en §7.3-C: filas en desktop, tarjetas en mobile, sin marcado de tabla en ningún caso).
+- **Columna lateral (`~320px`):** 3 tarjetas cortas y del mismo tamaño entre sí — "Hazte premium" (si aplica), "Registrar peso" (input inline + botón, sin abrir modal para el caso rápido), "Entrenador personal". Aprovecha el ancho que mobile no tiene para sacar estas 3 cosas del flujo principal sin eliminarlas.
+
+### 13.4 Modales — qué cambia en cada uno
+
+**A. Modal de progreso (dentro de `dashboard.tsx`) — se consolida, no se reduce en función.**
+- Anillo de progreso se mantiene (es el elemento más claro de toda la pantalla), pero al lado va **una sola** caja de estado: "Peso inicial → peso actual (Δ)" — se elimina la caja "% del plan" que repetía el número del centro del anillo.
+- Formulario de carga + historial de registros + gráfico de barras se mantienen tal cual están funcionalmente (ya es un patrón correcto, 2 columnas en desktop / 1 en mobile) — el problema acá era solo la caja redundante, no la estructura.
+
+**B. `PremiumPlanModal.tsx` — se elimina la tabla, no se resume la información.**
+- La tabla HTML de comparación (línea 403) se reemplaza reusando el mismo patrón ya aprobado para el admin en §7.3-C: en desktop, filas compactas dentro de un único `.card-surface` (una fila por característica, con 3 columnas de check/valor por plan); en mobile, cada plan se convierte en una tarjeta apilada con su propia lista de características. Ninguna característica se pierde, cambia el marcado, no el contenido — igual que se hizo con las tablas de clientes del admin.
+- La grilla de tarjetas de planes (`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3`, línea 450) ya sigue un patrón correcto — no se toca.
+
+**C. `PlanContinuityModal.tsx` — se consolidan las cajas, no se recorta el wizard.**
+- Los grupos de campos que hoy viven cada uno en su propio `rounded-2xl border` (líneas 369, 394, 423 y siguientes) se agrupan bajo **un** contenedor `.card-surface` por paso del wizard, con separadores internos (`border-t border-border` entre grupos) en vez de una caja nueva por grupo. Mismo contenido, menos cajas anidadas — el ojo deja de leer "5 tarjetas" donde en realidad hay un solo formulario con 5 secciones.
+
+**D. Shell de modal único (nuevo patrón para `frontend`, sin tokens nuevos).**
+Los 6 modales de este alcance pasan a compartir **un** recipe de backdrop y panel en vez de que cada uno arme el suyo: backdrop `bg-black/75 backdrop-blur-md` fijo, panel `rounded-2xl border border-border bg-[color-mix(in_oklab,var(--background)_88%,#0a0f18)] shadow-[0_40px_100px_-36px_rgba(0,0,0,0.9)] ring-1 ring-[color-mix(in_oklab,var(--foreground)_5%,transparent)]` — son los valores que ya usa el modal de progreso hoy (el más nuevo/completo de los 6), se propone como el estándar y el resto converge a él en vez de mantener 6 variantes ligeramente distintas. No es una clase nueva de `globals.css` obligatoria (se puede resolver como constante compartida en TS), pero si `frontend` prefiere una clase (`.modal-backdrop`/`.modal-panel`) para no repetir el string, es un ajuste dentro de una categoría ya existente (composición de tokens ya aprobados), no requiere mi aprobación previa ni la de Lucas.
+
+### 13.5 Los gradientes — diagnóstico y alternativa propuesta (pendiente de aprobación de Lucas)
+
+Lucas marcó los gradientes del dashboard como el punto a revisar, aclarando que el coral/magenta **sí** es parte del gradiente de marca aprobado (`--brand-start/mid/end`, lima→coral→magenta) pero no le gusta cómo se ve acá, y pidió una alternativa más cercana al lima y al negro de marca.
+
+**Dónde está el gradiente de marca hoy en el dashboard, y por qué una parte funciona y otra no:**
+- **Barras de progreso** (`DashboardPlanCard.tsx`, líneas 248 y 360): franjas finas con el gradiente de 3 colores. Este es exactamente el uso documentado en §1 ("Gradiente ambiental de fondo... **barras de progreso**") — no es el problema, no se toca.
+- **Botones CTA a página completa** (`dashboard.tsx`, líneas 489, 519, 545, 792, 933, 1610 — "Hazte premium", "Nuevo plan", "Ver planes premium", "Sí, quiero", "Guardar" de peso): el gradiente cubre el botón entero a opacidad alta. Acá sí se lee el tramo coral→magenta como "rojo/rosa" — es un área grande y sólida, no una franja fina de fondo.
+- **Acentos decorativos sueltos con `--brand-end` (magenta) solo, sin el resto del gradiente**, a 10-15% de opacidad (líneas 443, 471-472, 848, 875, 881): botón "Contactar entrenador", aviso de entrenador asignado, badges del selector de género del modal de entrenador. Ninguno de estos representa una marca/hero real — son decoración sin significado de estado, elegida con el mismo criterio suelto que §6 ya identificó y resolvió en el admin ("si es puramente decorativo, sin marca ni estado real → sin color de marca").
+
+**Propuesta (2 partes, distinto nivel de decisión cada una):**
+
+1. **Los acentos decorativos sueltos de `--brand-end`: se resuelven ya, sin esperar aprobación** — es la misma regla de §6 ya aprobada, aplicada acá: decorativo sin estado real → `.card-surface-2`/`.btn-secondary`/`--accent` (lima), no un tono de marca aislado. Esto saca el "rosa/rojo suelto" que aparece en el botón de WhatsApp del entrenador y en los badges de género sin que haga falta ninguna decisión de paleta nueva.
+
+2. **Los botones CTA a página completa: acá sí hace falta una decisión de Lucas**, porque implica dejar de usar el gradiente de marca de 3 colores como fondo de botón en esta pantalla — es tocar cómo se ve la marca, no un ajuste dentro de una categoría ya resuelta. Propongo, construido enteramente con tokens **ya existentes** (no requiere ninguna categoría nueva en el árbol, solo una combinación distinta):
+   - **Opción A — recomendada:** los CTA del dashboard dejan de llevar gradiente y pasan a `.btn-primary` (lima sólido `--accent`, hover `--accent-strong`) — la misma clase que ya usa el resto de botones primarios de la app. Es la opción más simple, cero riesgo de "rojo", y es literalmente lo que ya está aprobado y en uso en todos lados menos acá.
+   - **Opción B — alternativa, si se quiere mantener un CTA "premium" con más presencia que un botón estándar:** un gradiente de 2 tonos lima→negro, solo para el botón de upsell premium (no para el resto): `linear-gradient(135deg, var(--accent) 0%, color-mix(in oklab, var(--accent-strong) 45%, var(--background)) 100%)` — arranca en el lima de marca y se apaga hacia el negro de fondo, sin pasar por coral ni magenta en ningún punto. El resto de los CTA (Nuevo plan, Guardar peso, Sí quiero) usan `.btn-primary` igual que en la Opción A.
+
+   Ambas están montadas en la demo con un selector para que Lucas las compare una al lado de la otra antes de decidir. **No se implementa ninguna de las dos en el código real hasta que elija.**
+
+### 13.6 Coordinación con §11 (navbar de cliente)
+
+El dashboard se diseñó asumiendo que la tab bar inferior de §11.4-B ya existe en mobile: se reserva `pb-24` (o el alto real que mida `frontend`) + `env(safe-area-inset-bottom)` al final del contenido, mismo mecanismo ya pedido en §11.8 punto 5 — este dashboard es uno de los casos concretos que necesita ese espaciador. No hace falta ajustar nada de §11 a la luz de esta spec: la tab bar (Inicio/Mi plan/Mensajes/Cuenta) y la jerarquía nueva del dashboard son compatibles tal cual — "Ver mi plan" del hero y "Mi plan" de la tab bar llevan al mismo destino (`/plan`), sin duplicar navegación.
+
+### 13.7 Motion y accesibilidad (mi responsabilidad directa)
+
+- Corregir los `initial={{ opacity: 0, ... }}` señalados en 13.1-H (`dashboard.tsx` línea 419 y los 5 backdrops/paneles de modales; `DashboardPlanCard.tsx` líneas 85 y 259) — animar posición (`y`) o usar CSS, nunca opacidad desde 0, misma regla que §11.6/§12. Válido incluso si el resto de la reestructuración se implementa después.
+- Los CTA de acción rápida (registrar peso, ver plan) mantienen tap targets ≥44×44 en mobile.
+- El anillo de progreso del modal ya comunica el % con texto (`{pct}%`) además de color — no depende solo del color para transmitir el dato, se mantiene así.
+
+### 13.8 Qué no requirió tocar nada del árbol de tokens
+
+Toda la reestructuración (13.2-13.4, y la Opción A de 13.5) usa tokens/clases ya existentes (`--accent`, `--accent-strong`, `--surface`/`--surface-2`, `.btn-primary`, `.card-surface`, `--brand-start/mid/end` en su uso ya aprobado de barras de progreso). La Opción B de 13.5 tampoco crea una categoría nueva (es una combinación de `--accent`/`--accent-strong`/`--background` vía `color-mix`), pero se marca igual como pendiente de Lucas porque cambia un tratamiento de marca visible, no porque falte un token.
+
+### 13.9 Pendiente para `frontend` (implementación, fuera de esta entrega)
+
+1. Reestructurar `dashboard.tsx` según 13.2-13.3: header corto, hero de plan activo + acciones rápidas, lista compacta de otros planes, franja de upsell al final — layout de una columna en mobile, `hero + sidebar` en desktop.
+2. Simplificar `DashboardPlanCard.tsx` en 2 variantes según su rol: hero del plan activo (más completo) y fila compacta para "otros planes" (mínima) — hoy es un solo componente "todo incluido" que se usa igual en ambos casos.
+3. Consolidar el modal de progreso según 13.4-A (quitar la caja redundante).
+4. Reemplazar la tabla de `PremiumPlanModal.tsx` por el patrón fila-desktop/tarjeta-mobile de 13.4-B.
+5. Consolidar las cajas anidadas de `PlanContinuityModal.tsx` según 13.4-C.
+6. Adoptar el shell de modal único de 13.4-D en los 6 modales del alcance.
+7. Aplicar la decisión de Lucas sobre 13.5 (Opción A o B) a los CTA reales, y resolver ya los acentos decorativos sueltos de `--brand-end` (13.5 punto 1) sin esperar esa decisión.
+8. Corregir los `initial={{opacity:0}}` de 13.7.
+9. Reservar el padding inferior de 13.6 una vez `frontend` mida la altura real de la tab bar de §11.
+
+Demo de referencia (no implementación real, datos hardcodeados): `src/pages/dashboard-design-preview.tsx` → `/dashboard-design-preview` (controles arriba: cantidad de planes, plan simple/multi-fase, premium sí/no, abrir modal de progreso rediseñado, y el selector de Opción A/B del gradiente para que Lucas decida).
