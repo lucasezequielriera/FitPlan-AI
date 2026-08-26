@@ -27,11 +27,7 @@ export default function ContactButton() {
       }}
       whileHover={{ scale: 1.08 }}
       whileTap={{ scale: 0.94 }}
-      className="group fixed z-40 flex h-14 w-14 touch-manipulation items-center justify-center rounded-full border border-[color-mix(in_oklab,var(--landing-accent)_50%,transparent)] bg-gradient-to-br from-[color-mix(in_oklab,var(--landing-accent)_28%,#0f172a)] to-[color-mix(in_oklab,var(--background)_92%,#0f172a)] text-[var(--landing-accent)] shadow-[0_10px_36px_-6px_rgba(45,212,191,0.45),0_0_0_1px_rgba(255,255,255,0.08)_inset] backdrop-blur-sm transition-[box-shadow,filter] hover:shadow-[0_14px_44px_-4px_rgba(45,212,191,0.55)] hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] md:h-16 md:w-16"
-      style={{
-        bottom: "max(1.5rem, env(safe-area-inset-bottom))",
-        right: "max(1.5rem, env(safe-area-inset-right))",
-      }}
+      className="contact-fab group fixed z-40 flex h-14 w-14 touch-manipulation items-center justify-center rounded-full border border-[color-mix(in_oklab,var(--landing-accent)_50%,transparent)] bg-gradient-to-br from-[color-mix(in_oklab,var(--landing-accent)_28%,#0f172a)] to-[color-mix(in_oklab,var(--background)_92%,#0f172a)] text-[var(--landing-accent)] shadow-[0_10px_36px_-6px_rgba(45,212,191,0.45),0_0_0_1px_rgba(255,255,255,0.08)_inset] backdrop-blur-sm transition-[box-shadow,filter] hover:shadow-[0_14px_44px_-4px_rgba(45,212,191,0.55)] hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] md:h-16 md:w-16"
       aria-label={aria}
       title={labelFull}
     >

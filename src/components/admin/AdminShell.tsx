@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useEffect, useState, type ComponentType } from "react";
+import { useEffect, useRef, useState, type ComponentType } from "react";
 import { MessagesModal } from "@/components/Navbar";
 import { useAuthStore } from "@/store/authStore";
 import { getDbSafe } from "@/lib/firebase";
@@ -247,16 +247,34 @@ export function AdminShell({ active, children }: { active: AdminSectionId; child
   const [messagesRefreshKey, setMessagesRefreshKey] = useState(0);
   const unreadMessages = useAdminUnreadMessages(authUser?.uid ?? null, messagesRefreshKey);
   const unreadNotifications = useAdminUnreadNotifications(authUser?.uid ?? null);
+  const mobileNavRowRef = useRef<HTMLDivElement | null>(null);
 
   // La tira de pills de abajo (mobile) es fixed/bottom-0, igual que
   // CookieConsentBanner — sin esto, el banner de cookies tapa por completo
   // la navegación de admin en mobile hasta que el usuario decide sobre
   // cookies (DESIGN_SYSTEM.md §11.9). `has-bottom-nav` en <body> activa la
   // regla en globals.css que sube el banner por encima de esta tira.
+  //
+  // Además publica el alto real de la FILA de pills (sin contar el padding
+  // de safe area, que globals.css suma aparte con env()) en `--admin-bottom-nav-h`,
+  // igual mecanismo que usa CookieConsentBanner para `--cookie-banner-h`: se
+  // mide en vez de hardcodear porque cambia si el contenido de la fila cambia
+  // (idioma, badges, breakpoint). Lo consume la regla del banner de cookies y
+  // el padding inferior del <main> para que el contenido no quede tapado.
   useEffect(() => {
-    document.body.classList.add("has-bottom-nav");
+    const body = document.body;
+    body.classList.add("has-bottom-nav");
+    const publicarAlto = () => {
+      const alto = mobileNavRowRef.current?.getBoundingClientRect().height ?? 0;
+      body.style.setProperty("--admin-bottom-nav-h", `${Math.ceil(alto)}px`);
+    };
+    publicarAlto();
+    const ro = new ResizeObserver(publicarAlto);
+    if (mobileNavRowRef.current) ro.observe(mobileNavRowRef.current);
     return () => {
-      document.body.classList.remove("has-bottom-nav");
+      ro.disconnect();
+      body.classList.remove("has-bottom-nav");
+      body.style.removeProperty("--admin-bottom-nav-h");
     };
   }, []);
 
@@ -359,83 +377,102 @@ export function AdminShell({ active, children }: { active: AdminSectionId; child
           </div>
         </aside>
 
-        {/* ============= MOBILE NAV: tira horizontal ============= */}
-        <div className="fixed inset-x-0 bottom-0 z-40 flex gap-1.5 overflow-x-auto border-t border-border bg-[color-mix(in_oklab,var(--background)_92%,transparent)] px-3 py-2 backdrop-blur-md lg:hidden">
-          {NAV_ITEMS.map((item) => {
-            const isActive = item.id === active;
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.id}
-                href={item.href}
-                className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                  isActive ? "bg-accent/15 text-accent" : "text-text-muted"
-                }`}
-              >
-                <Icon className="h-3.5 w-3.5" aria-hidden />
-                {item.label}
-                {item.id === "servicios" && servicesDot && (
-                  <span
-                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                      servicesDot === "success" ? "bg-success" : servicesDot === "warning" ? "bg-warning" : "bg-danger"
-                    }`}
-                    aria-hidden
-                  />
-                )}
-              </Link>
-            );
-          })}
+        {/* ============= MOBILE NAV: tira horizontal =============
+            Pedido de Lucas (2026-08-26): la tira quedaba tan fina (45px) que
+            al tocar una pill el dedo caía sobre la franja del home indicator
+            de iOS y el sistema interpretaba "volver al inicio" en vez del tap.
+            Fix: `paddingBottom: env(safe-area-inset-bottom)` reserva esa franja
+            como espacio propio (los targets quedan arriba del home indicator,
+            no encima), y cada pill tiene `min-h-[44px]` (mínimo de Apple HIG
+            para áreas táctiles — mismo patrón que ya usa el resto del repo,
+            ver formulario-de-inicio.tsx / PremiumPlanModal.tsx). */}
+        <div
+          className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-[color-mix(in_oklab,var(--background)_92%,transparent)] backdrop-blur-md lg:hidden"
+          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        >
+          <div ref={mobileNavRowRef} className="flex items-center gap-1.5 overflow-x-auto px-3 py-2.5">
+            {NAV_ITEMS.map((item) => {
+              const isActive = item.id === active;
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.id}
+                  href={item.href}
+                  className={`flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                    isActive ? "bg-accent/15 text-accent" : "text-text-muted"
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" aria-hidden />
+                  {item.label}
+                  {item.id === "servicios" && servicesDot && (
+                    <span
+                      className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                        servicesDot === "success" ? "bg-success" : servicesDot === "warning" ? "bg-warning" : "bg-danger"
+                      }`}
+                      aria-hidden
+                    />
+                  )}
+                </Link>
+              );
+            })}
 
-          <span className="my-1 w-px shrink-0 bg-border" aria-hidden />
+            <span className="my-1 w-px shrink-0 self-stretch bg-border" aria-hidden />
 
-          <button
-            type="button"
-            onClick={() => router.push("/admin/actividad")}
-            className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-text-muted"
-          >
-            <FaBell className="h-3.5 w-3.5" aria-hidden />
-            Notificaciones
-            {unreadNotifications > 0 && (
-              <span className="shrink-0 rounded-full bg-accent px-1.5 py-0.5 text-[9px] font-semibold text-accent-ink">
-                {unreadNotifications > 9 ? "9+" : unreadNotifications}
-              </span>
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={() => setMessagesModalOpen(true)}
-            className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-text-muted"
-          >
-            <FaComment className="h-3.5 w-3.5" aria-hidden />
-            Chat admin
-            {unreadMessages > 0 && (
-              <span className="shrink-0 rounded-full bg-accent px-1.5 py-0.5 text-[9px] font-semibold text-accent-ink">
-                {unreadMessages > 9 ? "9+" : unreadMessages}
-              </span>
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleAdminLogout()}
-            className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-text-muted"
-          >
-            <FaSignOutAlt className="h-3.5 w-3.5" aria-hidden />
-            Cerrar sesión
-          </button>
+            <button
+              type="button"
+              onClick={() => router.push("/admin/actividad")}
+              className="flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-text-muted"
+            >
+              <FaBell className="h-3.5 w-3.5" aria-hidden />
+              Notificaciones
+              {unreadNotifications > 0 && (
+                <span className="shrink-0 rounded-full bg-accent px-1.5 py-0.5 text-[9px] font-semibold text-accent-ink">
+                  {unreadNotifications > 9 ? "9+" : unreadNotifications}
+                </span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setMessagesModalOpen(true)}
+              className="flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-text-muted"
+            >
+              <FaComment className="h-3.5 w-3.5" aria-hidden />
+              Chat admin
+              {unreadMessages > 0 && (
+                <span className="shrink-0 rounded-full bg-accent px-1.5 py-0.5 text-[9px] font-semibold text-accent-ink">
+                  {unreadMessages > 9 ? "9+" : unreadMessages}
+                </span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleAdminLogout()}
+              className="flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-text-muted"
+            >
+              <FaSignOutAlt className="h-3.5 w-3.5" aria-hidden />
+              Cerrar sesión
+            </button>
 
-          <span className="my-1 w-px shrink-0 bg-border" aria-hidden />
+            <span className="my-1 w-px shrink-0 self-stretch bg-border" aria-hidden />
 
-          <Link
-            href="/"
-            className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-text-subtle"
-          >
-            <FaExternalLinkAlt className="h-3 w-3" aria-hidden />
-            Ver sitio
-          </Link>
+            <Link
+              href="/"
+              className="flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-text-subtle"
+            >
+              <FaExternalLinkAlt className="h-3 w-3" aria-hidden />
+              Ver sitio
+            </Link>
+          </div>
         </div>
 
         {/* ============= CONTENIDO ============= */}
-        <main className="min-w-0 flex-1 px-4 pb-24 pt-6 sm:px-6 lg:px-8 lg:pb-8 lg:pt-8">{children}</main>
+        {/* El padding inferior mobile tiene que crecer junto con la tira de abajo
+            (ahora más alta por el fix de safe area) para que no tape el contenido.
+            Usa el mismo `--admin-bottom-nav-h` que se publica arriba, más la franja
+            de safe area (que la tira reserva aparte) y un margen de aire. */}
+        <main className="min-w-0 flex-1 px-4 pb-[calc(var(--admin-bottom-nav-h,64px)+env(safe-area-inset-bottom)+1rem)] pt-6 sm:px-6 lg:px-8 lg:pb-8 lg:pt-8">
+          {children}
+        </main>
       </div>
 
       {messagesModalOpen && authUser && (

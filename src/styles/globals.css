@@ -376,16 +376,52 @@ select.bg-transparent {
    así agrega `has-bottom-nav` a <body> mientras está montado (con cleanup al
    desmontar) — ver AdminShell.tsx. El banner (`.cookie-consent-banner`) sube
    su posición para no taparla.
-   Valor: medido con Chrome headless (fixture con el CSS compilado real y el
-   markup de la tira, incluyendo un badge "9+" de notificaciones) a 390px de
-   ancho: 45px, no los 64px que estimó `diseño` en la spec — se deja 56px
-   (45px + margen de seguridad) en vez del número exacto para tolerar
-   redondeo entre navegadores/zoom. Si en el futuro se implementa la tab bar
-   de cliente de DESIGN_SYSTEM.md §11.4-B y su altura real es distinta,
-   ajustar acá (mismo valor para ambas por simplicidad, salvo que difieran
-   mucho). */
+   Valor: `--admin-bottom-nav-h` lo publica AdminShell.tsx con
+   `getBoundingClientRect()` sobre la fila de pills (sin contar la franja de
+   safe area, que se suma acá aparte con env() — mismo criterio que
+   `--cookie-banner-h`/`.contact-fab` más abajo). Se mide en vez de
+   hardcodear un número porque cambia con el idioma, los badges y el ancho.
+   El fallback (56px) es el valor medido históricamente para cubrir el
+   instante antes de que el efecto de React corra. Si en el futuro se
+   implementa la tab bar de cliente de DESIGN_SYSTEM.md §11.4-B, que publique
+   la misma variable (o una propia y se ajusta esta regla). */
 @media (max-width: 767px) {
   body.has-bottom-nav .cookie-consent-banner {
-    bottom: calc(56px + env(safe-area-inset-bottom));
+    bottom: calc(var(--admin-bottom-nav-h, 56px) + env(safe-area-inset-bottom));
+  }
+}
+
+/* La otra mitad del mismo problema: la TARJETA del banner (no su wrapper, que
+   ya no captura clicks) tapa físicamente el botón flotante de contacto en todo
+   ancho por debajo de ~1280px, y lo dejaba inaccesible hasta que el usuario
+   decidiera sobre las cookies. Mientras el banner está visible marca el body y
+   publica su alto real en `--cookie-banner-h` (medido, no hardcodeado: cambia
+   con el idioma y el ancho). El botón se corre esa distancia hacia arriba. */
+/* La posición base vive acá y no en un `style` en línea del componente: un
+   estilo en línea gana sobre cualquier clase, así que la regla de abajo no
+   podía desplazarlo. */
+.contact-fab {
+  bottom: max(1.5rem, env(safe-area-inset-bottom));
+  right: max(1.5rem, env(safe-area-inset-right));
+}
+
+body.has-cookie-banner .contact-fab {
+  bottom: calc(var(--cookie-banner-h, 0px) + 1.5rem + env(safe-area-inset-bottom));
+}
+
+/* Caso combinado (admin en mobile + banner visible): la regla de arriba asume
+   que el banner arranca desde el piso, pero cuando también hay barra inferior
+   el banner ya subió `--admin-bottom-nav-h` para no taparla. Sin sumar ese
+   desplazamiento el botón queda corto y la tarjeta vuelve a taparlo — que es
+   justo el bug que estas reglas existen para evitar. Va después de la anterior
+   y con mayor especificidad, así gana cuando concurren las dos clases. */
+/* Acotada al mismo rango que la regla que sube el banner: por encima de 767px
+   el banner no se desplaza, así que sumar el alto de la barra acá empujaría el
+   botón de más. */
+@media (max-width: 767px) {
+  body.has-bottom-nav.has-cookie-banner .contact-fab {
+    bottom: calc(
+      var(--cookie-banner-h, 0px) + var(--admin-bottom-nav-h, 0px) + 1.5rem + env(safe-area-inset-bottom)
+    );
   }
 }
