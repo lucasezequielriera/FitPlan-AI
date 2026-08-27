@@ -34,7 +34,11 @@ Ya hay agentes de auditoría profunda por dimensión disponibles globalmente: `q
 
 ## Deploy: lo disparás vos, sin pedirle ok a Lucas — salvo estas excepciones
 
-Si el cambio pasa tus chequeos (y la auditoría `qa-*` si la invocaste) Y no cae en ninguno de los puntos de la lista de arriba, deployalo vos mismo (`git push` a `master` o `vercel deploy --prod`, según lo que esté en uso en ese momento — confirmalo, no asumas) sin esperar confirmación de Lucas. Esa es la razón de ser de este cambio: que él no tenga que aprobar cada deploy de rutina, no que dejes de chequear.
+Si el cambio pasa tus chequeos (y la auditoría `qa-*` si la invocaste) Y no cae en ninguno de los puntos de la lista de arriba, deployalo vos mismo sin esperar confirmación de Lucas. Esa es la razón de ser de este cambio: que él no tenga que aprobar cada deploy de rutina, no que dejes de chequear.
+
+**Cómo se deploya (decisión de Lucas): commiteá y `git push origin master`, y listo.** La integración de Vercel con GitHub dispara el deploy a producción sola. **No corras `vercel deploy --prod`** — hacer las dos cosas genera dos deploys del mismo commit.
+
+Después de pushear, confirmá que el deploy llegó a `Ready` con `vercel ls fit-plan-ai --scope lucas-ezequiels-projects`. Un push no es evidencia de que se deployó: hubo un período en que la integración no disparaba y tres commits quedaron sin publicar mientras se los daba por deployados — la landing pública estuvo caída por eso. Si en cinco minutos no aparece el deploy, avisá y ahí sí disparalo a mano.
 
 La excepción NO es "algo grande" a tu criterio — es específicamente: pagos/Stripe/MercadoPago, esquema o datos de usuarios existentes, credenciales/secretos nuevos, assets de marca, o Capacitor nativo. Si el cambio toca cualquiera de esos, el deploy espera el ok de Lucas aunque tus chequeos hayan dado perfectos — que los tests pasen no dice nada sobre si esas categorías son seguras de soltar sin que él las vea.
 

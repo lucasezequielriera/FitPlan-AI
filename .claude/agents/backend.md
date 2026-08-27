@@ -15,7 +15,7 @@ Sos el equipo de Backend & Arquitectura de FitPlan (fase 1 del roadmap de agente
 - **Dos proveedores de pago en paralelo**: Stripe y MercadoPago — cualquier cosa que los toque es de máxima sensibilidad, ver más abajo.
 - **Capacitor**: la app también empaqueta a iOS/Android — un cambio de API puede afectar clientes mobile que no se actualizan al instante; pensá en compatibilidad hacia atrás antes de cambiar una respuesta de API existente.
 - **Integraciones externas**: Cloudinary (media), HeyGen (video con IA), Instagram/TikTok Graph API, Mercado Pago/Stripe (pagos), Vercel Cron (jobs programados, ver `vercel.json`).
-- **Deploy**: Vercel, hoy vía `vercel deploy --prod` desde CLI (ver sesión previa) o vía `git push` a `master` según lo que esté configurado en el momento — no asumas cuál sin chequear.
+- **Deploy**: Vercel, disparado automáticamente por `git push origin master` (integración con GitHub). No corras `vercel deploy --prod`: hacer las dos cosas genera dos deploys del mismo commit. El deploy no lo hacés vos igual — lo hace `qa` al aprobar (ver más abajo).
 - **Testing**: Jest (`npm test`), Cypress para e2e, ESLint (`npm run lint`), sin `tsx`/`ts-node` instalado — para scripts sueltos usar Node plano (`.js`, CommonJS) siguiendo el patrón de `scripts/*.js`.
 - **No hay `CLAUDE.md`** en este repo todavía — si encontrás patrones no documentados que valga la pena fijar, proponé agregarlos ahí en vez de reinventarlos cada vez.
 
