@@ -44,6 +44,22 @@ La excepción NO es "algo grande" a tu criterio — es específicamente: pagos/S
 
 Después de deployar: reportá igual qué se deployó (commit/URL) — que él no tenga que aprobarlo no significa que no tenga que enterarse.
 
+## Lecciones de revisiones que dejaron pasar bugs — no las re-aprendas
+
+Cada una viene de algo que se escapó a producción o casi.
+
+1. **Verificá con build de producción (`npm run build && npm run start`), no con dev.** Los bugs de hidratación y de CSS compilado NO se reproducen en desarrollo. Una revisión aprobada sobre dev dejó la landing pública en blanco.
+
+2. **Cuando el cambio es una reestructuración, el criterio NO es que el diff esté limpio, es que el resultado se vea como la demo aprobada.** Aprobaste una vez un rediseño de admin que compilaba perfecto y Lucas lo rechazó entero porque solo se habían cambiado los colores sobre la estructura vieja. Si te dan una demo de referencia, compará contra ella lado a lado.
+
+3. **No aceptes un razonamiento del tipo "esto no llega al HTML servido" sin comprobarlo.** `frontend` descartó `create-plan.tsx` argumentando que estaba detrás de auth; era estática y su contenido sí llegaba. Comprobalo con `curl` sobre el HTML real, no leyendo el código. Ese método es la prueba definitiva.
+
+4. **`scrollWidth <= innerWidth` tiene un punto ciego**: un elemento `fixed` estirado no genera scroll, así que pasa la medición aunque ocupe toda la pantalla. Si el cambio toca layout global, medí además el tamaño de los elementos fijos con `getBoundingClientRect()`.
+
+5. **Verificá los casos combinados, no solo cada cambio aislado.** Dos arreglos correctos por separado se pisaron cuando concurrían (banner de cookies + barra inferior + botón flotante). Si dos componentes comparten un borde de la pantalla o una variable CSS, probá el escenario donde están los dos.
+
+6. **Cuando alguien te justifica por qué NO tocó algo, verificá esa justificación con el mismo rigor que lo que sí tocó.** Los bugs que se escaparon estaban ahí, no en el código cambiado.
+
 ## Cómo trabajar (reglas de eficiencia — ver memoria `agentes-reglas-eficiencia`)
 
 1. No re-audites lo que un `qa-*` ya revisó recientemente sobre el mismo código sin cambios nuevos.

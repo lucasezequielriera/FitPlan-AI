@@ -37,6 +37,20 @@ Cuando algo cae en esta lista: no lo hagas y no lo dejes a medias — explicá e
 
 Si tu duda es sobre QUÉ debería pasar (qué estados necesita una pantalla, qué prioridad tiene un ajuste, si una feature debería existir), eso lo resuelve `producto` — traésela a él, no a Lucas. Lo que va directo a Lucas es solo lo de la lista de arriba (tokens/sistema de diseño, assets de marca, paleta): eso es identidad de marca, y `producto` no lo puede aprobar por él.
 
+## Lecciones de propuestas que hubo que rehacer — no las re-aprendas
+
+1. **Juzgá siempre contra una captura real, nunca en abstracto.** Una revisión concluyó que el dashboard solo tenía dos problemas puntuales de color; al mirar la captura real había cuatro familias de color compitiendo y una franja arcoíris que el propio razonamiento escrito daba por "no compite por lectura". Levantá la pantalla, capturala, y mirala antes de firmar un diagnóstico.
+
+2. **Techo de 3 colores conviviendo en una vista** (criterio de Lucas: "4 o más ya es ruido y presta a confusiones"). Cuentan los colores permanentes: fondo/neutros, acento, y como mucho un tercero que gane su lugar. NO cuentan los semánticos de estado (`--danger`, `--warning`, `--success`) porque son excepcionales — aparecen solo cuando hay algo que comunicar. No los elimines para "cumplir" el número: un error tiene que verse como error.
+
+3. **El color significa o no está.** Si un elemento comunica estado real (progreso, fase, alerta), usa token semántico. Si es decoración, va neutro. El gradiente de marca (`--brand-start/mid/end`) NO va en barras de progreso ni en nada que el usuario esté leyendo como dato — ahí compite con la información en vez de reforzarla.
+
+4. **Cuando propongas una reestructuración, la demo ES la especificación.** `frontend` va a implementar lo que vea ahí. Si un caso real no está contemplado en la demo (estados vacíos, datos largos, variantes), va a tener que improvisar — y eso es donde se cuela la estructura vieja. Contemplá esos casos o dejalos explícitos en la spec.
+
+5. **Nunca especifiques `initial: { opacity: 0 }` de framer-motion** para contenido que llega al HTML del servidor: si la hidratación no dispara, queda invisible para siempre. Ya dejó la landing en blanco dos veces. Animá posición, o CSS.
+
+6. **Si tu propuesta depende de una medida** (alto de una barra, offset de un elemento fijo), no la estimes: medila, o especificá que se publique como variable CSS medida en runtime. Una estimación de 64px que en realidad eran 45px quedó hardcodeada y desincronizada.
+
 ## Cómo trabajar (reglas de eficiencia — ver memoria `agentes-reglas-eficiencia`)
 
 1. Leé `DESIGN_SYSTEM.md` antes de proponer cualquier cosa — no lo redescubras por prueba y error.

@@ -45,6 +45,22 @@ Dejalo listo y typecheckeado, y pasáselo a `qa`. Si lo aprueba y el cambio no t
 - **Duda de producto** (qué debería pasar en tal caso, qué priorizar, si algo entra en el alcance) → `producto`, no Lucas.
 - **Solo lo de la lista de arriba** (checkout, Capacitor nativo, deploy) va directo a Lucas: es irreversible o sensible, y `producto` no lo puede aprobar por él.
 
+## Lecciones de incidentes reales en producción — no las re-aprendas
+
+Cada una de estas rompió algo visible para usuarios. No son teoría.
+
+1. **Nunca `initial: { opacity: 0 }` en framer-motion sobre contenido que llega al HTML del servidor.** En build de producción ese estado se serializa en el HTML, y si la hidratación no dispara la animación el contenido queda invisible **para siempre**. Dejó la landing pública en blanco dos veces, y el formulario de crear plan una. Animá `y`/`scale`, o usá CSS. Solo es seguro en contenido que se monta por interacción del usuario (un modal cerrado con `if (!isOpen) return null`), y aun así verificalo.
+
+2. **Verificá con `npm run build && npm run start`, no con `npm run dev`.** Los tres bugs de arriba NO se reproducen en desarrollo. Un "anda bien en local" con dev server no prueba nada para esta clase de problema.
+
+3. **"Está detrás de login" hay que comprobarlo, no asumirlo.** Se descartó `create-plan.tsx` de una corrección porque "requiere auth" — resultó ser una página estática cuyo contenido sí llegaba al HTML. Comprobalo con `curl` sobre el HTML servido, no leyendo el código.
+
+4. **No condiciones visibilidad ni interactividad a un estado de carga que pueda no resolver nunca.** Un botón quedó `disabled` con un esqueleto permanente porque `authLoading` nunca pasaba a false: el registro de usuarios nuevos quedó muerto. Por defecto mostrá el estado usable, y degradá si hace falta.
+
+5. **Cuando la tarea es reestructurar, el criterio de aceptación es la demo aprobada, no el diff.** Una pasada por el admin envolvió la estructura vieja en el marco nuevo y solo cambió colores; Lucas la rechazó entera. Partí del layout de la demo y traé los datos reales adentro, nunca al revés. Compará el resultado contra la demo lado a lado antes de darlo por hecho.
+
+6. **Un elemento `fixed` estirado no genera scroll**, así que medir `scrollWidth <= innerWidth` no lo detecta. Si tocás layout global, medí también el tamaño de los elementos fijos con `getBoundingClientRect()`.
+
 ## Cómo trabajar (reglas de eficiencia — ver memoria `agentes-reglas-eficiencia`)
 
 1. Grep por un componente/patrón similar ya existente antes de escribir uno desde cero.
