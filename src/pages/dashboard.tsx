@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import Head from "next/head";
 import dynamic from "next/dynamic";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { createPortal } from "react-dom";
 import { FaCrown, FaUserFriends, FaWeight } from "react-icons/fa";
 import { useAuthStore } from "@/store/authStore";
@@ -52,6 +52,11 @@ export default function Dashboard() {
   const [quickWeightValue, setQuickWeightValue] = useState("");
   const [quickWeightSaving, setQuickWeightSaving] = useState(false);
   const [quickWeightNotice, setQuickWeightNotice] = useState<string | null>(null);
+  // Disclosure de "Registrar peso" en mobile (DESIGN_SYSTEM.md §13.10.8/§13.10.9) — antes
+  // el botón abría el mismo modal que "Progreso" sin registrar nada. Estado separado del
+  // de la sidebar de desktop para no compartir foco/notice entre las dos superficies.
+  const [mobileWeightOpen, setMobileWeightOpen] = useState(false);
+  const reduceMotion = useReducedMotion();
 
   const trainerWhatsappUrl = "https://wa.me/34627043397";
 
@@ -536,29 +541,80 @@ export default function Dashboard() {
                       />
                     )}
 
-                    {/* Acciones rápidas — visibles siempre, con más presencia en mobile (§13.3) */}
+                    {/* Acciones rápidas — visibles siempre, con más presencia en mobile (§13.3).
+                        "Registrar peso" ya no abre el mismo modal que "Progreso" (DESIGN_SYSTEM.md
+                        §13.10.8): despliega una carga inline, mismo patrón/handler que ya usa la
+                        sidebar de desktop (`handleQuickSaveWeight`), sin ser un botón que promete
+                        algo que no cumple. */}
                     {activePlan && (
-                      <div className="grid grid-cols-2 gap-3 lg:hidden">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPlanForProgress(activePlan);
-                            setProgressModalOpen(true);
-                          }}
-                          className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/30"
-                        >
-                          {dash(locale, "cardOpenProgress")}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPlanForProgress(activePlan);
-                            setProgressModalOpen(true);
-                          }}
-                          className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/30"
-                        >
-                          {dash(locale, "quickActionWeight")}
-                        </button>
+                      <div className="lg:hidden">
+                        <div className="grid grid-cols-2 gap-3">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPlanForProgress(activePlan);
+                              setProgressModalOpen(true);
+                            }}
+                            className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-sm font-medium text-foreground transition hover:border-accent/30"
+                          >
+                            {dash(locale, "cardOpenProgress")}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setQuickWeightNotice(null);
+                              setMobileWeightOpen((v) => !v);
+                            }}
+                            aria-expanded={mobileWeightOpen}
+                            className={`flex min-h-[44px] items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium transition ${
+                              mobileWeightOpen
+                                ? "border-accent/40 bg-accent/12 text-accent"
+                                : "border-border bg-surface text-foreground hover:border-accent/30"
+                            }`}
+                          >
+                            {dash(locale, "quickActionWeight")}
+                          </button>
+                        </div>
+
+                        {/* Contenido montado recién al tocar el botón (no está en el HTML
+                            inicial): no es el patrón prohibido de `initial: { opacity: 0 }`
+                            sobre contenido que pinta sin interacción — mismo criterio que
+                            ExerciseSetTracker.tsx/plan.tsx para disclosures gatilladas por
+                            el usuario. */}
+                        <AnimatePresence initial={false}>
+                          {mobileWeightOpen && (
+                            <motion.div
+                              initial={reduceMotion ? undefined : { height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={reduceMotion ? undefined : { height: 0, opacity: 0 }}
+                              transition={{ duration: reduceMotion ? 0 : 0.2 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="mt-3 rounded-xl border border-border bg-surface p-3">
+                                <div className="flex gap-2">
+                                  <input
+                                    type="number"
+                                    step="0.1"
+                                    value={quickWeightValue}
+                                    onChange={(e) => setQuickWeightValue(e.target.value)}
+                                    placeholder="kg"
+                                    autoFocus
+                                    className="min-w-0 flex-1 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-foreground placeholder:text-text-subtle focus:outline-none focus:ring-2 focus:ring-accent/40"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleQuickSaveWeight(activePlan.id)}
+                                    disabled={quickWeightSaving}
+                                    className="btn btn-secondary shrink-0 px-3"
+                                  >
+                                    {quickWeightSaving ? dash(locale, "progressSaving") : dash(locale, "progressSave")}
+                                  </button>
+                                </div>
+                                {quickWeightNotice && <p className="mt-2 text-xs text-text-muted">{quickWeightNotice}</p>}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </div>
                     )}
 

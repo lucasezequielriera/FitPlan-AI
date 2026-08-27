@@ -30,7 +30,7 @@ Antes de esto, la app tenía una paleta *parcial* (`--landing-*`, adoptada solo 
 
 | Token | Valor | Uso |
 |---|---|---|
-| `--brand-start/mid/end` | `#cbff3d` → `#ff5f45` → `#ff3d81` (lima → coral → magenta) | Gradiente ambiental de fondo (hero, body background), barras de progreso |
+| `--brand-start/mid/end` | `#cbff3d` → `#ff5f45` → `#ff3d81` (lima → coral → magenta) | Gradiente ambiental de fondo (hero, body background) y franjas decorativas finas sin dato (≤2px). **No usar en barras de progreso ni en ningún widget cuyo valor el usuario esté leyendo como una cifra** — ver corrección de alcance en §13.10.6; el progreso real usa `--accent` u otro token semántico según lo que comunique |
 | `--accent` | `#cbff3d` ("volt lime") | Color de interacción principal: CTAs, links activos, foco |
 | `--accent-strong` | `#a6e600` | Estado hover/active del acento |
 | `--accent-ink` | `#0a0f05` | Color de texto sobre superficies de acento (contraste sobre el lima, no usar blanco) |
@@ -626,3 +626,104 @@ Toda la reestructuración (13.2-13.4, y la Opción A de 13.5) usa tokens/clases 
 9. Reservar el padding inferior de 13.6 una vez `frontend` mida la altura real de la tab bar de §11.
 
 Demo de referencia (no implementación real, datos hardcodeados): `src/pages/dashboard-design-preview.tsx` → `/dashboard-design-preview` (controles arriba: cantidad de planes, plan simple/multi-fase, premium sí/no, abrir modal de progreso rediseñado, y el selector de Opción A/B del gradiente para que Lucas decida).
+
+## 13.10 Dashboard de cliente — revisión post-deploy (Lucas rechaza la v1 ya implementada)
+
+`frontend` implementó §13.1-13.9 completo (commit `4948acd`, incluida la Opción A de §13.5 — CTAs a `.btn-primary` sólido, aprobada) y quedó en producción. Lucas lo revisó ya deployado y no quedó conforme: *"hay muchos colores, no se entiende muy bien... si tienes que rediseñar y reestructurar todo hazlo... una barra de progreso se vea en verde por ejemplo y no colores que no tienen sentido... que no hayan botones por haber"*. Autorizó explícitamente rediseñar todo de nuevo si hacía falta.
+
+### 13.10.1 Diagnóstico: auditado el código real (`dashboard.tsx`, `DashboardPlanHero.tsx`, `DashboardPlanRow.tsx`), no la demo
+
+Antes de rediseñar de cero, se auditó lo que realmente está en producción — la reestructuración de v1 (header corto, hero + sidebar, shell de modal único, sin tabla HTML, sin cajas anidadas) está bien implementada y sigue la spec al pixel. El "se ve recargado" no viene de la estructura, viene de **dos causas puntuales y corregibles**, no de un problema de fondo que justifique tirar todo:
+
+**A. La barra de progreso lineal del hero (`DashboardPlanHero.tsx`, bajo el título) usa el gradiente de marca de 3 colores** (`linear-gradient(90deg, var(--brand-start), var(--brand-mid), var(--brand-end))` — lima→coral→magenta), **al lado de un anillo de progreso que usa `--accent` sólido para el mismo número.** Es exactamente el ejemplo que dio Lucas: una barra de progreso debería leerse en un solo color con sentido, no un arcoíris de marca. Dos representaciones visuales distintas del mismo dato, con dos lenguajes de color distintos, en la misma tarjeta — eso es lo que más "compite" en la pantalla, no la cantidad de elementos.
+
+**B. El botón móvil "Registrar peso" de "Acciones rápidas" no registra nada propio.** Abre exactamente el mismo modal que el botón "Progreso" de al lado (`setPlanForProgress(activePlan); setProgressModalOpen(true)`, línea por línea idéntico al handler del otro botón) — no hace scroll ni foco al formulario de peso dentro del modal, así que tampoco cumple lo que promete su label. Es, textual, "un botón por haber": dos botones, un solo comportamiento. (La sidebar de desktop, en cambio, sí tiene una carga de peso inline real, sin abrir modal — ahí no hay problema.)
+
+Con la regla de color de §13.10.2 aplicada solo a estos dos puntos, el resto del dashboard ya cumple: header sin CTAs compitiendo, semánticos (`--success`/`--warning`/`--danger`/`--info`) usados correctamente (aviso de entrenador asignado, error, ícono de plan free vencido, badge "Soporte humano"), badges de fase con un solo tono por vez, `--accent` como único color de interacción/selección. No hay 1.800 usos sueltos que limpiar acá como en el rollout original — hay dos elementos concretos mal resueltos.
+
+### 13.10.2 La regla de color (para toda la pantalla, no solo estos dos puntos — revisada en §13.10.9 con el techo de 3 de Lucas)
+
+**Si un elemento comunica un estado del usuario (progreso, fase, alerta, error, éxito) usa un token semántico de un solo tono. Si es decorativo (no representa ningún dato), puede usar el gradiente de marca, pero solo en un área chica y no competitiva — nunca del tamaño de un botón o una barra que el usuario está leyendo activamente.**
+
+Aplicado al dashboard:
+- **Progreso** (ring + barra) → `--accent` sólido, un solo tono para los dos widgets que muestran el mismo %. Antes la barra usaba el gradiente de marca; ahora coincide con el anillo.
+- **Fase del plan** (badge) → `--phase-bulk/cut/lean-bulk/maintenance`, ya semántico, sin cambios (ver §13.10.4 — se evaluó sacarlo y se decide mantenerlo).
+- **Confirmaciones/errores/avisos** → `--success`/`--danger`/`--warning`/`--info`, ya así, sin cambios.
+- **CTAs e interacción** → `--accent` (`.btn-primary`/`.btn-secondary`), ya así desde la Opción A aprobada.
+- **Gradiente de marca** (`--brand-start/mid/end`) → queda en **un solo lugar de toda la pantalla**: la línea decorativa de 1.5px arriba de la tarjeta del plan activo. No lleva ningún dato, es pura marca — "esta es la tarjeta importante". Es el único punto de la vista donde sobrevive, y solo porque es una franja fina, no un área que compita por lectura. Los washes radiales de fondo muy sutiles (`opacity 0.4-0.5`) detrás del modal de progreso y del modal de plan free vencido se mantienen por el mismo motivo (ambientales, detrás del texto, no leídos como dato).
+
+Esto no es una categoría de token nueva ni cambia dónde vive el gradiente de marca en el resto de la app (fuera del alcance de esta sección) — es aplicar, dentro del dashboard, la regla que el propio §1 ya documentaba ("barras de progreso" como uso aprobado del gradiente) de forma más estricta de lo que estaba escrito: una barra de progreso es exactamente el tipo de elemento que **sí** comunica un dato, así que no debería haber estado en esa lista para empezar. Se corrige la nota de §1 más abajo (13.10.5).
+
+### 13.10.3 Auditoría botón por botón (`dashboard.tsx` + los 3 componentes de hero/fila/sidebar)
+
+| Botón/acción | Veredicto | Motivo |
+|---|---|---|
+| Hero: "Ver mi plan" (primario) | Gana su lugar | Único CTA primario, lleva a donde se entrena de verdad |
+| Hero: "Preparar continuidad" (`.btn-success`, solo si `pct≥90`) | Gana su lugar | Condicional a un estado real (plan por terminar); verde correcto, es una acción positiva de cierre |
+| Hero: "Progreso" (`.btn-secondary`, solo desktop) | Gana su lugar | Acción distinta de "Ver mi plan", sin duplicar nada |
+| Mobile "Acciones rápidas" → "Progreso" | Gana su lugar | Igual que arriba, versión mobile |
+| Mobile "Acciones rápidas" → "Registrar peso" | **Se corrige, no se saca** | Duplicaba la acción de "Progreso" (13.10.1-B) sin cumplir su propio label — se convierte en carga inline (ver 13.10.4), no en un modal más |
+| "Otros planes" → "Nuevo plan" (`.btn-secondary`, solo si premium) | Gana su lugar | Gateado por plan real (premium), bajo peso visual, sección ya secundaria |
+| Fila de "otros planes" → ícono eliminar (solo si premium) | Gana su lugar | Ícono, no botón de texto; `--danger` correcto por ser destructivo; ya minimalista |
+| Franja de upsell → "Ver planes premium" | Gana su lugar | Un solo CTA, al final, no compite con el contenido principal |
+| Sidebar desktop → "Ver planes premium" / "Guardar" (peso) / "Solicitar/Contactar" (entrenador) | Ganan su lugar | Versión desktop de las mismas 3 acciones, con más espacio; no son duplicados simultáneos de las de mobile (son responsive, no ambas a la vez) |
+| Enlace "Pedir/Contactar entrenador personal" (mobile, fuera de sidebar) | Gana su lugar | Tratamiento ya discreto (borde punteado, texto muted) acorde a su prioridad baja |
+| Modal eliminar plan: "Cancelar"/"Eliminar" | Ganan su lugar | Patrón estándar de confirmación destructiva |
+| Modal de progreso: "Guardar" (peso) + ícono eliminar por registro | Ganan su lugar | Acción central del modal + limpieza de historial, ambos con propósito claro |
+| Modal free-expirado: "Entendido"/"Ver planes premium" | Ganan su lugar | Dos caminos reales desde un estado de bloqueo (cerrar vs. resolver) |
+| Modal entrenador personal: selección hombre/mujer, "No, gracias"/"Sí, quiero" | Ganan su lugar | Necesarios para completar el único flujo que ese modal resuelve |
+
+Resultado: de todos los botones/acciones del alcance, **solo uno no ganaba su lugar tal como estaba** ("Registrar peso" móvil) — no por sobrar, sino por prometer algo que no hacía. El resto del dashboard ya pasa el filtro de "que todo tenga sentido"; no hacía falta sacar nada más.
+
+### 13.10.4 "Registrar peso" en mobile: de botón-modal duplicado a carga inline
+
+Se descarta sacar el botón entero (mobile perdería una vía rápida real de cargar peso — el equivalente de lo que la sidebar de desktop ya resuelve bien) y se descarta pasarle un parámetro al modal para hacer scroll/foco automático al formulario (sigue abriendo un modal completo para una sola cifra, more fricción que la versión de desktop).
+
+**Se adopta el mismo patrón que ya usa la sidebar de desktop, en mobile:** al tocar "Registrar peso" se despliega un campo inline (número + botón "Guardar") debajo de la fila de acciones rápidas, sin abrir ningún modal — mismo comportamiento en las dos plataformas, en vez de mobile con una versión rota de la de desktop. Implementado en la demo como disclosure (`height`/`opacity` desde 0, pero en contenido montado recién al tocar el botón — no en el HTML inicial, así que no es el patrón de motion prohibido por §12/§11.6) envuelto en `useReducedMotion()`.
+
+### 13.10.5 Badges de fase del plan (ámbar/cian/esmeralda/violeta): revisado en §13.10.9 — ya no se mantienen tal cual en toda la pantalla
+
+**Superado por §13.10.9.** Esta sección original evaluó sacar el color de fase de todo el dashboard y decidió mantenerlo en todos lados, razonando el costo visual en abstracto ("aparece como máximo 2 veces") en vez de contra una captura real de la pantalla completa. Auditada la captura, el costo real no es "cuántas veces aparece un badge de fase", es cuántos **hues distintos conviven a la vez** en la misma vista junto con el resto de la paleta (franja + accent) — y ahí sí hay un problema que este razonamiento original no vio. Se mantiene el argumento de fondo (la fase es un estado real, no decoración) pero se acota dónde lleva color — ver §13.10.9 para la decisión final.
+
+### 13.10.6 Corrección a §1: alcance de "barras de progreso" como uso aprobado del gradiente de marca
+
+§1 lista "barras de progreso" entre los usos aprobados de `--brand-start/mid/end`, junto con "gradiente ambiental de fondo (hero, body background)". Esa nota describía la intención original (franjas finas de identidad, no widgets de datos), pero en la práctica habilitó el uso que Lucas acaba de rechazar acá y que también aparece, sin ser parte de este alcance, en `plan.tsx` (línea 3681) y `MonthChangesModal.tsx` (líneas 209/246) — el mismo patrón de "barra de progreso = gradiente de marca de 3 tonos" en vez de un tono semántico único.
+
+**Corrección de alcance (no crea categoría nueva, no requiere a Lucas — es acotar una nota ya escrita, con su encargo de esta misma revisión como base):** "barras de progreso" se saca de los usos aprobados de §1. El gradiente de marca queda documentado ahí solo para **ambiental de fondo y franjas decorativas finas sin dato** (heros, body background, líneas de acento ≤2px) — nunca para un elemento cuyo ancho/alto/color el usuario está leyendo como una cifra. Una barra de progreso real usa `--accent` (o el token semántico que corresponda al dato que muestra).
+
+No se corrige acá `plan.tsx` ni `MonthChangesModal.tsx` — están fuera del alcance de esta revisión (dashboard de cliente) — pero quedan anotados como candidatos directos para la próxima pasada, con la misma corrección ya decidida y lista para aplicar.
+
+### 13.10.7 Motion y accesibilidad
+
+- La disclosure de "Registrar peso" en mobile anima `height`/`opacity` desde 0 al abrirse — válido porque es contenido que solo existe después de la interacción del usuario (no está en el HTML inicial), mismo criterio ya usado en `ExerciseSetTracker.tsx`/`plan.tsx` para paneles expandibles. Se envuelve en `useReducedMotion()` (con `duration: 0` si está activo) — esos precedentes no lo hacían, se corrige acá y queda como el patrón a copiar.
+- El resto de las correcciones (13.10.1-A/B) no tocan ningún `initial`/`AnimatePresence` existente — son cambios de color y de una barra de acciones, no de motion.
+
+### 13.10.8 Pendiente para `frontend` (implementación, fuera de esta entrega — **ver 13.10.9, agrega 2 puntos más abajo, no reemplaza estos**)
+
+1. `DashboardPlanHero.tsx`: cambiar la barra de progreso lineal de `linear-gradient(90deg, var(--brand-start), var(--brand-mid), var(--brand-end))` a `bg-accent` sólido (ver demo, `ActivePlanHero`).
+2. `dashboard.tsx`: reemplazar el botón móvil "Registrar peso" (que hoy abre el mismo modal que "Progreso") por la disclosure inline de 13.10.4 — puede reusar la misma lógica de `handleQuickSaveWeight` que ya usa la sidebar de desktop, solo cambia dónde vive el input en mobile.
+3. Actualizar la nota de §1 (`--brand-start/mid/end`) para sacar "barras de progreso" de los usos aprobados, según 13.10.6 — cambio de documentación, no de código.
+4. ~~No se pide nada sobre badges de fase (13.10.5)~~ — **superado, ver 13.10.9 punto 2.** El resto de los botones auditados en 13.10.3 sigue sin cambios.
+
+### 13.10.9 Segunda revisión — techo de 3 colores conviviendo a la vez (criterio explícito de Lucas)
+
+Lucas, tras ver la v2 ya con los 2 puntos de 13.10.1 corregidos, dio una regla numérica concreta: *"en colorimetría dicen que deberían coexistir hasta 3 colores, 4 o más ya es ruido y presta a confusiones"*. Con la precisión de que los tokens semánticos de estado (`--success`/`--warning`/`--danger`) no cuentan contra ese presupuesto **cuando son excepcionales y funcionales** (aparecen solo si hay algo puntual que comunicar — un error, una cifra positiva, una acción destructiva), no cuando son permanentes y siempre visibles.
+
+**Auditada la v2 contra ese criterio (no en abstracto — contra la captura real a 1440px, `many` planes + multi-fase + premium, el escenario más denso y a la vez el más común para un usuario premium):** en un solo scroll conviven, todos permanentes y ninguno excepcional: fondo/neutro, lima (`--accent`, anillo+barra+CTA), la franja de gradiente de 3 tonos arriba del hero, el badge esmeralda "Fase: Recomposición" y el badge cian "Definición" de la fila de abajo. Contando la franja como 3 colores en sí misma, son 6 hues no-neutros a la vez — muy por encima del techo de 3 (neutro + acento + un tercero, como máximo).
+
+**Dos correcciones, ambas dentro de mi autonomía (no crean categoría de token, no tocan `plan.tsx`/admin):**
+
+1. **La franja de gradiente arriba del hero: se elimina, sin excepción.** Mi argumento anterior (13.10.2, "franja fina ≤2px no compite por lectura") no sobrevive al criterio numérico: la franja es, ella sola, un uso simultáneo de los 3 tonos de marca — satura el presupuesto completo antes de que aparezca cualquier otro color en pantalla, y no es semántica (no es excepcional, está siempre ahí). La jerarquía "esta es la tarjeta importante" que buscaba comunicar ya la da la estructura (es la primera tarjeta, la más grande, la única con anillo + CTA primario) — no hace falta un recurso de color para eso. Se saca del componente entero, no se reduce de tamaño ni se cambia de posición.
+
+2. **Badges de fase: el color se mantiene, pero solo en el plan activo (hero) — la fila "Otros planes" pasa a texto sin color (`.badge-neutral`).** La fase de un plan sigue siendo un estado real, no decoración (eso no cambió) — pero no es un estado *excepcional* en el sentido que exime a `--success`/`--warning`/`--danger`: es un dato permanente, visible siempre que hay un plan, y por eso sí cuenta contra el techo de 3. El badge del hero **gana** el lugar del tercer color (neutro + accent + fase-del-plan-activo = 3, dentro del techo) porque es el dato que responde "en qué fase estoy hoy", la pregunta central de la pantalla (§13.2). Los badges de "otros planes" no ganan ese mismo lugar: son historial secundario (ya de menor peso visual por diseño, §13.2 punto 3), y mostrar una fase de color ahí obliga a un segundo o tercer hue de fase conviviendo con el del hero apenas el usuario tiene más de un plan — que es el caso premium típico, no una excepción rara. El nombre de la fase se sigue leyendo en texto (`plan.phaseLabel`, ej. "Definición") dentro del badge neutro — sigue siendo decodificable, solo que sin un hue que compita con el del plan activo.
+
+**Alcance: es específico de esta pantalla, no cambia los tokens de fase de §1 ni su uso en `plan.tsx`/admin.** Ahí el color de fase cumple un rol distinto: son pantallas de comparación (grilla de planes, tabla de clientes) donde distinguir varias fases a simple vista *es* la tarea principal — no un dato secundario conviviendo con el resumen de "mi plan de hoy". Mismo dato (fase), rol visual distinto según si la pantalla compara muchos planes o resume uno solo — no es la inconsistencia que el sistema busca evitar (esa sería que "Definición" se viera cian en una pantalla y ámbar en otra sin motivo).
+
+**Presupuesto final de la vista base del dashboard (sin modal abierto): 3 colores — neutro/fondo, `--accent` (lima), y el hue de fase del plan activo.** Todo lo demás que aparece en pantalla (`--danger` en el ícono de eliminar plan, `--success` en el delta de peso o el gráfico del modal de progreso, `--warning`/`--info` en avisos puntuales) es excepcional y funcional en el sentido de Lucas — no está siempre visible con el mismo peso, aparece solo cuando hay algo puntual que comunicar — y por eso no cuenta contra el techo.
+
+Pendiente para `frontend` (se suma a la lista de 13.10.8, no la reemplaza):
+
+5. `DashboardPlanHero.tsx`: eliminar por completo la franja de gradiente de marca (`linear-gradient(90deg, var(--brand-start), var(--brand-mid), var(--brand-end))`, 1.5px arriba de la tarjeta) — no queda ningún uso del gradiente de marca en el dashboard después de este cambio.
+6. `DashboardPlanRow.tsx` (fila de "otros planes"): cambiar el badge de fase de `.badge-phase-*` (color según fase) a `.badge-neutral` — mismo texto (`phaseLabel`), sin variante de color. El badge del hero (`DashboardPlanHero.tsx`) no cambia, sigue en `.badge-phase-*`.
+
+Demo actualizada: `src/pages/dashboard-design-preview.tsx` → `/dashboard-design-preview` — franja de gradiente eliminada del hero, badges de "Otros planes" en `.badge-neutral`, nota de "qué cambió" ampliada con estos 2 puntos.

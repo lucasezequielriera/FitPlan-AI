@@ -21,13 +21,6 @@ const faseLabelKey: Record<string, "mfPhaseBulk" | "mfPhaseCut" | "mfPhaseLeanBu
   MANTENIMIENTO: "mfPhaseMaint",
 };
 
-const phaseBadgeClass: Record<string, string> = {
-  BULK: "badge-phase-bulk",
-  CUT: "badge-phase-cut",
-  LEAN_BULK: "badge-phase-lean-bulk",
-  MANTENIMIENTO: "badge-phase-maintenance",
-};
-
 /**
  * Fila compacta para "Otros planes" (historial) — DESIGN_SYSTEM.md §13.2-13.3.
  * Reemplaza la tarjeta densa que antes se repetía igual para cada plan del
@@ -74,11 +67,14 @@ export function DashboardPlanRow({ plan, locale, isPremium, onRowClick, onDelete
             empate de especificidad contra `hidden` sin importar el orden de
             clases en el JSX — se envuelve en un contenedor. */}
         <div className="hidden sm:block">
-          {pmf ? (
-            <span className={`badge ${phaseBadgeClass[pmf.faseActual]}`}>{dash(locale, faseLabelKey[pmf.faseActual])}</span>
-          ) : (
-            <span className="badge badge-neutral">{dash(locale, "noPhaseLabel")}</span>
-          )}
+          {/* Sin hue de fase acá (DESIGN_SYSTEM.md §13.10.9) — el color de fase se reserva
+              para el plan activo del hero (el "tercer color" del presupuesto de máximo 3).
+              Estas filas son historial secundario: el texto de la fase se sigue leyendo,
+              solo que sin color propio, para no sumar un segundo/tercer hue compitiendo
+              con el del hero. */}
+          <span className="badge badge-neutral">
+            {pmf ? dash(locale, faseLabelKey[pmf.faseActual]) : dash(locale, "noPhaseLabel")}
+          </span>
         </div>
         <span className="font-display text-xs font-semibold tabular-nums text-text-muted">{pct}%</span>
         {isPremium && (

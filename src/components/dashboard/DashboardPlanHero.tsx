@@ -80,11 +80,11 @@ export function DashboardPlanHero({
 
   return (
     <section className="card-surface relative overflow-hidden p-5 sm:p-6">
-      {/* Gradiente de marca — uso aprobado (franja fina), no en el CTA (DESIGN_SYSTEM.md §13.5 Opción A) */}
-      <div
-        className="pointer-events-none absolute inset-x-0 top-0 h-1.5"
-        style={{ background: "linear-gradient(90deg, var(--brand-start), var(--brand-mid), var(--brand-end))" }}
-      />
+      {/* Sin franja de gradiente de marca acá (DESIGN_SYSTEM.md §13.10.9): por sí sola ya
+          usaba los 3 tonos de marca y saturaba el presupuesto de máximo 3 colores conviviendo
+          en pantalla antes de que apareciera cualquier dato. La jerarquía "esta es la tarjeta
+          importante" ya la da la estructura (primera, más grande, única con anillo + CTA
+          primario), no hace falta un recurso de color para eso. */}
       <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-text-subtle">
@@ -114,14 +114,11 @@ export function DashboardPlanHero({
         </div>
       </div>
 
+      {/* Barra de progreso en `--accent` sólido, mismo tono que el anillo de arriba
+          (DESIGN_SYSTEM.md §13.10) — antes usaba el gradiente de marca, un segundo
+          tratamiento de color distinto para el mismo dato que ya muestra el anillo. */}
       <div className="mt-5 h-2 w-full overflow-hidden rounded-full bg-surface-2">
-        <div
-          className="h-full rounded-full transition-all duration-300"
-          style={{
-            width: `${pct}%`,
-            background: "linear-gradient(90deg, var(--brand-start), var(--brand-mid), var(--brand-end))",
-          }}
-        />
+        <div className="h-full rounded-full bg-accent transition-all duration-300" style={{ width: `${pct}%` }} />
       </div>
 
       <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
