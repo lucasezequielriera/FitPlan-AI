@@ -9,7 +9,7 @@ export default function RefundPage() {
         <meta name="description" content="Política de reembolsos de FitPlan: en qué casos puedes solicitar la devolución de tu pago, cómo tramitarla, plazos aplicables y condiciones de cancelación." />
         <link rel="canonical" href="https://www.fitplan-ai.com/legal/refund" />
       </Head>
-      <Navbar />
+      <Navbar minimal />
       <div className="flex-1 max-w-4xl mx-auto px-4 py-12">
           <h1 className="text-4xl font-bold mb-8 bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
             Política de Reembolsos

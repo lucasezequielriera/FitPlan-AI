@@ -2,19 +2,22 @@ import { FaEnvelope } from "react-icons/fa";
 import { motion } from "framer-motion";
 import { useRouter } from "next/router";
 
+// Reusado por el sheet "Cuenta" de <Navbar> en mobile (DESIGN_SYSTEM.md §11,
+// pedido de Lucas: el FAB se oculta <768px para que la tab bar se vea
+// completa — el acceso a contacto se muda ahí, mismo destino/copy).
+export const CONTACT_FORM_URL =
+  "https://docs.google.com/forms/d/e/1FAIpQLSdcSPbwCneAfBpvVAZEz4dusoRLgyMIVSzJm-FqGrU2SF5KwQ/viewform?usp=publish-editor";
+
 export default function ContactButton() {
   const router = useRouter();
   const isEn = router.pathname.startsWith("/en");
-
-  const googleFormUrl =
-    "https://docs.google.com/forms/d/e/1FAIpQLSdcSPbwCneAfBpvVAZEz4dusoRLgyMIVSzJm-FqGrU2SF5KwQ/viewform?usp=publish-editor";
 
   const labelFull = isEn ? "Questions? Contact us" : "¿Tienes alguna duda? Contáctanos";
   const aria = isEn ? "Open contact form in a new tab" : "Abrir formulario de contacto en una nueva pestaña";
 
   return (
     <motion.a
-      href={googleFormUrl}
+      href={CONTACT_FORM_URL}
       target="_blank"
       rel="noopener noreferrer"
       initial={{ y: 12, scale: 0.85 }}
@@ -27,7 +30,12 @@ export default function ContactButton() {
       }}
       whileHover={{ scale: 1.08 }}
       whileTap={{ scale: 0.94 }}
-      className="contact-fab group fixed z-40 flex h-14 w-14 touch-manipulation items-center justify-center rounded-full border border-[color-mix(in_oklab,var(--landing-accent)_50%,transparent)] bg-gradient-to-br from-[color-mix(in_oklab,var(--landing-accent)_28%,#0f172a)] to-[color-mix(in_oklab,var(--background)_92%,#0f172a)] text-[var(--landing-accent)] shadow-[0_10px_36px_-6px_rgba(45,212,191,0.45),0_0_0_1px_rgba(255,255,255,0.08)_inset] backdrop-blur-sm transition-[box-shadow,filter] hover:shadow-[0_14px_44px_-4px_rgba(45,212,191,0.55)] hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] md:h-16 md:w-16"
+      // Oculto <768px (pedido explícito de Lucas): en mobile compite con la
+      // tab bar de cliente de DESIGN_SYSTEM.md §11.4-B por el borde inferior
+      // y la tapa parcialmente. El acceso a contacto se muda al sheet
+      // "Cuenta" de la tab bar en ese rango — ver Navbar.tsx. En desktop
+      // (`md:` y superior) se mantiene igual que hoy.
+      className="contact-fab group fixed z-40 hidden h-14 w-14 touch-manipulation items-center justify-center rounded-full border border-[color-mix(in_oklab,var(--landing-accent)_50%,transparent)] bg-gradient-to-br from-[color-mix(in_oklab,var(--landing-accent)_28%,#0f172a)] to-[color-mix(in_oklab,var(--background)_92%,#0f172a)] text-[var(--landing-accent)] shadow-[0_10px_36px_-6px_rgba(45,212,191,0.45),0_0_0_1px_rgba(255,255,255,0.08)_inset] backdrop-blur-sm transition-[box-shadow,filter] hover:shadow-[0_14px_44px_-4px_rgba(45,212,191,0.55)] hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] md:flex md:h-16 md:w-16"
       aria-label={aria}
       title={labelFull}
     >

@@ -10,7 +10,7 @@ export default function PrivacyPage() {
         <meta name="description" content="Política de privacidad de FitPlan: qué datos personales recogemos, con qué finalidad los tratamos, cuánto tiempo los conservamos y cómo ejercer tus derechos." />
         <link rel="canonical" href="https://www.fitplan-ai.com/legal/privacy" />
       </Head>
-      <Navbar />
+      <Navbar minimal />
       <div className="flex-1 max-w-4xl mx-auto px-4 py-12">
           <h1 className="text-4xl font-bold mb-8 bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
             Política de Privacidad

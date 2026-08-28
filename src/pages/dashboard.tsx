@@ -468,12 +468,13 @@ export default function Dashboard() {
       </Head>
       <Navbar />
       {/* Padding inferior reservado para la tab bar de cliente de DESIGN_SYSTEM.md
-          §11.4-B (todavía no implementada) — mismo mecanismo de variable CSS
-          medida que ya usa AdminShell.tsx para `--admin-bottom-nav-h` (ver
-          globals.css). Hasta que esa barra publique `--client-bottom-nav-h`
-          con ResizeObserver, se usa el fallback de 4rem. Solo aplica en mobile
-          (`< lg`), que es donde vivirá esa barra fija. */}
-      <div className="relative z-[1] px-3 py-6 pb-[calc(var(--client-bottom-nav-h,4rem)+env(safe-area-inset-bottom))] sm:px-5 sm:py-10 md:px-8 lg:pb-10 max-w-full overflow-x-hidden">
+          §11.4-B (implementada en Navbar.tsx) — mismo mecanismo de variable CSS
+          medida que usa AdminShell.tsx para `--admin-bottom-nav-h` (ver
+          globals.css). `Navbar` publica `--client-bottom-nav-h` con
+          ResizeObserver mientras la tab bar está montada; el fallback de 4rem
+          cubre el instante antes de que ese efecto corra. Solo aplica en
+          mobile (`< md`), que es donde vive esa barra fija (`md:hidden`). */}
+      <div className="relative z-[1] px-3 py-6 pb-[calc(var(--client-bottom-nav-h,4rem)+env(safe-area-inset-bottom))] sm:px-5 sm:py-10 md:px-8 md:pb-10 max-w-full overflow-x-hidden">
         <div className="mx-auto max-w-6xl w-full">
           {cacheNotice ? (
             <div className="mb-4 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">

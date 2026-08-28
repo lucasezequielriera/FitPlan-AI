@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect, useRef, useState, type ComponentType } from "react";
-import { MessagesModal } from "@/components/Navbar";
+import { MessagesModal } from "@/components/nav/NavbarModals";
 import { useAuthStore } from "@/store/authStore";
 import { getDbSafe } from "@/lib/firebase";
 import { adminFetch } from "@/lib/adminAuthClient";
@@ -27,9 +27,11 @@ import {
  *
  * Pedido explícito de Lucas (2026-08-25): Notificaciones, Chat admin y
  * Cerrar sesión se movieron acá abajo de HYROX, reusando el modal/endpoints
- * que ya existían en Navbar.tsx (MessagesModal se exporta desde ahí) en vez
- * de duplicar lógica. `<Navbar />` (la barra horizontal) ya NO se monta acá
- * — la duplicación entre ambos navs quedó resuelta.
+ * que ya existían en Navbar.tsx (MessagesModal, movido a
+ * `@/components/nav/NavbarModals` en la reestructuración de §11 — mismo
+ * componente/props, no cambia el contrato) en vez de duplicar lógica.
+ * `<Navbar />` (la barra de cliente) ya NO se monta acá — la duplicación
+ * entre ambos navs quedó resuelta.
  *
  * "Ver sitio" (pie del sidebar / final de la tira mobile) preserva el único
  * link a la home pública que ofrecía Navbar.tsx (el logo). Separado del

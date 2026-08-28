@@ -26,6 +26,19 @@ export const navUi = {
   gymThisMonth: { es: "Días de gym este mes", en: "Gym days this month" },
   gymAria: { es: "Calendario de gym", en: "Gym calendar" },
   gymDaysSuffix: { es: "días este mes", en: "days this month" },
+  navHome: { es: "Inicio", en: "Home" },
+  navMyPlan: { es: "Mi plan", en: "My plan" },
+  navCreatePlan: { es: "Crear plan", en: "Create plan" },
+  navMessages: { es: "Mensajes", en: "Messages" },
+  navAccount: { es: "Cuenta", en: "Account" },
+  navMainAria: { es: "Navegación principal", en: "Main navigation" },
+  navViewSite: { es: "Ver sitio", en: "View site" },
+  navContact: { es: "¿Tienes alguna duda? Contáctanos", en: "Questions? Contact us" },
+  navGymDays: { es: "Días de gym", en: "Gym days" },
+  navNotifications: { es: "Notificaciones", en: "Notifications" },
+  navAdminChat: { es: "Chat admin", en: "Admin chat" },
+  navPendingSync: { es: "Pendiente sync", en: "Pending sync" },
+  navClose: { es: "Cerrar", en: "Close" },
 } as const;
 
 export function ui(locale: AppLocale, key: keyof typeof navUi): string {

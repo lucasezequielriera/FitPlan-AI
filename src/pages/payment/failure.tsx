@@ -15,7 +15,7 @@ export default function PaymentFailure() {
         noindex
       />
     <div className="min-h-screen">
-      <Navbar />
+      <Navbar minimal />
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] px-4 py-12">
         <motion.div
           initial={{ y: 12, scale: 0.9 }}

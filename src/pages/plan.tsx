@@ -2321,7 +2321,7 @@ export default function PlanPage() {
   if (!plan || !user) {
     if (!recoveringPlan) return null;
     return (
-      <div className="min-h-screen">
+      <div className="min-h-screen pb-[calc(var(--client-bottom-nav-h,4rem)+env(safe-area-inset-bottom))] md:pb-0">
         <Navbar />
         <div className="flex min-h-[50vh] items-center justify-center px-4">
           <div className="text-sm text-[var(--landing-muted)]">{p(locale, "loadingPlan")}</div>
@@ -2996,7 +2996,11 @@ export default function PlanPage() {
         <meta property="og:url" content="https://www.fitplan-ai.com/plan" />
       </Head>
       <Navbar />
-      <div className="px-4 py-8 md:px-8">
+      {/* Padding inferior para que la tab bar fija de mobile (DESIGN_SYSTEM.md
+          §11.4-B, `Navbar.tsx`) no tape el último elemento — mismo mecanismo
+          de variable CSS medida que `dashboard.tsx` (`--client-bottom-nav-h`,
+          publicada por `Navbar` con ResizeObserver mientras está montada). */}
+      <div className="px-4 py-8 pb-[calc(var(--client-bottom-nav-h,4rem)+env(safe-area-inset-bottom))] md:px-8 md:pb-8">
       <div className="mx-auto max-w-6xl">
         {cacheNotice ? (
           <div className="mb-4 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">

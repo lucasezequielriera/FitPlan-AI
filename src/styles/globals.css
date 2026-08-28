@@ -376,21 +376,20 @@ select.bg-transparent {
    así agrega `has-bottom-nav` a <body> mientras está montado (con cleanup al
    desmontar) — ver AdminShell.tsx. El banner (`.cookie-consent-banner`) sube
    su posición para no taparla.
-   Valor: `--admin-bottom-nav-h` lo publica AdminShell.tsx con
-   `getBoundingClientRect()` sobre la fila de pills (sin contar la franja de
-   safe area, que se suma acá aparte con env() — mismo criterio que
-   `--cookie-banner-h`/`.contact-fab` más abajo). Se mide en vez de
-   hardcodear un número porque cambia con el idioma, los badges y el ancho.
-   El fallback (56px) es el valor medido históricamente para cubrir el
-   instante antes de que el efecto de React corra. Si en el futuro se
-   implementa la tab bar de cliente de DESIGN_SYSTEM.md §11.4-B, que publique
-   la misma variable (o una propia y se ajusta esta regla) — `dashboard.tsx`
-   (§13.6/§13.9 punto 9) ya reserva su padding inferior en mobile leyendo
-   `--client-bottom-nav-h` con un fallback propio de 4rem, a la espera de que
-   ese componente la publique con `ResizeObserver` (mismo mecanismo que acá). */
+   Valor: `--admin-bottom-nav-h` lo publica AdminShell.tsx (fila de pills) y
+   `--client-bottom-nav-h` lo publica Navbar.tsx (tab bar de cliente,
+   DESIGN_SYSTEM.md §11.4-B) con `getBoundingClientRect()`, ambos con
+   `ResizeObserver` (sin contar la franja de safe area, que se suma acá
+   aparte con env() — mismo criterio que `--cookie-banner-h`/`.contact-fab`
+   más abajo). Se mide en vez de hardcodear un número porque cambia con el
+   idioma, los badges y el ancho. Las dos variables son mutuamente
+   excluyentes en la práctica (admin usa `AdminShell`, cliente usa `Navbar`,
+   nunca las dos a la vez en la misma ruta), así que se prueba la de admin
+   primero y se cae a la de cliente; el fallback final (56px) cubre el
+   instante antes de que cualquiera de los dos efectos corra. */
 @media (max-width: 767px) {
   body.has-bottom-nav .cookie-consent-banner {
-    bottom: calc(var(--admin-bottom-nav-h, 56px) + env(safe-area-inset-bottom));
+    bottom: calc(var(--admin-bottom-nav-h, var(--client-bottom-nav-h, 56px)) + env(safe-area-inset-bottom));
   }
 }
 
@@ -422,10 +421,12 @@ body.has-cookie-banner .contact-fab {
    el banner no se desplaza, así que sumar el alto de la barra acá empujaría el
    botón de más.
 
-   Hoy esta regla no se dispara: `has-bottom-nav` solo existe en el admin, y el
-   botón de contacto dejó de renderizarse ahí (ver _app.tsx). Se mantiene porque
-   vuelve a ser necesaria en cuanto se implemente la tab bar de cliente
-   (DESIGN_SYSTEM.md §11.4-B), donde sí conviven barra inferior y botón. */
+   Hoy esta regla no se dispara en ningún caso: `.contact-fab` está oculto
+   por completo debajo de 768px (pedido explícito de Lucas al implementar la
+   tab bar de cliente, DESIGN_SYSTEM.md §11.4-B — el FAB de contacto competía
+   por el borde inferior con la tab bar; su acceso se movió al sheet "Cuenta"
+   de `Navbar.tsx`, ver ContactButton.tsx). Se mantiene la regla por si en el
+   futuro se decide reintroducir el FAB en mobile bajo otra condición. */
 @media (max-width: 767px) {
   body.has-bottom-nav.has-cookie-banner .contact-fab {
     bottom: calc(

@@ -10,7 +10,7 @@ export default function TermsPage() {
         <meta name="description" content="Términos y condiciones de uso de FitPlan: derechos y obligaciones, funcionamiento del servicio y condiciones de los planes generados con IA." />
         <link rel="canonical" href="https://www.fitplan-ai.com/legal/terms" />
       </Head>
-      <Navbar />
+      <Navbar minimal />
       <div className="flex-1 max-w-4xl mx-auto px-4 py-12">
           <h1 className="text-4xl font-bold mb-8 bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
             Términos de Servicio

@@ -1125,7 +1125,7 @@ export default function CreatePlan() {
         <meta property="og:description" content={cp(locale, "ogDesc")} />
         <meta property="og:url" content="https://www.fitplan-ai.com/create-plan" />
       </Head>
-      <Navbar />
+      <Navbar minimal />
       <div className="relative z-[1] px-3 py-6 sm:px-5 sm:py-10 md:px-8">
         <div className="mx-auto w-full max-w-3xl">
           <motion.div

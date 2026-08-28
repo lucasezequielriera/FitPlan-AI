@@ -9,7 +9,7 @@ export default function ContactLegalPage() {
         <meta name="description" content="Contacto legal de FitPlan: datos del responsable del servicio y canales para consultas legales, ejercicio de derechos o presentar una reclamación." />
         <link rel="canonical" href="https://www.fitplan-ai.com/legal/contact" />
       </Head>
-      <Navbar />
+      <Navbar minimal />
       <div className="flex-1 max-w-4xl mx-auto px-4 py-12">
           <h1 className="text-4xl font-bold mb-8 bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
             Contacto Legal

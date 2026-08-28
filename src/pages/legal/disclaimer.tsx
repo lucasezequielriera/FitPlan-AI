@@ -10,7 +10,7 @@ export default function DisclaimerPage() {
         <meta name="description" content="Descargo de responsabilidad médica de FitPlan: nuestros planes de nutrición y entrenamiento son orientativos y no sustituyen el consejo médico profesional." />
         <link rel="canonical" href="https://www.fitplan-ai.com/legal/disclaimer" />
       </Head>
-      <Navbar />
+      <Navbar minimal />
       <div className="flex-1 max-w-4xl mx-auto px-4 py-12">
           <h1 className="text-4xl font-bold mb-8 bg-gradient-to-r from-red-400 to-orange-400 bg-clip-text text-transparent">
             Descargo de Responsabilidad Médica
