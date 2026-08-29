@@ -33,8 +33,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: "Máximo 10 horarios por día" });
   }
 
+  // Cada cuántos días se genera un reel. Si no se manda, se asume 1 (todos
+  // los días) — el valor más conservador en costo de crédito de HeyGen.
+  const rawInterval = req.body?.intervalDays;
+  const intervalDays = rawInterval === undefined ? 1 : Number(rawInterval);
+  if (!Number.isFinite(intervalDays) || intervalDays < 1 || intervalDays > 14 || !Number.isInteger(intervalDays)) {
+    return res.status(400).json({ error: "intervalDays debe ser un entero entre 1 y 14" });
+  }
+
   try {
-    await setSocialSchedule(db, { enabled, timesLocal });
+    await setSocialSchedule(db, { enabled, timesLocal, intervalDays });
     return res.status(200).json({ ok: true });
   } catch (error) {
     console.error("Error guardando configuración de reels automáticos:", error);

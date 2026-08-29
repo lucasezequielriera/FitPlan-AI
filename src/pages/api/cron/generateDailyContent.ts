@@ -12,7 +12,7 @@ import { postVideoToInstagram } from "@/lib/socialContent/postToInstagram";
 import { postVideoToTikTok } from "@/lib/socialContent/postToTikTok";
 import { getInstagramAccessToken } from "@/lib/socialContent/instagramTokenStore";
 import { getStoredTikTokTokens } from "@/lib/socialContent/tiktokTokenStore";
-import { getSocialSchedule, madridDateId, matchingSlotsNow, slotDocId } from "@/lib/socialContent/scheduleStore";
+import { getSocialSchedule, madridDateId, matchingSlotsNow, slotDocId, dueReelSlotsNow } from "@/lib/socialContent/scheduleStore";
 import { publishManualDraft } from "@/lib/socialContent/publishManualDraft";
 import { publishCarouselDraft } from "@/lib/socialContent/publishCarouselDraft";
 import { buildCarousel } from "@/lib/socialContent/buildCarousel";
@@ -341,9 +341,11 @@ async function publishDueScheduledCarousels(db: Firestore, now: Date) {
  *    vencieron.
  * 2. Revisa docs "generating" de ticks anteriores: si HeyGen ya terminó el
  *    comercial, lo sube y publica; si no, lo deja para el próximo tick.
- * 3. Para cada horario configurado que caiga en la ventana actual y todavía
- *    no tenga doc hoy, ARRANCA una generación nueva (rápido, solo crea la
- *    sesión de Video Agent) y la deja en "generating".
+ * 3. Para el horario que le toque hoy según la cadencia y la rotación
+ *    configuradas (`intervalDays`, `timesLocal` — ver `dueReelSlotsNow` en
+ *    scheduleStore.ts) y que caiga en la ventana actual, si todavía no tiene
+ *    doc hoy, ARRANCA una generación nueva (rápido, solo crea la sesión de
+ *    Video Agent) y la deja en "generating".
  *
  * El comercial de HeyGen Video Agent puede tardar varios minutos en
  * terminar — con el tick de 10 min, normalmente se resuelve 1-2 ticks
@@ -377,10 +379,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const schedule = await getSocialSchedule(db);
-    const matchingSlots = matchingSlotsNow(schedule, now, TICK_TOLERANCE_MINUTES);
     const dateId = madridDateId(now);
+    // Ya filtrado por cadencia (`intervalDays`) y, si hay más de un horario
+    // configurado, por a cuál le toca el turno hoy (rotación) — ver
+    // `dueReelSlotsNow` en scheduleStore.ts.
+    const dueSlots = dueReelSlotsNow(schedule, now, TICK_TOLERANCE_MINUTES);
 
-    for (const slot of matchingSlots) {
+    for (const slot of dueSlots) {
       const docId = slotDocId(dateId, slot);
       const docRef = db.collection("socialContent").doc(docId);
       const existing = await docRef.get();

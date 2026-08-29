@@ -138,14 +138,23 @@ function dayOfYear(date: Date): number {
 /**
  * Qué función cumple la pieza de un slot dado.
  *
- * Con 2 piezas diarias (14 semanales) el reparto queda:
+ * Con 2 piezas diarias (14 semanales) el reparto quedaba:
  * - 09:00 → alcance los 7 días                          = 7 piezas
  * - 13:00 → nutrición lun/mar/jue/vie, conversión mié/sáb, alcance dom
  *                                                        = 4 + 2 + 1
- * Total semanal: 8 alcance / 4 nutrición / 2 conversión ≈ 57/29/14, que es la
+ * Total semanal: 8 alcance / 4 nutrición / 2 conversión ≈ 57/29/14, que era la
  * mezcla objetivo con un pequeño sesgo extra hacia alcance (lo correcto en
  * fase de construcción de audiencia, donde el cuello de botella es que te
  * descubran, no que te compren).
+ *
+ * OJO (2026-08): con la cadencia bajada a uno cada 2 días, alternando entre
+ * 20:30 y 01:30 (ambos fuera de la franja 12-18) para cuidar crédito de
+ * HeyGen y cubrir audiencia de España y Argentina, la rama de mediodía de
+ * `functionForSlot` quedó inalcanzable en el flujo automático de reels —
+ * todo reel automático sale como "alcance", así que el reparto de arriba ya
+ * NO se cumple hasta que se agregue de nuevo un slot de mediodía o se revise
+ * esta función. Los carruseles (`buildCarousel.ts`) no usan `functionForSlot`
+ * en absoluto.
  */
 export function functionForSlot(slotLocal: string, date: Date): ContentFunction {
   const hour = parseInt(slotLocal.split(":")[0] ?? "", 10);

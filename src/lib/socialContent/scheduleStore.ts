@@ -16,10 +16,24 @@ export type SocialSchedule = {
    * ese momento (ver `madridOffsetMinutes`).
    */
   timesLocal: string[];
+  /**
+   * Cada cuántos días se genera un reel nuevo. 1 = todos los días (y es el
+   * valor asumido si un doc viejo no tiene este campo, para no cambiarle el
+   * comportamiento a una config guardada antes de que existiera). HeyGen
+   * factura por render generado, así que este número es también la palanca
+   * directa de costo — ver `isDueByInterval`.
+   */
+  intervalDays: number;
 };
 
-/** 09:00 (franja de alcance) y 13:00 (franja de profundidad/conversión). */
-const DEFAULT_SCHEDULE: SocialSchedule = { enabled: true, timesLocal: ["09:00", "13:00"] };
+/**
+ * Uno cada 2 días, alternando entre dos horarios (público en España y en
+ * Argentina, con 5hs de diferencia — no hay una sola hora buena para los
+ * dos): 20:30 Madrid (noche en España) y 01:30 Madrid (20:30 Argentina, su
+ * franja de noche). El ORDEN de `timesLocal` es el orden de rotación — ver
+ * `dueReelSlotsNow`.
+ */
+const DEFAULT_SCHEDULE: SocialSchedule = { enabled: true, timesLocal: ["20:30", "01:30"], intervalDays: 2 };
 
 const TIME_RE = /^\d{2}:\d{2}$/;
 
@@ -100,9 +114,14 @@ export async function getSocialSchedule(db: Firestore): Promise<SocialSchedule> 
     }
   }
 
+  const rawInterval = Number(data.intervalDays);
+  const intervalDays =
+    Number.isFinite(rawInterval) && rawInterval >= 1 ? Math.round(rawInterval) : DEFAULT_SCHEDULE.intervalDays;
+
   return {
     enabled: typeof data.enabled === "boolean" ? data.enabled : true,
     timesLocal: timesLocal ?? DEFAULT_SCHEDULE.timesLocal,
+    intervalDays,
   };
 }
 
@@ -111,6 +130,7 @@ export async function setSocialSchedule(db: Firestore, schedule: SocialSchedule)
     {
       enabled: schedule.enabled,
       timesLocal: schedule.timesLocal,
+      intervalDays: schedule.intervalDays,
       // El campo viejo se borra para que no queden dos fuentes de verdad
       // contradiciéndose si alguien lee el doc a mano.
       timesUtc: FieldValue.delete(),
@@ -126,7 +146,11 @@ export async function setSocialSchedule(db: Firestore, schedule: SocialSchedule)
  * exactamente al segundo). Devuelve los horarios ("HH:MM" locales) que
  * deberían disparar ahora.
  */
-export function matchingSlotsNow(schedule: SocialSchedule, now: Date, toleranceMinutes: number): string[] {
+export function matchingSlotsNow(
+  schedule: Pick<SocialSchedule, "enabled" | "timesLocal">,
+  now: Date,
+  toleranceMinutes: number
+): string[] {
   if (!schedule.enabled) return [];
   const nowMinutes = madridMinutesOfDay(now);
 
@@ -143,4 +167,65 @@ export function matchingSlotsNow(schedule: SocialSchedule, now: Date, toleranceM
 
 export function slotDocId(dateId: string, timeLocal: string): string {
   return `${dateId}_${timeLocal.replace(":", "")}`;
+}
+
+/** `dateId` ("YYYY-MM-DD") a un índice de día absoluto (días desde epoch UTC). */
+function dateIdToDayIndex(dateId: string): number {
+  const [y, mo, d] = dateId.split("-").map((n) => parseInt(n, 10));
+  return Math.floor(Date.UTC(y, mo - 1, d) / 86400000);
+}
+
+/**
+ * Si corresponde generar hoy dado un intervalo de N días (ver
+ * `SocialSchedule.intervalDays`). Sin estado en Firestore: se deriva
+ * matemáticamente del propio `dateId` (mismo calendario de Madrid que agrupa
+ * los docs), así que no depende de recordar cuándo se generó la última pieza
+ * — mismo patrón determinista que ya usa el repo para rotaciones (`dayOfYear`
+ * en topics.ts, `pickPersonaForDate` en generateDailyContent.ts). Si un tick
+ * se pierde (el cron falla un día) el próximo día que sí caiga en la
+ * paridad correcta retoma solo, sin arrastrar ni duplicar generaciones.
+ */
+export function isDueByInterval(dateId: string, intervalDays: number): boolean {
+  const n = Math.round(intervalDays);
+  if (!Number.isFinite(n) || n <= 1) return true;
+  return dateIdToDayIndex(dateId) % n === 0;
+}
+
+/**
+ * Slots de reel que corresponden AHORA: combina el matching de hora del día
+ * (`matchingSlotsNow`) con la cadencia `intervalDays` y, si hay más de un
+ * horario configurado, con a cuál de ellos le toca el turno hoy.
+ *
+ * Con más de un horario NO se disparan todos el mismo día "due" — rotan en
+ * el ORDEN de `timesLocal`, un horario distinto por cada ciclo de
+ * `intervalDays` días. Ejemplo con `["20:30", "01:30"]` e `intervalDays=2`:
+ * día D (ciclo par) → solo puede disparar 20:30 ese día; día D+2 (ciclo
+ * impar) → solo 01:30; día D+4 → vuelve a 20:30. Así "uno cada 2 días" se
+ * cumple exacto en cantidad (1 pieza cada 2 días calendario de Madrid, ni
+ * más ni menos) y de paso alterna el horario.
+ *
+ * Con un solo horario configurado se comporta exactamente como antes de
+ * que existiera la rotación (todo ciclo usa ese único horario).
+ *
+ * El chequeo de "a qué día pertenece" un horario usa el `dateId` del propio
+ * día calendario en que cae el chequeo (sin mirar a qué otro huso horario
+ * "pertenece" conceptualmente ese horario) — por eso 01:30, aunque en hora
+ * argentina represente la noche del día anterior, no necesita ningún ajuste
+ * especial: para el gate y la rotación es simplemente el chequeo del propio
+ * día de Madrid en que ese reloj marca 01:30, igual que 20:30 es el chequeo
+ * del día de Madrid en que marca 20:30. Sin estado en Firestore — mismo
+ * criterio determinista que `isDueByInterval`.
+ */
+export function dueReelSlotsNow(schedule: SocialSchedule, now: Date, toleranceMinutes: number): string[] {
+  if (!schedule.enabled || schedule.timesLocal.length === 0) return [];
+
+  const dateId = madridDateId(now);
+  const cycleLength = Math.max(1, Math.round(schedule.intervalDays) || 1);
+  if (!isDueByInterval(dateId, cycleLength)) return [];
+
+  const rotationIndex =
+    schedule.timesLocal.length > 1 ? (dateIdToDayIndex(dateId) / cycleLength) % schedule.timesLocal.length : 0;
+  const assignedTime = schedule.timesLocal[rotationIndex];
+
+  return matchingSlotsNow({ enabled: true, timesLocal: [assignedTime] }, now, toleranceMinutes);
 }

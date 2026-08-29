@@ -71,6 +71,35 @@ function slotPlan(timeLocal: string): { label: string; detail: string; className
   };
 }
 
+/**
+ * Solo para mostrar en el panel qué hora es en Argentina para un horario
+ * "HH:MM" guardado en hora de Madrid — un dato informativo para poder leer
+ * la configuración con criterio (la audiencia es de España Y Argentina, con
+ * 5hs de diferencia). NO cambia el huso de referencia ni lo que se guarda:
+ * `timesLocal` sigue siendo, y se sigue interpretando, en hora de Madrid.
+ */
+function madridTimeToArgentinaLabel(timeLocal: string): string {
+  const match = timeLocal.match(/^(\d{2}):(\d{2})$/);
+  if (!match) return "";
+  const [, hh, mm] = match;
+  const now = new Date();
+  const guessUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), Number(hh), Number(mm)));
+  const madridOffset = getTimeZoneOffsetMinutes(MADRID_TZ, guessUtc);
+  const instant = new Date(guessUtc.getTime() - madridOffset * 60000);
+
+  const madridDay = new Intl.DateTimeFormat("en-US", { timeZone: MADRID_TZ, day: "2-digit" }).format(instant);
+  const arParts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    hourCycle: "h23",
+    hour: "2-digit",
+    minute: "2-digit",
+    day: "2-digit",
+  }).formatToParts(instant);
+  const get = (t: string) => arParts.find((p) => p.type === t)?.value ?? "";
+  const sameDay = get("day") === madridDay;
+  return `≈ ${get("hour")}:${get("minute")} en Argentina${sameDay ? "" : " (noche anterior en Argentina, mismo evento)"}`;
+}
+
 /** Convierte un valor de <input type="datetime-local"> (interpretado como hora Madrid) a ISO UTC. */
 function madridLocalDatetimeToUtcIso(datetimeLocal: string): string | null {
   const match = datetimeLocal.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
@@ -154,6 +183,7 @@ export default function AdminContenidoSocialPage() {
 
   const [scheduleEnabled, setScheduleEnabled] = useState(true);
   const [scheduleTimesLocal, setScheduleTimesLocal] = useState<string[]>([]);
+  const [scheduleIntervalDays, setScheduleIntervalDays] = useState(1);
   const [scheduleLoading, setScheduleLoading] = useState(true);
   const [scheduleSaving, setScheduleSaving] = useState(false);
   const [scheduleSaved, setScheduleSaved] = useState(false);
@@ -209,6 +239,7 @@ export default function AdminContenidoSocialPage() {
           setScheduleEnabled(data.enabled);
           // El backend ya devuelve hora local de Madrid — no hace falta convertir.
           setScheduleTimesLocal(data.timesLocal || []);
+          setScheduleIntervalDays(typeof data.intervalDays === "number" && data.intervalDays >= 1 ? data.intervalDays : 1);
         }
       } catch {
         // silencioso: si falla, se muestran los defaults y el admin puede reintentar guardando
@@ -243,7 +274,7 @@ export default function AdminContenidoSocialPage() {
       const resp = await adminFetch("/api/admin/socialScheduleUpdate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled: scheduleEnabled, timesLocal }),
+        body: JSON.stringify({ enabled: scheduleEnabled, timesLocal, intervalDays: scheduleIntervalDays }),
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || "No se pudo guardar la configuración");
@@ -426,9 +457,9 @@ export default function AdminContenidoSocialPage() {
                 (España) para que se publique solo más adelante — hasta ese momento sigue siendo un borrador que nadie ve.
               </li>
               <li>
-                <span className="text-white font-medium">(Opcional) Automatizá reels diarios.</span> Más abajo, en &ldquo;Reels automáticos
-                diarios&rdquo;, activa la publicación automática y configura uno o varios horarios (tu hora, España) — ahí la IA elige el tema
-                sola, rotando, y publica sin que tengas que apretar nada.
+                <span className="text-white font-medium">(Opcional) Automatizá reels.</span> Más abajo, en &ldquo;Reels
+                automáticos&rdquo;, activa la publicación automática, configura uno o varios horarios (tu hora, España) y cada cuántos
+                días se genera uno — ahí la IA elige el tema sola, rotando, y publica sin que tengas que apretar nada.
               </li>
               <li>
                 <span className="text-white font-medium">Controlá el estado y el historial</span> desde{" "}
@@ -616,9 +647,9 @@ export default function AdminContenidoSocialPage() {
               <FaClock />
             </span>
             <div>
-              <h2 className="text-lg font-semibold text-white">Reels automáticos diarios</h2>
+              <h2 className="text-lg font-semibold text-white">Reels automáticos</h2>
               <p className="text-sm text-white/50">
-                A qué hora se publica cada día (tu hora, España). La franja decide el tipo de pieza, y el tema se elige solo dentro de ese tipo.
+                A qué hora se publica (tu hora, España) y cada cuántos días. La franja decide el tipo de pieza, y el tema se elige solo dentro de ese tipo.
               </p>
             </div>
           </div>
@@ -640,12 +671,40 @@ export default function AdminContenidoSocialPage() {
                 Publicación automática activada
               </label>
 
+              <div className="flex items-center gap-2 text-sm text-white/80">
+                <span>Generar un reel nuevo cada</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={14}
+                  value={scheduleIntervalDays}
+                  onChange={(e) => {
+                    const n = parseInt(e.target.value, 10);
+                    setScheduleIntervalDays(Number.isFinite(n) && n >= 1 ? Math.min(14, n) : 1);
+                    setScheduleSaved(false);
+                  }}
+                  className="w-16 rounded-lg bg-black/25 border border-white/15 px-2 py-1.5 text-sm text-white text-center outline-none focus:border-warning/50"
+                />
+                <span>día(s) {scheduleIntervalDays <= 1 ? "(todos los días)" : `(1 de cada ${scheduleIntervalDays})`}</span>
+              </div>
+
+              {scheduleTimesLocal.length > 1 && (
+                <p className="text-xs text-white/45 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                  Con más de un horario, NO se publican todos el mismo ciclo: se van alternando en el orden de la
+                  lista, uno por cada {scheduleIntervalDays <= 1 ? "día" : `${scheduleIntervalDays} día(s)`}. El
+                  horario #1 le toca al primer ciclo, el #2 al siguiente, y así rotando.
+                </p>
+              )}
+
               <div className="space-y-2">
                 {scheduleTimesLocal.map((time, index) => {
                   const plan = slotPlan(time);
                   return (
                     <div key={index} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2.5">
                       <div className="flex items-center gap-2">
+                        {scheduleTimesLocal.length > 1 && (
+                          <span className="badge badge-info text-[10px] shrink-0">#{index + 1}</span>
+                        )}
                         <input
                           type="time"
                           value={time}
@@ -666,6 +725,7 @@ export default function AdminContenidoSocialPage() {
                         <span className={`badge ${plan.className} text-xs shrink-0`}>{plan.label}</span>
                         <p className="text-xs text-white/45">{plan.detail}</p>
                       </div>
+                      <p className="text-xs text-white/40 mt-1">{madridTimeToArgentinaLabel(time)}</p>
                     </div>
                   );
                 })}

@@ -39,7 +39,10 @@ export const DEFAULT_PRICE_LABEL = `Premium desde ${getStripeSubscriptionPlans("
 
 export const DEFAULT_CAROUSEL_SCHEDULE: CarouselSchedule = {
   enabled: true,
-  timesLocal: ["09:30", "13:30"],
+  // Una franja diaria (mediodía, hora Madrid): pausa donde se le dedica
+  // atención a algo que se lee, a diferencia de los reels que van a la
+  // franja de mayor consumo de video corto.
+  timesLocal: ["13:00"],
   // Cinco es el formato ya validado: espacio para gancho, problema, mecanismo,
   // contenido y cierre sin que la gente abandone antes del final.
   slideCount: 5,
