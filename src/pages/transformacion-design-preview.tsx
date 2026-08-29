@@ -1,162 +1,61 @@
-import { useEffect, useState } from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
 import { motion, useReducedMotion } from "framer-motion";
 import { FaCheckCircle, FaBolt, FaBrain, FaDumbbell, FaUtensils, FaWhatsapp } from "react-icons/fa";
-import LoginModal from "@/components/LoginModal";
-import LandingLangToggle from "@/components/LandingLangToggle";
-import { useAuthStore } from "@/store/authStore";
-import { trackEvent } from "@/lib/analytics";
 
-export default function TransformacionFitPlanLanding() {
+/**
+ * PROPUESTA — techo de 3 colores aplicado a `transformacion-fitplan.tsx` (es/en)
+ * -----------------------------------------------------------------------------
+ * NO es una pantalla real: es la demo visual que acompaña DESIGN_SYSTEM.md §14.
+ * Nada de Firestore/auth/analytics real — botones sin handler real, solo para ver el layout.
+ *
+ * Por qué existe esta demo (no solo el mapeo en el doc): la página real nunca pasó por el
+ * rollout de tokens ("FitPlan Volt", ver §5) — es 100% clases Tailwind crudas, así que no
+ * alcanza con "sacar un color", hay que migrar el archivo entero. Se comparó contra una
+ * captura real (1440px y 390px, es y en) antes de proponer nada — ver §14 para el conteo.
+ *
+ * Qué cambia respecto al archivo real:
+ *  - 4 hues no-neutros conviviendo a la vez (cian/azul, esmeralda, ámbar/naranja, y el lima
+ *    de marca que solo aparecía en el banner de cookies, ajeno a esta página) → 2: neutro y
+ *    `--accent` (lima), el mismo criterio ya aplicado en `HomeLanding.tsx` (que sí pasó por
+ *    el rollout y hoy usa un solo acento en toda la pantalla).
+ *  - El mismo CTA ("Activar FitPlan Premium") cambiaba de color según la sección en la que
+ *    apareciera (azul→cian arriba, ámbar→naranja en la oferta) — ahora es siempre
+ *    `.btn-primary` (lima sólido), la misma decisión ya aprobada para el dashboard (§13.5,
+ *    Opción A) — no es una decisión nueva, es aplicar la que ya está resuelta a nivel sistema.
+ *  - "Asesoría 1:1" (el camino secundario) ya no tiene su propio hue permanente (esmeralda)
+ *    corriendo en paralelo al lima en 4 secciones distintas — se distingue por estructura
+ *    (icono, copy, `.btn-secondary`) en vez de por color, igual que cualquier segunda opción
+ *    del resto de la app.
+ *  - El plan "recomendado" del pricing (antes con ring ámbar) usa ring `--accent` — el mismo
+ *    lima que ya hace de "esto es lo importante" en el resto de la página, no un tercer hue.
+ *  - `useReducedMotion()` agregado (la página real no lo tenía en su único bloque animado).
+ *
+ * No se tocan textos/copy más allá de lo mínimo para que la estructura se lea — el copy real
+ * lo define `producto`/marketing, esta demo es solo de color y estructura visual.
+ */
+export default function TransformacionDesignPreview() {
   const router = useRouter();
-  const { user: authUser } = useAuthStore();
-  const [loginOpen, setLoginOpen] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
   const reduceMotion = useReducedMotion();
-  // NO devolver `initial: { opacity: 0 }` acá — ver HomeLanding.tsx para el motivo
-  // (la landing quedó en blanco en producción dos veces por ese patrón).
   const fadeUp = reduceMotion ? { initial: false as const } : { initial: { y: 12 }, animate: { y: 0 } };
-
-  useEffect(() => {
-    // isMounted evita mismatches de hidratación en contenido client-only;
-    // no hay alternativa sin useSyncExternalStore para este caso puntual.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setIsMounted(true);
-    trackEvent("view_content", {
-      content_name: "transformacion-fitplan",
-      content_language: "es",
-      content_category: "landing",
-    });
-  }, []);
-
-  const handlePrimaryCta = () => {
-    trackEvent("begin_checkout", {
-      source: "transformacion-fitplan-es",
-      plan_type: "premium",
-      currency: "EUR",
-    });
-    if (isMounted && authUser) {
-      router.push("/dashboard?openPremium=1");
-      return;
-    }
-    setLoginOpen(true);
-  };
-
-  const canonical = "https://www.fitplan-ai.com/transformacion-fitplan";
-  const canonicalEn = "https://www.fitplan-ai.com/en/transformacion-fitplan";
-
-  const faqJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    mainEntity: [
-      {
-        "@type": "Question",
-        name: "¿FitPlan sirve si soy principiante?",
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: "Sí. FitPlan adapta tu entrenamiento y tu alimentación a tu nivel actual, explica cada parte de forma clara y propone progresión semanal.",
-        },
-      },
-      {
-        "@type": "Question",
-        name: "¿La asesoría del formulario es con una persona real?",
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: "Sí. La asesoría es humana 1:1. Tu caso lo revisa una persona del equipo para darte seguimiento personalizado por chat y WhatsApp.",
-        },
-      },
-      {
-        "@type": "Question",
-        name: "¿Qué pasa si tengo lesiones, patologías o poco tiempo?",
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: "FitPlan adapta entrenamiento, cardio y alimentación a tus limitaciones reales. El objetivo es progreso sostenible, no planes imposibles de seguir.",
-        },
-      },
-      {
-        "@type": "Question",
-        name: "¿Cuánto cuesta Premium?",
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: "Puedes elegir plan mensual (5 EUR), trimestral (12 EUR) o anual (25 EUR). También puedes completar el formulario de asesoría 1:1 para una estrategia totalmente personalizada.",
-        },
-      },
-    ],
-  };
-
-  const productJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
-    name: "FitPlan Premium",
-    applicationCategory: "HealthApplication",
-    operatingSystem: "Web",
-    url: canonical,
-    description:
-      "Plan de alimentación y entrenamiento personalizado con IA y opción de asesoría humana 1:1, adaptado por objetivo, lesiones, nivel y preferencias.",
-    offers: [
-      { "@type": "Offer", priceCurrency: "EUR", price: "5", name: "Mensual" },
-      { "@type": "Offer", priceCurrency: "EUR", price: "12", name: "Trimestral" },
-      { "@type": "Offer", priceCurrency: "EUR", price: "25", name: "Anual" },
-    ],
-  };
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
       <Head>
-        <link rel="canonical" href="https://www.fitplan-ai.com/transformacion-fitplan" />
-        <link rel="alternate" hrefLang="es" href="https://www.fitplan-ai.com/transformacion-fitplan" />
-        <link rel="alternate" hrefLang="en" href="https://www.fitplan-ai.com/en/transformacion-fitplan" />
-        <link rel="alternate" hrefLang="x-default" href="https://www.fitplan-ai.com/transformacion-fitplan" />
-        <title>FitPlan Transformación 1:1 | Plan Premium + Asesoría Humana Personalizada</title>
-        <meta
-          name="description"
-          content="Transforma tu físico con FitPlan: plan premium de entrenamiento y nutrición con asesoría humana 1:1, adaptado a tu objetivo, nivel, lesiones y estilo de vida."
-        />
-        <meta
-          name="keywords"
-          content="asesoría nutricional online 1 a 1, entrenador personal online, plan de alimentación personalizado, rutina de gimnasio personalizada, bajar grasa corporal, ganar masa muscular, recomposición corporal, asesoría humana fitness, fitplan premium"
-        />
-        <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />
-        <link rel="canonical" href={canonical} />
-        <link rel="alternate" hrefLang="es" href={canonical} />
-        <link rel="alternate" hrefLang="en-US" href={canonicalEn} />
-        <link rel="alternate" hrefLang="x-default" href={canonical} />
-
-        <meta property="og:type" content="website" />
-        <meta property="og:locale" content="es_ES" />
-        <meta property="og:locale:alternate" content="en_US" />
-        <meta property="og:url" content={canonical} />
-        <meta property="og:title" content="FitPlan Transformación 1:1 | Premium + Asesoría Humana" />
-        <meta
-          property="og:description"
-          content="Vende resultados: nutrición + entrenamiento personalizados y opción de asesoría humana 1:1 con seguimiento real."
-        />
-
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="FitPlan Transformación 1:1" />
-        <meta
-          name="twitter:description"
-          content="Plan premium y asesoría humana 1:1 para bajar grasa, ganar músculo y sostener resultados."
-        />
-
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
-        />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
-        />
+        <title>Propuesta — transformacion-fitplan (techo de 3 colores)</title>
+        <meta name="robots" content="noindex, nofollow" />
       </Head>
 
-      <LandingLangToggle locale="es" />
+      <header className="border-b border-[var(--landing-border)] px-4 py-3 text-center text-xs text-[var(--landing-muted)]">
+        Demo de diseño — no es la página real. Ver DESIGN_SYSTEM.md §14.
+      </header>
 
       <main className="px-4 md:px-6">
+        {/* Hero */}
         <section className="max-w-6xl mx-auto pt-10 pb-6">
           <motion.div
             {...fadeUp}
-            transition={{ duration: 0.5 }}
+            transition={{ duration: 0.35 }}
             className="rounded-3xl border border-[var(--landing-border)] bg-gradient-to-br from-[var(--landing-surface)] to-[color-mix(in_oklab,var(--landing-accent)_8%,transparent)] p-6 md:p-10"
           >
             <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-8 items-center">
@@ -165,7 +64,8 @@ export default function TransformacionFitPlanLanding() {
                   Plan de transformación FitPlan · 90 días
                 </p>
                 <h1 className="text-3xl md:text-5xl font-extrabold leading-tight text-[var(--foreground)]">
-                  Transforma tu cuerpo con <span className="text-[var(--landing-accent)]">FitPlan</span> en 90 días, sin improvisar
+                  Transforma tu cuerpo con{" "}
+                  <span className="text-[var(--landing-accent)]">FitPlan</span> en 90 días, sin improvisar
                 </h1>
                 <p className="text-[var(--landing-muted)] mt-5 max-w-3xl text-base md:text-lg">
                   Un sistema claro de nutrición + entrenamiento adaptado a tu objetivo, tu tiempo real y tu nivel.
@@ -182,10 +82,11 @@ export default function TransformacionFitPlanLanding() {
                   ))}
                 </div>
                 <div className="mt-7 flex flex-col sm:flex-row gap-3">
-                  <button onClick={handlePrimaryCta} className="btn btn-primary px-7 py-3 text-lg">
+                  <button type="button" className="btn btn-primary px-7 py-3 text-lg">
                     Activar FitPlan Premium
                   </button>
                   <button
+                    type="button"
                     onClick={() => router.push("/formulario-de-inicio")}
                     className="btn btn-secondary px-7 py-3 text-lg"
                   >
@@ -198,7 +99,9 @@ export default function TransformacionFitPlanLanding() {
               </div>
 
               <div className="card-surface-2 rounded-2xl p-5">
-                <p className="text-sm font-semibold text-[var(--foreground)]">Lo que notarás en tus primeras semanas con FitPlan:</p>
+                <p className="text-sm font-semibold text-[var(--foreground)]">
+                  Lo que notarás en tus primeras semanas con FitPlan:
+                </p>
                 <div className="mt-4 space-y-3 text-sm text-[var(--landing-muted)]">
                   {[
                     "Sabes qué comer y qué entrenar cada día sin perder tiempo.",
@@ -219,6 +122,7 @@ export default function TransformacionFitPlanLanding() {
           </motion.div>
         </section>
 
+        {/* 3 features */}
         <section className="max-w-6xl mx-auto py-4 grid grid-cols-1 md:grid-cols-3 gap-4">
           {[
             { icon: <FaBrain />, title: "Diagnóstico de contexto", text: "Objetivo, nivel, lesiones, tiempo y adherencia: planifica según tu vida real, no según un ideal." },
@@ -233,6 +137,7 @@ export default function TransformacionFitPlanLanding() {
           ))}
         </section>
 
+        {/* Lo que compras */}
         <section className="max-w-6xl mx-auto py-10">
           <h2 className="text-2xl md:text-3xl font-bold text-center text-[var(--foreground)]">
             Esto es lo que compras: claridad + ejecución + seguimiento
@@ -254,9 +159,12 @@ export default function TransformacionFitPlanLanding() {
           </div>
         </section>
 
+        {/* Asesoría 1:1 — camino secundario, sin hue propio */}
         <section className="max-w-6xl mx-auto py-4">
           <div className="card-surface rounded-2xl p-6 md:p-8">
-            <h2 className="text-2xl md:text-3xl font-bold text-[var(--foreground)]">Si quieres más precisión: asesoría humana 1:1</h2>
+            <h2 className="text-2xl md:text-3xl font-bold text-[var(--foreground)]">
+              Si quieres más precisión: asesoría humana 1:1
+            </h2>
             <p className="text-[var(--landing-muted)] mt-2">
               Para casos con objetivos exigentes, estancamiento, lesiones o necesidad de acompañamiento más cercano.
               Tu caso se revisa en detalle y se ajusta con criterio profesional.
@@ -274,6 +182,7 @@ export default function TransformacionFitPlanLanding() {
               ))}
             </div>
             <button
+              type="button"
               onClick={() => router.push("/formulario-de-inicio")}
               className="btn btn-secondary mt-6"
             >
@@ -282,9 +191,12 @@ export default function TransformacionFitPlanLanding() {
           </div>
         </section>
 
+        {/* Comparación — se distingue por copy/estructura, no por 2 hues */}
         <section className="max-w-6xl mx-auto py-8">
           <div className="card-surface-2 rounded-2xl p-6 md:p-8 mb-6">
-            <h2 className="text-2xl md:text-3xl font-bold text-center text-[var(--foreground)]">FitPlan Premium vs Asesoría 1:1</h2>
+            <h2 className="text-2xl md:text-3xl font-bold text-center text-[var(--foreground)]">
+              FitPlan Premium vs Asesoría 1:1
+            </h2>
             <p className="text-center text-[var(--landing-muted)] mt-2 text-sm">
               Elige el nivel de acompañamiento según tu punto actual y velocidad de avance.
             </p>
@@ -307,9 +219,13 @@ export default function TransformacionFitPlanLanding() {
               </div>
             </div>
           </div>
+
+          {/* Oferta / pricing — un solo acento hace de "recomendado", no un tercer hue */}
           <div className="card-surface rounded-2xl p-6 md:p-8">
             <h2 className="text-2xl md:text-3xl font-bold text-[var(--foreground)]">Oferta Premium FitPlan</h2>
-            <p className="text-[var(--landing-muted)] mt-2">Elige plan y empieza hoy con un sistema que puedes mantener en el tiempo.</p>
+            <p className="text-[var(--landing-muted)] mt-2">
+              Elige plan y empieza hoy con un sistema que puedes mantener en el tiempo.
+            </p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-5">
               <div className="card-surface-2 rounded-xl p-4">
                 <p className="text-sm text-[var(--landing-muted)]">Mensual</p>
@@ -326,10 +242,7 @@ export default function TransformacionFitPlanLanding() {
               </div>
             </div>
             <div className="mt-6 flex flex-col sm:flex-row gap-3">
-              <button
-                onClick={handlePrimaryCta}
-                className="btn btn-primary inline-flex items-center justify-center gap-2 px-7 py-3"
-              >
+              <button type="button" className="btn btn-primary inline-flex items-center justify-center gap-2 px-7 py-3">
                 <FaBolt aria-hidden />
                 Activar FitPlan Premium
               </button>
@@ -346,22 +259,16 @@ export default function TransformacionFitPlanLanding() {
           </div>
         </section>
 
+        {/* FAQ */}
         <section className="max-w-6xl mx-auto py-10">
-          <h2 className="text-2xl md:text-3xl font-bold text-center text-[var(--foreground)]">Preguntas frecuentes antes de comprar</h2>
+          <h2 className="text-2xl md:text-3xl font-bold text-center text-[var(--foreground)]">
+            Preguntas frecuentes antes de comprar
+          </h2>
           <div className="mt-6 space-y-3">
             {[
-              {
-                q: "¿Funciona si soy principiante total?",
-                a: "Sí. El sistema está pensado para empezar con claridad y progresar sin sobrecarga ni confusión.",
-              },
-              {
-                q: "¿Y si entreno en casa o tengo poco material?",
-                a: "Se adapta al contexto disponible. No necesitas un gimnasio perfecto para tener un plan útil.",
-              },
-              {
-                q: "¿Premium reemplaza la asesoría 1:1?",
-                a: "Premium te da estrategia completa para ejecutar. La asesoría 1:1 suma revisión humana y ajustes más finos.",
-              },
+              { q: "¿Funciona si soy principiante total?", a: "Sí. El sistema está pensado para empezar con claridad y progresar sin sobrecarga ni confusión." },
+              { q: "¿Y si entreno en casa o tengo poco material?", a: "Se adapta al contexto disponible. No necesitas un gimnasio perfecto para tener un plan útil." },
+              { q: "¿Premium reemplaza la asesoría 1:1?", a: "Premium te da estrategia completa para ejecutar. La asesoría 1:1 suma revisión humana y ajustes más finos." },
             ].map((item) => (
               <details key={item.q} className="card-surface-2 rounded-xl p-4">
                 <summary className="cursor-pointer font-semibold text-[var(--foreground)]">{item.q}</summary>
@@ -371,6 +278,7 @@ export default function TransformacionFitPlanLanding() {
           </div>
         </section>
 
+        {/* Cierre — un solo CTA, mismo acento de toda la página */}
         <section className="max-w-6xl mx-auto pb-14 text-center">
           <div className="card-surface-2 rounded-2xl p-6">
             <h2 className="text-2xl md:text-3xl font-extrabold text-[var(--foreground)]">Empieza hoy con FitPlan</h2>
@@ -378,10 +286,11 @@ export default function TransformacionFitPlanLanding() {
               Menos caos, más dirección. Si quieres resultados reales, necesitas un sistema ejecutable.
             </p>
             <div className="mt-5 flex flex-col sm:flex-row gap-3 justify-center">
-              <button onClick={handlePrimaryCta} className="btn btn-primary px-7 py-3">
+              <button type="button" className="btn btn-primary px-7 py-3">
                 Quiero empezar hoy
               </button>
               <button
+                type="button"
                 onClick={() => router.push("/formulario-de-inicio")}
                 className="btn btn-secondary px-7 py-3"
               >
@@ -391,8 +300,6 @@ export default function TransformacionFitPlanLanding() {
           </div>
         </section>
       </main>
-
-      <LoginModal isOpen={loginOpen} onClose={() => setLoginOpen(false)} defaultMode="signup" locale="es" />
     </div>
   );
 }

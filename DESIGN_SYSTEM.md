@@ -727,3 +727,66 @@ Pendiente para `frontend` (se suma a la lista de 13.10.8, no la reemplaza):
 6. `DashboardPlanRow.tsx` (fila de "otros planes"): cambiar el badge de fase de `.badge-phase-*` (color según fase) a `.badge-neutral` — mismo texto (`phaseLabel`), sin variante de color. El badge del hero (`DashboardPlanHero.tsx`) no cambia, sigue en `.badge-phase-*`.
 
 Demo actualizada: `src/pages/dashboard-design-preview.tsx` → `/dashboard-design-preview` — franja de gradiente eliminada del hero, badges de "Otros planes" en `.badge-neutral`, nota de "qué cambió" ampliada con estos 2 puntos.
+
+## 14. Landing pública — mismo techo de 3 colores del dashboard (§13.10.9) — APROBADO POR LUCAS (2026-08-29) E IMPLEMENTADO
+
+Encargo de Lucas: aplicar a la landing pública el mismo criterio que ya se usó en el dashboard (§13.10.9) — "hasta 3 colores permanentes, 4 o más ya es ruido". Alcance auditado: `HomeLanding.tsx` (`/` y `/en`) y, por decisión propia justificada abajo, `transformacion-fitplan.tsx` (es/en), la landing de campaña. **Estado: Lucas vio el antes/después de la landing de campaña y aprobó el cambio el 2026-08-29. Implementado en los archivos reales por `frontend`.**
+
+### 14.1 Auditoría contra captura real, no contra el código
+
+Levantado un build de producción (`npm run build && npm run start`, no `next dev` — evita falsos negativos de hidratación) y capturado con Chrome headless a 1440px y 390px, `/` , `/en`, `/transformacion-fitplan` y `/en/transformacion-fitplan`.
+
+**`HomeLanding.tsx` — ya cumple, no hace falta sacar nada.** Contra la captura completa (hero, "Cómo funciona", "Hecho por expertos", "Todo lo que necesitas", CTA de cierre): solo **2 hues no-neutros en toda la pantalla** — el fondo/superficies neutros y `--landing-accent` (= `--accent`, lima), usado consistentemente en el badge del hero, las 2 palabras destacadas del `h1`, los 2 CTA primarios, los íconos de kicker/chips/checks y el link del formulario de intake. No hay gradiente de marca, no hay segundo ni tercer hue en ningún punto. Ya está por debajo del techo, en las dos resoluciones y en los dos idiomas. Único hallazgo menor, no relacionado con el conteo de colores: los dos CTA primarios (`dashboard.tsx` línea 316 y 458 de `HomeLanding.tsx`) usan `text-[#0a1628]` (hex crudo, navy) en vez de `var(--accent-ink)` (`#0a0f05`, el token ya documentado en §1 para texto sobre superficies de acento) — mismo resultado visual (texto oscuro legible sobre el lima) pero rompe la regla de "nunca un valor crudo fuera del árbol de tokens". Se anota como pendiente menor para `frontend`, no bloquea nada de esta propuesta.
+
+**`transformacion-fitplan.tsx` (es/en) — no cumple, y por lejos.** Contra la captura completa (hero, 3 features, "lo que compras", asesoría 1:1, comparación, oferta, FAQ, cierre): **4 hues no-neutros conviviendo a la vez, todos permanentes**:
+1. Cian/azul — kicker, wordmark "FitPlan" del `h1`, fondo del hero (`from-blue-500/14 via-cyan-500/10 to-emerald-500/12`), chip "Nutrición personalizada", tarjeta "FitPlan Premium" del comparativo, CTA "Quiero empezar hoy" del cierre.
+2. Esmeralda/teal — checkmarks de toda la página, chip "Entrenamiento progresivo", sección completa "asesoría humana 1:1" (fondo, borde, CTA "Solicitar asesoría 1:1"), tarjeta "Asesoría humana 1:1" del comparativo.
+3. Ámbar/naranja — toda la sección de oferta/pricing (fondo, ring del plan "Trimestral", CTA "Activar FitPlan Premium").
+4. Lima (`--accent`) — aparece **una sola vez**, en el botón "Aceptar todo" del banner de cookies (`CookieConsentBanner.tsx`, ya tokenizado correctamente) — el único punto de toda la pantalla que en realidad usa el color de marca real de FitPlan.
+
+Ese último punto es el hallazgo más importante, más allá del conteo: **el color que domina esta página (cian) no es el acento de marca.** No es solo "muchos colores", es que la landing de campaña no se ve como el resto de la app — llega tráfico pago a una pantalla que visualmente podría ser de otro producto. Además el mismo botón ("Activar FitPlan Premium") cambia de paleta según la sección en la que aparece (azul→cian arriba, ámbar→naranja en la oferta) — exactamente el patrón "botón por haber"/inconsistente que Lucas ya había rechazado en el dashboard (§13.10), aplicado acá a color en vez de a duplicación de acción.
+
+Este archivo nunca pasó por el rollout "FitPlan Volt" (ya estaba anotado como deuda conocida en §5, "Landing pages alternativas (variante de campaña), no tocadas", 55/49 clases crudas) — no es un caso de "sacar 1-2 colores de más" como el dashboard, es migrar el archivo entero a tokens por primera vez.
+
+### 14.2 Por qué `transformacion-fitplan.tsx` entra en este alcance (decisión propia, justificada)
+
+Lucas dejó a mi criterio si esta página entraba. Entra, por 3 razones:
+1. Es cara al público y recibe tráfico de campañas pagas — el punto que el propio encargo de Lucas marca como diferencial de la landing frente al dashboard ("su función es convertir visitantes") aplica acá con más fuerza todavía, no menos: es la página a la que un anuncio manda directamente.
+2. Ya está, hoy, peor que el dashboard que Lucas rechazó — 4 hues permanentes contra los 5-6 que motivaron el rechazo del dashboard, y ninguno de los 4 es siquiera el acento de marca real.
+3. Es el mismo criterio ("techo de 3, cara al público") aplicado al mismo tipo de pantalla (landing) — dejarla afuera hubiera significado dos landings con reglas de color distintas conviviendo en el mismo dominio.
+
+### 14.3 Los 2 colores que se quedan, y por qué no hace falta un tercero
+
+**Neutro (fondo/superficie/borde/texto) + `--accent` (lima) — igual que `HomeLanding.tsx`, que ya demuestra que 2 alcanza para esta pantalla.** No se propone gastar el "tercer color" disponible del techo de 3: a diferencia del dashboard (donde la fase del plan es un dato real que gana su lugar como tercer color, §13.10.9), una landing de marketing no tiene un estado de usuario que comunicar — todo lo que hoy usa un segundo/tercer hue en `transformacion-fitplan.tsx` es decorativo o de jerarquía visual, no un dato. Se resuelve con estructura (tamaño, posición, tarjeta vs. tarjeta, copy) en vez de un hue nuevo por bloque — mismo principio ya usado en el dashboard para sacar la franja de gradiente ("la jerarquía la da la estructura, no el color").
+
+**Punto 4 del encargo (el color que hace trabajo real de conversión gana su lugar) — aplicado, no ignorado.** El lima no se apaga, se **concentra**: hoy aparece en un solo botón de todo el flujo (el de cookies, que ni siquiera es del producto) mientras 3 CTAs reales ("Activar FitPlan Premium" ×2, "Quiero empezar hoy") están coloreados de 3 formas distintas. La propuesta lleva el lima a los 4 CTA primarios de la página, siempre igual — eso es lo que de verdad ayuda a convertir: un usuario que ve el mismo color de "acción principal" repetirse en el hero, la oferta y el cierre aprende más rápido qué botón apretar que uno que ve 3 gradientes distintos para la misma acción. Volverla "gris y aburrida" no era la alternativa que se evaluó — la alternativa real era "3-4 colores gritando al mismo tiempo" vs. "1 color que siempre significa lo mismo": la segunda convierte mejor, no peor.
+
+**El plan "recomendado" del pricing (antes ring ámbar) pasa a ring `--accent`.** Es el mismo caso: destacar la opción recomendada es trabajo real de conversión, así que gana su lugar — pero no necesita un hue nuevo, el lima ya es "esto es lo importante" en el resto de la página. Meter ámbar acá también hubiera sido el mismo error que evitó el dashboard con la fase de plan: un segundo hue permanente compitiendo con el primero.
+
+**"Asesoría 1:1" (camino secundario) pierde su hue propio (esmeralda) y se distingue por estructura, no por color** — mismo criterio que "otros planes" en el dashboard (§13.10.9 punto 2): es una opción secundaria real, pero mostrarla con un segundo hue permanente en 4 secciones distintas (chip, sección completa, tarjeta comparativa, botón) es exactamente el "hue extra corriendo en paralelo" que hace ruido. Se sigue leyendo perfectamente por el copy y el `.btn-secondary`/`.card-surface` — no pierde información, pierde un color que no estaba comunicando nada que el texto no dijera ya.
+
+### 14.4 Qué reemplaza a cada color que sale
+
+| Color que sale | Dónde aparecía | Reemplazo |
+|---|---|---|
+| Cian/azul (fondo hero, wordmark, kicker, chip, CTA "Activar..." arriba, tarjeta "FitPlan Premium") | Hero, comparativo | `--landing-accent` (wordmark, kicker, CTA) / neutro `.card-surface`+`.card-surface-2` (fondos, tarjeta) |
+| Esmeralda/teal (checks, chip, sección + CTA de asesoría 1:1, tarjeta "Asesoría 1:1") | En toda la página | Checks → `--landing-accent` (mismo criterio que `HomeLanding.tsx`, no `--success`: es copy de marketing permanente, no una confirmación real de un estado del usuario). Resto → neutro (`.card-surface`, `.card-surface-2`, `.btn-secondary`) |
+| Ámbar/naranja (sección de oferta, ring del plan recomendado, CTA "Activar..." de la oferta) | Pricing | Fondo → `.card-surface` neutro. Ring del recomendado → `--landing-accent`/40. CTA → `.btn-primary` (mismo lima de siempre, no un tercer tratamiento) |
+| Gradientes de botón distintos por sección (azul→cian, ámbar→naranja, esmeralda→teal) | 4 CTAs de la página | `.btn-primary` (acción principal, lima sólido) / `.btn-secondary` (acción secundaria: asesoría 1:1, WhatsApp) — mismas 2 clases ya en uso en el resto de la app, sin gradiente nuevo |
+
+Nada de esto crea una categoría de token nueva ni toca `--brand-start/mid/end`: es aplicar tokens/clases que **ya existen** (`--landing-accent`/`--accent`, `--landing-surface`/`-2`, `--landing-border`, `--landing-muted`, `.btn-primary`, `.btn-secondary`, `.card-surface`, `.card-surface-2`) — el mismo set que ya usa `HomeLanding.tsx`. Por eso esta sección no necesitó pasar por Lucas antes de proponerse (solo el resultado final sí, por ser un cambio de cómo se ve la marca puertas afuera).
+
+### 14.5 Motion y accesibilidad
+
+- `transformacion-fitplan.tsx` ya anima con `initial={{ y: 12 }}` (no opacidad) en su único bloque animado — cumple la restricción de §12/§11.6, no había que corregir nada ahí.
+- Hallazgo nuevo: ese mismo bloque no está envuelto en `useReducedMotion()` — a diferencia de `HomeLanding.tsx`, que sí lo tiene desde §7.2. Se agrega en la demo (`transformacion-design-preview.tsx`) y queda como pedido concreto para `frontend` junto con la migración de color, ya que se va a tocar el archivo de todas formas.
+- El resto de la página no tiene animación de entrada en absoluto (a diferencia de `HomeLanding.tsx`, que anima cada sección con `fadeUp`/stagger, §7.2) — no se pide agregarla acá porque no es parte del encargo (color, no motion) y no hay que introducir cambios no pedidos en una propuesta que ya es grande; queda anotado por si se retoma en una pasada de motion.
+
+### 14.6 Implementación (aprobada por Lucas el 2026-08-29 — YA IMPLEMENTADO, se conserva como registro de qué se hizo)
+
+1. Migrar `transformacion-fitplan.tsx` y `en/transformacion-fitplan.tsx` según el mapeo de 14.4 — usar `transformacion-design-preview.tsx` como referencia 1:1 de estructura y clases (mismo copy real de cada archivo, la demo solo cambia color/tokens).
+2. Envolver el `motion.div` del hero en `useReducedMotion()` (14.5) al tocar el archivo.
+3. Corrección menor en `HomeLanding.tsx`: reemplazar `text-[#0a1628]` por `text-[var(--accent-ink)]` en los 2 CTA primarios (línea 316 y 458) — mismo resultado visual, saca el único hex crudo que quedaba en el archivo (14.1).
+4. `HomeLanding.tsx` no necesita ningún cambio de estructura/color — se deja igual, ya cumple.
+
+Demo de referencia (no implementación real, sin Firestore/auth/analytics): `src/pages/transformacion-design-preview.tsx` → `/transformacion-design-preview`. Verificado con `npx tsc --noEmit` y `eslint` sin errores sobre el archivo nuevo, y con capturas de Chrome headless sobre build de producción (`npm run build && npm run start`) a 1440px y 390px.

@@ -313,7 +313,7 @@ export default function HomeLanding({ locale }: HomeLandingProps) {
             <button
               type="button"
               onClick={authUser ? goToMyPanel : () => openLoginModal("signup")}
-              className="inline-flex w-full sm:w-auto min-h-[48px] items-center justify-center gap-2 rounded-2xl bg-[var(--landing-accent)] px-6 py-3.5 sm:px-7 sm:py-4 text-base font-semibold text-[#0a1628] shadow-lg shadow-black/20 hover:brightness-110 active:scale-[0.99] transition outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] touch-manipulation disabled:cursor-default disabled:opacity-70"
+              className="inline-flex w-full sm:w-auto min-h-[48px] items-center justify-center gap-2 rounded-2xl bg-[var(--landing-accent)] px-6 py-3.5 sm:px-7 sm:py-4 text-base font-semibold text-[var(--accent-ink)] shadow-lg shadow-black/20 hover:brightness-110 active:scale-[0.99] transition outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] touch-manipulation disabled:cursor-default disabled:opacity-70"
             >
               {authUser ? (
                 c.goToPanel
@@ -455,7 +455,7 @@ export default function HomeLanding({ locale }: HomeLandingProps) {
             <button
               type="button"
               onClick={authUser ? goToMyPanel : () => openLoginModal("signup")}
-              className="mt-6 inline-flex w-full sm:w-auto min-h-[48px] items-center justify-center gap-2 rounded-2xl bg-[var(--landing-accent)] px-6 py-3.5 text-sm font-semibold text-[#0a1628] hover:brightness-110 transition outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] touch-manipulation max-w-md mx-auto disabled:cursor-default disabled:opacity-70"
+              className="mt-6 inline-flex w-full sm:w-auto min-h-[48px] items-center justify-center gap-2 rounded-2xl bg-[var(--landing-accent)] px-6 py-3.5 text-sm font-semibold text-[var(--accent-ink)] hover:brightness-110 transition outline-none focus-visible:ring-2 focus-visible:ring-[var(--landing-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] touch-manipulation max-w-md mx-auto disabled:cursor-default disabled:opacity-70"
             >
               {authUser ? (
                 c.goToPanel
