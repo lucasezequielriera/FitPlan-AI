@@ -260,7 +260,7 @@ export default function AdminCarruselIgPage() {
               value={priceLabel}
               onChange={(e) => setPriceLabel(e.target.value)}
               maxLength={60}
-              placeholder="Premium desde 2,08 €/mes"
+              placeholder="Premium desde 5 €/mes"
               className="w-full rounded-lg bg-black/25 border border-white/15 px-3 py-2.5 text-sm text-white outline-none focus:border-info/50"
             />
             <p className="text-xs text-white/40 mt-1.5">

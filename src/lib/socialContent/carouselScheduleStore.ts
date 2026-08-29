@@ -1,4 +1,5 @@
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
+import { getStripeSubscriptionPlans } from "@/lib/stripePlanPrices";
 
 const DOC_COLLECTION = "config";
 const DOC_ID = "carouselSchedule";
@@ -17,8 +18,24 @@ export type CarouselSchedule = {
   priceLabel: string;
 };
 
-/** Precio real vigente (`src/lib/stripePlanPrices.ts`: 25 €/año = 2,08 €/mes). */
-export const DEFAULT_PRICE_LABEL = "Premium desde 2,08 €/mes";
+/**
+ * Precio que se muestra en el CTA del carrusel — se calcula a partir del
+ * mismo precio mensual EUR que usa Stripe (`stripePlanPrices.ts`, fuente
+ * única también usada por la landing), en vez de tener un número escrito a
+ * mano acá. Así, si el precio cambia, este texto lo sigue automáticamente en
+ * el próximo carrusel generado, sin que haga falta acordarse de tocar dos
+ * lugares. Se usa el precio mensual "tal cual" (no el equivalente mensual del
+ * plan anual) porque es el número que la landing muestra como titular
+ * ("Desde 5 EUR/mes") — mostrar en el reel un número que no aparece en
+ * ningún sitio de la web (como el 2,08 €/mes del plan anual prorrateado)
+ * es lo que generaba la sensación de precio distinto entre el reel y la web.
+ *
+ * OJO si tocás `stripePlanPrices.ts`: ese archivo es de pagos (Stripe) y
+ * cualquier cambio ahí requiere el ok de Lucas sin excepción — esta
+ * constante solo LEE el precio mensual EUR ya vigente, no decide ni cambia
+ * ningún precio de cobro.
+ */
+export const DEFAULT_PRICE_LABEL = `Premium desde ${getStripeSubscriptionPlans("eur").monthly.price} €/mes`;
 
 export const DEFAULT_CAROUSEL_SCHEDULE: CarouselSchedule = {
   enabled: true,
