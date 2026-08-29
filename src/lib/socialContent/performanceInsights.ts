@@ -6,7 +6,7 @@ import { TOPIC_REGISTRY, topicLabel, type SocialTopic, type HookFamily, type Top
  * Loop de aprendizaje del contenido social: no es fine-tuning (no hay datos
  * ni control del modelo para eso), es un sistema retrieval-augmented simple —
  * lee lo que de verdad pasó en Instagram y lo usa en dos puntos:
- * 1. Pondera qué tema elegir (`pickTopicForFunction`, ver topics.ts).
+ * 1. Pondera qué tema elegir (`pickNextTopic`, ver topics.ts).
  * 2. Le da contexto real al copywriter sobre qué gancho/tema viene
  *    funcionando antes de escribir la pieza de hoy (ver generateCopy.ts).
  */
@@ -86,7 +86,7 @@ function weightedAvg(pieces: ScoredPiece[]): number {
 
 /**
  * Puntaje medio (ponderado por alcance) y tamaño de muestra por tema, para
- * ponderar `pickTopicForFunction` hacia lo que mejor viene funcionando.
+ * ponderar `pickNextTopic` hacia lo que mejor viene funcionando.
  * `sampleSize` sigue siendo la CANTIDAD de piezas (no el peso) — sirve para
  * el umbral de "¿lo probamos ya al menos dos veces?", que es una pregunta
  * distinta de "¿con cuánta confianza promediamos su resultado?".

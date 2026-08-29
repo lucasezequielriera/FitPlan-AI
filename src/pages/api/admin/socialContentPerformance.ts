@@ -28,7 +28,7 @@ type Piece = {
   retention: number | null;
   /** (compartidos + guardados) / alcance. */
   amplification: number | null;
-  /** Cómo se eligió el tema de esta pieza — ver `pickTopicForFunction`. `null` en piezas de antes de que existiera esta auditoría. */
+  /** Cómo se eligió el tema de esta pieza — ver `pickNextTopic`. `null` en piezas de antes de que existiera esta auditoría. */
   topicSelectionMode: "weighted" | "rotation" | null;
 };
 
@@ -236,7 +236,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
     // Estado del loop de aprendizaje por métricas (ver performanceInsights.ts
-    // y pickTopicForFunction en topics.ts): cuenta cuántas piezas ya se
+    // y pickNextTopic en topics.ts): cuenta cuántas piezas ya se
     // eligieron pesando por rendimiento real vs. la rotación de siempre, y
     // cuántos temas ya juntaron datos suficientes para poder pesar. Es la
     // respuesta concreta a "¿cómo sé que está funcionando?" — sin esto no

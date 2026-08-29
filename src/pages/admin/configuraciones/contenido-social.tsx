@@ -45,33 +45,6 @@ function getTimeZoneOffsetMinutes(timeZone: string, date: Date): number {
 }
 
 /**
- * Describe qué tipo de pieza va a producir una franja horaria, para que al
- * configurar un horario se vea la consecuencia real de elegirlo. Espeja la
- * lógica de `functionForSlot` en topics.ts (el backend sigue siendo la fuente
- * de verdad; esto es solo la explicación visible).
- */
-function slotPlan(timeLocal: string): { label: string; detail: string; className: string } {
-  const hour = parseInt(timeLocal.split(":")[0] ?? "", 10);
-  if (Number.isNaN(hour)) {
-    return { label: "—", detail: "Horario no válido.", className: "badge-warning" };
-  }
-  if (hour >= 12 && hour < 18) {
-    return {
-      label: "Nutrición / Conversión",
-      detail:
-        "Franja de mediodía: contenido con más profundidad para ganar confianza (lun, mar, jue, vie), venta directa atacando una objeción (mié, sáb) y alcance el domingo.",
-      className: "badge-info",
-    };
-  }
-  return {
-    label: "Alcance",
-    detail:
-      "Gancho fuerte para que te descubra gente nueva. Sin llamada a la acción de venta: un CTA aquí hunde la retención, que es justo lo que da alcance.",
-    className: "badge-success",
-  };
-}
-
-/**
  * Solo para mostrar en el panel qué hora es en Argentina para un horario
  * "HH:MM" guardado en hora de Madrid — un dato informativo para poder leer
  * la configuración con criterio (la audiencia es de España Y Argentina, con
@@ -696,9 +669,15 @@ export default function AdminContenidoSocialPage() {
                 </p>
               )}
 
+              <p className="text-xs text-white/45 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                El horario ya NO determina el tipo de contenido (alcance / nutrición / conversión): el tema de cada
+                pieza rota por FECHA sobre todo el catálogo de temas (mitos, curiosidades, técnica correcta vs.
+                incorrecta, variantes de ejercicio, objeciones, etc.), así que la función de embudo queda dada por el
+                tema elegido ese día, no por la hora configurada acá.
+              </p>
+
               <div className="space-y-2">
                 {scheduleTimesLocal.map((time, index) => {
-                  const plan = slotPlan(time);
                   return (
                     <div key={index} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2.5">
                       <div className="flex items-center gap-2">
@@ -720,10 +699,6 @@ export default function AdminContenidoSocialPage() {
                         >
                           <FaTrash className="text-xs" />
                         </button>
-                      </div>
-                      <div className="flex items-start gap-2 mt-2">
-                        <span className={`badge ${plan.className} text-xs shrink-0`}>{plan.label}</span>
-                        <p className="text-xs text-white/45">{plan.detail}</p>
                       </div>
                       <p className="text-xs text-white/40 mt-1">{madridTimeToArgentinaLabel(time)}</p>
                     </div>

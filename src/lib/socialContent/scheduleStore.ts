@@ -169,8 +169,17 @@ export function slotDocId(dateId: string, timeLocal: string): string {
   return `${dateId}_${timeLocal.replace(":", "")}`;
 }
 
-/** `dateId` ("YYYY-MM-DD") a un índice de día absoluto (días desde epoch UTC). */
-function dateIdToDayIndex(dateId: string): number {
+/**
+ * `dateId` ("YYYY-MM-DD") a un índice de día absoluto (días desde epoch UTC).
+ * Exportada porque `topics.ts` la reutiliza para la rotación de temas
+ * (`rotationIndex`): necesita el mismo día "de calendario de Madrid" que usa
+ * este archivo para decidir cuándo toca generar, no el día crudo de
+ * `date.getTime()` — con los horarios reales (20:30/01:30 Madrid) ese día
+ * crudo en UTC no queda espaciado por `intervalDays` de forma confiable
+ * (01:30 Madrid en CEST es 23:30 UTC del día anterior), lo que rompía la
+ * garantía de cobertura de la rotación.
+ */
+export function dateIdToDayIndex(dateId: string): number {
   const [y, mo, d] = dateId.split("-").map((n) => parseInt(n, 10));
   return Math.floor(Date.UTC(y, mo - 1, d) / 86400000);
 }

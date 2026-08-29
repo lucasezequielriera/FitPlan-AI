@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { FieldValue, Timestamp, type Firestore, type DocumentSnapshot } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
-import { functionForSlot, pickTopicForFunction, topicHookFamily, type SocialTopic } from "@/lib/socialContent/topics";
+import { pickNextTopic, topicFunction, topicHookFamily, type SocialTopic } from "@/lib/socialContent/topics";
 import { generateSocialCopy, type SocialCopy } from "@/lib/socialContent/generateCopy";
 import { getTopicPerformance, buildPerformanceContext } from "@/lib/socialContent/performanceInsights";
 import { buildCommercialPrompt, FITPLAN_LOGO_URL } from "@/lib/socialContent/buildCommercialPrompt";
@@ -54,13 +54,16 @@ function pickPersonaForDate(date: Date): AvatarPersona {
  * invocación serverless. `finalizeGeneratingDoc` es quien, en un tick
  * posterior, chequea si ya terminó y recién ahí sube/publica.
  *
- * Qué se publica no lo decide el tema sino el SLOT: cada franja horaria tiene
- * una función de embudo asignada (alcance por la mañana, profundidad o
- * conversión al mediodía — ver `functionForSlot`), y el tema se elige dentro
- * de los que sirven a esa función. Así la mezcla semanal de contenido queda
- * garantizada por construcción en vez de depender del azar de la rotación.
+ * Qué se publica lo decide el TEMA, no el slot: hasta 2026-08 el slot elegía
+ * primero una función de embudo por hora (`functionForSlot`, retirada) y el
+ * tema salía de ahí, pero con la cadencia bajada a un reel cada 2 días en
+ * solo dos horarios (ambos fuera de la franja de mediodía) ese mapeo dejaba
+ * categorías enteras sin generarse nunca. Ahora `pickNextTopic` rota de
+ * forma determinística por FECHA sobre todo el registro de temas (ver
+ * `topics.ts`), y la función de embudo se deriva DESPUÉS con
+ * `topicFunction(topic)` — es el tema quien la determina, no al revés.
  *
- * Dentro de esa función, el tema y la ejecución del copy ya no son ciegos:
+ * El tema y la ejecución del copy ya no son ciegos:
  * `getTopicPerformance`/`buildPerformanceContext` (performanceInsights.ts)
  * leen el rendimiento real de Instagram de piezas anteriores y lo usan para
  * (a) pesar qué tema del pool es más probable que se elija y (b) avisarle al
@@ -68,16 +71,25 @@ function pickPersonaForDate(date: Date): AvatarPersona {
  * ejecución. Sin datos suficientes todavía, ambos se comportan igual que
  * antes (rotación determinística, prompt sin contexto extra).
  */
-async function startCommercialGeneration(db: Firestore, docId: string, slotLocal: string, now: Date): Promise<void> {
+async function startCommercialGeneration(
+  db: Firestore,
+  docId: string,
+  slotLocal: string,
+  now: Date,
+  intervalDays: number
+): Promise<void> {
   const recentSnap = await db.collection("socialContent").orderBy("createdAt", "desc").limit(8).get();
   const recentTopics = recentSnap.docs
     .map((d) => d.data().topic as SocialTopic | undefined)
     .filter((t): t is SocialTopic => !!t);
 
-  const contentFunction = functionForSlot(slotLocal, now);
   const performance = await getTopicPerformance(db);
-  const selection = pickTopicForFunction(contentFunction, recentTopics, now, performance);
+  // `intervalDays` (la cadencia real, `SocialSchedule.intervalDays`) tiene
+  // que viajar hasta acá: es lo que hace que la rotación cubra el registro
+  // completo sin huecos ni repeticiones — ver `rotationIndex` en topics.ts.
+  const selection = pickNextTopic(recentTopics, now, performance, intervalDays);
   const topic = selection.topic;
+  const contentFunction = topicFunction(topic);
   const performanceContext = await buildPerformanceContext(db, topicHookFamily(topic), topic);
   const copy = await generateSocialCopy({ type: "rotation", topic }, performanceContext);
   const prompt = buildCommercialPrompt(copy);
@@ -393,7 +405,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         results.push({ docId, skipped: true, reason: "already_generated" });
         continue;
       }
-      await startCommercialGeneration(db, docId, slot, now);
+      await startCommercialGeneration(db, docId, slot, now, schedule.intervalDays);
       results.push({ docId, started: true });
     }
 
