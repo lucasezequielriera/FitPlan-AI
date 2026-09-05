@@ -41,6 +41,8 @@ export async function buildCarousel(
     : db.collection("socialContentCarousel").doc();
 
   const total = copy.slides.length;
+  // Sin precio salvo que se configure uno explícito en el panel: la
+  // diapositiva de CTA lo omite si viene vacío (ver renderCarouselSlide).
   const priceLabel = opts.priceLabel?.trim() || DEFAULT_PRICE_LABEL;
 
   // El precio se impone aquí y no se deja al modelo: es un dato de negocio que
@@ -48,7 +50,7 @@ export async function buildCarousel(
   // IA lo repita bien.
   const specs: SlideSpec[] = copy.slides.map((s, i) => {
     const base = { ...s, index: i + 1, total } as SlideSpec;
-    return base.kind === "cta" ? { ...base, price: priceLabel } : base;
+    return base.kind === "cta" ? { ...base, price: priceLabel || undefined } : base;
   });
 
   const imageUrls: string[] = [];

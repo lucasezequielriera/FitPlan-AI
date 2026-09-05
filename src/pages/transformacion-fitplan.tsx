@@ -7,6 +7,10 @@ import LoginModal from "@/components/LoginModal";
 import LandingLangToggle from "@/components/LandingLangToggle";
 import { useAuthStore } from "@/store/authStore";
 import { trackEvent } from "@/lib/analytics";
+import { getPlanSavingsLabel, getStripeSubscriptionPlans, PLANS_EUR_UI } from "@/lib/stripePlanPrices";
+
+/** Precio publicado en esta landing — siempre el de stripePlanPrices.ts, nunca escrito a mano. */
+const EUR_PLANS = getStripeSubscriptionPlans("eur");
 
 export default function TransformacionFitPlanLanding() {
   const router = useRouter();
@@ -79,7 +83,7 @@ export default function TransformacionFitPlanLanding() {
         name: "¿Cuánto cuesta Premium?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Puedes elegir plan mensual (5 EUR), trimestral (12 EUR) o anual (25 EUR). También puedes completar el formulario de asesoría 1:1 para una estrategia totalmente personalizada.",
+          text: `Puedes elegir plan mensual (${EUR_PLANS.monthly.price} EUR), trimestral (${EUR_PLANS.quarterly.price} EUR) o anual (${EUR_PLANS.annual.price} EUR). También puedes completar el formulario de asesoría 1:1 para una estrategia totalmente personalizada.`,
         },
       },
     ],
@@ -94,11 +98,14 @@ export default function TransformacionFitPlanLanding() {
     url: canonical,
     description:
       "Plan de alimentación y entrenamiento personalizado con IA y opción de asesoría humana 1:1, adaptado por objetivo, lesiones, nivel y preferencias.",
-    offers: [
-      { "@type": "Offer", priceCurrency: "EUR", price: "5", name: "Mensual" },
-      { "@type": "Offer", priceCurrency: "EUR", price: "12", name: "Trimestral" },
-      { "@type": "Offer", priceCurrency: "EUR", price: "25", name: "Anual" },
-    ],
+    // Derivado de stripePlanPrices.ts: estos precios los indexa Google, así que
+    // si divergen del checkout quedan dos precios publicados a la vez.
+    offers: (["monthly", "quarterly", "annual"] as const).map((key) => ({
+      "@type": "Offer",
+      priceCurrency: "EUR",
+      price: String(getStripeSubscriptionPlans("eur")[key].price),
+      name: PLANS_EUR_UI[key].name.replace("Plan ", ""),
+    })),
   };
 
   return (
@@ -193,7 +200,7 @@ export default function TransformacionFitPlanLanding() {
                   </button>
                 </div>
                 <p className="text-xs text-[var(--landing-muted)] mt-4">
-                  Desde 5 EUR/mes · Sin permanencia · Diseñado para resultados sostenibles
+                  Desde {EUR_PLANS.monthly.price} EUR/mes · Sin permanencia · Diseñado para resultados sostenibles
                 </p>
               </div>
 
@@ -313,16 +320,23 @@ export default function TransformacionFitPlanLanding() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-5">
               <div className="card-surface-2 rounded-xl p-4">
                 <p className="text-sm text-[var(--landing-muted)]">Mensual</p>
-                <p className="text-2xl font-extrabold mt-1 text-[var(--foreground)]">5 EUR</p>
+                <p className="text-2xl font-extrabold mt-1 text-[var(--foreground)]">{EUR_PLANS.monthly.price} EUR</p>
               </div>
               <div className="card-surface-2 rounded-xl p-4 ring-1 ring-[var(--landing-accent)]/40">
                 <p className="text-sm text-[var(--landing-muted)]">Trimestral</p>
-                <p className="text-2xl font-extrabold mt-1 text-[var(--foreground)]">12 EUR</p>
-                <p className="text-xs text-[var(--landing-accent)] mt-1">Mejor relación precio / resultado</p>
+                <p className="text-2xl font-extrabold mt-1 text-[var(--foreground)]">
+                  {EUR_PLANS.quarterly.price} EUR
+                </p>
+                <p className="text-xs text-[var(--landing-accent)] mt-1">
+                  {getPlanSavingsLabel("eur", "quarterly")} frente al mensual
+                </p>
               </div>
               <div className="card-surface-2 rounded-xl p-4">
                 <p className="text-sm text-[var(--landing-muted)]">Anual</p>
-                <p className="text-2xl font-extrabold mt-1 text-[var(--foreground)]">25 EUR</p>
+                <p className="text-2xl font-extrabold mt-1 text-[var(--foreground)]">{EUR_PLANS.annual.price} EUR</p>
+                <p className="text-xs text-[var(--landing-accent)] mt-1">
+                  {getPlanSavingsLabel("eur", "annual")} frente al mensual
+                </p>
               </div>
             </div>
             <div className="mt-6 flex flex-col sm:flex-row gap-3">

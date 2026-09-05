@@ -14,28 +14,40 @@ export type CarouselSchedule = {
   timesLocal: string[];
   /** Diapositivas por carrusel (entre 3 y 10, tope de Instagram). */
   slideCount: number;
-  /** Texto de precio de la última diapositiva. Editable desde el panel. */
+  /**
+   * Si se muestra precio en la diapositiva final. Por defecto FALSE.
+   *
+   * Es un booleano aparte del texto a propósito. Antes bastaba con que
+   * `priceLabel` tuviera algo guardado para que se publicara, y un valor que
+   * había escrito automáticamente una versión vieja del código ("Premium desde
+   * 2,08 €/mes", un precio que no existe en la web) siguió publicándose durante
+   * semanas y pisó la decisión de producto de no mostrar precio. Con el
+   * interruptor, un texto viejo en la base es inofensivo: hay que activarlo a
+   * mano para que salga.
+   */
+  showPrice: boolean;
+  /** Texto de precio de la última diapositiva. Solo se usa si `showPrice`. */
   priceLabel: string;
 };
 
 /**
- * Precio que se muestra en el CTA del carrusel — se calcula a partir del
- * mismo precio mensual EUR que usa Stripe (`stripePlanPrices.ts`, fuente
- * única también usada por la landing), en vez de tener un número escrito a
- * mano acá. Así, si el precio cambia, este texto lo sigue automáticamente en
- * el próximo carrusel generado, sin que haga falta acordarse de tocar dos
- * lugares. Se usa el precio mensual "tal cual" (no el equivalente mensual del
- * plan anual) porque es el número que la landing muestra como titular
- * ("Desde 5 EUR/mes") — mostrar en el reel un número que no aparece en
- * ningún sitio de la web (como el 2,08 €/mes del plan anual prorrateado)
- * es lo que generaba la sensación de precio distinto entre el reel y la web.
+ * Precio del CTA del carrusel. **Vacío a propósito: por defecto no se publica
+ * ningún precio.** Decisión de Lucas (2026-09).
  *
- * OJO si tocás `stripePlanPrices.ts`: ese archivo es de pagos (Stripe) y
- * cualquier cambio ahí requiere el ok de Lucas sin excepción — esta
- * constante solo LEE el precio mensual EUR ya vigente, no decide ni cambia
- * ningún precio de cobro.
+ * Motivo: con el precio en 14,99 €/mes y sin prueba social todavía, poner el
+ * número en una pieza que ve gente fría compite con el mensaje en vez de
+ * reforzarlo — la pieza tiene que vender el resultado, y el precio se ve en la
+ * web cuando la persona ya llegó con intención.
+ *
+ * Sigue siendo editable desde el panel (`/admin/configuraciones/carrusel-ig`):
+ * si se escribe un texto ahí, se publica tal cual. `PRICE_LABEL_SUGGESTION`
+ * existe solo para ofrecer el formato correcto y derivado del precio real, por
+ * si se quiere volver a mostrarlo.
  */
-export const DEFAULT_PRICE_LABEL = `Premium desde ${getStripeSubscriptionPlans("eur").monthly.price} €/mes`;
+export const DEFAULT_PRICE_LABEL = "";
+
+/** Formato sugerido si se decide volver a mostrar precio. Deriva de stripePlanPrices.ts. */
+export const PRICE_LABEL_SUGGESTION = `Premium desde ${getStripeSubscriptionPlans("eur").monthly.price} €/mes`;
 
 export const DEFAULT_CAROUSEL_SCHEDULE: CarouselSchedule = {
   enabled: true,
@@ -46,6 +58,7 @@ export const DEFAULT_CAROUSEL_SCHEDULE: CarouselSchedule = {
   // Cinco es el formato ya validado: espacio para gancho, problema, mecanismo,
   // contenido y cierre sin que la gente abandone antes del final.
   slideCount: 5,
+  showPrice: false,
   priceLabel: DEFAULT_PRICE_LABEL,
 };
 
@@ -67,7 +80,10 @@ export async function getCarouselSchedule(db: Firestore): Promise<CarouselSchedu
     enabled: typeof data.enabled === "boolean" ? data.enabled : DEFAULT_CAROUSEL_SCHEDULE.enabled,
     timesLocal: times.length > 0 ? times : DEFAULT_CAROUSEL_SCHEDULE.timesLocal,
     slideCount,
-    priceLabel: typeof data.priceLabel === "string" && data.priceLabel.trim() ? data.priceLabel.trim() : DEFAULT_PRICE_LABEL,
+    // Ausente en el documento => false. Así un `priceLabel` heredado no se
+    // publica hasta que alguien lo active explícitamente desde el panel.
+    showPrice: data.showPrice === true,
+    priceLabel: typeof data.priceLabel === "string" ? data.priceLabel.trim() : DEFAULT_PRICE_LABEL,
   };
 }
 
@@ -77,6 +93,7 @@ export async function setCarouselSchedule(db: Firestore, schedule: CarouselSched
       enabled: schedule.enabled,
       timesLocal: schedule.timesLocal,
       slideCount: schedule.slideCount,
+      showPrice: schedule.showPrice,
       priceLabel: schedule.priceLabel,
       updatedAt: FieldValue.serverTimestamp(),
     },

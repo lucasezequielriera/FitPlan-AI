@@ -1,6 +1,8 @@
+import fs from "fs";
+import path from "path";
 import { buildCommercialPrompt } from "@/lib/socialContent/buildCommercialPrompt";
-import { DEFAULT_PRICE_LABEL } from "@/lib/socialContent/carouselScheduleStore";
-import { getStripeSubscriptionPlans } from "@/lib/stripePlanPrices";
+import { DEFAULT_PRICE_LABEL, PRICE_LABEL_SUGGESTION } from "@/lib/socialContent/carouselScheduleStore";
+import { getPlanSavingsLabel, getStripeSubscriptionPlans } from "@/lib/stripePlanPrices";
 import type { SocialCopy } from "@/lib/socialContent/generateCopy";
 
 /**
@@ -43,12 +45,37 @@ describe("buildCommercialPrompt (dry-run, sin llamadas externas)", () => {
 });
 
 describe("Precio del carrusel — una sola fuente de verdad", () => {
-  it("DEFAULT_PRICE_LABEL usa el mismo precio mensual EUR que Stripe, no un número aparte", () => {
-    const monthlyEur = getStripeSubscriptionPlans("eur").monthly.price;
-    expect(DEFAULT_PRICE_LABEL).toBe(`Premium desde ${monthlyEur} €/mes`);
+  it("por defecto NO se publica precio en el carrusel", () => {
+    // Decisión de Lucas (2026-09): las piezas de IG venden el resultado, no el
+    // precio. Sigue siendo configurable desde el panel si se quiere volver.
+    expect(DEFAULT_PRICE_LABEL).toBe("");
   });
 
-  it("coincide con el precio publicado en la landing (5 EUR/mes)", () => {
-    expect(DEFAULT_PRICE_LABEL).toBe("Premium desde 5 €/mes");
+  it("si se decide volver a mostrar precio, la sugerencia deriva del precio real", () => {
+    const monthlyEur = getStripeSubscriptionPlans("eur").monthly.price;
+    expect(PRICE_LABEL_SUGGESTION).toBe(`Premium desde ${monthlyEur} €/mes`);
+  });
+
+  it("el prompt le prohíbe al modelo escribir precios", () => {
+    // El prompt vive embebido en carouselCopy.ts; se verifica sobre el fuente.
+    const src = fs.readFileSync(path.join(process.cwd(), "src/lib/socialContent/carouselCopy.ts"), "utf8");
+    expect(src).toMatch(/NO incluyas precio/);
+    // Y que no quede un ejemplo con cifra que el modelo pueda copiar.
+    expect(src).not.toMatch(/"price":\s*"Premium desde/);
+  });
+
+  it("el ahorro anunciado se deriva del precio, no está escrito a mano", () => {
+    // Regresión: durante meses el modal decía "Ahorras 20%/58%" fijo mientras
+    // los precios cambiaban, así que el porcentaje mostrado era falso.
+    for (const plan of ["quarterly", "annual"] as const) {
+      const months = plan === "quarterly" ? 3 : 12;
+      const monthly = getStripeSubscriptionPlans("eur").monthly.price;
+      const esperado = Math.round((1 - getStripeSubscriptionPlans("eur")[plan].price / (monthly * months)) * 100);
+      expect(getPlanSavingsLabel("eur", plan)).toBe(`Ahorras ${esperado}%`);
+    }
+  });
+
+  it("el plan mensual no anuncia ahorro contra sí mismo", () => {
+    expect(getPlanSavingsLabel("eur", "monthly")).toBeUndefined();
   });
 });

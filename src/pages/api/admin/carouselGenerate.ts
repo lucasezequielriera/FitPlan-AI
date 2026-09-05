@@ -35,7 +35,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const result = await buildCarousel(db, {
       topic: topic || undefined,
       slideCount,
-      priceLabel: priceLabel || schedule.priceLabel,
+      priceLabel: priceLabel || (schedule.showPrice ? schedule.priceLabel : ""),
       createdBy: auth.uid,
     });
     return res.status(200).json({ ok: true, ...result });

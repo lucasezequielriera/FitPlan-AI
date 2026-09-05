@@ -4,6 +4,7 @@ import { FaBolt, FaCheck, FaCrown, FaStar, FaTimes } from "react-icons/fa";
 import type { IconType } from "react-icons";
 import { getPaymentProvider, getStripeCurrency } from "@/lib/paymentUtils";
 import {
+  getPlanSavingsLabel,
   getStripeSubscriptionPlans,
   PLANS_EUR_UI,
   PLANS_USD_UI,
@@ -32,29 +33,31 @@ interface Plan {
   popular?: boolean;
 }
 
-const plansARS: Plan[] = [
-  {
-    type: "monthly",
-    name: "Plan Mensual",
-    price: 10000,
-    period: "mes",
-  },
-  {
-    type: "quarterly",
-    name: "Plan Trimestral",
-    price: 24000,
-    period: "3 meses",
-    savings: "Ahorras 20%",
-    popular: true,
-  },
-  {
-    type: "annual",
-    name: "Plan Anual",
-    price: 50000,
-    period: "12 meses",
-    savings: "Ahorras 58%",
-  },
-];
+/**
+ * Fallback en ARS por si `/api/planPrices` falla. Se deriva del precio EUR con
+ * una cotización conservadora, NO son importes escritos a mano: antes lo eran
+ * (10.000/24.000/50.000) y el usuario veía un precio distinto del que se le
+ * cobraba, porque el cobro real deriva de la cotización en vivo.
+ */
+// Debe seguir a FALLBACK_EUR_ARS_RATE en src/lib/exchangeRate.ts. NO se importa
+// de allí: ese módulo arrastra firebase-admin al bundle del cliente y rompe el
+// build (comprobado). Si cambiás uno, cambiá el otro — lo cubre un test.
+const ARS_FALLBACK_RATE = 1704;
+
+function buildFallbackPlansARS(): Plan[] {
+  const eur = getStripeSubscriptionPlans("eur");
+  return (["monthly", "quarterly", "annual"] as const).map((key) => {
+    const ui = PLANS_EUR_UI[key];
+    return {
+      type: key,
+      name: ui.name,
+      price: Math.round((eur[key].price * ARS_FALLBACK_RATE) / 100) * 100,
+      period: ui.period,
+      savings: getPlanSavingsLabel("eur", key),
+      popular: "popular" in ui && ui.popular === true ? true : undefined,
+    };
+  });
+}
 
 function buildStripePlans(currency: "eur" | "usd"): Plan[] {
   const stripe = getStripeSubscriptionPlans(currency);
@@ -127,6 +130,7 @@ export default function PremiumPlanModal({
   const [paymentProvider, setPaymentProvider] = useState<"stripe" | "mercadopago" | null>(null);
   const [stripeCurrency, setStripeCurrency] = useState<"eur" | "usd">("eur");
   const [loadingProvider, setLoadingProvider] = useState(true);
+  const [plansArs, setPlansArs] = useState<Plan[] | null>(null);
 
   const copy = useMemo(() => {
     if (locale === "en") {
@@ -198,6 +202,18 @@ export default function PremiumPlanModal({
           if (provider === "stripe") {
             const cur = await getStripeCurrency();
             setStripeCurrency(cur);
+          } else {
+            // El importe en ARS que se cobra se deriva de la cotización en vivo,
+            // así que hay que pedirlo — no se puede mostrar un número fijo.
+            try {
+              const res = await fetch("/api/planPrices");
+              if (res.ok) {
+                const data = (await res.json()) as { plans?: Plan[] };
+                if (Array.isArray(data.plans) && data.plans.length > 0) setPlansArs(data.plans);
+              }
+            } catch {
+              // Se usa el fallback derivado; no bloquea abrir el modal.
+            }
           }
         } catch (error) {
           console.error("Error al detectar proveedor de pago:", error);
@@ -212,7 +228,8 @@ export default function PremiumPlanModal({
 
   if (!isOpen) return null;
 
-  const plans = paymentProvider === "stripe" ? buildStripePlans(stripeCurrency) : plansARS;
+  const plans =
+    paymentProvider === "stripe" ? buildStripePlans(stripeCurrency) : (plansArs ?? buildFallbackPlansARS());
   const hasAccount = Boolean(userId && userEmail);
 
   const handleSelectPlan = async (planType: PlanType) => {

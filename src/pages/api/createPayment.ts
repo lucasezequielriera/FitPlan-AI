@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { getEurArsRateForPricing, roundArsPrice } from "@/lib/exchangeRate";
-import { getStripeSubscriptionPlans, type PlanTypeKey } from "@/lib/stripePlanPrices";
+import { buildPlanDescription, getStripeSubscriptionPlans, type PlanTypeKey } from "@/lib/stripePlanPrices";
 import { isEligibleForFreeTrial } from "@/lib/premiumTrialEligibility";
 
 type MercadoPagoPreapprovalResponse = {
@@ -43,15 +43,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { rate: eurArsRate, source: rateSource } = await getEurArsRateForPricing(db);
   const arsAmount = roundArsPrice(eurPlan.price * eurArsRate);
 
-  const planDescriptions: Record<PlanTypeKey, string> = {
-    monthly: "Acceso premium mensual a objetivos avanzados, dietas personalizadas y análisis avanzado",
-    quarterly: "Acceso premium trimestral (3 meses) - Ahorras 20%",
-    annual: "Acceso premium anual (12 meses) - Ahorras 58%",
-  };
   const selectedPlan = {
     price: arsAmount,
     title: eurPlan.title,
-    description: planDescriptions[selectedPlanKey],
+    // Derivada del precio EUR (stripePlanPrices.ts): el porcentaje de ahorro
+    // se calcula, no se escribe a mano — antes decía "Ahorras 20%/58%" fijo y
+    // quedaba mintiendo en cuanto cambiaba un precio.
+    description: buildPlanDescription("es", selectedPlanKey),
   };
 
   console.log(

@@ -30,7 +30,7 @@ const MAX_CACHE_AGE_MS = 48 * 60 * 60 * 1000; // 48hs
  * la consulta en vivo fallan a la vez — actualizar ocasionalmente si el cron
  * lleva mucho tiempo caído (revisar logs con el warning de "usando fallback").
  */
-const FALLBACK_EUR_ARS_RATE = 1704;
+export const FALLBACK_EUR_ARS_RATE = 1704;
 
 export type ExchangeRateResult = {
   rate: number;

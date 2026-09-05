@@ -7,10 +7,13 @@ import LoginModal from "@/components/LoginModal";
 import LandingLangToggle from "@/components/LandingLangToggle";
 import { useAuthStore } from "@/store/authStore";
 import { trackEvent } from "@/lib/analytics";
+import { getPlanSavingsLabel, getStripeSubscriptionPlans, PLANS_USD_UI } from "@/lib/stripePlanPrices";
 
 const SITE = "https://www.fitplan-ai.com";
 const CANONICAL = `${SITE}/en/transformacion-fitplan`;
 const ES_URL = `${SITE}/transformacion-fitplan`;
+/** Precio publicado en esta landing — siempre el de stripePlanPrices.ts, nunca escrito a mano. */
+const USD_PLANS = getStripeSubscriptionPlans("usd");
 
 export default function TransformacionFitPlanLandingEn() {
   const router = useRouter();
@@ -80,7 +83,7 @@ export default function TransformacionFitPlanLandingEn() {
         name: "How much does Premium cost?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Plans start around $5.99/month (USD), with quarterly and annual options for better value. Optional 1:1 human coaching is available via the intake form.",
+          text: `Plans start at $${USD_PLANS.monthly.price}/month (USD), with quarterly and annual options for better value. Optional 1:1 human coaching is available via the intake form.`,
         },
       },
     ],
@@ -97,11 +100,13 @@ export default function TransformacionFitPlanLandingEn() {
     inLanguage: "en-US",
     description:
       "AI-powered personalized meal and training plans with optional human coaching—adapted to your goal, schedule, equipment, and experience.",
-    offers: [
-      { "@type": "Offer", priceCurrency: "USD", price: "5.99", name: "Monthly" },
-      { "@type": "Offer", priceCurrency: "USD", price: "13.99", name: "Quarterly" },
-      { "@type": "Offer", priceCurrency: "USD", price: "26.99", name: "Annual" },
-    ],
+    // Derivado de stripePlanPrices.ts — ver nota en la versión ES.
+    offers: (["monthly", "quarterly", "annual"] as const).map((key) => ({
+      "@type": "Offer",
+      priceCurrency: "USD",
+      price: String(getStripeSubscriptionPlans("usd")[key].price),
+      name: PLANS_USD_UI[key].name,
+    })),
   };
 
   const breadcrumbJsonLd = {
@@ -169,7 +174,7 @@ export default function TransformacionFitPlanLandingEn() {
         <meta property="og:title" content="FitPlan — AI Training & Nutrition (Web App)" />
         <meta
           property="og:description"
-          content="A weekly system for training + nutrition you can actually follow. Premium from $5.99/mo USD. No install required—works in your mobile browser."
+          content={`A weekly system for training + nutrition you can actually follow. Premium from $${USD_PLANS.monthly.price}/mo USD. No install required—works in your mobile browser.`}
         />
         <meta property="og:site_name" content="FitPlan" />
 
@@ -221,7 +226,8 @@ export default function TransformacionFitPlanLandingEn() {
                   </button>
                 </div>
                 <p className="text-xs text-[var(--landing-muted)] mt-4">
-                  From <strong>$5.99/mo USD</strong> · No long-term contract · Built for real adherence
+                  From <strong>${USD_PLANS.monthly.price}/mo USD</strong> · No long-term contract · Built for real
+                  adherence
                 </p>
               </div>
 
@@ -342,16 +348,21 @@ export default function TransformacionFitPlanLandingEn() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-5">
               <div className="card-surface-2 rounded-xl p-4">
                 <p className="text-sm text-[var(--landing-muted)]">Monthly</p>
-                <p className="text-2xl font-extrabold mt-1 text-[var(--foreground)]">$5.99</p>
+                <p className="text-2xl font-extrabold mt-1 text-[var(--foreground)]">${USD_PLANS.monthly.price}</p>
               </div>
               <div className="card-surface-2 rounded-xl p-4 ring-1 ring-[var(--landing-accent)]/40">
                 <p className="text-sm text-[var(--landing-muted)]">Quarterly</p>
-                <p className="text-2xl font-extrabold mt-1 text-[var(--foreground)]">$13.99</p>
-                <p className="text-xs text-[var(--landing-accent)] mt-1">Best value for consistency</p>
+                <p className="text-2xl font-extrabold mt-1 text-[var(--foreground)]">${USD_PLANS.quarterly.price}</p>
+                <p className="text-xs text-[var(--landing-accent)] mt-1">
+                  {getPlanSavingsLabel("usd", "quarterly")} vs monthly
+                </p>
               </div>
               <div className="card-surface-2 rounded-xl p-4">
                 <p className="text-sm text-[var(--landing-muted)]">Annual</p>
-                <p className="text-2xl font-extrabold mt-1 text-[var(--foreground)]">$26.99</p>
+                <p className="text-2xl font-extrabold mt-1 text-[var(--foreground)]">${USD_PLANS.annual.price}</p>
+                <p className="text-xs text-[var(--landing-accent)] mt-1">
+                  {getPlanSavingsLabel("usd", "annual")} vs monthly
+                </p>
               </div>
             </div>
             <div className="mt-6 flex flex-col sm:flex-row gap-3">

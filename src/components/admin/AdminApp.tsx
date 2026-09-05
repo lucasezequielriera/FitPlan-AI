@@ -13,6 +13,20 @@ import { useAdminFadeUp } from "@/components/admin/adminMotion";
 import WeeklyStatsModal from "@/components/WeeklyStatsModal";
 import ExerciseDemoMedia from "@/components/ExerciseDemoMedia";
 import { normalizeExerciseMediaKey } from "@/lib/exerciseMedia";
+import { getStripeSubscriptionPlans, PLANS_EUR_UI } from "@/lib/stripePlanPrices";
+
+/**
+ * Importe aproximado en ARS de un plan, para cuando un pago no guardó su
+ * `amount` real. Deriva del precio EUR vigente; el ARS exacto depende de la
+ * cotización del día, así que esto es una estimación, nunca lo cobrado.
+ * Usa el mismo fallback de cotización que PremiumPlanModal.tsx.
+ */
+const ARS_ESTIMATE_RATE = 1704;
+function estimatedArsForPlan(planType: string): number | null {
+  const plans = getStripeSubscriptionPlans("eur");
+  if (planType !== "monthly" && planType !== "quarterly" && planType !== "annual") return null;
+  return Math.round(plans[planType].price * ARS_ESTIMATE_RATE);
+}
 import {
   FaArrowUp,
   FaArrowDown,
@@ -883,7 +897,9 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
       if (typeof data.totalEarnings === "number") return data.totalEarnings;
       const ars = typeof data.totalEarningsArs === "number" ? data.totalEarningsArs : 0;
       const eur = typeof data.totalEarningsEur === "number" ? data.totalEarningsEur : 0;
-      return ars + eur * 2000;
+      // Misma cotización de reserva que el resto del panel (antes 2000, distinta
+      // del 1704 usado en las otras estimaciones: daba cifras incoherentes).
+      return ars + eur * ARS_ESTIMATE_RATE;
     } catch (error) {
       console.error("Error al obtener ganancias mensuales:", error);
       return 0;
@@ -892,16 +908,22 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
 
   // Función para calcular estadísticas de ganancias basadas en datos reales
   const calculateRevenueStats = async () => {
+    // Estimación usada solo cuando un pago no guardó su `amount`. Deriva de
+    // stripePlanPrices.ts: antes era una tabla fija con los precios viejos y
+    // mostraba ingresos estimados incorrectos.
+    const eurPlanPrices = getStripeSubscriptionPlans("eur");
     const PLAN_PRICES = {
+      // El ARS real depende de la cotización del día; acá solo se estima con el
+      // mismo fallback que usa el modal premium (ver PremiumPlanModal.tsx).
       ARS: {
-        monthly: 10000,
-        quarterly: 24000,
-        annual: 50000,
+        monthly: Math.round(eurPlanPrices.monthly.price * ARS_ESTIMATE_RATE),
+        quarterly: Math.round(eurPlanPrices.quarterly.price * ARS_ESTIMATE_RATE),
+        annual: Math.round(eurPlanPrices.annual.price * ARS_ESTIMATE_RATE),
       },
       EUR: {
-        monthly: 5,
-        quarterly: 12,
-        annual: 25,
+        monthly: eurPlanPrices.monthly.price,
+        quarterly: eurPlanPrices.quarterly.price,
+        annual: eurPlanPrices.annual.price,
       },
     };
     
@@ -930,7 +952,10 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
       
       // Si no hay monto de pago, estimar basado en el tipo de plan
       if (paymentAmount === 0 && user.premiumPlanType) {
-        paymentAmount = PLAN_PRICES.ARS[user.premiumPlanType as keyof typeof PLAN_PRICES.ARS] || 10000;
+        paymentAmount =
+          PLAN_PRICES.ARS[user.premiumPlanType as keyof typeof PLAN_PRICES.ARS] ??
+          estimatedArsForPlan("monthly") ??
+          0;
       }
       
       // Verificar si el pago fue este mes
@@ -2695,7 +2720,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                   <AdminStatCard
                     label="Ingresado este mes"
                     value={`$${revenueStats.actualMonthly.toLocaleString("es-AR")}`}
-                    unit={`${(revenueStats.actualMonthly / 2000).toFixed(2)} EUR aprox.`}
+                    unit={`${(revenueStats.actualMonthly / ARS_ESTIMATE_RATE).toFixed(2)} EUR aprox.`}
                     tone="accent"
                   />
                   <AdminStatCard label="Clientes activos" value={totalUsers} unit="FitPlan + 1:1" />
@@ -2761,7 +2786,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
           <AdminStatCard
             label="Mensual estimada"
             value={`$${revenueStats.estimatedMonthly.toLocaleString("es-AR")}`}
-            unit={`${(revenueStats.estimatedMonthly / 2000).toFixed(2)} EUR`}
+            unit={`${(revenueStats.estimatedMonthly / ARS_ESTIMATE_RATE).toFixed(2)} EUR`}
             tone="success"
           />
           <AdminStatCard label="Premium activos" value={revenueStats.premiumActiveThisMonth} unit="Mes actual" tone="info" />
@@ -2770,7 +2795,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
           <AdminStatCard
             label="Proyección anual"
             value={`$${revenueStats.estimatedAnnual.toLocaleString("es-AR")}`}
-            unit={`${(revenueStats.estimatedAnnual / 2000).toFixed(2)} EUR`}
+            unit={`${(revenueStats.estimatedAnnual / ARS_ESTIMATE_RATE).toFixed(2)} EUR`}
           />
           <AdminStatCard label="Total premium histórico" value={revenueStats.totalPremiumUsers} unit="Registrados" />
         </div>
@@ -3603,12 +3628,9 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                     
                                     // Fallback: calcular monto basado en el tipo de plan si premiumPayment es null
                                     if (amount === null && user.premiumPlanType) {
-                                      const planPrices: Record<string, number> = {
-                                        monthly: 10000,
-                                        quarterly: 24000,
-                                        annual: 50000,
-                                      };
-                                      amount = planPrices[user.premiumPlanType] || null;
+                                      // Estimación derivada de stripePlanPrices.ts (ver
+                                      // calculateRevenueStats). No es el importe cobrado real.
+                                      amount = estimatedArsForPlan(user.premiumPlanType);
                                     }
                                     
                                     return amount !== null && !isNaN(amount) && amount > 0 ? (
@@ -4020,12 +4042,9 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                                     }
                                     
                                     if (amount === null && user.premiumPlanType) {
-                                      const planPrices: Record<string, number> = {
-                                        monthly: 10000,
-                                        quarterly: 24000,
-                                        annual: 50000,
-                                      };
-                                      amount = planPrices[user.premiumPlanType] || null;
+                                      // Estimación derivada de stripePlanPrices.ts (ver
+                                      // calculateRevenueStats). No es el importe cobrado real.
+                                      amount = estimatedArsForPlan(user.premiumPlanType);
                                     }
                                     
                                     return amount !== null && !isNaN(amount) && amount > 0 ? (
@@ -4217,9 +4236,14 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                       className="w-full px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                     >
                       <option value="">Seleccionar tipo de plan...</option>
-                      <option value="monthly">Mensual ($10.000 ARS / 5 EUR)</option>
-                      <option value="quarterly">Trimestral ($24.000 ARS / 12 EUR)</option>
-                      <option value="annual">Anual ($50.000 ARS / 25 EUR)</option>
+                      {/* Precio desde stripePlanPrices.ts. El ARS no se muestra porque se
+                          deriva de la cotización del día y aquí quedaría desactualizado. */}
+                      {(["monthly", "quarterly", "annual"] as const).map((key) => (
+                        <option key={key} value={key}>
+                          {PLANS_EUR_UI[key].name.replace("Plan ", "")} ({getStripeSubscriptionPlans("eur")[key].price}{" "}
+                          EUR)
+                        </option>
+                      ))}
                     </select>
                   </div>
                 )}
@@ -4829,7 +4853,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                         value={newPayment.amount}
                         onChange={(e) => setNewPayment({ ...newPayment, amount: e.target.value })}
                         className="w-full px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-white focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-                        placeholder="10000"
+                        placeholder={String(estimatedArsForPlan("monthly") ?? "")}
                       />
                     </div>
                     <div>

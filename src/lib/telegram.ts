@@ -98,12 +98,12 @@ export function formatPaymentMessage(paymentData: {
   const email = paymentData.email || "Sin email";
   const monto = paymentData.amount.toLocaleString('es-AR');
   const moneda = paymentData.currency || "ARS";
-  const isEUR = moneda === "EUR";
-  const planType = paymentData.planType === "monthly" 
-    ? isEUR ? "Mensual (€5 EUR)" : "Mensual ($10.000 ARS)"
-    : paymentData.planType === "quarterly"
-    ? isEUR ? "Trimestral (€12 EUR)" : "Trimestral ($24.000 ARS)"
-    : isEUR ? "Anual (€25 EUR)" : "Anual ($50.000 ARS)";
+  // El importe se toma del pago real, no de una tabla escrita a mano: antes
+  // decía "€5 EUR / $10.000 ARS" fijo y reportaba mal en cuanto cambiaba un
+  // precio o se movía la cotización EUR→ARS.
+  const planNombre =
+    paymentData.planType === "monthly" ? "Mensual" : paymentData.planType === "quarterly" ? "Trimestral" : "Anual";
+  const planType = `${planNombre} (${monto} ${moneda})`;
   const metodo = paymentData.paymentMethod === "mercadopago"
     ? "💳 MercadoPago"
     : paymentData.paymentMethod === "stripe"

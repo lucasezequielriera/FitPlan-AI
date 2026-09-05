@@ -299,7 +299,7 @@ async function runScheduledCarousels(db: Firestore, now: Date) {
     try {
       await buildCarousel(db, {
         slideCount: schedule.slideCount,
-        priceLabel: schedule.priceLabel,
+        priceLabel: schedule.showPrice ? schedule.priceLabel : "",
         createdBy: "cron-auto",
         docId,
         slotLocal: slot,

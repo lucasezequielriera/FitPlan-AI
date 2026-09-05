@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { getStripeSubscriptionPlans, type PlanTypeKey } from "@/lib/stripePlanPrices";
+import { getEurArsRateForPricing, roundArsPrice } from "@/lib/exchangeRate";
 import { inferStripeCurrencyFromCountryLabel } from "@/lib/paymentUtils";
 import { requireAdmin } from "@/lib/adminAuthServer";
 
@@ -97,12 +98,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (!process.env.MERCADOPAGO_ACCESS_TOKEN) {
         return res.status(500).json({ error: "Falta MERCADOPAGO_ACCESS_TOKEN" });
       }
-      const planPrices: Record<PlanType, { price: number; title: string }> = {
-        monthly: { price: 10000, title: "Plan Premium Mensual - FitPlan" },
-        quarterly: { price: 24000, title: "Plan Premium Trimestral - FitPlan" },
-        annual: { price: 50000, title: "Plan Premium Anual - FitPlan" },
+      // El importe en ARS se deriva del precio EUR por la cotización cacheada,
+      // igual que en createPayment.ts. Antes era una tabla fija (10.000/24.000/
+      // 50.000 ARS) que quedó cobrando el precio viejo cuando cambió la lista.
+      const eurPlansArs = getStripeSubscriptionPlans("eur");
+      const { rate: eurArsRate } = await getEurArsRateForPricing(db);
+      const selectedPlan = {
+        price: roundArsPrice(eurPlansArs[selectedPlanType].price * eurArsRate),
+        title: eurPlansArs[selectedPlanType].title,
       };
-      const selectedPlan = planPrices[selectedPlanType];
       const frequency = selectedPlanType === "annual" ? 12 : selectedPlanType === "quarterly" ? 3 : 1;
       const preapprovalPayload: Record<string, unknown> = {
         reason: selectedPlan.title,

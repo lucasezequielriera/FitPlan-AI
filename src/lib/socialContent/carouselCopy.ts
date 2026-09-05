@@ -55,7 +55,7 @@ Devuelve este JSON:
     { "kind": "hook", "headline": "...", "emphasis": "...", "sub": "..." },
     { "kind": "log", "title": "...", "columns": ["...", "...", "..."], "rows": [ { "week": "01", "sets": "3 × 10", "load": "40 kg", "note": "...", "dead": false } ], "caption": "...", "body": "..." },
     { "kind": "list", "title": "...", "items": ["...", "..."] },
-    { "kind": "cta", "title": "...", "price": "Premium desde 5 €/mes", "url": "fitplan-ai.com" }
+    { "kind": "cta", "title": "...", "url": "fitplan-ai.com" }
   ],
   "instagramCaption": "...",
   "hashtags": ["...", "..."],
@@ -65,7 +65,7 @@ Devuelve este JSON:
 Notas de formato:
 - En "log", cada fila lleva "note" O "delta", no ambos. "delta" para incrementos ("+7,5"), "note" para etiquetas cortas ("estancado", "calentamiento").
 - "emphasis", "sub", "caption" y "body" son opcionales; omítelos si la diapositiva no los necesita.
-- El precio del "cta" que pongas aquí es solo de ejemplo/formato: el valor real se sobrescribe siempre después con el precio vigente (ver buildCarousel.ts), así que no hace falta que coincida al céntimo — pero mantenlo con este formato ("Premium desde X €/mes") y la url "fitplan-ai.com".
+- NO incluyas precio en el "cta" ni en ninguna diapositiva. No escribas cifras en euros, ni "desde X €", ni "gratis". La pieza vende el resultado; el precio se ve en la web. El campo "price" se controla desde el panel y se añade solo si está configurado (ver buildCarousel.ts). Mantén la url "fitplan-ai.com".
 - instagramCaption: 5-9 líneas con saltos de línea, que amplíe la idea del carrusel y cierre con una pregunta contestable en pocas palabras. Máximo 3 emojis.
 - hashtags: 8-10 en español, sin "#", incluyendo "fitplanai".
 - altTexts: una descripción objetiva por diapositiva, máx. 140 caracteres, en el mismo orden.`;

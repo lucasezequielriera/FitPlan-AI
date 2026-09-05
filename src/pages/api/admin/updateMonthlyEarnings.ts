@@ -2,6 +2,8 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { requireAdmin } from "@/lib/adminAuthServer";
+import { getStripeSubscriptionPlans } from "@/lib/stripePlanPrices";
+import { FALLBACK_EUR_ARS_RATE } from "@/lib/exchangeRate";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -66,8 +68,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           amount = Number(premiumPayment.amount) || 0;
         } else {
           // Si no tiene amount en premiumPayment, usar el monto estándar
-          console.log(`⚠️ Usuario ${docSnapshot.id} no tiene premiumPayment.amount, usando monto estándar ($10,000)`);
-          amount = 10000; // Monto estándar mensual del plan premium
+          // Estimación derivada del precio EUR vigente por la cotización de
+          // reserva. Antes era 10.000 ARS fijo y quedó reportando el precio viejo.
+          amount = Math.round(getStripeSubscriptionPlans("eur").monthly.price * FALLBACK_EUR_ARS_RATE);
+          console.log(
+            `⚠️ Usuario ${docSnapshot.id} no tiene premiumPayment.amount, estimando ${amount} ARS con el precio mensual vigente`
+          );
         }
 
         // Obtener fecha del pago

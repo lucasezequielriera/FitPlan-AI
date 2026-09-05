@@ -9,6 +9,11 @@ import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { AdminSubTabs } from "@/components/admin/AdminSubTabs";
 import { useAdminFadeUp } from "@/components/admin/adminMotion";
 import { FaMagic, FaPaperPlane, FaClock, FaTimes, FaPlus, FaTrash } from "react-icons/fa";
+import { getStripeSubscriptionPlans } from "@/lib/stripePlanPrices";
+
+// No se importa de carouselScheduleStore.ts: ese módulo arrastra
+// firebase-admin al bundle del cliente y rompe el build (ya pasó dos veces).
+const PRICE_LABEL_SUGGESTION = `Premium desde ${getStripeSubscriptionPlans("eur").monthly.price} €/mes`;
 
 const MADRID_TZ = "Europe/Madrid";
 
@@ -70,6 +75,7 @@ export default function AdminCarruselIgPage() {
   const [scheduledIso, setScheduledIso] = useState<string | null>(null);
 
   const [priceLabel, setPriceLabel] = useState("");
+  const [showPrice, setShowPrice] = useState(false);
   const [autoEnabled, setAutoEnabled] = useState(true);
   const [autoTimes, setAutoTimes] = useState<string[]>([]);
   const [autoSlides, setAutoSlides] = useState(5);
@@ -102,6 +108,7 @@ export default function AdminCarruselIgPage() {
           // El precio configurado para los automáticos es también el valor de
           // partida al generar a mano, para que ambos digan lo mismo.
           setPriceLabel(data.priceLabel || "");
+          setShowPrice(data.showPrice === true);
         }
       } catch {
         // Silencioso: la generación manual funciona igual sin esta config.
@@ -124,6 +131,7 @@ export default function AdminCarruselIgPage() {
           enabled: autoEnabled,
           timesLocal: autoTimes.filter(Boolean),
           slideCount: autoSlides,
+          showPrice,
           priceLabel: priceLabel.trim(),
         }),
       });
@@ -148,7 +156,11 @@ export default function AdminCarruselIgPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         // Sin tema, lo elige la IA.
-        body: JSON.stringify({ topic: topic.trim() || undefined, slideCount, priceLabel: priceLabel.trim() || undefined }),
+        body: JSON.stringify({
+          topic: topic.trim() || undefined,
+          slideCount,
+          priceLabel: showPrice ? priceLabel.trim() || undefined : undefined,
+        }),
       });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.detail || data.error || "No se pudo generar el carrusel");
@@ -253,19 +265,40 @@ export default function AdminCarruselIgPage() {
           </div>
 
           <div>
-            <label htmlFor="price" className="block text-sm text-white/75 mb-1.5">Texto de precio (última diapositiva)</label>
-            <input
-              id="price"
-              type="text"
-              value={priceLabel}
-              onChange={(e) => setPriceLabel(e.target.value)}
-              maxLength={60}
-              placeholder="Premium desde 5 €/mes"
-              className="w-full rounded-lg bg-black/25 border border-white/15 px-3 py-2.5 text-sm text-white outline-none focus:border-info/50"
-            />
+            <label className="flex items-center gap-2.5 text-sm text-white/75">
+              <input
+                type="checkbox"
+                checked={showPrice}
+                onChange={(e) => setShowPrice(e.target.checked)}
+                className="h-4 w-4 accent-[var(--accent)]"
+              />
+              Mostrar precio en la última diapositiva
+            </label>
             <p className="text-xs text-white/40 mt-1.5">
-              Tiene que coincidir con lo que se cobra en el checkout. Un precio publicado que no cuadra genera disputas de cobro y reseñas negativas.
+              Desactivado por defecto: la pieza vende el resultado y el precio se ve en la web, cuando la persona ya llega con intención.
             </p>
+
+            {showPrice && (
+              <div className="mt-3">
+                <label htmlFor="price" className="block text-sm text-white/75 mb-1.5">
+                  Texto de precio
+                </label>
+                <input
+                  id="price"
+                  type="text"
+                  value={priceLabel}
+                  onChange={(e) => setPriceLabel(e.target.value)}
+                  maxLength={60}
+                  placeholder={PRICE_LABEL_SUGGESTION}
+                  className="w-full rounded-lg bg-black/25 border border-white/15 px-3 py-2.5 text-sm text-white outline-none focus:border-info/50"
+                />
+                <p className="text-xs text-white/40 mt-1.5">
+                  Tiene que coincidir con lo que se cobra en el checkout. El precio vigente hoy es{" "}
+                  <strong className="text-white/70">{PRICE_LABEL_SUGGESTION}</strong>. Un precio publicado que no cuadra
+                  genera disputas de cobro y reseñas negativas.
+                </p>
+              </div>
+            )}
           </div>
 
           <button type="button" onClick={handleGenerate} disabled={generating} className="btn btn-primary disabled:opacity-50">

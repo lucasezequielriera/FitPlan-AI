@@ -2,6 +2,10 @@ import Head from "next/head";
 import { useRouter } from "next/router";
 import { motion, useReducedMotion } from "framer-motion";
 import { FaCheckCircle, FaBolt, FaBrain, FaDumbbell, FaUtensils, FaWhatsapp } from "react-icons/fa";
+import { getStripeSubscriptionPlans } from "@/lib/stripePlanPrices";
+
+/** Precio real, para que la preview no muestre uno que ya no existe. */
+const PREVIEW_EUR = getStripeSubscriptionPlans("eur");
 
 /**
  * PROPUESTA — techo de 3 colores aplicado a `transformacion-fitplan.tsx` (es/en)
@@ -94,7 +98,7 @@ export default function TransformacionDesignPreview() {
                   </button>
                 </div>
                 <p className="text-xs text-[var(--landing-muted)] mt-4">
-                  Desde 5 EUR/mes · Sin permanencia · Diseñado para resultados sostenibles
+                  Desde {PREVIEW_EUR.monthly.price} EUR/mes · Sin permanencia · Diseñado para resultados sostenibles
                 </p>
               </div>
 
@@ -229,16 +233,16 @@ export default function TransformacionDesignPreview() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-5">
               <div className="card-surface-2 rounded-xl p-4">
                 <p className="text-sm text-[var(--landing-muted)]">Mensual</p>
-                <p className="text-2xl font-extrabold mt-1 text-[var(--foreground)]">5 EUR</p>
+                <p className="text-2xl font-extrabold mt-1 text-[var(--foreground)]">{PREVIEW_EUR.monthly.price} EUR</p>
               </div>
               <div className="card-surface-2 rounded-xl p-4 ring-1 ring-[var(--landing-accent)]/40">
                 <p className="text-sm text-[var(--landing-muted)]">Trimestral</p>
-                <p className="text-2xl font-extrabold mt-1 text-[var(--foreground)]">12 EUR</p>
+                <p className="text-2xl font-extrabold mt-1 text-[var(--foreground)]">{PREVIEW_EUR.quarterly.price} EUR</p>
                 <p className="text-xs text-[var(--landing-accent)] mt-1">Mejor relación precio / resultado</p>
               </div>
               <div className="card-surface-2 rounded-xl p-4">
                 <p className="text-sm text-[var(--landing-muted)]">Anual</p>
-                <p className="text-2xl font-extrabold mt-1 text-[var(--foreground)]">25 EUR</p>
+                <p className="text-2xl font-extrabold mt-1 text-[var(--foreground)]">{PREVIEW_EUR.annual.price} EUR</p>
               </div>
             </div>
             <div className="mt-6 flex flex-col sm:flex-row gap-3">

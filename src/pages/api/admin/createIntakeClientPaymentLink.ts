@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { getStripeSubscriptionPlans, type PlanTypeKey } from "@/lib/stripePlanPrices";
+import { getEurArsRateForPricing, roundArsPrice } from "@/lib/exchangeRate";
 import { inferStripeCurrencyFromCountryLabel } from "@/lib/paymentUtils";
 import { requireAdmin } from "@/lib/adminAuthServer";
 
@@ -89,12 +90,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
       link = session.url || null;
     } else {
-      const planPrices: Record<PlanType, { price: number; title: string }> = {
-        monthly: { price: 10000, title: "Mensualidad asesoría personal - Lucas Riera" },
-        quarterly: { price: 24000, title: "Trimestral asesoría personal - Lucas Riera" },
-        annual: { price: 50000, title: "Anual asesoría personal - Lucas Riera" },
+      // ARS derivado del precio EUR por cotización viva (ver createPayment.ts).
+      // Antes era una tabla fija que cobraba el precio viejo.
+      const eurPlansArs = getStripeSubscriptionPlans("eur");
+      const { rate: eurArsRate } = await getEurArsRateForPricing(db);
+      const titlesArs: Record<PlanType, string> = {
+        monthly: "Mensualidad asesoría personal - Lucas Riera",
+        quarterly: "Trimestral asesoría personal - Lucas Riera",
+        annual: "Anual asesoría personal - Lucas Riera",
       };
-      const p = planPrices[selectedPlan];
+      const p = {
+        price: roundArsPrice(eurPlansArs[selectedPlan].price * eurArsRate),
+        title: titlesArs[selectedPlan],
+      };
       const prefPayload: Record<string, unknown> = {
         items: [{ title: p.title, quantity: 1, unit_price: p.price, currency_id: "ARS" }],
         payer: { email: userEmail },

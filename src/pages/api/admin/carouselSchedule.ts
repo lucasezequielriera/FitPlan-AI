@@ -48,6 +48,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         enabled,
         timesLocal,
         slideCount: Math.round(rawCount),
+        showPrice: req.body?.showPrice === true,
         priceLabel: priceLabel || DEFAULT_PRICE_LABEL,
       });
       return res.status(200).json({ ok: true });
