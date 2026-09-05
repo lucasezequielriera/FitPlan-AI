@@ -102,10 +102,14 @@ const es: HomeLandingCopy = {
   chipNutrition: "Nutrición",
   chipAi: "IA",
   chipTraining: "Entrenamiento",
-  expertTitle: "Hecho por expertos, potenciado por IA",
+  expertTitle: "Un plan que se ajusta, no una rutina fija",
   expertSub:
-    "Los lineamientos los pensamos con criterio profesional; la IA te ayuda a llevarlos a un plan concreto, semana a semana, adaptado a vos.",
-  expertBullets: ["Nutricionistas certificados", "Entrenadores profesionales", "IA para precisión y velocidad"],
+    "Cada plan se arma sobre tus datos: objetivo, nivel, lesiones, material disponible y días que puedes entrenar. Y se recalcula con tu progreso real en vez de quedarse igual todo el año.",
+  expertBullets: [
+    "Se adapta a tus lesiones y a tu material",
+    "Macros y cantidades exactas, no aproximaciones",
+    "Se recalcula cada mes con tu progreso",
+  ],
   featuresTitle: "Todo lo que necesitas en la app",
   features: [
     {
@@ -135,15 +139,15 @@ const es: HomeLandingCopy = {
     canonical: `${SITE}/`,
     ogTitle: "FitPlan | Alimentación y Entrenamiento Personalizado con IA",
     ogDescription:
-      "Planes de alimentación y entrenamiento personalizados por nutricionistas y entrenadores profesionales, potenciados con inteligencia artificial. Empieza gratis.",
+      "Planes de alimentación y entrenamiento que se arman sobre tus datos y se recalculan con tu progreso. Menús con cantidades exactas y rutina acorde a tu nivel. Empieza gratis.",
     twitterTitle: "FitPlan | Alimentación y Entrenamiento Personalizado con IA",
-    twitterDescription: "Alimentación + entrenamiento personalizados por expertos y potenciados con IA. Empieza gratis.",
+    twitterDescription: "Alimentación + entrenamiento en un solo plan, ajustado a tu nivel, tus lesiones y tu material. Empieza gratis.",
   },
   jsonLdOrganizationDescription:
     "Plataforma de planes de alimentación y entrenamiento personalizados con inteligencia artificial.",
   jsonLdWebSiteAlt: "FitPlan - Plan Nutricional y Entrenamiento Inteligente",
   jsonLdSoftwareDescription:
-    "Crea tu plan de alimentación y entrenamiento personalizado con inteligencia artificial. Diseñado por nutricionistas certificados y entrenadores profesionales.",
+    "Crea tu plan de alimentación y entrenamiento personalizado con inteligencia artificial, ajustado a tu objetivo, nivel, lesiones y material disponible.",
   jsonLdSoftwareOfferDescription: "Plan gratuito por 30 días",
   jsonLdSoftwareCurrency: "ARS",
   jsonLdFeatureList: [
@@ -157,7 +161,7 @@ const es: HomeLandingCopy = {
   faq: [
     {
       q: "¿Qué es FitPlan?",
-      a: "FitPlan es una plataforma que crea planes de alimentación y entrenamiento personalizados usando inteligencia artificial. Los planes están diseñados por nutricionistas certificados y entrenadores profesionales.",
+      a: "FitPlan es una plataforma que crea planes de alimentación y entrenamiento personalizados usando inteligencia artificial. El plan se arma a partir de tu objetivo, tu nivel, tus lesiones y el material del que dispongas, y se recalcula con tu progreso real.",
     },
     {
       q: "¿Es gratis usar FitPlan?",
@@ -215,10 +219,14 @@ const en: HomeLandingCopy = {
   chipNutrition: "Nutrition",
   chipAi: "AI",
   chipTraining: "Training",
-  expertTitle: "Built by experts, powered by AI",
+  expertTitle: "A plan that adapts, not a fixed routine",
   expertSub:
-    "Guidelines come from professional judgment; AI helps turn them into a concrete weekly plan tailored to you.",
-  expertBullets: ["Certified nutritionists", "Professional trainers", "AI for speed and precision"],
+    "Every plan is built from your own data: goal, experience, injuries, available equipment and how many days you can train. And it gets recalculated with your real progress instead of staying the same all year.",
+  expertBullets: [
+    "Adapts to your injuries and your equipment",
+    "Exact macros and portions, not rough estimates",
+    "Recalculated every month with your progress",
+  ],
   featuresTitle: "Everything you need in the app",
   features: [
     {
@@ -257,7 +265,7 @@ const en: HomeLandingCopy = {
     "Platform for personalized meal and training plans powered by artificial intelligence.",
   jsonLdWebSiteAlt: "FitPlan — Smart Nutrition & Training",
   jsonLdSoftwareDescription:
-    "Create a personalized meal and training plan with AI. Designed by certified nutritionists and professional trainers.",
+    "Create a personalized meal and training plan with AI, matched to your goal, experience, injuries and available equipment.",
   jsonLdSoftwareOfferDescription: "Free plan for 30 days",
   jsonLdSoftwareCurrency: "USD",
   jsonLdFeatureList: [
@@ -271,7 +279,7 @@ const en: HomeLandingCopy = {
   faq: [
     {
       q: "What is FitPlan?",
-      a: "FitPlan creates personalized meal and training plans using artificial intelligence. Plans are designed by certified nutritionists and professional trainers.",
+      a: "FitPlan creates personalized meal and training plans using artificial intelligence. Your plan is built from your goal, experience, injuries and available equipment, and it is recalculated with your real progress.",
     },
     {
       q: "Is FitPlan free?",

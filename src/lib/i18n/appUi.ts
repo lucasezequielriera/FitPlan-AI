@@ -148,8 +148,8 @@ export const dashboardUi = {
   /** Modal entrenador personal */
   ptModalTitle: { es: "Entrenador personal humano", en: "Human personal trainer" },
   ptModalBody: {
-    es: "Puedes asesorarte y tener seguimiento de un entrenador personal certificado en entrenamiento y nutrición.",
-    en: "Get guidance and follow-up from a certified personal trainer for training and nutrition.",
+    es: "Puedes tener seguimiento humano 1:1: revisión de tu plan, ajustes según cómo avances y respuestas a tus dudas por chat.",
+    en: "Get 1:1 human follow-up: a review of your plan, adjustments based on your progress, and answers to your questions by chat.",
   },
   ptModalFootnote: {
     es: "Si ahora no quieres, puedes pedirlo más adelante con este botón o por el chat.",
