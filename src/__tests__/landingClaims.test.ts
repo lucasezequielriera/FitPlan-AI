@@ -53,4 +53,20 @@ describe("Textos públicos: credenciales que no tenemos", () => {
     }
     expect(ofensores).toEqual([]);
   });
+
+  it("no se publican valoraciones inventadas en datos estructurados", () => {
+    // La landing declaraba un `aggregateRating` de 4,8 sobre 150 valoraciones.
+    // La app no tiene sistema de reseñas: el número era inventado, y Google lo
+    // mostraba como estrellas en los resultados. Además de engañar al usuario,
+    // los datos estructurados falsos son sancionables con acción manual.
+    // Si algún día hay reseñas reales, este test tiene que cambiar a la vez que
+    // se conecta el número a la fuente que las cuenta.
+    const ofensores: string[] = [];
+    for (const file of walk("src")) {
+      const src = fs.readFileSync(path.join(process.cwd(), file), "utf8");
+      // Solo cuenta si declara un valor, no si lo menciona un comentario.
+      if (/(aggregateRating|ratingValue|ratingCount)\s*:\s*["'{]/.test(src)) ofensores.push(file);
+    }
+    expect(ofensores).toEqual([]);
+  });
 });

@@ -205,13 +205,13 @@ export default function HomeLanding({ locale }: HomeLandingProps) {
                 priceCurrency: c.jsonLdSoftwareCurrency,
                 description: c.jsonLdSoftwareOfferDescription,
               },
-              aggregateRating: {
-                "@type": "AggregateRating",
-                ratingValue: "4.8",
-                ratingCount: "150",
-                bestRating: "5",
-                worstRating: "1",
-              },
+              // SIN `aggregateRating`. Había uno fijo (4.8 sobre 150 valoraciones)
+              // que era inventado: la app no tiene sistema de reseñas, así que no
+              // existe ninguna valoración real que lo respalde. Google lo publicaba
+              // como estrellas en los resultados de búsqueda — datos estructurados
+              // falsos, sancionables con acción manual, además de engañoso.
+              // No volver a añadirlo hasta que haya reseñas reales de las que salga
+              // el número. Lo cubre landingClaims.test.ts.
               featureList: c.jsonLdFeatureList,
             }),
           }}
