@@ -10,6 +10,7 @@ import {
   PLANS_USD_UI,
 } from "@/lib/stripePlanPrices";
 import { trackEvent } from "@/lib/analytics";
+import { authedFetch } from "@/lib/userAuthClient";
 
 export interface PremiumPlanModalProps {
   isOpen: boolean;
@@ -257,13 +258,13 @@ export default function PremiumPlanModal({
 
       const endpoint = paymentProvider === "stripe" ? "/api/createStripePayment" : "/api/createPayment";
 
-      const response = await fetch(endpoint, {
+      // El endpoint deriva el UID y el email del ID token: mandarlos acá no
+      // probaba nada y permitía abrir un checkout a nombre de otra cuenta.
+      const response = await authedFetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId,
           returnUrl: returnUrl || `${typeof window !== "undefined" ? window.location.origin : ""}/dashboard`,
-          userEmail,
           planType,
         }),
       });

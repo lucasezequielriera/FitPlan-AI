@@ -86,7 +86,15 @@ El `README.md` documenta solo un subconjunto de las env vars que el código real
 - Nuevo `src/lib/userAuthClient.ts` con `authedFetch()` (espejo de `adminFetch`), que adjunta el token automáticamente. `WeeklyStatsModal.tsx` lo usa y **dejó de recibir y mandar `userId`**: el prop desapareció de sus dos llamadores (`plan.tsx` y `AdminApp.tsx`), así que la identidad ya no viaja por el cliente en ningún punto de ese flujo.
 - Cubierto con tests (`src/__tests__/userAuthServer.test.ts`, 8 casos), incluido el que fija el bypass: sin token no se pasa **aunque el plan exista**.
 
-**Queda pendiente** (mismo patrón, fuera del alcance de este cambio — ver issue #27): `saveUserProfile.ts`, `savePlan.ts`, `createPayment.ts`, `createStripePayment.ts`, `analyzeFood.ts`, `saveUserLocation.ts`, `saveExerciseWeights.ts`, `sendMessage.ts`, `saveMonthlySnapshot.ts` y `updateLastLogin.ts`. `requireUser()` ya es la pieza que necesitan: aplicarlo es cambiar el origen del UID en cada uno.
+**Queda pendiente** (mismo patrón, fuera del alcance de este cambio — ver issue #27): `saveUserProfile.ts`, `savePlan.ts`, `analyzeFood.ts`, `saveUserLocation.ts`, `saveExerciseWeights.ts`, `sendMessage.ts`, `saveMonthlySnapshot.ts` y `updateLastLogin.ts`. `requireUser()` ya es la pieza que necesitan: aplicarlo es cambiar el origen del UID en cada uno.
+
+### 2.6 Endpoints de cobro: identidad verificada — 🟢 corregido (issues #27 y #25)
+
+**Hallazgo**: `createPayment.ts` y `createStripePayment.ts` recibían `userId` y `userEmail` en el body. Ese UID no es un dato cualquiera: viaja como `external_reference` (MercadoPago) y como `metadata.userId` de la sesión y de la suscripción (Stripe), o sea que **es lo que decide qué cuenta queda premium** cuando el webhook confirma el cobro, y además determina la elegibilidad para el trial gratis de 30 días. Con el UID de otra persona se podía abrir un checkout que activaba su cuenta, o gastar su trial. `checkStripePayment.ts`, por su parte, no verificaba nada: con un `session_id` se leían importe, moneda, UID y estado de la suscripción de un cobro ajeno.
+
+**Corrección aplicada**: los tres usan `requireUser()`. El email del pagador sale del claim del token (con caída al email de la cuenta en Firestore si el proveedor de identidad no lo trae), nunca del body. `checkStripePayment.ts` además comprueba que la sesión sea de quien pregunta — aceptando el UID tanto de la metadata de la sesión como de la de la suscripción, porque el checkout escribe las dos —, mismo tratamiento que `checkPayment.ts` ya tenía para MercadoPago (§0). Cubierto con `src/__tests__/paymentAuth.test.ts` (6 casos).
+
+**`fixPremiumUser.ts` borrado — cierra el issue #25.** Calculaba `paymentVerified` contra la API de MercadoPago y después otorgaba premium igual, sin usar ese resultado; su secreto de acceso caía a los últimos 10 caracteres de `MERCADOPAGO_ACCESS_TOKEN`; creaba el documento del usuario si no existía; y al responder leía `userData.email` sobre un `userData` que queda en `null` justo en ese caso (500 en el escenario que decía soportar). No tenía llamadores, y la capacidad ya existe mejor resuelta en `/api/admin/payments` (POST): protegido con `requireAdmin`, registra el pago en `pagos` con vencimiento y deja `createdBy`.
 
 ---
 

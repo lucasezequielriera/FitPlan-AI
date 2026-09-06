@@ -5,6 +5,7 @@ import { getCountryCodeFromRequest } from "@/lib/getCountryFromRequest";
 import { getStripeCurrencyForCountry, usesMercadoPagoForCountry } from "@/lib/paymentUtils";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { isEligibleForFreeTrial } from "@/lib/premiumTrialEligibility";
+import { requireUser } from "@/lib/userAuthServer";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
   apiVersion: "2025-11-17.clover",
@@ -15,11 +16,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { userId, userEmail, planType } = req.body;
+  const { planType } = req.body;
 
-  if (!userId || !userEmail) {
-    return res.status(400).json({ error: "userId y userEmail son requeridos" });
+  // Identidad verificada: el UID se graba en `metadata.userId` de la sesión y de
+  // la suscripción, que es lo que el webhook usa para decidir qué cuenta queda
+  // premium — y además define la elegibilidad para el trial gratis. Aceptarlo
+  // del body permitía abrir un checkout a nombre de otra persona.
+  const auth = await requireUser(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({
+      error:
+        auth.code === "unauthenticated"
+          ? "Necesitas iniciar sesión para continuar con el pago"
+          : "No se pudo verificar tu sesión",
+    });
   }
+  const userId = auth.uid;
 
   if (!process.env.STRIPE_SECRET_KEY) {
     return res.status(500).json({ error: "Stripe no está configurado. Falta STRIPE_SECRET_KEY en las variables de entorno." });
@@ -49,6 +61,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const intervalCount = selectedPlanKey === "annual" ? 12 : selectedPlanKey === "quarterly" ? 3 : 1;
 
     const db = getAdminDb();
+
+    // El email del cliente sale del token; si el proveedor de identidad no lo
+    // trae, se cae al de la cuenta en Firestore. Nunca del body.
+    const userEmail =
+      auth.email || (db ? ((await db.collection("usuarios").doc(userId).get()).data()?.email as string | undefined) : undefined);
+    if (!userEmail) {
+      return res.status(400).json({ error: "La cuenta no tiene un email asociado" });
+    }
+
     // Solo dar el trial de 30 días a quien nunca fue premium — si no, cancelar
     // y resuscribirse daría un trial infinito (ver premiumTrialEligibility.ts).
     // Si el Admin SDK no está disponible, ser conservador y no dar trial.

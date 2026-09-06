@@ -54,7 +54,13 @@ export default function PaymentSuccess() {
         if (paymentProvider === "stripe" && session_id && typeof session_id === "string") {
           // Verificar el pago con Stripe
           try {
-            const paymentCheck = await fetch(`/api/checkStripePayment?session_id=${session_id}`);
+            // El endpoint ahora exige token y comprueba que la sesión de Stripe
+            // sea de quien pregunta (antes cualquiera con el session_id veía el
+            // importe y los datos de la suscripción).
+            const idToken = await auth.currentUser.getIdToken();
+            const paymentCheck = await fetch(`/api/checkStripePayment?session_id=${session_id}`, {
+              headers: { Authorization: `Bearer ${idToken}` },
+            });
             if (paymentCheck.ok) {
               const paymentData = await paymentCheck.json();
               

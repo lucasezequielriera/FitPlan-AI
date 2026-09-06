@@ -3,6 +3,7 @@ import { getAdminDb } from "@/lib/firebase-admin";
 import { getEurArsRateForPricing, roundArsPrice } from "@/lib/exchangeRate";
 import { buildPlanDescription, getStripeSubscriptionPlans, type PlanTypeKey } from "@/lib/stripePlanPrices";
 import { isEligibleForFreeTrial } from "@/lib/premiumTrialEligibility";
+import { requireUser } from "@/lib/userAuthServer";
 
 type MercadoPagoPreapprovalResponse = {
   id?: string;
@@ -15,11 +16,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { userId, userEmail, planType } = req.body;
+  const { planType } = req.body;
 
-  if (!userId || !userEmail) {
-    return res.status(400).json({ error: "userId y userEmail son requeridos" });
+  // Identidad verificada: el UID viaja como `external_reference`, así que es lo
+  // que decide qué cuenta queda premium cuando el webhook confirma el cobro, y
+  // además determina la elegibilidad para el trial gratis. Aceptarlo del body
+  // permitía generar una suscripción a nombre de otra persona.
+  const auth = await requireUser(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({
+      error:
+        auth.code === "unauthenticated"
+          ? "Necesitas iniciar sesión para continuar con el pago"
+          : "No se pudo verificar tu sesión",
+    });
   }
+  const userId = auth.uid;
 
   if (!process.env.MERCADOPAGO_ACCESS_TOKEN) {
     return res.status(500).json({ error: "MercadoPago no está configurado. Falta MERCADOPAGO_ACCESS_TOKEN en las variables de entorno." });
@@ -28,6 +40,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const db = getAdminDb();
   if (!db) {
     return res.status(500).json({ error: "Firebase Admin SDK no configurado" });
+  }
+
+  // El email del pagador sale del token; si el proveedor de identidad no lo
+  // incluye, se cae al que tenga la cuenta en Firestore. Nunca del body.
+  const userEmail = auth.email || ((await db.collection("usuarios").doc(userId).get()).data()?.email as string | undefined);
+  if (!userEmail) {
+    return res.status(400).json({ error: "La cuenta no tiene un email asociado" });
   }
 
   // El precio objetivo real es el de la lista EUR (única fuente de verdad,

@@ -20,7 +20,7 @@ import { isAdminUid } from "@/lib/adminAuthServer";
 export type AuthFailureCode = "unauthenticated" | "forbidden" | "not-found" | "unconfigured";
 
 export type UserAuthResult =
-  | { ok: true; uid: string }
+  | { ok: true; uid: string; email: string | null }
   | { ok: false; status: number; code: AuthFailureCode };
 
 export type PlanAccessResult =
@@ -45,7 +45,10 @@ export async function requireUser(req: NextApiRequest): Promise<UserAuthResult> 
 
   try {
     const decoded = await adminAuth.verifyIdToken(token);
-    return { ok: true, uid: decoded.uid };
+    // El email del token también viene firmado por Google: sirve para no tener
+    // que aceptar un `userEmail` del cliente donde haga falta (ej. el email del
+    // pagador en el checkout).
+    return { ok: true, uid: decoded.uid, email: decoded.email ?? null };
   } catch {
     return { ok: false, status: 401, code: "unauthenticated" };
   }
