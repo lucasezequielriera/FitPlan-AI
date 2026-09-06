@@ -86,7 +86,9 @@ El `README.md` documenta solo un subconjunto de las env vars que el código real
 - Nuevo `src/lib/userAuthClient.ts` con `authedFetch()` (espejo de `adminFetch`), que adjunta el token automáticamente. `WeeklyStatsModal.tsx` lo usa y **dejó de recibir y mandar `userId`**: el prop desapareció de sus dos llamadores (`plan.tsx` y `AdminApp.tsx`), así que la identidad ya no viaja por el cliente en ningún punto de ese flujo.
 - Cubierto con tests (`src/__tests__/userAuthServer.test.ts`, 8 casos), incluido el que fija el bypass: sin token no se pasa **aunque el plan exista**.
 
-**Queda pendiente** (mismo patrón, fuera del alcance de este cambio — ver issue #27): `saveUserProfile.ts`, `savePlan.ts`, `createPayment.ts`, `createStripePayment.ts`, `analyzeFood.ts`, `saveUserLocation.ts`, `saveExerciseWeights.ts`, `sendMessage.ts`, `saveMonthlySnapshot.ts` y `updateLastLogin.ts`. `requireUser()` ya es la pieza que necesitan: aplicarlo es cambiar el origen del UID en cada uno.
+**Continuación — 🟢 endpoints de usuario sin dinero (issue #27, primera mitad).** `requireUser()` se aplicó a `savePlan.ts`, `saveUserLocation.ts`, `updateLastLogin.ts`, `sendMessage.ts`, `saveExerciseWeights.ts`, `user/messages.ts`, `user/markMessageRead.ts`, `user/replyMessage.ts`, `analyzePlanCompletion.ts`, `notify/telegram.ts` y `generatePlan.ts`; `saveMonthlySnapshot.ts` y `analyzeFood.ts` usan `requirePlanAccess()` porque operan sobre un plan concreto (y el admin también los dispara). `saveUserProfile.ts` se borró: no tenía llamadores. Dos hallazgos nuevos de esa pasada: `user/messages.ts` devolvía la conversación de soporte completa de cualquier UID pasado por query (misma fuga de lectura que #31), y el `userId` de `generatePlan.ts` era lo que decidía si se gastaba cuota de OpenAI — mandando el UID de una cuenta premium se obtenían planes con IA gratis. Ningún cliente manda ya `userId`: el prop desapareció también de `PlanContinuityModal`.
+
+**Queda pendiente** (segunda mitad de #27, en PR aparte por tocar cobros): `createPayment.ts`, `createStripePayment.ts`, `checkStripePayment.ts` y `fixPremiumUser.ts` (este último, además, es el issue #25).
 
 ---
 

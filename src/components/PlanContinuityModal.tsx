@@ -5,6 +5,7 @@ import type { UserInput, Goal, PlanAIResponse } from "@/types/plan";
 import { useAppLocale, type AppLocale } from "@/contexts/AppLocaleContext";
 import { dash, dashFmt } from "@/lib/i18n/appUi";
 import { MODAL_BACKDROP_CLASS, MODAL_BACKDROP_MOTION, MODAL_PANEL_CLASS, MODAL_PANEL_MOTION } from "@/lib/modalShell";
+import { authedFetch } from "@/lib/userAuthClient";
 
 const ENERGY_OPT: Record<string, { es: string; en: string }> = {
   muy_baja: { es: "Muy baja", en: "Very low" },
@@ -36,7 +37,6 @@ interface PlanContinuityModalProps {
     createdAt: Date;
   };
   registrosPeso: Array<{ fecha: string; peso: number }>;
-  userId: string;
 }
 
 interface AnalysisResult {
@@ -72,7 +72,7 @@ interface AnalysisResult {
 
 type Step = "input" | "analyzing" | "suggestion" | "generating" | "complete";
 
-export default function PlanContinuityModal({ isOpen, onClose, planData, registrosPeso, userId }: PlanContinuityModalProps) {
+export default function PlanContinuityModal({ isOpen, onClose, planData, registrosPeso }: PlanContinuityModalProps) {
   const router = useRouter();
   const { locale } = useAppLocale();
   const [step, setStep] = useState<Step>("input");
@@ -152,7 +152,7 @@ export default function PlanContinuityModal({ isOpen, onClose, planData, registr
         doloresLesiones: planData.user.doloresLesiones,
       };
 
-      const response = await fetch("/api/analyzePlanCompletion", {
+      const response = await authedFetch("/api/analyzePlanCompletion", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(analysisData),
@@ -210,10 +210,10 @@ export default function PlanContinuityModal({ isOpen, onClose, planData, registr
       }
 
       // Generar nuevo plan
-      const response = await fetch("/api/generatePlan", {
+      const response = await authedFetch("/api/generatePlan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...nuevoUserInput, userId, locale }),
+        body: JSON.stringify({ ...nuevoUserInput, locale }),
       });
 
       if (!response.ok) {
@@ -253,12 +253,11 @@ export default function PlanContinuityModal({ isOpen, onClose, planData, registr
       }
 
       // Guardar nuevo plan
-      const saveResponse = await fetch("/api/savePlan", {
+      const saveResponse = await authedFetch("/api/savePlan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           plan: nuevoPlan,
-          userId,
           planAnteriorId: planData.id,
         }),
       });

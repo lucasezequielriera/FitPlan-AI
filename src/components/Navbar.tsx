@@ -30,6 +30,7 @@ import {
   FaTimes,
   FaChevronDown,
 } from "react-icons/fa";
+import { authedFetch } from "@/lib/userAuthClient";
 
 /**
  * Nav de cliente — DESIGN_SYSTEM.md §11, opción A ("chrome persistente"),
@@ -257,7 +258,7 @@ export default function Navbar({ minimal = false }: { minimal?: boolean }) {
 
     const checkUserMessages = async () => {
       try {
-        const response = await fetch(`/api/user/messages?userId=${authUser.uid}`);
+        const response = await authedFetch("/api/user/messages");
 
         if (!response.ok) {
           return;
@@ -1003,7 +1004,7 @@ export default function Navbar({ minimal = false }: { minimal?: boolean }) {
           userEmail={authUser?.email || null}
           onMessageSent={() => {
             if (authUser && !isAdmin) {
-              fetch(`/api/user/messages?userId=${authUser.uid}`)
+              authedFetch("/api/user/messages")
                 .then(res => res.json())
                 .then(data => setUserMessagesCount(data.unreadRepliesCount || 0))
                 .catch(err => console.error("Error al actualizar mensajes:", err));
@@ -1020,7 +1021,7 @@ export default function Navbar({ minimal = false }: { minimal?: boolean }) {
           onMessagesUpdate={async () => {
             if (authUser && !isAdmin) {
               try {
-                const response = await fetch(`/api/user/messages?userId=${authUser.uid}`);
+                const response = await authedFetch("/api/user/messages");
                 if (response.ok) {
                   const data = await response.json();
                   setUserMessagesCount(data.unreadRepliesCount || 0);

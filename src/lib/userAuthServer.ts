@@ -23,6 +23,27 @@ export type UserAuthResult =
   | { ok: true; uid: string }
   | { ok: false; status: number; code: AuthFailureCode };
 
+/**
+ * Mensaje genérico para cada motivo de rechazo, en el idioma de la UI.
+ *
+ * Está acá para que los endpoints no repitan el mismo `switch`; los que
+ * necesitan una redacción propia (ej. "no tienes permiso para *modificar este
+ * plan*") la escriben en su archivo, que es donde se sabe de qué recurso se
+ * habla.
+ */
+export function authFailureMessage(code: AuthFailureCode, lang: "es" | "en" = "es"): string {
+  switch (code) {
+    case "unauthenticated":
+      return lang === "en" ? "You need to sign in to do this" : "Necesitas iniciar sesión para hacer esto";
+    case "forbidden":
+      return lang === "en" ? "You don't have permission to do this" : "No tienes permiso para hacer esto";
+    case "not-found":
+      return lang === "en" ? "Not found" : "No encontrado";
+    case "unconfigured":
+      return lang === "en" ? "Firebase Admin SDK is not configured" : "Firebase Admin SDK no configurado";
+  }
+}
+
 export type PlanAccessResult =
   | { ok: true; uid: string; isAdmin: boolean; planRef: DocumentReference; planData: DocumentData }
   | { ok: false; status: number; code: AuthFailureCode };

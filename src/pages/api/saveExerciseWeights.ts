@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { requireUser, authFailureMessage } from "@/lib/userAuthServer";
 
 interface ExerciseWeightData {
   userId: string;
@@ -25,17 +26,24 @@ export default async function handler(
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  // El registro queda a nombre de quien llama (UID del ID token verificado):
+  // antes se podían inyectar series de entrenamiento en el historial ajeno.
+  const auth = await requireUser(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ error: authFailureMessage(auth.code) });
+  }
+  const userId = auth.uid;
+
   try {
     const {
-      userId,
       planId,
       exerciseName,
       week,
       day,
       sets,
-    } = req.body as Omit<ExerciseWeightData, "date">;
+    } = req.body as Omit<ExerciseWeightData, "date" | "userId">;
 
-    if (!userId || !planId || !exerciseName || !sets || sets.length === 0) {
+    if (!planId || !exerciseName || !sets || sets.length === 0) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 

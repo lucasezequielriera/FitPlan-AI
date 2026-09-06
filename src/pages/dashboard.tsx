@@ -18,6 +18,7 @@ import { DashboardPlanRow } from "@/components/dashboard/DashboardPlanRow";
 import { loadCachedDashboardPlans, saveCachedDashboardPlans } from "@/lib/planLocalCache";
 import { applyPendingWeightOps, clearPendingWeightOps, enqueueWeightOp, loadPendingWeightOps } from "@/lib/weightSyncQueue";
 import { MODAL_BACKDROP_CLASS, MODAL_BACKDROP_MOTION, MODAL_PANEL_CLASS, MODAL_PANEL_MOTION } from "@/lib/modalShell";
+import { authedFetch } from "@/lib/userAuthClient";
 
 const PremiumPlanModal = dynamic(() => import("@/components/PremiumPlanModal"), { ssr: false });
 const PlanContinuityModal = dynamic(() => import("@/components/PlanContinuityModal"), { ssr: false });
@@ -254,11 +255,10 @@ export default function Dashboard() {
 
             if (!checkedToday) {
               if (typeof window !== "undefined") localStorage.setItem(throttleKey, todayKey);
-              void fetch("/api/saveMonthlySnapshot", {
+              void authedFetch("/api/saveMonthlySnapshot", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                  userId: auth.currentUser.uid,
                   planId: mostRecentPlan.id,
                   planData: mostRecentPlan.plan?.plan || {},
                   userData: mostRecentPlan.plan?.user || {},
@@ -980,7 +980,6 @@ export default function Dashboard() {
                 createdAt: planForContinuity.createdAt.toDate?.() || new Date(planForContinuity.createdAt.seconds * 1000),
               }}
               registrosPeso={planForContinuity.registrosPeso || []}
-              userId={authUser.uid}
             />
           )}
         </AnimatePresence>,

@@ -29,6 +29,7 @@ import {
   cpIntensityOpt,
   cpIntensityTag,
 } from "@/lib/i18n/createPlanUi";
+import { authedFetch } from "@/lib/userAuthClient";
 
 // Helper para crear estructura de plan multi-fase
 function crearPlanMultiFase(
@@ -789,13 +790,11 @@ export default function CreatePlan() {
           _caloriasObjetivo: caloriasObjetivo,
           _bmrCalculado: bmrCalculado,
           _macrosObjetivo: macrosCalculados,
-          // ID del usuario para verificar premium status
-          userId: authUser?.uid,
           locale,
         };
 
         // Usar streaming para mostrar progreso real (temporalmente desactivado)
-        resp = await fetch("/api/generatePlan", {
+        resp = await authedFetch("/api/generatePlan", {
           method: "POST",
           headers: { 
             "Content-Type": "application/json"
@@ -988,7 +987,7 @@ export default function CreatePlan() {
                 const userDataForNotification = await getDoc(userRef);
                 const userData = userDataForNotification.data();
                 
-                await fetch("/api/notify/telegram", {
+                await authedFetch("/api/notify/telegram", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({

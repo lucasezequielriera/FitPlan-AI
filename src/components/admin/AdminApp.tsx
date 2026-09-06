@@ -53,6 +53,7 @@ import {
   FaHistory,
   FaSearch,
 } from "react-icons/fa";
+import { authedFetch } from "@/lib/userAuthClient";
 
 interface User {
   id: string;
@@ -4684,11 +4685,10 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                             const plans = userHistory.plans as Array<{ id?: string; plan?: { plan?: unknown; user?: unknown } }>;
                             if (plans && plans.length > 0) {
                               const latestPlan = plans[0];
-                              const response = await fetch("/api/saveMonthlySnapshot", {
+                              const response = await authedFetch("/api/saveMonthlySnapshot", {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify({
-                                  userId: selectedUserForHistory.id,
                                   planId: latestPlan.id,
                                   planData: latestPlan.plan?.plan || {},
                                   userData: latestPlan.plan?.user || {},

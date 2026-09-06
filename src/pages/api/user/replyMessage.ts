@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { requireUser, authFailureMessage } from "@/lib/userAuthServer";
 
 /**
  * API para que usuarios respondan a sus mensajes
@@ -9,16 +10,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  // Igual que en markMessageRead: el chequeo de dueño ya existía pero se
+  // comparaba contra un UID que mandaba el cliente. Ahora sale del ID token,
+  // así que nadie puede escribir en el hilo de soporte de otra persona.
+  const auth = await requireUser(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ error: authFailureMessage(auth.code) });
+  }
+  const userId = auth.uid;
+
   try {
     const db = getAdminDb();
     if (!db) {
       return res.status(500).json({ error: "Firebase Admin SDK no configurado" });
     }
 
-    const { userId, messageId, reply, userName } = req.body;
+    const { messageId, reply, userName } = req.body;
 
-    if (!userId || !messageId || !reply) {
-      return res.status(400).json({ error: "Faltan userId, messageId o reply" });
+    if (!messageId || !reply) {
+      return res.status(400).json({ error: "Faltan messageId o reply" });
     }
 
     // Verificar que el mensaje pertenece al usuario

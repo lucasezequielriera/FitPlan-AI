@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getDbSafe } from "@/lib/firebase";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { requireUser, authFailureMessage } from "@/lib/userAuthServer";
 
 /**
  * API para guardar la ubicación del usuario (ciudad y país) basada en su IP
@@ -11,11 +12,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { userId } = req.body;
-
-  if (!userId) {
-    return res.status(400).json({ error: "userId es requerido" });
+  // La ubicación se guarda siempre sobre la cuenta de quien llama. Se resuelve
+  // del ID token, no del body: si no, se podía escribir ciudad/país (derivados
+  // de la IP del atacante) en el perfil de cualquier otra persona.
+  const auth = await requireUser(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ error: authFailureMessage(auth.code) });
   }
+  const userId = auth.uid;
 
   try {
     const db = getDbSafe();

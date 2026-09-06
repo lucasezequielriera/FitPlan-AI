@@ -27,10 +27,15 @@ export async function getUserIdToken(): Promise<string | null> {
  * body, porque un UID sin firmar no prueba identidad.
  */
 export async function authedFetch(input: string, init: RequestInit = {}): Promise<Response> {
-  const token = await getUserIdToken();
   const headers = new Headers(init.headers || {});
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
+  // Si quien llama ya trae su propio Authorization, se respeta: en los flujos de
+  // alta y de login el token sale del `User` recién devuelto por Firebase, que
+  // es más fiable que `auth.currentUser` (todavía puede no estar asentado).
+  if (!headers.has("Authorization")) {
+    const token = await getUserIdToken();
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
   }
   return fetch(input, { ...init, headers });
 }

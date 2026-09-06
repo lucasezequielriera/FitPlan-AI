@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { requireUser, authFailureMessage } from "@/lib/userAuthServer";
 
 function isQuotaError(error: unknown): boolean {
   const msg = error instanceof Error ? error.message : String(error || "");
@@ -15,23 +16,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  // Solo se devuelven los mensajes de quien llama. El UID sale del ID token
+  // verificado: con `?userId=` en la query, cualquiera que conociera un UID
+  // podía leer la conversación de soporte completa de esa persona.
+  const auth = await requireUser(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ error: authFailureMessage(auth.code) });
+  }
+  const userId = auth.uid;
+
   try {
     const db = getAdminDb();
     if (!db) {
       return res.status(500).json({ error: "Firebase Admin SDK no configurado" });
     }
 
-    const { userId } = req.query;
-
-    if (!userId) {
-      return res.status(400).json({ error: "Falta userId" });
-    }
-
     // Obtener todos los mensajes del usuario
     // Nota: No usamos orderBy aquí porque requiere un índice compuesto con where
     // En su lugar, ordenamos en memoria después
     const messagesSnapshot = await db.collection("mensajes")
-      .where("userId", "==", userId as string)
+      .where("userId", "==", userId)
       .get();
 
     const convertTimestamp = (timestamp: unknown): string | null => {

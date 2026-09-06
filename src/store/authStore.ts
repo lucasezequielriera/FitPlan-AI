@@ -62,17 +62,28 @@ export const useAuthStore = create<AuthState>((set) => ({
           });
           console.log("✅ Documento de usuario creado en Firestore");
           
-          // Guardar ubicación del usuario inmediatamente después del registro (no bloqueante)
-          fetch("/api/saveUserLocation", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ userId: userCredential.user.uid }),
-          }).catch((err) => {
-            console.warn("⚠️ No se pudo guardar ubicación del usuario:", err);
-            // No bloquear el registro si falla guardar la ubicación
-          });
-          
-          // Nota: La notificación de Telegram se enviará cuando se cree el perfil completo en saveUserProfile.ts
+          // Guardar ubicación del usuario inmediatamente después del registro (no bloqueante).
+          // El token se pide al `User` recién devuelto por Firebase y no a
+          // `auth.currentUser`, que en este instante puede no estar asentado
+          // todavía: el endpoint deriva el UID de ese token.
+          userCredential.user
+            .getIdToken()
+            .then((idToken) =>
+              fetch("/api/saveUserLocation", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${idToken}`,
+                },
+              })
+            )
+            .catch((err) => {
+              console.warn("⚠️ No se pudo guardar ubicación del usuario:", err);
+              // No bloquear el registro si falla guardar la ubicación
+            });
+
+          // Nota: la notificación de Telegram del alta se dispara desde
+          // create-plan.tsx, al completarse el perfil.
         } catch (firestoreError) {
           console.error("Error al crear documento en Firestore:", firestoreError);
           // No lanzamos error aquí para no bloquear el registro si falla Firestore
@@ -116,10 +127,15 @@ export const useAuthStore = create<AuthState>((set) => ({
           return;
         }
         try {
+          // Mismo criterio que en signUp: el token sale del `User` que entrega
+          // este callback, no de `auth.currentUser`.
+          const idToken = await user.getIdToken();
           const response = await fetch("/api/updateLastLogin", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ userId: user.uid }),
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${idToken}`,
+            },
           });
           
           if (!response.ok) {

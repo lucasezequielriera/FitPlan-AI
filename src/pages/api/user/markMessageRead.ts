@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
+import { requireUser, authFailureMessage } from "@/lib/userAuthServer";
 
 /**
  * API para marcar mensaje como leído por el usuario
@@ -10,16 +11,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  // El chequeo de dueño de más abajo ya existía, pero comparaba contra un
+  // `userId` del body: mandando el UID de la víctima se pasaba igual. Ahora el
+  // UID sale del ID token, así que el chequeo prueba algo.
+  const auth = await requireUser(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ error: authFailureMessage(auth.code) });
+  }
+  const userId = auth.uid;
+
   try {
     const db = getAdminDb();
     if (!db) {
       return res.status(500).json({ error: "Firebase Admin SDK no configurado" });
     }
 
-    const { userId, messageId } = req.body;
+    const { messageId } = req.body;
 
-    if (!userId || !messageId) {
-      return res.status(400).json({ error: "Faltan userId o messageId" });
+    if (!messageId) {
+      return res.status(400).json({ error: "Falta messageId" });
     }
 
     // Verificar que el mensaje pertenece al usuario

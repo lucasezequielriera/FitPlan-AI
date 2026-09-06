@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
+import { requireUser, requirePlanAccess, authFailureMessage } from "@/lib/userAuthServer";
 
 type UiLang = "es" | "en";
 
@@ -9,7 +10,6 @@ interface AnalyzeFoodRequest {
   planCalories: number;
   userObjective?: string;
   planId?: string;
-  userId?: string;
   userTimezone?: string;
   currentHour?: number;
   /** Client UI locale — drives prompt language and model output language */
@@ -175,7 +175,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const lang = uiLangFromBody(req.body);
-  const { foodDescription, planCalories, userObjective, planId, userId, userTimezone, currentHour }: AnalyzeFoodRequest = req.body;
+  const { foodDescription, planCalories, userObjective, planId, userTimezone, currentHour }: AnalyzeFoodRequest = req.body;
+
+  // Identidad verificada antes de nada: este endpoint gasta cuota de OpenAI y
+  // escribe en el plan. Con `planId` se exige además acceso a ese plan (dueño o
+  // admin); sin él solo se analiza la comida, sin persistir nada.
+  // Antes bastaba con mandar `planId` + el `userId` de la víctima para escribir
+  // comidas en el plan de cualquiera.
+  const access = planId ? await requirePlanAccess(req, planId) : null;
+  if (access && !access.ok) {
+    return res.status(access.status).json({ error: authFailureMessage(access.code, lang) });
+  }
+  if (!access) {
+    const auth = await requireUser(req);
+    if (!auth.ok) {
+      return res.status(auth.status).json({ error: authFailureMessage(auth.code, lang) });
+    }
+  }
+  const authorizedPlan = access?.ok ? access : null;
 
   if (!foodDescription || typeof foodDescription !== "string" || foodDescription.trim().length === 0) {
     return res.status(400).json({ error: apiMsg(lang, "foodRequired") });
@@ -218,9 +235,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     hasFoodDescription: !!foodDescription,
     planCalories,
     hasPlanId: !!planId,
-    hasUserId: !!userId,
     planId,
-    userId,
     hour,
     timeOfDay,
     userTimezone,
@@ -229,39 +244,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   let previousFoodsToday: Array<{ description: string; calories: number; timestamp: any }> = [];
   let totalCaloriesToday = 0;
 
-  if (planId && userId) {
+  if (authorizedPlan) {
     try {
-      const db = getAdminDb();
-      if (db) {
-        const planRef = db.collection("planes").doc(planId);
-        const planDoc = await planRef.get();
+      // El plan ya se leyó al autorizar: se reutiliza en vez de pedirlo de nuevo.
+      const trackedFoods = authorizedPlan.planData.trackedFoods || [];
 
-        if (planDoc.exists) {
-          const planData = planDoc.data();
-          const trackedFoods = planData?.trackedFoods || [];
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-
-          previousFoodsToday = trackedFoods.filter((food: { timestamp: any }) => {
-            let foodDate: Date;
-            if (food.timestamp?.toDate && typeof food.timestamp.toDate === "function") {
-              foodDate = food.timestamp.toDate();
-            } else if (food.timestamp?.seconds) {
-              foodDate = new Date(food.timestamp.seconds * 1000);
-            } else {
-              return false;
-            }
-            foodDate.setHours(0, 0, 0, 0);
-            return foodDate.getTime() === today.getTime();
-          });
-
-          totalCaloriesToday = previousFoodsToday.reduce(
-            (sum: number, food: { calories: number }) => sum + (food.calories || 0),
-            0
-          );
+      previousFoodsToday = trackedFoods.filter((food: { timestamp: any }) => {
+        let foodDate: Date;
+        if (food.timestamp?.toDate && typeof food.timestamp.toDate === "function") {
+          foodDate = food.timestamp.toDate();
+        } else if (food.timestamp?.seconds) {
+          foodDate = new Date(food.timestamp.seconds * 1000);
+        } else {
+          return false;
         }
-      }
+        foodDate.setHours(0, 0, 0, 0);
+        return foodDate.getTime() === today.getTime();
+      });
+
+      totalCaloriesToday = previousFoodsToday.reduce(
+        (sum: number, food: { calories: number }) => sum + (food.calories || 0),
+        0
+      );
     } catch (error) {
       console.warn("Error al obtener comidas previas:", error);
     }
@@ -323,14 +330,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       throw new Error(errIncomplete);
     }
 
-    if (planId && userId) {
-      console.log("💾 Intentando guardar comida en Firestore...", { planId, userId });
+    if (authorizedPlan) {
+      console.log("💾 Intentando guardar comida en Firestore...", { planId });
       try {
         const db = getAdminDb();
         if (!db) {
           console.error("❌ Admin DB no disponible");
         } else {
-          const planRef = db.collection("planes").doc(planId);
+          // Relectura a propósito: entre la autorización y este punto pasó la
+          // llamada a OpenAI (segundos), y en ese hueco el usuario pudo haber
+          // registrado otra comida. Releer evita pisarla.
+          const planRef = authorizedPlan.planRef;
           const planDoc = await planRef.get();
 
           if (!planDoc.exists) {
@@ -370,7 +380,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         console.error("Stack:", error instanceof Error ? error.stack : "No stack");
       }
     } else {
-      console.warn("⚠️ No se puede guardar: planId o userId faltante", { planId, userId });
+      console.warn("⚠️ No se puede guardar: falta planId (análisis sin persistir)");
     }
 
     return res.status(200).json({

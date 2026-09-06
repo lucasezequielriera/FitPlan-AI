@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
+import { requireUser, authFailureMessage } from "@/lib/userAuthServer";
 
 /**
  * API para enviar mensajes de usuarios al admin
@@ -10,16 +11,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  // El mensaje queda a nombre de quien llama, resuelto desde el ID token: antes
+  // se podía abrir una consulta al admin haciéndose pasar por otra persona.
+  const auth = await requireUser(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ error: authFailureMessage(auth.code) });
+  }
+  const userId = auth.uid;
+
   try {
     const db = getAdminDb();
     if (!db) {
       return res.status(500).json({ error: "Firebase Admin SDK no configurado" });
     }
 
-    const { userId, userName, userEmail, message, subject } = req.body;
+    const { userName, userEmail, message, subject } = req.body;
 
-    if (!userId || !message) {
-      return res.status(400).json({ error: "Faltan datos requeridos: userId y message" });
+    if (!message) {
+      return res.status(400).json({ error: "Falta el dato requerido: message" });
     }
 
     // Guardar mensaje en la colección mensajes

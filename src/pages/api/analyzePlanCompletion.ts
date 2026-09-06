@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import { requireUser, authFailureMessage } from "@/lib/userAuthServer";
 
 interface AnalysisData {
   pesoInicial: number;
@@ -34,6 +35,14 @@ interface AnalysisData {
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+
+  // Endpoint con coste real de OpenAI: exige sesión para que no lo pueda
+  // consumir un anónimo. No maneja datos de otra persona (todo llega en el
+  // body), así que alcanza con probar identidad.
+  const auth = await requireUser(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ error: authFailureMessage(auth.code) });
+  }
 
   const data = req.body as AnalysisData;
   const apiKey = process.env.OPENAI_API_KEY;

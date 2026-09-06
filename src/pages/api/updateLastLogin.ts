@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
+import { requireUser, authFailureMessage } from "@/lib/userAuthServer";
 
 function isQuotaError(error: unknown): boolean {
   const msg = error instanceof Error ? error.message : String(error || "");
@@ -17,13 +18,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  // Marca la última conexión de quien llama, resuelta desde el ID token: antes
+  // se podía falsear la actividad de cualquier cuenta mandando su UID.
+  const auth = await requireUser(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ error: authFailureMessage(auth.code) });
+  }
+  const userId = auth.uid;
+
   try {
-    const { userId } = req.body;
-
-    if (!userId || typeof userId !== "string") {
-      return res.status(400).json({ error: "userId es requerido" });
-    }
-
     const db = getAdminDb();
     if (!db) {
       return res.status(500).json({ error: "Firebase Admin SDK no configurado" });

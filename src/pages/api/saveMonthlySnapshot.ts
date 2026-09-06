@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
+import { requirePlanAccess, authFailureMessage } from "@/lib/userAuthServer";
 
 /**
  * API para guardar un snapshot mensual del plan de un usuario
@@ -11,33 +12,44 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  const { planId, planData, userData } = req.body;
+
+  if (!planId || !planData) {
+    return res.status(400).json({ error: "Faltan datos requeridos: planId, planData" });
+  }
+
+  // Pasa el dueño del plan o el admin (el admin dispara snapshots desde su
+  // panel). El UID ya no llega del body: el snapshot se archiva bajo el dueño
+  // real del plan, así que un tercero no puede escribir en el historial ajeno
+  // ni desviar el suyo a la carpeta de otro.
+  const access = await requirePlanAccess(req, planId);
+  if (!access.ok) {
+    if (access.code === "unconfigured") {
+      // Se mantiene el éxito silencioso de antes: esta funcionalidad es
+      // opcional y no debe romper el flujo del usuario en un entorno sin
+      // Firebase Admin configurado.
+      console.warn("⚠️ Firebase Admin SDK no configurado, snapshot mensual no se guardará");
+      return res.status(200).json({
+        message: "Snapshot mensual omitido (Firebase Admin no configurado)",
+        skipped: true,
+      });
+    }
+    return res.status(access.status).json({ error: authFailureMessage(access.code) });
+  }
+
+  const planOriginal = access.planData;
+  const userId = planOriginal.userId as string;
+
   try {
     const db = getAdminDb();
     if (!db) {
-      // Si Firebase Admin no está configurado, retornar éxito silencioso
-      // para no romper el flujo del usuario (esta funcionalidad es opcional)
       console.warn("⚠️ Firebase Admin SDK no configurado, snapshot mensual no se guardará");
-      return res.status(200).json({ 
+      return res.status(200).json({
         message: "Snapshot mensual omitido (Firebase Admin no configurado)",
-        skipped: true
+        skipped: true,
       });
     }
 
-    const { userId, planId, planData, userData } = req.body;
-
-    if (!userId || !planId || !planData) {
-      return res.status(400).json({ error: "Faltan datos requeridos: userId, planId, planData" });
-    }
-
-    // Obtener el plan original para extraer datos
-    const planRef = db.collection("planes").doc(planId);
-    const planDoc = await planRef.get();
-
-    if (!planDoc.exists) {
-      return res.status(404).json({ error: "Plan no encontrado" });
-    }
-
-    const planOriginal = planDoc.data();
     const createdAt = planOriginal?.createdAt;
     
     // Calcular mes-año del snapshot (basado en cuando se creó el plan)

@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { sendTelegramMessage, formatNewUserMessage, formatPaymentMessage } from "@/lib/telegram";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { requireUser, authFailureMessage } from "@/lib/userAuthServer";
 
 /**
  * Endpoint para enviar notificaciones a Telegram
@@ -10,6 +11,14 @@ import { getAdminDb } from "@/lib/firebase-admin";
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  // Sin esto, cualquiera podía disparar notificaciones al Telegram del admin
+  // con el contenido que quisiera. Los dos llamadores reales (alta de perfil y
+  // pago) ocurren con el usuario ya logueado.
+  const auth = await requireUser(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ error: authFailureMessage(auth.code) });
   }
 
   const { type, data } = req.body;

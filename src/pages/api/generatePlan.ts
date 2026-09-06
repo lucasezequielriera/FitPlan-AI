@@ -4,6 +4,7 @@ import { generateTemplateBasedPlan, type PlanGenerationLocale } from "@/lib/temp
 import { ensureMealMacrosAprox } from "@/lib/mealMacros";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { calculateBMR, clampCaloriesToSafeFloor } from "@/utils/calculations";
+import { requireUser, authFailureMessage } from "@/lib/userAuthServer";
 
 // Interface para contexto multi-fase
 interface ContextoMultiFase {
@@ -58,6 +59,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   const locale: PlanGenerationLocale = (req.body as { locale?: string }).locale === "en" ? "en" : "es";
+
+  // Todas las pantallas que generan planes exigen sesión (create-plan redirige
+  // al home sin usuario), así que exigir el token acá no cierra ningún flujo
+  // legítimo — y evita que un anónimo consuma cuota de OpenAI.
+  const auth = await requireUser(req);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ error: authFailureMessage(auth.code, locale) });
+  }
+  const authenticatedUid = auth.uid;
 
   const input = req.body as UserInput & { 
     _contextoMultiFase?: ContextoMultiFase;
@@ -152,9 +162,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // ============================================================================
   // VERIFICAR SI EL USUARIO ES PREMIUM PARA DECIDIR: TEMPLATES VS OPENAI
   // ============================================================================
-  const userId = (req.body as Record<string, unknown>).userId as string | undefined;
+  // El UID sale del ID token verificado, nunca del body: es lo que decide si se
+  // genera el plan con IA (coste real de OpenAI) o con plantillas. Antes bastaba
+  // con mandar el UID de cualquier cuenta premium para gastar esa cuota gratis.
+  const userId = authenticatedUid;
   let isPremium = false;
-  
+
   // Obtener estado premium del usuario si está disponible
   if (userId) {
     try {
