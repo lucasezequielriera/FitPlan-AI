@@ -3,12 +3,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { FaTimes, FaChartLine, FaFire, FaUtensils, FaCalendar, FaTrash, FaClock, FaExclamationTriangle } from "react-icons/fa";
 import { useAppLocale } from "@/contexts/AppLocaleContext";
 import { foodLogEntryCountLabel, mealOffPlanCountLabel, p, pFmt } from "@/lib/i18n/planUi";
+import { authedFetch } from "@/lib/userAuthClient";
 
 interface WeeklyStatsModalProps {
   isOpen: boolean;
   onClose: () => void;
   planId: string;
-  userId?: string;
 }
 
 interface DayStats {
@@ -43,7 +43,7 @@ interface WeeklyStats {
   };
 }
 
-export default function WeeklyStatsModal({ isOpen, onClose, planId, userId }: WeeklyStatsModalProps) {
+export default function WeeklyStatsModal({ isOpen, onClose, planId }: WeeklyStatsModalProps) {
   const { locale } = useAppLocale();
   const dateLocale = locale === "en" ? "en-US" : "es-AR";
   const weekdayFromIso = (iso: string, style: "short" | "long") =>
@@ -72,10 +72,12 @@ export default function WeeklyStatsModal({ isOpen, onClose, planId, userId }: We
     setWarning(null);
     
     try {
-      const response = await fetch("/api/getWeeklyStats", {
+      // authedFetch adjunta el ID token: el servidor deriva de ahí quién llama
+      // (dueño del plan o admin). Mandar el userId en el body no probaba nada.
+      const response = await authedFetch("/api/getWeeklyStats", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId, userId, locale }),
+        body: JSON.stringify({ planId, locale }),
       });
 
       if (!response.ok) {
@@ -112,10 +114,10 @@ export default function WeeklyStatsModal({ isOpen, onClose, planId, userId }: We
     setConfirmDelete({ show: false, foodIndex: null, foodDescription: "" });
     
     try {
-      const response = await fetch("/api/deleteTrackedFood", {
+      const response = await authedFetch("/api/deleteTrackedFood", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId, userId, foodIndex: confirmDelete.foodIndex, locale }),
+        body: JSON.stringify({ planId, foodIndex: confirmDelete.foodIndex, locale }),
       });
 
       if (!response.ok) {

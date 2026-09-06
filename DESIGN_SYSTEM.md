@@ -286,6 +286,8 @@ Toda la reestructuración de arriba se resuelve con tokens/clases que ya existen
 4. Deshacer `/admin/configuraciones` como hub — sus 6 hijos pasan a ser destinos de primer nivel (o sub-pestañas dentro de "Clientes"/"Contenido") según 7.4.
 5. Aplicar `useReducedMotion()` a las variantes de motion compartidas (punto D), y sumarlo también a `HomeLanding.tsx`/`design-preview.tsx` ya que hoy tampoco lo tienen — deuda de accesibilidad preexistente que se detectó de paso en esta auditoría.
 
+> **Estado del punto 5 — ✅ implementado** (nota de seguimiento, 2026-09). El texto de §7.3-D y del punto 5 quedó redactado antes de la implementación y sigue diciendo "hoy no lo tienen"; ya no es cierto y confunde a quien audite el archivo. Verificado en código, archivo por archivo: `useReducedMotion()` está en `src/components/admin/adminMotion.ts` (`useAdminFadeUp`/`useAdminStagger`, consumidas por las vistas admin reales: `backlog`, `actividad`, `contenido-social`, `ejercicios`, `carrusel-ig`, `servicios`, `metricas-rs`, `hyrox` y `AdminApp.tsx`), en `HomeLanding.tsx`, en `Navbar.tsx` y también en `transformacion-fitplan.tsx` y su versión `/en` — las tres landings derivan sus variantes `fadeUp`/`reveal` del flag, no solo lo declaran. El pedido de §14.5 sobre ese archivo también quedó cubierto.
+
 Demo de referencia (no implementación real, datos hardcodeados): `src/pages/admin-design-preview.tsx` → `/admin-design-preview` (vista "Resumen" por defecto, `?view=clientes` para la vista de datos densos).
 
 ## 8. HYROX — nav permanente y paleta interna (decisión de `diseno`, seguimiento de §7)

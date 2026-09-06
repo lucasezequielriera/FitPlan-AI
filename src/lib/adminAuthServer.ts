@@ -1,4 +1,5 @@
 import type { NextApiRequest } from "next";
+import type { Firestore } from "firebase-admin/firestore";
 import { getAdminAuth, getAdminDb } from "@/lib/firebase-admin";
 
 const ADMIN_EMAIL = "admin@fitplan-ai.com";
@@ -6,6 +7,21 @@ const ADMIN_EMAIL = "admin@fitplan-ai.com";
 export type AdminAuthResult =
   | { ok: true; uid: string; email: string }
   | { ok: false; status: number; error: string };
+
+/**
+ * Única definición server-side de "este UID es el admin".
+ *
+ * Vive acá (y no duplicada en cada helper) para que exista una sola regla:
+ * `requireAdmin` de este archivo y `requirePlanAccess` de `userAuthServer.ts`
+ * la comparten. Si algún día el email admin pasa a env var o a custom claim
+ * (recomendación de AUDIT.md §2.3), se cambia en un solo lugar.
+ */
+export async function isAdminUid(db: Firestore, uid: string): Promise<boolean> {
+  const userDoc = await db.collection("usuarios").doc(uid).get();
+  if (!userDoc.exists) return false;
+  const email = (userDoc.data()?.email as string | undefined)?.toLowerCase() || "";
+  return email === ADMIN_EMAIL;
+}
 
 /**
  * Verifica que el request venga de un admin autenticado de verdad.
@@ -39,15 +55,9 @@ export async function requireAdmin(req: NextApiRequest): Promise<AdminAuthResult
     return { ok: false, status: 401, error: "Token inválido o expirado" };
   }
 
-  const userDoc = await db.collection("usuarios").doc(uid).get();
-  if (!userDoc.exists) {
-    return { ok: false, status: 403, error: "Acceso denegado: usuario no encontrado" };
-  }
-
-  const email = (userDoc.data()?.email as string | undefined)?.toLowerCase() || "";
-  if (email !== ADMIN_EMAIL) {
+  if (!(await isAdminUid(db, uid))) {
     return { ok: false, status: 403, error: "Solo administradores pueden realizar esta acción" };
   }
 
-  return { ok: true, uid, email };
+  return { ok: true, uid, email: ADMIN_EMAIL };
 }

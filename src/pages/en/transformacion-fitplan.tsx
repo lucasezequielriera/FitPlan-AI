@@ -147,10 +147,6 @@ export default function TransformacionFitPlanLandingEn() {
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]" lang="en">
       <Head>
-        <link rel="canonical" href="https://www.fitplan-ai.com/en/transformacion-fitplan" />
-        <link rel="alternate" hrefLang="es" href="https://www.fitplan-ai.com/transformacion-fitplan" />
-        <link rel="alternate" hrefLang="en" href="https://www.fitplan-ai.com/en/transformacion-fitplan" />
-        <link rel="alternate" hrefLang="x-default" href="https://www.fitplan-ai.com/transformacion-fitplan" />
         <title>FitPlan — AI Training & Nutrition Plans (Web) | Start Premium</title>
         <meta
           name="description"
@@ -162,8 +158,11 @@ export default function TransformacionFitPlanLandingEn() {
         />
         <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />
         <meta name="googlebot" content="index,follow" />
+        {/* Un solo canonical y un solo juego de hreflang por página (ver nota
+            equivalente en la versión ES): `en` para que coincida con Seo.tsx,
+            sitemap.xml y la anotación recíproca de /transformacion-fitplan. */}
         <link rel="canonical" href={CANONICAL} />
-        <link rel="alternate" hrefLang="en-US" href={CANONICAL} />
+        <link rel="alternate" hrefLang="en" href={CANONICAL} />
         <link rel="alternate" hrefLang="es" href={ES_URL} />
         <link rel="alternate" hrefLang="x-default" href={ES_URL} />
 

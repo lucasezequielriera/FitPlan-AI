@@ -1,9 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getAdminDb } from "@/lib/firebase-admin";
+import { requirePlanAccess, type AuthFailureCode } from "@/lib/userAuthServer";
 
 interface WeeklyStatsRequest {
   planId: string;
-  userId?: string;
   /** Client UI locale — degradado / errores legibles en EN o ES */
   locale?: string;
 }
@@ -73,12 +72,26 @@ function isQuotaOrTransientFirestoreError(error: unknown): boolean {
   );
 }
 
+/** Mensaje legible para cada motivo de rechazo de `requirePlanAccess`. */
+function authErrorMessage(code: AuthFailureCode, lang: UiLang): string {
+  switch (code) {
+    case "unauthenticated":
+      return lang === "en" ? "You need to sign in to view these stats" : "Necesitas iniciar sesión para ver estas estadísticas";
+    case "forbidden":
+      return lang === "en" ? "You don't have permission to view this plan" : "No tienes permiso para ver este plan";
+    case "not-found":
+      return lang === "en" ? "Plan not found" : "Plan no encontrado";
+    case "unconfigured":
+      return lang === "en" ? "Firebase Admin SDK is not configured" : "Firebase Admin SDK no configurado";
+  }
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { planId, userId, locale: localeRaw }: WeeklyStatsRequest = req.body;
+  const { planId, locale: localeRaw }: WeeklyStatsRequest = req.body;
   const lang: UiLang = localeRaw === "en" ? "en" : "es";
 
   if (!planId) {
@@ -88,39 +101,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Usar Firebase Admin SDK para leer sin restricciones de permisos
-    const db = getAdminDb();
-    if (!db) {
-      return res.status(501).json({
-        error: lang === "en" ? "Firebase Admin SDK is not configured" : "Firebase Admin SDK no configurado",
-      });
+    // Identidad verificada con el ID token: el UID nunca sale del body.
+    // Pasa el dueño del plan o el admin; cualquier otro caso corta acá.
+    const access = await requirePlanAccess(req, planId);
+    if (!access.ok) {
+      return res.status(access.status).json({ error: authErrorMessage(access.code, lang) });
     }
 
-    const planRef = db.collection("planes").doc(planId);
-    const planDoc = await planRef.get();
-
-    if (!planDoc.exists) {
-      return res.status(404).json({
-        error: lang === "en" ? "Plan not found" : "Plan no encontrado",
-      });
-    }
-
-    const planData = planDoc.data();
-    
-    if (!planData) {
-      return res.status(404).json({
-        error: lang === "en" ? "Plan has no data" : "Plan sin datos",
-      });
-    }
-    
-    // Verificar que el usuario es el dueño del plan (si se proporciona userId)
-    // Si no hay userId, asumimos que es admin (se valida en el componente)
-    if (userId && planData.userId !== userId) {
-      return res.status(403).json({
-        error: lang === "en" ? "You don't have permission to view this plan" : "No tienes permiso para ver este plan",
-      });
-    }
-
+    const { planData } = access;
     const trackedFoods = planData.trackedFoods || [];
     
     console.log("📊 Plan ID:", planId);

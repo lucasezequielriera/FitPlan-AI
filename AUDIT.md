@@ -71,6 +71,23 @@ Ver el detalle de qué archivos se tocaron en el historial de commits de esta se
 
 El `README.md` documenta solo un subconjunto de las env vars que el código realmente usa. Faltan documentar: `FIREBASE_ADMIN_CLIENT_EMAIL`, `FIREBASE_ADMIN_PRIVATE_KEY` (sin esto el Admin SDK no funciona — es decir, sin esto la mitad del panel admin y los webhooks de pago no funcionan), `STRIPE_PUBLISHABLE_KEY`, `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID`, `INTAKE_SMTP_*`/`INTAKE_FROM_EMAIL`, `NEXT_PUBLIC_CLOUDINARY_*`/`CLOUDINARY_API_SECRET`, `TIKTOK_EVENTS_API_ACCESS_TOKEN`/`NEXT_PUBLIC_TIKTOK_PIXEL_ID`, y ahora `MERCADOPAGO_WEBHOOK_SECRET` (nuevo, ver §2.2). **Recomendación**: actualizar el README con la lista completa — es el primer archivo que lee cualquiera que clone el repo (un colaborador futuro, un comprador técnico, vos mismo en 6 meses).
 
+### 2.5 Endpoints de usuario que confiaban en un `userId` sin firmar — 🟢 corregido (issues #26 y #31)
+
+**Hallazgo**: el patrón que §2.1 cerró para `/api/admin/*` seguía abierto en endpoints de usuario, con dos consecuencias distintas:
+
+- **Exposición de lectura**: `getUserPlans.ts` (planes completos) y `getExerciseHistory.ts` (historial de pesos) recibían el `userId` por query y solo comprobaban que no estuviera vacío. Conociendo un UID se podían leer los datos de cualquier persona.
+- **Chequeo de dueño saltable**: `getWeeklyStats.ts` y `deleteTrackedFood.ts` verificaban propiedad con `if (userId && planData.userId !== userId)` — es decir, **omitir el campo saltaba el chequeo por completo**. El propio panel admin dependía de ese hueco (`userId={undefined} // Admin puede ver sin userId`), así que cualquiera podía imitarlo.
+
+**Corrección aplicada**:
+
+- `getUserPlans.ts` y `getExerciseHistory.ts` **se borraron**: no tenían ni un solo llamador en todo el repo (verificado con grep global). Código muerto que solo aportaba superficie de exposición — asegurarlos habría sido mantener auth para algo que nadie usa.
+- Nuevo `src/lib/userAuthServer.ts`, equivalente de `adminAuthServer.ts` para endpoints de usuario: `requireUser()` deriva el UID de un ID token verificado, y `requirePlanAccess()` resuelve en un paso "dueño del plan **o** admin" devolviendo el documento ya leído. Los errores de Firestore por cuota se propagan a propósito, para no romper el modo degradado de `getWeeklyStats`.
+- La regla "este UID es el admin" quedó en una sola función (`isAdminUid` en `adminAuthServer.ts`), compartida por los dos helpers.
+- Nuevo `src/lib/userAuthClient.ts` con `authedFetch()` (espejo de `adminFetch`), que adjunta el token automáticamente. `WeeklyStatsModal.tsx` lo usa y **dejó de recibir y mandar `userId`**: el prop desapareció de sus dos llamadores (`plan.tsx` y `AdminApp.tsx`), así que la identidad ya no viaja por el cliente en ningún punto de ese flujo.
+- Cubierto con tests (`src/__tests__/userAuthServer.test.ts`, 8 casos), incluido el que fija el bypass: sin token no se pasa **aunque el plan exista**.
+
+**Queda pendiente** (mismo patrón, fuera del alcance de este cambio — ver issue #27): `saveUserProfile.ts`, `savePlan.ts`, `createPayment.ts`, `createStripePayment.ts`, `analyzeFood.ts`, `saveUserLocation.ts`, `saveExerciseWeights.ts`, `sendMessage.ts`, `saveMonthlySnapshot.ts` y `updateLastLogin.ts`. `requireUser()` ya es la pieza que necesitan: aplicarlo es cambiar el origen del UID en cada uno.
+
 ---
 
 ## 3. Bugs de código

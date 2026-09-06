@@ -1,14 +1,27 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getAdminDb } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
+import { requirePlanAccess, type AuthFailureCode } from "@/lib/userAuthServer";
 
 type UiLang = "es" | "en";
 
 interface DeleteTrackedFoodRequest {
   planId: string;
-  userId?: string;
   foodIndex: number;
   locale?: string;
+}
+
+/** Mensaje legible para cada motivo de rechazo de `requirePlanAccess`. */
+function authErrorMessage(code: AuthFailureCode, lang: UiLang): string {
+  switch (code) {
+    case "unauthenticated":
+      return lang === "en" ? "You need to sign in to modify this plan" : "Necesitas iniciar sesión para modificar este plan";
+    case "forbidden":
+      return lang === "en" ? "You don't have permission to modify this plan" : "No tienes permiso para modificar este plan";
+    case "not-found":
+      return lang === "en" ? "Plan not found" : "Plan no encontrado";
+    case "unconfigured":
+      return lang === "en" ? "Firebase Admin SDK is not configured" : "Firebase Admin SDK no configurado";
+  }
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -16,7 +29,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { planId, userId, foodIndex, locale: localeRaw }: DeleteTrackedFoodRequest = req.body;
+  const { planId, foodIndex, locale: localeRaw }: DeleteTrackedFoodRequest = req.body;
   const lang: UiLang = localeRaw === "en" ? "en" : "es";
 
   if (!planId || foodIndex === undefined) {
@@ -26,31 +39,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const db = getAdminDb();
-    if (!db) {
-      return res.status(501).json({
-        error: lang === "en" ? "Firebase Admin SDK is not configured" : "Firebase Admin SDK no configurado",
-      });
+    // Identidad verificada con el ID token: el UID nunca sale del body.
+    // Antes, omitir `userId` saltaba el chequeo de dueño por completo.
+    const access = await requirePlanAccess(req, planId);
+    if (!access.ok) {
+      return res.status(access.status).json({ error: authErrorMessage(access.code, lang) });
     }
 
-    const planRef = db.collection("planes").doc(planId);
-    const planDoc = await planRef.get();
-
-    if (!planDoc.exists) {
-      return res.status(404).json({
-        error: lang === "en" ? "Plan not found" : "Plan no encontrado",
-      });
-    }
-
-    const planData = planDoc.data();
-
-    if (userId && planData?.userId !== userId) {
-      return res.status(403).json({
-        error: lang === "en" ? "You don't have permission to modify this plan" : "No tienes permiso para modificar este plan",
-      });
-    }
-
-    const trackedFoods = planData?.trackedFoods || [];
+    const { planRef, planData } = access;
+    const trackedFoods = planData.trackedFoods || [];
 
     if (foodIndex < 0 || foodIndex >= trackedFoods.length) {
       return res.status(400).json({

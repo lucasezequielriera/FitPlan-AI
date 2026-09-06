@@ -111,10 +111,6 @@ export default function TransformacionFitPlanLanding() {
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
       <Head>
-        <link rel="canonical" href="https://www.fitplan-ai.com/transformacion-fitplan" />
-        <link rel="alternate" hrefLang="es" href="https://www.fitplan-ai.com/transformacion-fitplan" />
-        <link rel="alternate" hrefLang="en" href="https://www.fitplan-ai.com/en/transformacion-fitplan" />
-        <link rel="alternate" hrefLang="x-default" href="https://www.fitplan-ai.com/transformacion-fitplan" />
         <title>FitPlan Transformación 1:1 | Plan Premium + Asesoría Humana Personalizada</title>
         <meta
           name="description"
@@ -125,9 +121,14 @@ export default function TransformacionFitPlanLanding() {
           content="asesoría nutricional online 1 a 1, entrenador personal online, plan de alimentación personalizado, rutina de gimnasio personalizada, bajar grasa corporal, ganar masa muscular, recomposición corporal, asesoría humana fitness, fitplan premium"
         />
         <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />
+        {/* Un solo canonical y un solo juego de hreflang por página: antes había
+            dos bloques (uno hardcodeado y otro por variable) declarando lo mismo
+            con códigos distintos (en / en-US). Se usa `en`, igual que Seo.tsx y
+            sitemap.xml, para que las anotaciones coincidan y Google valide la
+            reciprocidad entre /transformacion-fitplan y /en/transformacion-fitplan. */}
         <link rel="canonical" href={canonical} />
         <link rel="alternate" hrefLang="es" href={canonical} />
-        <link rel="alternate" hrefLang="en-US" href={canonicalEn} />
+        <link rel="alternate" hrefLang="en" href={canonicalEn} />
         <link rel="alternate" hrefLang="x-default" href={canonical} />
 
         <meta property="og:type" content="website" />

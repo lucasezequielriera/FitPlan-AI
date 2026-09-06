@@ -149,8 +149,13 @@ export default function HomeLanding({ locale }: HomeLandingProps) {
         <meta name="keywords" content={c.head.keywords} />
         <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
         <link rel="canonical" href={c.head.canonical} />
+        {/* `en` (no `en-US`) para que coincida con lo que declara sitemap.xml
+            para este mismo par de URLs — si las anotaciones no coinciden, Google
+            no valida la reciprocidad. `x-default` faltaba: sin él no hay página
+            declarada para idiomas que no son ni es ni en. */}
         <link rel="alternate" hrefLang="es" href={`${SITE}/`} />
-        <link rel="alternate" hrefLang="en-US" href={`${SITE}/en`} />
+        <link rel="alternate" hrefLang="en" href={`${SITE}/en`} />
+        <link rel="alternate" hrefLang="x-default" href={`${SITE}/`} />
         {c.head.ogLocale && <meta property="og:locale" content={c.head.ogLocale} />}
         {c.head.ogLocaleAlternate && <meta property="og:locale:alternate" content={c.head.ogLocaleAlternate} />}
 

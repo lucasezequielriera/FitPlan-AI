@@ -5387,7 +5387,6 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
               setSelectedPlanIdForStats(null);
             }}
             planId={selectedPlanIdForStats}
-            userId={undefined} // Admin puede ver sin userId
           />
         )}
 

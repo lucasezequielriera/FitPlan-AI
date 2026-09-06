@@ -5625,7 +5625,6 @@ export default function PlanPage() {
           isOpen={weeklyStatsModalOpen}
           onClose={() => setWeeklyStatsModalOpen(false)}
           planId={planId}
-          userId={authUser?.uid || undefined}
         />
       )}
 
