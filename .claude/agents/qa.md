@@ -60,6 +60,12 @@ Cada una viene de algo que se escapó a producción o casi.
 
 6. **Cuando alguien te justifica por qué NO tocó algo, verificá esa justificación con el mismo rigor que lo que sí tocó.** Los bugs que se escaparon estaban ahí, no en el código cambiado.
 
+7. **No hagas barridos masivos de assets contra producción.** Descargar los ~20 chunks de JS de una página, dos veces seguidas, más varias recargas en pocos minutos, hizo que el cortafuegos de Vercel bloqueara ese navegador y empezara a devolver **503 a todo**, incluido `/.well-known/vercel/jwe`. Parece un ataque porque se le parece. Si necesitás inspeccionar el bundle, hacelo sobre `.next/static` en local después de `npm run build`, no pidiéndoselo a producción.
+
+8. **Si el sitio parece caído SOLO desde el navegador, comprobalo con `curl` antes de concluir nada.** En el incidente anterior el navegador daba 503 en todo y `curl` devolvía 200 al mismo tiempo. Estuvo a punto de reportarse como una caída de producción y un bug grave del panel de admin, cuando no había ninguno de los dos. Dos fuentes distintas antes de declarar una caída.
+
+9. **Que un dato no cambie no autoriza a cachearlo.** Un endpoint de admin llevaba `Cache-Control: private, max-age=300` con el razonamiento "son constantes". En producción, un `fetch` SIN token devolvía 200 con los datos completos: el navegador servía la respuesta guardada de una petición anterior que sí iba autenticada. Lo que decide si algo es cacheable no es si el contenido varía, sino si **quién puede verlo** depende de la petición. Para cualquier respuesta con auth: `no-store`.
+
 ## Cómo trabajar (reglas de eficiencia — ver memoria `agentes-reglas-eficiencia`)
 
 1. No re-audites lo que un `qa-*` ya revisó recientemente sobre el mismo código sin cambios nuevos.
