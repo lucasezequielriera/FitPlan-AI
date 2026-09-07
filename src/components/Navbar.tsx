@@ -18,6 +18,7 @@ import { getPendingWeightOpsTotalCount, WEIGHT_QUEUE_CHANGED_EVENT } from "@/lib
 import {
   FaHome,
   FaDumbbell,
+  FaBolt,
   FaCommentDots,
   FaUserCircle,
   FaBell,
@@ -99,6 +100,7 @@ export default function Navbar({ minimal = false }: { minimal?: boolean }) {
   const tabBarRef = useRef<HTMLDivElement | null>(null);
 
   const isPlanPage = router.pathname === "/plan";
+  const isHyroxPage = router.pathname === "/hyrox";
   const isDashboardPage = router.pathname === "/dashboard";
 
   useEffect(() => {
@@ -681,6 +683,11 @@ export default function Navbar({ minimal = false }: { minimal?: boolean }) {
                 <>
                   <TopNavLink label={ui(locale, "navHome")} icon={FaHome} active={isDashboardPage} onClick={() => router.push("/dashboard")} />
                   <TopNavLink label={ui(locale, "navMyPlan")} icon={FaDumbbell} active={isPlanPage} onClick={() => router.push("/plan")} />
+                  {/* Solo en el nav de escritorio: la barra inferior de móvil ya
+                      iba justa con 4 pestañas (se tocaba el botón del iPhone) y
+                      una quinta la volvería a dejar difícil de pulsar. PENDIENTE:
+                      no hay todavía punto de entrada desde móvil. */}
+                  <TopNavLink label="HYROX" icon={FaBolt} active={isHyroxPage} onClick={() => router.push("/hyrox")} />
                   <TopNavLink
                     label={ui(locale, "navMessages")}
                     icon={FaCommentDots}

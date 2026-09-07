@@ -81,6 +81,15 @@ export type WeekPlan = {
   keyGoal: string;
   /** Semana de descarga: se baja carga a propósito para asimilar. */
   deload: boolean;
+  /**
+   * Avance dentro de la fase, de 0 (primera semana) a 1 (última). Lo expone el
+   * generador; el plan fijo histórico de más abajo no lo trae.
+   *
+   * Está aquí para poder verificarlo desde los tests: un error en esta fórmula
+   * hace que la última semana de cada bloque no llegue nunca a su contenido
+   * pico, y eso no se nota mirando el plan por encima.
+   */
+  progress?: number;
   sessions: Session[];
 };
 
