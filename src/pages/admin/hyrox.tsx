@@ -8,19 +8,52 @@ import { AdminShell } from "@/components/admin/AdminShell";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { useAdminFadeUp } from "@/components/admin/adminMotion";
 import { FaCheck, FaChevronDown, FaChevronRight } from "react-icons/fa";
-import {
-  BENCHMARKS,
-  FIRST_MONDAY,
-  PARTNER_ADJUSTMENTS,
-  PHASES,
-  RACE_DATE,
-  WEEKS,
-  currentWeekNumber,
-  daysUntilRace,
-  type PhaseKey,
-  type Session,
-} from "@/lib/hyrox/plan";
-import { CONTENT_ANGLES, DOUBLES_PRINCIPLES, NUTRITION, PACE_TARGETS, STATIONS } from "@/lib/hyrox/strategy";
+// SOLO TIPOS. Importar estos módulos como valor metía todo su contenido en un
+// chunk JS público: el guard de admin es de cliente, así que `curl /admin/hyrox`
+// devolvía 200 con el `<script src>` del chunk y un segundo curl entregaba el
+// contenido íntegro sin credenciales. Ahora los datos llegan por
+// `/api/admin/hyroxContent`, que sí verifica admin en el servidor.
+import type { PhaseKey, Session } from "@/lib/hyrox/plan";
+// `import type * as` se borra por completo al compilar: da los tipos EXACTOS de
+// las constantes sin traer ni un byte de su contenido al bundle. Escribirlos a
+// mano se desincronizaría en cuanto alguien editase el módulo.
+import type * as HyroxPlan from "@/lib/hyrox/plan";
+import type * as HyroxStrategy from "@/lib/hyrox/strategy";
+
+/** Lo que devuelve `/api/admin/hyroxContent`. */
+type HyroxContent = {
+  raceDate: string;
+  firstMonday: string;
+  phases: typeof HyroxPlan.PHASES;
+  weeks: typeof HyroxPlan.WEEKS;
+  benchmarks: typeof HyroxPlan.BENCHMARKS;
+  partnerAdjustments: typeof HyroxPlan.PARTNER_ADJUSTMENTS;
+  stations: typeof HyroxStrategy.STATIONS;
+  paceTargets: typeof HyroxStrategy.PACE_TARGETS;
+  doublesPrinciples: typeof HyroxStrategy.DOUBLES_PRINCIPLES;
+  nutrition: typeof HyroxStrategy.NUTRITION;
+  contentAngles: typeof HyroxStrategy.CONTENT_ANGLES;
+};
+
+/** Semana del plan en la que cae una fecha. Se calcula aquí para no importar
+ *  `plan.ts`, que arrastraría todo el contenido al bundle público. */
+function weekNumberFor(today: Date, firstMonday: string, totalWeeks: number): number | null {
+  const todayIso = today.toISOString().slice(0, 10);
+  if (!firstMonday || todayIso < firstMonday) return null;
+  const [y, m, d] = firstMonday.split("-").map(Number);
+  const start = Date.UTC(y, m - 1, d);
+  const now = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  const week = Math.floor((now - start) / (7 * 86400000)) + 1;
+  return week >= 1 && week <= totalWeeks ? week : null;
+}
+
+function daysUntil(today: Date, raceDate: string): number {
+  if (!raceDate) return 0;
+  const [y, m, d] = raceDate.split("-").map(Number);
+  const race = Date.UTC(y, m - 1, d);
+  const now = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  return Math.round((race - now) / 86400000);
+}
 
 type Progress = {
   done: Record<string, boolean>;
@@ -110,14 +143,32 @@ export default function AdminHyroxPage() {
   const [allowed, setAllowed] = useState(false);
 
   const today = useMemo(() => new Date(), []);
-  const activeWeek = currentWeekNumber(today);
-  const daysLeft = daysUntilRace(today);
+  const [content, setContent] = useState<HyroxContent | null>(null);
+
+  const WEEKS = content?.weeks ?? [];
+  const PHASES = content?.phases ?? [];
+  const BENCHMARKS = content?.benchmarks ?? [];
+  const PARTNER_ADJUSTMENTS = content?.partnerAdjustments ?? [];
+  const STATIONS = content?.stations ?? [];
+  const PACE_TARGETS = content?.paceTargets ?? [];
+  const DOUBLES_PRINCIPLES = content?.doublesPrinciples ?? [];
+  const CONTENT_ANGLES = content?.contentAngles ?? [];
+  const NUTRITION = content?.nutrition ?? ({ daily: [], raceWeek: [], raceDay: [] } as HyroxContent["nutrition"]);
+  const RACE_DATE = content?.raceDate ?? "";
+  const FIRST_MONDAY = content?.firstMonday ?? "";
+
+  const activeWeek = weekNumberFor(today, FIRST_MONDAY, WEEKS.length);
+  const daysLeft = daysUntil(today, RACE_DATE);
 
   const [tab, setTab] = useState<TabKey>("plan");
   const [progress, setProgress] = useState<Progress>({ done: {}, benchmarks: {}, notes: {} });
   // Arranca desplegada la semana en curso: es la que se va a consultar el 99%
   // de las veces al abrir la página.
-  const [openWeek, setOpenWeek] = useState<number | null>(activeWeek ?? 1);
+  // `undefined` = el usuario todavía no ha tocado nada, así que se abre sola la
+  // semana en curso. `null` = la plegó a propósito y debe quedarse plegada.
+  // Se deriva en vez de guardarse con un efecto: el contenido llega por fetch,
+  // y sincronizar estado desde un efecto provoca renders en cascada.
+  const [openWeekOverride, setOpenWeek] = useState<number | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -134,6 +185,20 @@ export default function AdminHyroxPage() {
     };
     void run();
   }, [authUser, authLoading, router]);
+
+  useEffect(() => {
+    if (!allowed) return;
+    const loadContent = async () => {
+      try {
+        const resp = await adminFetch("/api/admin/hyroxContent");
+        if (resp.ok) setContent((await resp.json()) as HyroxContent);
+        else setError("No se pudo cargar el contenido del plan.");
+      } catch {
+        setError("No se pudo cargar el contenido del plan.");
+      }
+    };
+    void loadContent();
+  }, [allowed]);
 
   useEffect(() => {
     if (!allowed) return;
@@ -181,7 +246,12 @@ export default function AdminHyroxPage() {
     }
   };
 
-  if (authLoading || checking) {
+  // El contenido entra en el gate junto con la comprobación de admin. Desde que
+  // dejó de importarse como valor y llega por fetch, hay un intervalo en el que
+  // las fechas están vacías: sin este guard el header renderiza "Invalid Date"
+  // y "0 días para la carrera" — y de forma PERMANENTE si el fetch falla, no
+  // solo como parpadeo.
+  if (authLoading || checking || (allowed && !content && !error)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-accent" />
@@ -189,6 +259,26 @@ export default function AdminHyroxPage() {
     );
   }
   if (!allowed) return null;
+
+  if (!content) {
+    // Falló la carga: se dice, en vez de enseñar un plan vacío con fechas
+    // inválidas que parecería que los datos se han perdido.
+    return (
+      <AdminShell active="hyrox">
+        <div className="mx-auto max-w-md py-16 text-center">
+          <p className="text-lg font-bold text-[var(--foreground)]">No se pudo cargar el plan</p>
+          <p className="mt-2 text-sm text-[var(--text-muted)]">
+            {error ?? "Inténtalo de nuevo en un momento."}
+          </p>
+          <button type="button" onClick={() => router.reload()} className="btn btn-secondary mt-5">
+            Reintentar
+          </button>
+        </div>
+      </AdminShell>
+    );
+  }
+
+  const openWeek = openWeekOverride === undefined ? (activeWeek ?? 1) : openWeekOverride;
 
   const doneCount = Object.values(progress.done).filter(Boolean).length;
   const totalTrainingSessions = WEEKS.reduce((acc, w) => acc + w.sessions.filter((s) => s.type !== "descanso").length, 0);

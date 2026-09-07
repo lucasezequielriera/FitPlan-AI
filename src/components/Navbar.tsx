@@ -683,10 +683,9 @@ export default function Navbar({ minimal = false }: { minimal?: boolean }) {
                 <>
                   <TopNavLink label={ui(locale, "navHome")} icon={FaHome} active={isDashboardPage} onClick={() => router.push("/dashboard")} />
                   <TopNavLink label={ui(locale, "navMyPlan")} icon={FaDumbbell} active={isPlanPage} onClick={() => router.push("/plan")} />
-                  {/* Solo en el nav de escritorio: la barra inferior de móvil ya
-                      iba justa con 4 pestañas (se tocaba el botón del iPhone) y
-                      una quinta la volvería a dejar difícil de pulsar. PENDIENTE:
-                      no hay todavía punto de entrada desde móvil. */}
+                  {/* También está en la barra inferior de móvil (5ª pestaña).
+                      El ancho se midió a 320 y 375 px: ver el comentario de
+                      TabBarItem sobre por qué el mínimo bajó a 56 px. */}
                   <TopNavLink label="HYROX" icon={FaBolt} active={isHyroxPage} onClick={() => router.push("/hyrox")} />
                   <TopNavLink
                     label={ui(locale, "navMessages")}
@@ -907,6 +906,10 @@ export default function Navbar({ minimal = false }: { minimal?: boolean }) {
             onClick={() => router.push("/plan")}
             dotWarning={!isAdmin && pendingWeightOpsCount > 0}
           />
+          {/* HYROX: se muestra a todo el mundo, también a quien no es premium.
+              Al tocarlo llega al muro que explica qué incluye — descubrirlo es
+              parte del embudo, esconderlo solo evitaría que nadie lo comprase. */}
+          <TabBarItem label="HYROX" icon={FaBolt} active={isHyroxPage} onClick={() => router.push("/hyrox")} />
           <TabBarItem
             label={ui(locale, "navMessages")}
             icon={FaCommentDots}
@@ -1188,7 +1191,14 @@ function TabBarItem({
       onClick={onClick}
       aria-current={active ? "page" : undefined}
       aria-label={label}
-      className="flex min-h-[52px] min-w-[64px] flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-[11px] font-medium"
+      // Medido con Chrome/CDP sobre el HTML servido, con las 5 pestañas:
+      //   320 px (iPhone SE) -> 64 px por pestaña, sin desbordar, sin partir texto
+      //   375 px -> 73 px · 390 px -> 76 px · alto 55 px en los tres
+      // Con 5 pestañas `flex-1` reparte 320/5 = 64 px, así que a estos anchos el
+      // mínimo ni siquiera entra en juego: 56 es solo un colchón por debajo de
+      // 320 px. La altura (52 px mínimo) no se toca — es lo que se subió para
+      // que no se solape con la barra de gestos del iPhone.
+      className="flex min-h-[52px] min-w-[56px] flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-[11px] font-medium"
     >
       <motion.span
         animate={wiggle}

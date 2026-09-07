@@ -59,7 +59,16 @@ export const HYROX_COPY = {
     restDay: "Descanso",
     deloadBadge: "Descarga",
     weekGoal: "Objetivo de la semana",
-    contentLanguageNote: null,
+    translationFailedNote: null,
+    premiumTitle: "HYROX es una función Premium",
+    premiumIntro:
+      "Tu plan completo hasta el día de la carrera: fases repartidas según las semanas que te queden de verdad, sesiones semanales adaptadas a tus días y tu material, ritmo objetivo calculado sobre tu marca de 5 km, y la estrategia de cada una de las 8 estaciones.",
+    premiumBullets: [
+      "Se adapta si te quedan 5 semanas o 20, sin recortar un plan genérico",
+      "Más base de carrera si no corres, para no llegar lesionado",
+      "Te dice dónde está tu margen real en minutos, no en tópicos",
+    ],
+    premiumCta: "Ver planes Premium",
     sessionTypes: {
       fuerza: "Fuerza",
       carrera: "Carrera",
@@ -120,12 +129,21 @@ export const HYROX_COPY = {
     restDay: "Rest",
     deloadBadge: "Deload",
     weekGoal: "Goal of the week",
-    // El contenido del plan (sesiones y estaciones) todavía solo existe en
-    // español. Se dice claro en vez de mostrarlo mezclado sin avisar: un
-    // usuario que abre su plan y lo encuentra en otro idioma sin explicación
-    // asume que la app está rota.
-    contentLanguageNote:
-      "Heads up: the training sessions and station guides are currently only available in Spanish. The rest of the app is in English.",
+    premiumTitle: "HYROX is a Premium feature",
+    premiumIntro:
+      "Your full plan up to race day: phases split by the weeks you actually have left, weekly sessions matched to your days and equipment, target pace calculated from your 5k time, and a strategy for each of the 8 stations.",
+    premiumBullets: [
+      "Adapts whether you have 5 weeks left or 20 — not a generic plan cut short",
+      "More aerobic base if you don't run, so you don't arrive injured",
+      "Tells you where your real margin is, in minutes, not platitudes",
+    ],
+    premiumCta: "See Premium plans",
+    // Solo se muestra si la traducción falló de verdad. El plan se genera en
+    // español y se traduce con OpenAI; si eso falla, se dice, en vez de
+    // enseñar dos idiomas mezclados sin explicación (el usuario asumiría que la
+    // app está rota). Las guías de estación siguen siendo texto fijo español.
+    translationFailedNote:
+      "Some of this plan couldn't be translated and is showing in Spanish. Reload in a moment and it should come through in English.",
     sessionTypes: {
       fuerza: "Strength",
       carrera: "Running",

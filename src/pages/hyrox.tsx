@@ -4,13 +4,17 @@ import { useRouter } from "next/router";
 import { motion, useReducedMotion } from "framer-motion";
 import { FaBolt, FaRunning, FaDumbbell, FaBed, FaPen } from "react-icons/fa";
 import Navbar from "@/components/Navbar";
+import PremiumPlanModal from "@/components/PremiumPlanModal";
 import { useAuthStore } from "@/store/authStore";
 import { useAppLocale } from "@/contexts/AppLocaleContext";
 import { authedFetch } from "@/lib/userAuthClient";
 import { HyroxProfileForm } from "@/components/hyrox/HyroxProfileForm";
 import { hyroxCopy, type HyroxLocale } from "@/lib/hyrox/copy";
 import { formatDuration, formatPace, type PaceEstimate } from "@/lib/hyrox/pacing";
-import { STATIONS } from "@/lib/hyrox/strategy";
+// `import type` a propósito: los tipos se borran al compilar, así que el
+// contenido de las estaciones NO acaba en el bundle público. Los datos
+// llegan por la API, que exige premium.
+import type { Station } from "@/lib/hyrox/strategy";
 import type { GeneratedPlan } from "@/lib/hyrox/generator";
 import type { HyroxProfile } from "@/lib/hyrox/profile";
 import type { PhaseKey, Session, SessionType } from "@/lib/hyrox/plan";
@@ -31,6 +35,8 @@ type ApiResponse = {
   plan: GeneratedPlan | null;
   pace?: PaceEstimate | null;
   goalAssessment?: string | null;
+  translationDegraded?: boolean;
+  stations?: Station[];
 };
 
 export default function HyroxPage() {
@@ -47,6 +53,8 @@ export default function HyroxPage() {
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [premiumRequired, setPremiumRequired] = useState(false);
+  const [premiumModalOpen, setPremiumModalOpen] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !authUser) void router.replace("/");
@@ -55,15 +63,21 @@ export default function HyroxPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await authedFetch("/api/hyrox/plan");
+      const res = await authedFetch(`/api/hyrox/plan?locale=${encodeURIComponent(locale ?? "es")}`);
+      if (res.status === 403) {
+        // No es un error que mostrar: es el muro de pago, con su propia pantalla.
+        setPremiumRequired(true);
+        return;
+      }
       if (!res.ok) throw new Error(`Error ${res.status}`);
+      setPremiumRequired(false);
       setData((await res.json()) as ApiResponse);
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo cargar tu plan");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [locale]);
 
   useEffect(() => {
     if (authUser) void load();
@@ -73,11 +87,15 @@ export default function HyroxPage() {
     setSaving(true);
     setError(null);
     try {
-      const res = await authedFetch("/api/hyrox/plan", {
+      const res = await authedFetch(`/api/hyrox/plan?locale=${encodeURIComponent(locale ?? "es")}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ profile }),
       });
+      if (res.status === 403) {
+        setPremiumRequired(true);
+        return;
+      }
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(body.error || `Error ${res.status}`);
@@ -108,6 +126,8 @@ export default function HyroxPage() {
 
           {loading ? (
             <p className="mt-6 text-sm text-[var(--text-muted)]">…</p>
+          ) : premiumRequired ? (
+            <PremiumGate copy={c} onOpen={() => setPremiumModalOpen(true)} />
           ) : showForm ? (
             <>
               <h1 className="mt-2 text-2xl font-extrabold sm:text-3xl">{c.titleNoProfile}</h1>
@@ -127,6 +147,8 @@ export default function HyroxPage() {
               plan={plan}
               pace={data?.pace ?? null}
               goalAssessment={data?.goalAssessment ?? null}
+              translationDegraded={data?.translationDegraded === true}
+              stations={data?.stations ?? []}
               copy={c}
               onEdit={() => setEditing(true)}
             />
@@ -139,6 +161,44 @@ export default function HyroxPage() {
           )}
         </motion.div>
       </main>
+
+      {premiumModalOpen && authUser && (
+        <PremiumPlanModal
+          isOpen={premiumModalOpen}
+          onClose={() => setPremiumModalOpen(false)}
+          userId={authUser.uid}
+          userEmail={authUser.email ?? undefined}
+          returnUrl="/hyrox"
+          locale={(locale as HyroxLocale) ?? "es"}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Muro de pago de HYROX.
+ *
+ * Explica qué se compra en concreto en vez de decir "hazte premium": lo que
+ * convierte es que la persona entienda que el plan se adapta a SU plazo y a SU
+ * punto de partida, que es justo lo que no le da un PDF genérico de internet.
+ */
+function PremiumGate({ copy: c, onOpen }: { copy: Copy; onOpen: () => void }) {
+  return (
+    <div className="mt-4">
+      <h1 className="text-2xl font-extrabold sm:text-3xl">{c.premiumTitle}</h1>
+      <p className="mt-3 max-w-2xl text-sm text-[var(--text-muted)]">{c.premiumIntro}</p>
+      <ul className="mt-5 space-y-2.5">
+        {c.premiumBullets.map((b) => (
+          <li key={b} className="flex gap-2.5 text-sm">
+            <FaBolt className="mt-0.5 shrink-0 text-[var(--accent)]" aria-hidden />
+            <span>{b}</span>
+          </li>
+        ))}
+      </ul>
+      <button type="button" onClick={onOpen} className="btn btn-primary mt-6">
+        {c.premiumCta}
+      </button>
     </div>
   );
 }
@@ -165,12 +225,16 @@ function PlanView({
   plan,
   pace,
   goalAssessment,
+  translationDegraded,
+  stations,
   copy: c,
   onEdit,
 }: {
   plan: GeneratedPlan;
   pace: PaceEstimate | null;
   goalAssessment: string | null;
+  translationDegraded: boolean;
+  stations: Station[];
   copy: Copy;
   onEdit: () => void;
 }) {
@@ -187,9 +251,9 @@ function PlanView({
         </button>
       </div>
 
-      {c.contentLanguageNote && (
+      {translationDegraded && c.translationFailedNote && (
         <p className="mt-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 text-sm text-[var(--text-muted)]">
-          {c.contentLanguageNote}
+          {c.translationFailedNote}
         </p>
       )}
 
@@ -281,7 +345,7 @@ function PlanView({
         <h2 className="text-lg font-bold">{c.stationsTitle}</h2>
         <p className="mt-1 text-sm text-[var(--text-muted)]">{c.stationsIntro}</p>
         <div className="mt-4 space-y-2.5">
-          {STATIONS.map((st) => (
+          {stations.map((st) => (
             <details key={st.order} className="card-surface rounded-xl p-4">
               <summary className="cursor-pointer list-none">
                 <span className="flex items-baseline justify-between gap-3">
