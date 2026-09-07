@@ -37,9 +37,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const auth = await requireAdmin(req);
   if (!auth.ok) return res.status(auth.status).json({ error: auth.error });
 
-  // Son constantes del código: no cambian entre peticiones, así que se pueden
-  // cachear en el navegador del admin sin riesgo de servir algo desactualizado.
-  res.setHeader("Cache-Control", "private, max-age=300");
+  // `no-store` y no `private, max-age=300`. Es contenido que solo debe ver un
+  // admin, y con la caché puesta se comprobó en producción que un `fetch` sin
+  // ningún token devolvía 200 con los datos completos: el navegador servía la
+  // respuesta guardada de una petición anterior que sí iba autenticada. Que las
+  // constantes no cambien no es motivo para cachearlas cuando quién puede verlas
+  // sí depende de la petición.
+  res.setHeader("Cache-Control", "no-store");
   return res.status(200).json({
     raceDate: RACE_DATE,
     firstMonday: FIRST_MONDAY,
