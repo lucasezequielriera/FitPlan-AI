@@ -6,7 +6,10 @@ import type { Division, HyroxProfile, StrengthBase } from "@/lib/hyrox/profile";
  * El plan original traía tres objetivos fijos (95 / 85 / 75 min) calculados
  * para un perfil concreto. Aquí se derivan de la marca real de 5 km de cada
  * persona, que es el único dato que predice de verdad un tiempo de HYROX: la
- * carrera se lleva ~50% del total en individual y hasta ~65% en dobles.
+ * carrera se lleva, como mínimo, la mitad del total (~50-58% según este mismo
+ * modelo), y el reparto es prácticamente idéntico en individual y en dobles —
+ * en dobles se reparte el TRABAJO de estaciones, no el RELOJ. Ver
+ * `hyroxLanding.test.ts`, que ata esta afirmación al cálculo real.
  *
  * Se devuelven RANGOS, no un número. Una estimación al minuto sería falsa
  * precisión: hay demasiada varianza en transiciones, agobio de la primera

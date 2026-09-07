@@ -100,7 +100,7 @@ export default function Navbar({ minimal = false }: { minimal?: boolean }) {
   const tabBarRef = useRef<HTMLDivElement | null>(null);
 
   const isPlanPage = router.pathname === "/plan";
-  const isHyroxPage = router.pathname === "/hyrox";
+  const isHyroxPage = router.pathname.startsWith("/hyrox");
   const isDashboardPage = router.pathname === "/dashboard";
 
   useEffect(() => {
@@ -686,7 +686,7 @@ export default function Navbar({ minimal = false }: { minimal?: boolean }) {
                   {/* También está en la barra inferior de móvil (5ª pestaña).
                       El ancho se midió a 320 y 375 px: ver el comentario de
                       TabBarItem sobre por qué el mínimo bajó a 56 px. */}
-                  <TopNavLink label="HYROX" icon={FaBolt} active={isHyroxPage} onClick={() => router.push("/hyrox")} />
+                  <TopNavLink label="HYROX" icon={FaBolt} active={isHyroxPage} onClick={() => router.push("/hyrox/plan")} />
                   <TopNavLink
                     label={ui(locale, "navMessages")}
                     icon={FaCommentDots}
@@ -909,7 +909,7 @@ export default function Navbar({ minimal = false }: { minimal?: boolean }) {
           {/* HYROX: se muestra a todo el mundo, también a quien no es premium.
               Al tocarlo llega al muro que explica qué incluye — descubrirlo es
               parte del embudo, esconderlo solo evitaría que nadie lo comprase. */}
-          <TabBarItem label="HYROX" icon={FaBolt} active={isHyroxPage} onClick={() => router.push("/hyrox")} />
+          <TabBarItem label="HYROX" icon={FaBolt} active={isHyroxPage} onClick={() => router.push("/hyrox/plan")} />
           <TabBarItem
             label={ui(locale, "navMessages")}
             icon={FaCommentDots}

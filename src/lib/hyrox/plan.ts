@@ -8,8 +8,10 @@
  * La decisión central del plan sale de una particularidad del formato Doubles
  * que suele pasarse por alto: los dos corren los 8 km completos pero se
  * reparten el trabajo de estaciones. Es decir, se corre el 100% de la
- * distancia haciendo ~50% del trabajo de fuerza, así que la carrera pesa MÁS
- * en dobles que en individual (~65-70% del tiempo total, frente a ~50%).
+ * distancia haciendo ~50% del trabajo de fuerza: el reparto de TIEMPO entre
+ * carrera y estaciones sale prácticamente igual que en individual (~50-58%
+ * del total, ver `pacing.ts`); lo que cambia es cuánto pesa a cada corredor,
+ * no el reloj — en dobles se reparte el trabajo, no la duración de la carrera.
  *
  * Para este perfil concreto eso significa que la fuerza ya no es el factor
  * limitante: lo es la carrera, y en particular correr en fatiga. Por eso el

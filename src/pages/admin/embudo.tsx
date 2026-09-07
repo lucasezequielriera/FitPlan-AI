@@ -78,7 +78,18 @@ export default function AdminEmbudoPage() {
 
   const top = data?.stages[0]?.users ?? 0;
 
-  if (checking || !allowed) return null;
+  // Mientras se comprueba el acceso se muestra un spinner, no `null`.
+  // Devolver `null` deja una pantalla COMPLETAMENTE en blanco, sin ninguna
+  // señal de que algo esté pasando: es el peor modo de fallo posible, porque
+  // no se distingue de la app rota. Se detectó mirando la vista en producción.
+  if (checking) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[var(--background)]">
+        <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-[var(--accent)]" />
+      </div>
+    );
+  }
+  if (!allowed) return null;
 
   return (
     <AdminShell active="embudo">

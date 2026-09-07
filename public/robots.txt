@@ -3,6 +3,9 @@ User-agent: *
 Allow: /
 Disallow: /api/
 Disallow: /admin
+# La landing /hyrox sí se indexa; /hyrox/plan es la app tras login y no aporta
+# nada a un buscador (sirve un esqueleto vacío hasta que hay sesión).
+Disallow: /hyrox/plan
 Disallow: /_next/
 Disallow: /404
 

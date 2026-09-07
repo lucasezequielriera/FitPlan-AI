@@ -168,7 +168,7 @@ export default function HyroxPage() {
           onClose={() => setPremiumModalOpen(false)}
           userId={authUser.uid}
           userEmail={authUser.email ?? undefined}
-          returnUrl="/hyrox"
+          returnUrl="/hyrox/plan"
           locale={(locale as HyroxLocale) ?? "es"}
         />
       )}

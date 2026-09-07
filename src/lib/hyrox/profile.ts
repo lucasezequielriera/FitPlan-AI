@@ -19,8 +19,10 @@ export type Category = "hombre" | "mujer";
 
 /**
  * Base de carrera. Es la entrada MÁS determinante de todas: en HYROX la
- * carrera se lleva ~50% del tiempo en individual y hasta ~65% en dobles, así
- * que quien viene del gimnasio sin correr tiene ahí todo su margen — y también
+ * carrera se lleva, como mínimo, la mitad del tiempo (~50-58% según el
+ * modelo de `pacing.ts`), y el reparto es prácticamente igual en individual
+ * y en dobles — en dobles se reparte el trabajo de estaciones, no el reloj.
+ * Quien viene del gimnasio sin correr tiene ahí todo su margen — y también
  * todo su riesgo de lesión si se le carga volumen demasiado rápido.
  */
 export type RunningBase =

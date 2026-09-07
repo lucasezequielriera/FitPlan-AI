@@ -40,12 +40,24 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
+/**
+ * Quita comentarios antes de buscar.
+ *
+ * Los archivos que documentan POR QUÉ una frase está prohibida la citan, y el
+ * test se detectaba a sí mismo. Quitar comentarios no debilita el guard: un
+ * comentario nunca llega al usuario. Lo que se sigue revisando es todo el
+ * código y todas las cadenas de texto.
+ */
+function sinComentarios(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+}
+
 describe("Textos públicos: credenciales que no tenemos", () => {
   it("ningún texto afirma que hay nutricionistas o entrenadores certificados detrás", () => {
     const ofensores: string[] = [];
     for (const file of walk("src")) {
       if (EXENTOS.includes(file)) continue;
-      const src = fs.readFileSync(path.join(process.cwd(), file), "utf8");
+      const src = sinComentarios(fs.readFileSync(path.join(process.cwd(), file), "utf8"));
       for (const re of PROHIBIDOS) {
         const hit = src.match(re);
         if (hit) ofensores.push(`${file}: "${hit[0]}"`);
