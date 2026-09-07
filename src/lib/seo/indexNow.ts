@@ -82,6 +82,9 @@ export async function submitUrlsToIndexNow(urls: string[]): Promise<IndexNowResu
 export const INDEXABLE_PATHS = [
   "/",
   "/en",
+  // La landing de HYROX. NO se incluye "/hyrox/plan": es la app tras login y
+  // sirve un esqueleto vacío sin sesión, así que en el índice solo estorba.
+  "/hyrox",
   "/transformacion-fitplan",
   "/en/transformacion-fitplan",
   "/formulario-de-inicio",
