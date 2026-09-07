@@ -116,11 +116,22 @@ export const useAuthStore = create<AuthState>((set) => ({
           return;
         }
         try {
-          // authedFetch: el servidor toma el UID del token, no del cuerpo.
-          const { authedFetch } = await import("@/lib/userAuthClient");
-          const response = await authedFetch("/api/updateLastLogin", {
+          // El servidor toma el UID del token, no del cuerpo.
+          //
+          // El token se pide directamente a `user`, el objeto que este propio
+          // callback recibe, en vez de a `authedFetch` (que lo busca en
+          // `auth.currentUser`). Aquí estamos DENTRO de `onAuthStateChanged`, y
+          // depender de que `auth.currentUser` ya esté poblado en ese instante
+          // es una suposición sobre el orden interno del SDK que no podemos
+          // comprobar; si fallara, dejaríamos de registrar `lastLogin` y los
+          // días activos de todos los usuarios sin que nada fallara a la vista.
+          const idToken = await user.getIdToken();
+          const response = await fetch("/api/updateLastLogin", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${idToken}`,
+            },
             body: JSON.stringify({}),
           });
           
