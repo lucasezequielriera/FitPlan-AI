@@ -29,6 +29,7 @@ import {
   cpIntensityOpt,
   cpIntensityTag,
 } from "@/lib/i18n/createPlanUi";
+import { trackFunnel } from "@/lib/funnel/client";
 
 // Helper para crear estructura de plan multi-fase
 function crearPlanMultiFase(
@@ -1057,6 +1058,10 @@ export default function CreatePlan() {
               createdAt: serverTimestamp(),
             });
             console.log("Plan guardado automáticamente con ID:", docRef.id);
+            // Hito del embudo: activación. Es el escalón donde más gente se
+            // cae en productos de este tipo (se registran y nunca llegan a
+            // tener un plan), y hasta ahora no se medía.
+            trackFunnel(userId, "firstPlan");
             // Guardar el planId en el store para que se pueda actualizar después
             setPlanId(docRef.id);
             // Si es multi-fase, guardar también en el store

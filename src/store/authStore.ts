@@ -116,10 +116,12 @@ export const useAuthStore = create<AuthState>((set) => ({
           return;
         }
         try {
-          const response = await fetch("/api/updateLastLogin", {
+          // authedFetch: el servidor toma el UID del token, no del cuerpo.
+          const { authedFetch } = await import("@/lib/userAuthClient");
+          const response = await authedFetch("/api/updateLastLogin", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ userId: user.uid }),
+            body: JSON.stringify({}),
           });
           
           if (!response.ok) {

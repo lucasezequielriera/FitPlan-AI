@@ -1,6 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
+import { requireUser } from "@/lib/userAuthServer";
+import { nextActiveDays } from "@/lib/funnel/store";
 
 function isQuotaError(error: unknown): boolean {
   const msg = error instanceof Error ? error.message : String(error || "");
@@ -18,11 +20,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { userId } = req.body;
-
-    if (!userId || typeof userId !== "string") {
-      return res.status(400).json({ error: "userId es requerido" });
+    // El UID sale del token verificado, no del cuerpo. Antes se aceptaba el
+    // `userId` del body sin comprobar nada, así que cualquiera podía escribir
+    // sobre el documento de otro usuario. Importa más desde que este endpoint
+    // sostiene también `funnel.activeDays`, la base del cálculo de retención.
+    const auth = await requireUser(req);
+    if (!auth.ok) {
+      return res.status(auth.status).json({ error: "Identidad no verificada" });
     }
+    const userId = auth.uid;
 
     const db = getAdminDb();
     if (!db) {
@@ -46,6 +52,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       lastLogin: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     };
+
+    // Día activo del embudo. `lastLogin` se sobrescribe en cada visita, así que
+    // no sirve para medir retención: hace falta el conjunto de días distintos.
+    // Se calcula aquí, en la misma escritura, para no añadir otra ida y vuelta.
+    const activeDays = nextActiveDays(userData.funnel?.activeDays);
+    if (activeDays) updateData["funnel.activeDays"] = activeDays;
 
     // Si el usuario no tiene país guardado, intentar obtenerlo ahora
     if (!userData.pais) {

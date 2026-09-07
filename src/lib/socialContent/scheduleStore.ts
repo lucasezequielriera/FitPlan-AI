@@ -1,8 +1,9 @@
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
+import { dateIdToDayIndex, madridDateId, madridParts } from "@/lib/dates/madrid";
 
 const DOC_COLLECTION = "config";
 const DOC_ID = "socialSchedule";
-const MADRID_TZ = "Europe/Madrid";
+
 
 export type SocialSchedule = {
   enabled: boolean;
@@ -37,24 +38,6 @@ const DEFAULT_SCHEDULE: SocialSchedule = { enabled: true, timesLocal: ["20:30", 
 
 const TIME_RE = /^\d{2}:\d{2}$/;
 
-function madridParts(at: Date): Record<string, string> {
-  const fmt = new Intl.DateTimeFormat("en-GB", {
-    timeZone: MADRID_TZ,
-    hourCycle: "h23",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-  const out: Record<string, string> = {};
-  for (const part of fmt.formatToParts(at)) {
-    if (part.type !== "literal") out[part.type] = part.value;
-  }
-  return out;
-}
-
 /** Minutos que Madrid va por delante de UTC en ese instante (60 en CET, 120 en CEST). */
 export function madridOffsetMinutes(at: Date): number {
   const p = madridParts(at);
@@ -73,12 +56,6 @@ export function madridOffsetMinutes(at: Date): number {
 function madridMinutesOfDay(at: Date): number {
   const p = madridParts(at);
   return Number(p.hour) * 60 + Number(p.minute);
-}
-
-/** Fecha "YYYY-MM-DD" según el calendario de Madrid (base de los IDs de doc). */
-export function madridDateId(at: Date): string {
-  const p = madridParts(at);
-  return `${p.year}-${p.month}-${p.day}`;
 }
 
 function minutesToHHMM(totalMinutes: number): string {
@@ -179,10 +156,7 @@ export function slotDocId(dateId: string, timeLocal: string): string {
  * (01:30 Madrid en CEST es 23:30 UTC del día anterior), lo que rompía la
  * garantía de cobertura de la rotación.
  */
-export function dateIdToDayIndex(dateId: string): number {
-  const [y, mo, d] = dateId.split("-").map((n) => parseInt(n, 10));
-  return Math.floor(Date.UTC(y, mo - 1, d) / 86400000);
-}
+export { dateIdToDayIndex, madridDateId };
 
 /**
  * Si corresponde generar hoy dado un intervalo de N días (ver

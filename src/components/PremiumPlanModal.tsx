@@ -10,6 +10,7 @@ import {
   PLANS_USD_UI,
 } from "@/lib/stripePlanPrices";
 import { trackEvent } from "@/lib/analytics";
+import { trackFunnel } from "@/lib/funnel/client";
 
 export interface PremiumPlanModalProps {
   isOpen: boolean;
@@ -194,6 +195,10 @@ export default function PremiumPlanModal({
 
   useEffect(() => {
     if (isOpen) {
+      // Hito del embudo: distingue "no le interesa pagar" de "nunca llegó a ver
+      // el precio", que son problemas opuestos. Se marca aquí y no en cada
+      // botón que abre el modal porque todos pasan por este componente.
+      trackFunnel(userId, "paywall");
       const detectProvider = async () => {
         setLoadingProvider(true);
         try {
@@ -224,7 +229,7 @@ export default function PremiumPlanModal({
       };
       void detectProvider();
     }
-  }, [isOpen]);
+  }, [isOpen, userId]);
 
   if (!isOpen) return null;
 
@@ -247,6 +252,7 @@ export default function PremiumPlanModal({
     try {
       const selected = plans.find((p) => p.type === planType);
       const normalizedCurrency = paymentProvider === "stripe" ? stripeCurrency.toUpperCase() : "ARS";
+      trackFunnel(userId, "checkout");
       trackEvent("begin_checkout", {
         source: "premium-modal",
         plan_type: planType,

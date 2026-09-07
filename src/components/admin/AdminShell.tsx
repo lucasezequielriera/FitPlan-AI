@@ -8,6 +8,7 @@ import { getDbSafe } from "@/lib/firebase";
 import { adminFetch } from "@/lib/adminAuthClient";
 import {
   FaChartLine,
+  FaFilter,
   FaUserFriends,
   FaVideo,
   FaDumbbell,
@@ -47,6 +48,7 @@ import {
 
 export type AdminSectionId =
   | "resumen"
+  | "embudo"
   | "clientes"
   | "contenido"
   | "ejercicios"
@@ -66,6 +68,7 @@ export type NavItem = {
 
 export const NAV_ITEMS: NavItem[] = [
   { id: "resumen", label: "Resumen", icon: FaChartLine, href: "/admin" },
+  { id: "embudo", label: "Embudo", icon: FaFilter, href: "/admin/embudo" },
   { id: "clientes", label: "Clientes", icon: FaUserFriends, href: "/admin/clientes-fitplan" },
   { id: "contenido", label: "Contenido", icon: FaVideo, href: "/admin/configuraciones/contenido-social" },
   { id: "ejercicios", label: "Ejercicios", icon: FaDumbbell, href: "/admin/configuraciones/ejercicios" },
