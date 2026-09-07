@@ -414,6 +414,26 @@ export default function HomeLanding({ locale }: HomeLandingProps) {
           </motion.div>
         </section>
 
+        {/* Puerta a la landing de HYROX. Sin este enlace la página quedaba
+            huérfana (solo alcanzable por el sitemap), y su única razón de ser
+            es que la encuentren: para Google un enlace interno desde la home es
+            la señal más fuerte de que una página importa. */}
+        <section className="mx-auto max-w-5xl px-3 pb-4 sm:px-6">
+          <Link
+            href="/hyrox"
+            className="block rounded-2xl border border-[var(--landing-border)] bg-[var(--landing-surface)] p-5 transition-colors hover:border-[var(--landing-accent)]/50 sm:p-7"
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--landing-accent)]">
+              {c.hyroxKicker}
+            </p>
+            <h2 className="mt-2 text-lg font-semibold text-[var(--foreground)] sm:text-xl">{c.hyroxTitle}</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[var(--landing-muted)]">{c.hyroxBody}</p>
+            <span className="mt-3 inline-block text-sm font-semibold text-[var(--landing-accent)]">
+              {c.hyroxCta} →
+            </span>
+          </Link>
+        </section>
+
         <section className="border-t border-[var(--landing-border)] bg-[color-mix(in_oklab,var(--foreground)_2.5%,transparent)]">
           <div className="mx-auto max-w-5xl px-3 py-10 sm:px-6 sm:py-16">
             <h2 className="text-xl sm:text-2xl md:text-3xl font-semibold text-[var(--foreground)] tracking-tight text-balance">

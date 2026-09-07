@@ -29,7 +29,7 @@ export const HYROX_LANDING = {
   heroTitleA: "Faltan semanas para tu HYROX.",
   heroTitleB: "No un plan de 16.",
   heroSub:
-    "Casi todos los planes de HYROX asumen 12 o 16 semanas. La gente se apunta a una carrera cuando faltan siete. Un plan de 16 semanas recortado por la mitad no es un plan de 8: es un plan de 16 mal hecho.",
+    "Los planes de HYROX suelen venir en bloques cerrados de 12 o 16 semanas. Pero a una carrera te apuntas cuando te apuntas, y un plan de 16 semanas recortado por la mitad no es un plan de 8: es un plan de 16 mal hecho.",
   heroCta: "Crear mi plan HYROX",
   heroCtaSecondary: "Ver qué incluye",
   heroNote: `Incluido en Premium, desde ${EUR.monthly.price} €/mes. Cancelas cuando quieras.`,
@@ -46,7 +46,7 @@ export const HYROX_LANDING = {
    */
   thesisTitle: "La carrera es, como mínimo, la mitad de la prueba",
   thesisBody:
-    "Se corren 8 km repartidos en ocho tramos de uno. Para un corredor rápido eso es la mitad del tiempo total; cuanto más lento corres, más se lleva — puede pasar del 58%. En dobles pesa todavía más de lo que parece: corréis los 8 km enteros los dos, pero repartís el trabajo de estaciones, así que haces el 100% de la carrera con la mitad de la fuerza. Si vienes del gimnasio, ahí está casi todo tu margen — y también el riesgo, porque subir volumen de carrera demasiado rápido es la forma más común de llegar lesionado a la salida.",
+    "Se corren 8 km repartidos en ocho tramos de uno. Para un corredor rápido eso es la mitad del tiempo total; cuanto más lento corres, más se lleva — puede pasar del 58%. En dobles pesa todavía más de lo que parece: corréis los 8 km enteros los dos, pero repartís el trabajo de estaciones, así que haces el 100% de la carrera con la mitad de la fuerza. Si vienes del gimnasio, ahí está casi todo tu margen — y también el riesgo, porque el volumen de carrera es lo que más fácil se sube demasiado rápido cuando se viene de la fuerza.",
 
   featuresTitle: "Qué hace tu plan que un PDF no hace",
   features: [
@@ -56,7 +56,7 @@ export const HYROX_LANDING = {
     },
     {
       title: "Más base si no corres, menos si ya corres",
-      body: "Quien no corre recibe más semanas de rodaje y menos intensidad. No es por ir suave: los tendones y los huesos tardan más en adaptarse que el sistema cardiovascular, así que el cuerpo aguanta el esfuerzo antes de que las estructuras estén listas. Saltarse ese margen es la vía más rápida a una lesión por sobrecarga.",
+      body: "Quien no corre recibe más semanas de rodaje y menos intensidad. No es por ir suave: los tendones y los huesos tardan más en adaptarse que el sistema cardiovascular, así que el cuerpo aguanta el esfuerzo antes de que las estructuras estén listas. Respetar ese margen es la diferencia entre llegar entrenado y llegar tocado.",
     },
     {
       title: "Tus ritmos, no unos genéricos",

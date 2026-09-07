@@ -35,6 +35,10 @@ export interface HomeLandingCopy {
   expertSub: string;
   expertBullets: string[];
   featuresTitle: string;
+  hyroxKicker: string;
+  hyroxTitle: string;
+  hyroxBody: string;
+  hyroxCta: string;
   features: { title: string; body: string }[];
   intakeQuestion: string;
   intakeLink: string;
@@ -110,6 +114,11 @@ const es: HomeLandingCopy = {
     "Macros y cantidades exactas, no aproximaciones",
     "Se recalcula cada mes con tu progreso",
   ],
+  hyroxKicker: "¿Compites en HYROX?",
+  hyroxTitle: "Plan HYROX adaptado a las semanas que te quedan",
+  hyroxBody:
+    "Fases repartidas según el tiempo real hasta tu carrera, ritmos calculados sobre tu marca de 5 km y estrategia de las 8 estaciones. Individual, dobles y relevos.",
+  hyroxCta: "Ver el plan HYROX",
   featuresTitle: "Todo lo que necesitas en la app",
   features: [
     {
@@ -227,6 +236,11 @@ const en: HomeLandingCopy = {
     "Exact macros and portions, not rough estimates",
     "Recalculated every month with your progress",
   ],
+  hyroxKicker: "Racing HYROX?",
+  hyroxTitle: "A HYROX plan built around the weeks you actually have left",
+  hyroxBody:
+    "Phases split by the real time until race day, paces calculated from your 5k, and a strategy for all 8 stations. Individual, doubles and relay.",
+  hyroxCta: "See the HYROX plan",
   featuresTitle: "Everything you need in the app",
   features: [
     {
