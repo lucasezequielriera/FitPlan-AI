@@ -33,8 +33,8 @@ export const PLAN_MONTHS: Record<PlanTypeKey, number> = {
  * premium, admin, Telegram, carruseles, ARS de MercadoPago) deriva de acá.
  */
 const PRICES: Record<"eur" | "usd", Record<PlanTypeKey, number>> = {
-  eur: { monthly: 14.99, quarterly: 39, annual: 99 },
-  usd: { monthly: 16.99, quarterly: 44.99, annual: 109.99 },
+  eur: { monthly: 5, quarterly: 12, annual: 25 },
+  usd: { monthly: 5.99, quarterly: 13.99, annual: 26.99 },
 };
 
 export function getStripeSubscriptionPlans(currency: "eur" | "usd"): Record<PlanTypeKey, StripePlanLine> {
