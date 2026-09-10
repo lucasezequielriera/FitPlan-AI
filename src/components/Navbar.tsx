@@ -97,6 +97,12 @@ export default function Navbar({ minimal = false }: { minimal?: boolean }) {
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const desktopAccountRef = useRef<HTMLDivElement | null>(null);
   const adminNotificationsRef = useRef<HTMLDivElement | null>(null);
+  // La hoja de Cuenta de móvil necesita su propio ref: el manejador de "clic
+  // fuera" de más abajo escucha `mousedown` en `document`, y el
+  // `stopPropagation` del onClick de la hoja NO evita que ese escuchador se
+  // ejecute. Sin este ref, tocar cualquier opción cerraba la hoja antes de que
+  // el click llegase al botón: el menú era inusable en móvil.
+  const mobileAccountSheetRef = useRef<HTMLDivElement | null>(null);
   const tabBarRef = useRef<HTMLDivElement | null>(null);
 
   const isPlanPage = router.pathname === "/plan";
@@ -437,7 +443,11 @@ export default function Navbar({ minimal = false }: { minimal?: boolean }) {
     if (!accountMenuOpen && !adminNotificationsOpen) return;
     const handleDown = (e: MouseEvent) => {
       const t = e.target as Node;
-      if (desktopAccountRef.current?.contains(t) || adminNotificationsRef.current?.contains(t)) {
+      if (
+        desktopAccountRef.current?.contains(t) ||
+        adminNotificationsRef.current?.contains(t) ||
+        mobileAccountSheetRef.current?.contains(t)
+      ) {
         return;
       }
       setAccountMenuOpen(false);
@@ -932,6 +942,7 @@ export default function Navbar({ minimal = false }: { minimal?: boolean }) {
             initial={reduceMotion ? undefined : { y: 24 }}
             animate={{ y: 0 }}
             transition={{ type: "spring", damping: 28, stiffness: 320 }}
+            ref={mobileAccountSheetRef}
             className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-t-2xl border border-border bg-surface p-4 pb-[calc(env(safe-area-inset-bottom)+16px)]"
             onClick={(e) => e.stopPropagation()}
           >
