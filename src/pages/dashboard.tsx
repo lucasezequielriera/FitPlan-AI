@@ -484,10 +484,13 @@ export default function Dashboard() {
 
   return (
     <div className="relative min-h-screen overflow-x-hidden max-w-full">
+      {/* El robots sale de NoIndexHead, igual que en las otras dos ramas. Tenerlo
+          repetido a mano aquí dejaba dos sitios que actualizar y solo uno que
+          nadie recordaría — justo lo que este componente vino a evitar. */}
+      <NoIndexHead />
       <Head>
         <title>{dash(locale, "pageTitle")}</title>
         <meta name="description" content={dash(locale, "pageDesc")} />
-        <meta name="robots" content="noindex, nofollow" />
         <meta property="og:title" content={dash(locale, "ogTitle")} />
         <meta property="og:url" content="https://www.fitplan-ai.com/dashboard" />
       </Head>
