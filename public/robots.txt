@@ -10,6 +10,7 @@ Disallow: /hyrox/plan
 # Segunda barrera además del `noindex` de cada página — si un return
 # temprano vuelve a dejar el meta fuera del HTML servido, esto lo cubre.
 Disallow: /dashboard
+Disallow: /plan
 Disallow: /_next/
 Disallow: /404
 

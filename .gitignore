@@ -55,3 +55,9 @@ next-env.d.ts
 # OS
 .DS_Store
 Thumbs.db
+
+# Duplicados que crea macOS/iCloud al copiar un archivo ("robots 2.txt").
+# Uno llegó a commitearse y quedó sirviéndose en público con una versión vieja
+# de robots.txt — un archivo estático en `public/` se publica aunque nadie lo
+# enlace.
+* [0-9].*

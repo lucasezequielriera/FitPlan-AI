@@ -81,6 +81,23 @@ interface TrainingPlan {
   exercise_media_overrides?: Record<string, { demo_video_url?: string; demo_poster_url?: string }>;
 }
 
+/**
+ * `noindex` del plan, en TODAS las ramas de render.
+ *
+ * Mismo bug que se arregló en /payment/success (#28) y /dashboard (#36): el
+ * meta vivía solo en el return principal, pero mientras `plan` o `user` son
+ * null se sale por un return temprano — y eso es lo que entrega el servidor.
+ * `/plan` tampoco estaba en el `Disallow` de robots.txt, así que no tenía
+ * ninguna red de seguridad.
+ */
+function NoIndexHead() {
+  return (
+    <Head>
+      <meta name="robots" content="noindex, nofollow" />
+    </Head>
+  );
+}
+
 export default function PlanPage() {
   const router = useRouter();
   const { plan, user, planId, planMultiFase, planCreatedAt, setUser, setPlan, setPlanId, setPlanMultiFase, setPlanCreatedAt } = usePlanStore();
@@ -2319,9 +2336,12 @@ export default function PlanPage() {
   // Guard de carga: recién acá es seguro devolver early return, todos los hooks
   // (useMemo de tdee/proyecciones/mesesCambiosVisibles) ya se ejecutaron arriba.
   if (!plan || !user) {
-    if (!recoveringPlan) return null;
+    // Las dos salidas llevan el meta: esta rama es la que renderiza el servidor
+    // mientras el plan no está cargado, y es la que ve un buscador.
+    if (!recoveringPlan) return <NoIndexHead />;
     return (
       <div className="min-h-screen pb-[calc(var(--client-bottom-nav-h,4rem)+env(safe-area-inset-bottom))] md:pb-0">
+        <NoIndexHead />
         <Navbar />
         <div className="flex min-h-[50vh] items-center justify-center px-4">
           <div className="text-sm text-[var(--landing-muted)]">{p(locale, "loadingPlan")}</div>
@@ -2988,10 +3008,10 @@ export default function PlanPage() {
 
   return (
     <div className="min-h-screen">
+      <NoIndexHead />
       <Head>
         <title>{p(locale, "headTitle")}</title>
         <meta name="description" content="Tu plan de alimentación y entrenamiento personalizado con IA. Menú semanal detallado, rutinas de gym y seguimiento de progreso." />
-        <meta name="robots" content="noindex, nofollow" />
         <meta property="og:title" content="Mi Plan | FitPlan" />
         <meta property="og:url" content="https://www.fitplan-ai.com/plan" />
       </Head>

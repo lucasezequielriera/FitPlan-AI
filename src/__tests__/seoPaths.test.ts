@@ -77,15 +77,22 @@ describe("Coherencia de páginas indexables", () => {
     // Pasó dos veces: /payment/success (issue #28) y /dashboard (issue #36),
     // ambas sirviendo HTML indexable pese a tener el meta en el código.
     //
-    // LÍMITES CONOCIDOS de esta comprobación, verificados con mutaciones: solo
-    // reconoce returns dentro de bloques `if (...) { }` indentados a dos
-    // espacios. NO detecta un `if` de una línea sin llaves, un `return` dentro
-    // de un `switch`, un ternario en el return, ni ramas que vivan en otro
-    // archivo. Cubre la forma en que el bug apareció las dos veces, no la
-    // totalidad del espacio de fallo — la red que no tiene agujeros es el
-    // `Disallow` de robots.txt, que se comprueba más abajo.
+    // Detecta los tres casos en que el bug apareció de verdad (#28, #36, #38),
+    // verificado reintroduciendo cada uno.
+    //
+    // LÍMITES CONOCIDOS, también verificados con mutaciones: solo entra en
+    // bloques `if (...) { }` indentados a dos espacios. NO ve un `return`
+    // dentro de un `switch`, un ternario en el return, ni ramas que vivan en
+    // otro archivo. Cubre la forma del bug observada, no todo el espacio de
+    // fallo — la red sin agujeros es el `Disallow` de robots.txt, más abajo.
+    //
+    // Un límite más, sin caso real hoy: el troceado por `return` mira el texto
+    // hasta el return siguiente, así que si entre un `return null;` y el
+    // próximo hubiera código no relacionado que contenga por casualidad
+    // "noindex", esa rama se daría por buena.
     const paginas = [
       "src/pages/dashboard.tsx",
+      "src/pages/plan.tsx",
       "src/pages/payment/success.tsx",
       "src/pages/payment/failure.tsx",
       "src/pages/payment/pending.tsx",
@@ -110,8 +117,17 @@ describe("Coherencia de páginas indexables", () => {
         // es una rama de render y no debe contarse.
         const renderiza = /return\s*\(\s*\n?\s*</.test(bloque) || /return\s*</.test(bloque) || /return\s+null\s*;/.test(bloque);
         if (!renderiza) continue;
-        if (!/noindex|NoIndexHead/i.test(bloque)) {
-          fallos.push(`${rel}: ${bloque.trim().split("\n")[0].slice(0, 60)}`);
+        // Se mira CADA return del bloque por separado, no el bloque entero. Un
+        // `if` puede tener dos salidas —`if (!x) return <A/>; return (<B/>)`—
+        // y con la comprobación a nivel de bloque bastaba con que una llevara
+        // el marcador para dar la otra por buena. Pasó en plan.tsx (#38).
+        const salidas = bloque.split(/\breturn\b/).slice(1);
+        for (const salida of salidas) {
+          const renderizaEsta = /^\s*\(\s*</.test(salida) || /^\s*</.test(salida) || /^\s*null\s*;/.test(salida);
+          if (!renderizaEsta) continue;
+          if (!/noindex|NoIndexHead|<Seo/i.test(salida)) {
+            fallos.push(`${rel}: return ${salida.trim().split("\n")[0].slice(0, 45)}`);
+          }
         }
       }
     }
@@ -131,9 +147,20 @@ describe("Coherencia de páginas indexables", () => {
       .filter((l) => l.trim().startsWith("Disallow:"))
       .map((l) => l.split("Disallow:")[1].trim());
 
-    for (const ruta of ["/dashboard", "/hyrox/plan"]) {
+    for (const ruta of ["/dashboard", "/plan", "/hyrox/plan"]) {
       expect({ ruta, protegida: bloqueadas.some((b) => ruta.startsWith(b)) }).toEqual({ ruta, protegida: true });
     }
+  });
+
+  it("no hay archivos duplicados sirviéndose desde public/", () => {
+    // Todo lo que está en `public/` se publica aunque nadie lo enlace. Un
+    // `robots 2.txt` —duplicado que crea macOS al copiar— llegó a commitearse
+    // y quedó sirviéndose con una versión vieja de las reglas.
+    const duplicados = fs
+      .readdirSync(path.join(process.cwd(), "public"), { recursive: true } as { recursive: true })
+      .map(String)
+      .filter((f) => / \d+\.[a-z]+$/i.test(f));
+    expect(duplicados).toEqual([]);
   });
 
   it("la app tras login NO se envía ni se indexa", () => {
