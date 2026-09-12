@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { requireUser } from "@/lib/userAuthServer";
 
 /**
  * API para que usuarios respondan a sus mensajes
@@ -15,7 +16,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(500).json({ error: "Firebase Admin SDK no configurado" });
     }
 
-    const { userId, messageId, reply, userName } = req.body;
+  // La identidad sale del ID token verificado, NUNCA del cuerpo (issue #27).
+    const auth = await requireUser(req);
+    if (!auth.ok) return res.status(auth.status).json({ error: "Identidad no verificada" });
+    const userId = auth.uid;
+
+    const { messageId, reply, userName } = req.body;
 
     if (!userId || !messageId || !reply) {
       return res.status(400).json({ error: "Faltan userId, messageId o reply" });

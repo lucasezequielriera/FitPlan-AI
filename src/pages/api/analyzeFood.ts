@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
+import { requireUser } from "@/lib/userAuthServer";
 
 type UiLang = "es" | "en";
 
@@ -175,7 +176,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const lang = uiLangFromBody(req.body);
-  const { foodDescription, planCalories, userObjective, planId, userId, userTimezone, currentHour }: AnalyzeFoodRequest = req.body;
+  // La identidad sale del ID token verificado, NUNCA del cuerpo (issue #27).
+  const auth = await requireUser(req);
+  if (!auth.ok) return res.status(auth.status).json({ error: "Identidad no verificada" });
+  const userId = auth.uid;
+
+  const { foodDescription, planCalories, userObjective, planId, userTimezone, currentHour }: AnalyzeFoodRequest = req.body;
 
   if (!foodDescription || typeof foodDescription !== "string" || foodDescription.trim().length === 0) {
     return res.status(400).json({ error: apiMsg(lang, "foodRequired") });

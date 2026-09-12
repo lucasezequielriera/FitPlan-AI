@@ -4,6 +4,7 @@ import { useAppLocale } from "@/contexts/AppLocaleContext";
 import { useAuthStore } from "@/store/authStore";
 import { adminFetch } from "@/lib/adminAuthClient";
 import { dash } from "@/lib/i18n/appUi";
+import { authedFetch } from "@/lib/userAuthClient";
 
 /**
  * Modales que antes vivían dentro de `Navbar.tsx` (DESIGN_SYSTEM.md §11.8
@@ -46,7 +47,7 @@ export function SendMessageModal({
     setError(null);
 
     try {
-      const response = await fetch("/api/sendMessage", {
+      const response = await authedFetch("/api/sendMessage", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

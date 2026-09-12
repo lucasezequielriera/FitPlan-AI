@@ -32,12 +32,48 @@ const ENDPOINTS_DE_USUARIO = [
   "src/pages/api/checkStripePayment.ts",
   "src/pages/api/updateLastLogin.ts",
   "src/pages/api/funnel/track.ts",
+  // Segunda tanda (#27-bis): el mismo patrón se repetía en ocho endpoints más.
+  "src/pages/api/saveExerciseWeights.ts",
+  "src/pages/api/saveUserLocation.ts",
+  "src/pages/api/saveMonthlySnapshot.ts",
+  "src/pages/api/analyzeFood.ts",
+  "src/pages/api/generatePlan.ts",
+  "src/pages/api/user/replyMessage.ts",
+  "src/pages/api/user/markMessageRead.ts",
+  "src/pages/api/sendMessage.ts",
 ];
+
+/**
+ * Endpoints donde el UID efectivo NO siempre es el de quien llama, así que no
+ * cumplen la regla general de `= auth.uid` y se comprueban aparte.
+ */
+const EXCEPCIONES = new Map<string, string>([
+  // El admin guarda snapshots de OTROS usuarios desde el panel.
+  ["src/pages/api/saveMonthlySnapshot.ts", "requireSelfOrAdmin"],
+  // Sirve también a quien no ha iniciado sesión: sin token es un usuario free.
+  ["src/pages/api/generatePlan.ts", "authOpcional"],
+]);
 
 describe("#27 — la identidad sale del token, no del cuerpo", () => {
   it("todos verifican identidad antes de actuar", () => {
-    const sinVerificar = ENDPOINTS_DE_USUARIO.filter((f) => !/requireUser/.test(read(f)));
+    const sinVerificar = ENDPOINTS_DE_USUARIO.filter(
+      (f) => !/requireUser|requireSelfOrAdmin/.test(read(f))
+    );
     expect(sinVerificar).toEqual([]);
+  });
+
+  it("las excepciones son deliberadas y están documentadas", () => {
+    // Dos endpoints no pueden usar `= auth.uid` a secas. Que sean excepciones
+    // no las exime: se comprueba que usen el mecanismo que les corresponde, y
+    // no que simplemente les falte la verificación.
+    for (const [archivo, mecanismo] of EXCEPCIONES) {
+      const src = sinComentarios(read(archivo));
+      expect({ archivo, usa: mecanismo, ok: src.includes(mecanismo) }).toEqual({
+        archivo,
+        usa: mecanismo,
+        ok: true,
+      });
+    }
   });
 
   it("ninguno lee `userId` del cuerpo de la petición", () => {
@@ -45,6 +81,11 @@ describe("#27 — la identidad sale del token, no del cuerpo", () => {
     // que alguien reintrodujo el patrón.
     const ofensores: string[] = [];
     for (const f of ENDPOINTS_DE_USUARIO) {
+      // `saveMonthlySnapshot` sí lee un userId del cuerpo, a propósito: es el
+      // usuario OBJETIVO que indica el admin, y `requireSelfOrAdmin` comprueba
+      // que quien llama tenga derecho a actuar sobre él. Es distinto de sacar
+      // la identidad de quien llama del cuerpo, que es el bug.
+      if (EXCEPCIONES.get(f) === "requireSelfOrAdmin") continue;
       const src = sinComentarios(read(f));
       // `userId` desestructurado de req.body, en cualquier orden de campos.
       if (/const\s*\{[^}]*\buserId\b[^}]*\}\s*=\s*(req\.body|\(req\.body)/.test(src)) {
@@ -58,6 +99,7 @@ describe("#27 — la identidad sale del token, no del cuerpo", () => {
     for (const f of ENDPOINTS_DE_USUARIO) {
       const src = sinComentarios(read(f));
       if (!/\buserId\b/.test(src)) continue; // no todos lo nombran
+      if (EXCEPCIONES.has(f)) continue; // comprobados en su propio test
       expect({ endpoint: f, derivaDelToken: /=\s*auth\.uid/.test(src) }).toEqual({
         endpoint: f,
         derivaDelToken: true,
@@ -71,8 +113,13 @@ describe("#27 — los llamadores adjuntan el token", () => {
     // Si un llamador se queda en `fetch`, el endpoint responderá 401 y la
     // función deja de funcionar. Es la forma de romper el pago sin que ningún
     // test unitario se entere.
-    const rutas = ["saveUserProfile", "savePlan", "createPayment", "createStripePayment", "checkStripePayment"];
-    const patron = new RegExp(`(?<!authed)fetch\\(\\s*[\`"']/api/(${rutas.join("|")})`, "g");
+    const rutas = [
+      "saveUserProfile", "savePlan", "createPayment", "createStripePayment", "checkStripePayment",
+      "saveExerciseWeights", "saveUserLocation", "saveMonthlySnapshot", "analyzeFood",
+      "generatePlan", "user/replyMessage", "user/markMessageRead", "sendMessage",
+    ];
+    // `adminFetch` también adjunta token (el del admin), así que vale.
+    const patron = new RegExp(`(?<!authed)(?<!admin)fetch\\(\\s*[\`"']/api/(${rutas.join("|")})`, "g");
 
     const ofensores: string[] = [];
     const walk = (dir: string) => {
@@ -80,7 +127,19 @@ describe("#27 — los llamadores adjuntan el token", () => {
         const rel = `${dir}/${e.name}`;
         if (e.isDirectory()) walk(rel);
         else if (/\.tsx?$/.test(e.name) && !rel.startsWith("src/pages/api")) {
-          if (patron.test(sinComentarios(read(rel)))) ofensores.push(rel);
+          const src = sinComentarios(read(rel));
+          let m: RegExpExecArray | null;
+          patron.lastIndex = 0;
+          while ((m = patron.exec(src)) !== null) {
+            // Adjuntar el token a mano también vale: `authStore` lo hace así
+            // porque lo saca del `userCredential` recién creado, sin depender
+            // de que `auth.currentUser` ya esté poblado.
+            const alrededor = src.slice(m.index, m.index + 400);
+            if (!/Authorization/.test(alrededor)) {
+              ofensores.push(rel);
+              break;
+            }
+          }
           patron.lastIndex = 0;
         }
       }

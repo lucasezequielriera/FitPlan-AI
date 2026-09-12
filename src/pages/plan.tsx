@@ -19,6 +19,7 @@ import { p, pFmt, exerciseCountLabel, dietTypeLabel, intensityLabel } from "@/li
 import { goalLabel, difficultyLabel } from "@/lib/i18n/appUi";
 import { translatePlanDayLabel, translateMealSlotName, translateMuscleGroup } from "@/lib/i18n/planContentLocale";
 import { loadCachedPlanSnapshot, saveCachedPlanSnapshot } from "@/lib/planLocalCache";
+import { authedFetch } from "@/lib/userAuthClient";
 
 const PremiumPlanModal = dynamic(() => import("@/components/PremiumPlanModal"), { ssr: false });
 const FoodTrackingModal = dynamic(() => import("@/components/FoodTrackingModal"), { ssr: false });
@@ -1990,7 +1991,7 @@ export default function PlanPage() {
       );
       const macrosObjetivoRegen = calcularMacrosObjetivo(caloriasObjetivoRegen, userActualizado.pesoKg, userActualizado.objetivo, intensidadFinal);
 
-      const resp = await fetch("/api/generatePlan", {
+      const resp = await authedFetch("/api/generatePlan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -2548,7 +2549,7 @@ export default function PlanPage() {
       const macrosObjetivoNuevo = calcularMacrosObjetivo(caloriasObjetivoNuevo, userInput.pesoKg, userInput.objetivo, intensidadNueva);
 
       // Generar nuevo plan
-      const response = await fetch("/api/generatePlan", {
+      const response = await authedFetch("/api/generatePlan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -4924,7 +4925,7 @@ export default function PlanPage() {
                       );
                       const macrosObjetivoEdicion = calcularMacrosObjetivo(caloriasObjetivoEdicion, userActualizado.pesoKg, userActualizado.objetivo, intensidadEdicion);
 
-                      const resp = await fetch("/api/generatePlan", {
+                      const resp = await authedFetch("/api/generatePlan", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({

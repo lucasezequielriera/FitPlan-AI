@@ -4,6 +4,7 @@ import { generateTemplateBasedPlan, type PlanGenerationLocale } from "@/lib/temp
 import { ensureMealMacrosAprox } from "@/lib/mealMacros";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { calculateBMR, clampCaloriesToSafeFloor } from "@/utils/calculations";
+import { requireUser } from "@/lib/userAuthServer";
 
 // Interface para contexto multi-fase
 interface ContextoMultiFase {
@@ -152,7 +153,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // ============================================================================
   // VERIFICAR SI EL USUARIO ES PREMIUM PARA DECIDIR: TEMPLATES VS OPENAI
   // ============================================================================
-  const userId = (req.body as Record<string, unknown>).userId as string | undefined;
+  // Identidad OPCIONAL: este endpoint sirve también a quien no ha iniciado
+  // sesión (cae a plantillas estáticas). Pero el `userId` NO puede venir del
+  // cuerpo: con el UID de un usuario premium, cualquiera obtenía generación
+  // con IA gratis a su costa (issue #27). Sin token válido se trata como
+  // anónimo, que es exactamente el comportamiento de un usuario free.
+  const authOpcional = await requireUser(req);
+  const userId = authOpcional.ok ? authOpcional.uid : undefined;
   let isPremium = false;
   
   // Obtener estado premium del usuario si está disponible

@@ -47,6 +47,15 @@ cubra el cambio.
 
 ---
 
+### 2026-09-12 · Verificar identidad en los ocho endpoints restantes (#27-bis)
+**Categoría:** datos de usuarios existentes
+**Se le preguntó:** al cerrar #27, la revisión encontró ocho endpoints más con el mismo patrón. Se le señaló que `user/replyMessage` y `markMessageRead` son los que más preocupan, porque leer conversaciones ajenas es privacidad, no solo integridad.
+**Decidió:** "sí, arregla esos ocho"
+**Autoriza:** derivar la identidad del ID token verificado (`requireUser`) en `saveExerciseWeights.ts`, `saveUserLocation.ts`, `saveMonthlySnapshot.ts`, `analyzeFood.ts`, `generatePlan.ts`, `user/replyMessage.ts`, `user/markMessageRead.ts` y `sendMessage.ts`; adaptar sus llamadores a `authedFetch`; y desplegarlo.
+
+NO autoriza cambiar qué escriben esos endpoints, su forma de datos, ni la lógica de generación de planes.
+**Estado:** vigente
+
 ### 2026-09-12 · Verificar identidad en los endpoints de usuario (#27)
 **Categoría:** pagos
 **Se le preguntó:** tras cerrar #13 y #25, se le señaló que #27 es el que más se les parece: endpoints que aceptan un `userId` del cuerpo sin comprobar que quien llama sea ese usuario. Conociendo un UID ajeno se puede sobrescribir su perfil, crear planes en su cuenta o generar un checkout a su nombre.

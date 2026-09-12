@@ -4684,7 +4684,7 @@ export function AdminApp({ view = "dashboard" }: { view?: AdminView }) {
                             const plans = userHistory.plans as Array<{ id?: string; plan?: { plan?: unknown; user?: unknown } }>;
                             if (plans && plans.length > 0) {
                               const latestPlan = plans[0];
-                              const response = await fetch("/api/saveMonthlySnapshot", {
+                              const response = await adminFetch("/api/saveMonthlySnapshot", {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify({
