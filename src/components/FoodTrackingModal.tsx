@@ -5,6 +5,7 @@ import { getDbSafe } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { useAppLocale } from "@/contexts/AppLocaleContext";
 import { p, pFmt } from "@/lib/i18n/planUi";
+import { authedFetch } from "@/lib/userAuthClient";
 
 interface FoodTrackingModalProps {
   isOpen: boolean;
@@ -112,7 +113,7 @@ export default function FoodTrackingModal({ isOpen, onClose, planCalories, userO
     }
 
     try {
-      const response = await fetch("/api/analyzeFood", {
+      const response = await authedFetch("/api/analyzeFood", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

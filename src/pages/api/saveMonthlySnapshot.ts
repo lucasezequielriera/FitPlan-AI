@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
+import { requireSelfOrAdmin } from "@/lib/userAuthServer";
 
 /**
  * API para guardar un snapshot mensual del plan de un usuario
@@ -23,7 +24,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    const { userId, planId, planData, userData } = req.body;
+    // El admin llama a este endpoint para OTROS usuarios (ver AdminApp), así
+    // que no vale exigir que el UID del token sea el objetivo: se permite a uno
+    // mismo o al admin, y cualquier otro caso se rechaza (issue #27).
+    const { userId: userIdSolicitado, planId, planData, userData } = req.body;
+    const auth = await requireSelfOrAdmin(req, userIdSolicitado);
+    if (!auth.ok) return res.status(auth.status).json({ error: "Identidad no verificada" });
+    const userId = auth.uid;
 
     if (!userId || !planId || !planData) {
       return res.status(400).json({ error: "Faltan datos requeridos: userId, planId, planData" });

@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getDbSafe } from "@/lib/firebase";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { requireUser } from "@/lib/userAuthServer";
 
 /**
  * API para guardar la ubicación del usuario (ciudad y país) basada en su IP
@@ -11,7 +12,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { userId } = req.body;
+  // La identidad sale del ID token verificado, NUNCA del cuerpo (issue #27).
+  const auth = await requireUser(req);
+  if (!auth.ok) return res.status(auth.status).json({ error: "Identidad no verificada" });
+  const userId = auth.uid;
 
   if (!userId) {
     return res.status(400).json({ error: "userId es requerido" });

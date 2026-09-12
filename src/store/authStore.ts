@@ -63,11 +63,20 @@ export const useAuthStore = create<AuthState>((set) => ({
           console.log("✅ Documento de usuario creado en Firestore");
           
           // Guardar ubicación del usuario inmediatamente después del registro (no bloqueante)
-          fetch("/api/saveUserLocation", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ userId: userCredential.user.uid }),
-          }).catch((err) => {
+          // El token se pide al propio `userCredential.user`, no a
+          // `auth.currentUser`: estamos justo después de crear la cuenta y no
+          // conviene depender de que el SDK ya lo haya poblado. El servidor
+          // deriva el UID del token, así que ya no viaja en el cuerpo.
+          userCredential.user
+            .getIdToken()
+            .then((idToken) =>
+              fetch("/api/saveUserLocation", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+                body: JSON.stringify({}),
+              })
+            )
+            .catch((err) => {
             console.warn("⚠️ No se pudo guardar ubicación del usuario:", err);
             // No bloquear el registro si falla guardar la ubicación
           });

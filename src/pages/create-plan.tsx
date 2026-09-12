@@ -30,6 +30,7 @@ import {
   cpIntensityTag,
 } from "@/lib/i18n/createPlanUi";
 import { trackFunnel } from "@/lib/funnel/client";
+import { authedFetch } from "@/lib/userAuthClient";
 
 // Helper para crear estructura de plan multi-fase
 function crearPlanMultiFase(
@@ -796,7 +797,7 @@ export default function CreatePlan() {
         };
 
         // Usar streaming para mostrar progreso real (temporalmente desactivado)
-        resp = await fetch("/api/generatePlan", {
+        resp = await authedFetch("/api/generatePlan", {
           method: "POST",
           headers: { 
             "Content-Type": "application/json"

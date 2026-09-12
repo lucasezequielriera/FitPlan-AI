@@ -211,7 +211,7 @@ export default function PlanContinuityModal({ isOpen, onClose, planData, registr
       }
 
       // Generar nuevo plan
-      const response = await fetch("/api/generatePlan", {
+      const response = await authedFetch("/api/generatePlan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...nuevoUserInput, userId, locale }),

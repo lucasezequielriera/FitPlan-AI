@@ -52,6 +52,34 @@ export async function requireUser(req: NextApiRequest): Promise<UserAuthResult> 
 }
 
 /**
+ * Identidad verificada, para endpoints donde el UID objetivo puede no ser el
+ * de quien llama: el admin opera sobre otros usuarios de forma legítima.
+ *
+ * Devuelve el UID efectivo sobre el que actuar. Sin esto, la alternativa era
+ * comparar `auth.uid !== userId` a mano en cada endpoint y romper el panel de
+ * admin sin darse cuenta.
+ */
+export async function requireSelfOrAdmin(
+  req: NextApiRequest,
+  targetUserId: string | undefined
+): Promise<{ ok: true; uid: string; isAdmin: boolean } | { ok: false; status: number; code: AuthFailureCode }> {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth;
+
+  // Sin objetivo explícito, se actúa sobre uno mismo.
+  if (!targetUserId || targetUserId === auth.uid) {
+    return { ok: true, uid: auth.uid, isAdmin: false };
+  }
+
+  const db = getAdminDb();
+  if (!db) return { ok: false, status: 501, code: "unconfigured" };
+  const esAdmin = await isAdminUid(db, auth.uid);
+  if (!esAdmin) return { ok: false, status: 403, code: "forbidden" };
+
+  return { ok: true, uid: targetUserId, isAdmin: true };
+}
+
+/**
  * Verifica identidad y acceso a un plan de `planes/{planId}` en un solo paso:
  * pasa si quien llama es el dueño del plan o el admin.
  *

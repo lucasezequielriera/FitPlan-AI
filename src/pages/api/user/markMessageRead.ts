@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
+import { requireUser } from "@/lib/userAuthServer";
 
 /**
  * API para marcar mensaje como leído por el usuario
@@ -16,7 +17,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(500).json({ error: "Firebase Admin SDK no configurado" });
     }
 
-    const { userId, messageId } = req.body;
+  // La identidad sale del ID token verificado, NUNCA del cuerpo (issue #27).
+    const auth = await requireUser(req);
+    if (!auth.ok) return res.status(auth.status).json({ error: "Identidad no verificada" });
+    const userId = auth.uid;
+
+    const { messageId } = req.body;
 
     if (!userId || !messageId) {
       return res.status(400).json({ error: "Faltan userId o messageId" });

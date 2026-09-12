@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FaCheckCircle, FaHistory, FaChevronDown, FaChevronUp } from "react-icons/fa";
+import { authedFetch } from "@/lib/userAuthClient";
 
 interface ExerciseSetTrackerProps {
   exercise: {
@@ -176,7 +177,7 @@ export default function ExerciseSetTracker({
 
     setSaving(true);
     try {
-      const response = await fetch("/api/saveExerciseWeights", {
+      const response = await authedFetch("/api/saveExerciseWeights", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

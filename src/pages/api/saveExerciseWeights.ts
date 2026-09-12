@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { requireUser } from "@/lib/userAuthServer";
 
 interface ExerciseWeightData {
   userId: string;
@@ -26,8 +27,12 @@ export default async function handler(
   }
 
   try {
+    // La identidad sale del ID token verificado, NUNCA del cuerpo (issue #27).
+    const auth = await requireUser(req);
+    if (!auth.ok) return res.status(auth.status).json({ error: "Identidad no verificada" });
+    const userId = auth.uid;
+
     const {
-      userId,
       planId,
       exerciseName,
       week,
@@ -35,7 +40,7 @@ export default async function handler(
       sets,
     } = req.body as Omit<ExerciseWeightData, "date">;
 
-    if (!userId || !planId || !exerciseName || !sets || sets.length === 0) {
+    if (!planId || !exerciseName || !sets || sets.length === 0) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 

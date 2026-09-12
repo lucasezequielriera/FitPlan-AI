@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppLocale } from "@/contexts/AppLocaleContext";
 import { dash, dashFmt } from "@/lib/i18n/appUi";
+import { authedFetch } from "@/lib/userAuthClient";
 
 // Modal de chats del cliente — UI tipo mensajería con burbujas y lista refinada
 export default function UserMessagesModal({
@@ -164,7 +165,7 @@ export default function UserMessagesModal({
 
   const handleMarkAsRead = async (messageId: string) => {
     try {
-      await fetch("/api/user/markMessageRead", {
+      await authedFetch("/api/user/markMessageRead", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, messageId }),
@@ -569,7 +570,7 @@ export default function UserMessagesModal({
 
                             setReplying(true);
                             try {
-                              const response = await fetch("/api/user/replyMessage", {
+                              const response = await authedFetch("/api/user/replyMessage", {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify({
