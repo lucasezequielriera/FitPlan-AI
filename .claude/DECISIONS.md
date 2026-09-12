@@ -47,6 +47,18 @@ cubra el cambio.
 
 ---
 
+### 2026-09-12 · Arreglar los dos fallos silenciosos de pago (#13 y #25)
+**Categoría:** pagos
+**Se le preguntó:** tras revisar los 26 issues abiertos, se le señaló que #13 y #25 eran los dos únicos donde el coste de no arreglarlo es un cliente que paga y no recibe nada, y se le propuso hacerlos juntos por ser el mismo flujo.
+**Decidió:** "sí, arregla el 13 y el 25"
+**Autoriza:**
+- #13 — Que los webhooks de pago (`payment/webhook.ts` de MercadoPago y `payment/stripe-webhook.ts`) devuelvan **500** cuando falla la escritura que activa premium, en vez de 200. El 500 es lo que hace que la pasarela reintente. Los fallos de efectos posteriores (notificaciones, mensaje de bienvenida) siguen devolviendo 200: reintentar solo los duplicaría. Incluye avisar por Telegram cuando ocurre.
+- #25 — Que `fixPremiumUser.ts` **rechace** la petición cuando se pasa un `payment_id` que no se puede verificar como aprobado y perteneciente a ese usuario. Antes se calculaba `paymentVerified` y solo se informaba en la respuesta: el premium se concedía igual.
+- Desplegar ambos.
+
+NO autoriza tocar importes, planes, ni la lógica de cobro en sí.
+**Estado:** vigente
+
 ### 2026-09-09 · Precios a 5 / 12 / 25 EUR
 **Categoría:** pagos
 **Se le preguntó:** que confirmara los tres importes, tras pedir "5 euros el mes, y a partir de ahí los precios promoción". Las promocionales las había elegido el orquestador por su cuenta y `qa` señaló que eso le correspondía a él.

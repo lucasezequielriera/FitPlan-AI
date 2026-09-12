@@ -128,6 +128,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       currentPremium = false;
     }
 
+    // Si se pasó un payment_id, su verificación DECIDE. Antes se calculaba
+    // `paymentVerified` y solo se informaba en la respuesta: el premium se
+    // concedía igual aunque el pago no existiera, estuviera rechazado o
+    // perteneciera a otro usuario (issue #25). Un payment_id inventado bastaba.
+    if (payment_id && !paymentVerified) {
+      console.warn(`🚫 Rechazado: el pago ${payment_id} no está aprobado o no pertenece a ${targetUserId}`);
+      return res.status(422).json({
+        error: "El pago indicado no está aprobado o no corresponde a este usuario",
+        paymentVerified: false,
+      });
+    }
+
+    // Sin payment_id es una corrección manual: ya está detrás del secreto
+    // compartido de arriba, pero se deja registro de que nadie verificó un pago.
+    if (!payment_id) {
+      console.warn(`⚠️ Premium concedido a ${targetUserId} SIN verificar ningún pago (corrección manual)`);
+    }
+
     // Actualizar a premium usando updateDoc (solo actualiza campos, no crea documento)
     const premiumData: any = {
       premium: true,

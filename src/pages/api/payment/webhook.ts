@@ -3,6 +3,7 @@ import { createHmac, timingSafeEqual } from "crypto";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { FieldValue, Timestamp as AdminTimestamp, type Firestore } from "firebase-admin/firestore";
 import { sendTelegramMessage, formatPaymentMessage } from "@/lib/telegram";
+import { alertarActivacionFallida } from "@/lib/payments/activationAlert";
 import { recordMercadoPagoMonthlyEarningIfNew } from "@/lib/adminMonthlyEarningsMercadoPago";
 
 /**
@@ -385,8 +386,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           premiumData.premiumSince = FieldValue.serverTimestamp();
         }
         
+        // La escritura que activa premium va en su PROPIO try, separada de los
+        // efectos posteriores. Antes compartían uno solo, así que un fallo aquí
+        // se registraba y se respondía 200 igual: MercadoPago daba la
+        // notificación por entregada, no reintentaba, y el usuario quedaba
+        // pagando sin premium sin que nadie se enterara (issue #13).
         try {
           await userRef.set(premiumData, { merge: true });
+        } catch (error: unknown) {
+          console.error(`❌ CRÍTICO: pago ${paymentId} cobrado pero NO se pudo activar premium a ${userId}:`, error);
+          await alertarActivacionFallida({
+            proveedor: "MercadoPago",
+            paymentId: String(paymentId),
+            userId,
+            userEmail: typeof userData?.email === "string" ? userData.email : null,
+            error,
+          });
+          // 500 a propósito: es lo que hace que la pasarela reintente. Un 200
+          // aquí sería decirle "ya está resuelto" cuando no lo está.
+          return res.status(500).json({ error: "No se pudo activar premium", retry: true });
+        }
+
+        try {
           console.log(`✅ Usuario ${userId} actualizado a premium. Pago ID: ${paymentId}, Monto: ${payment.transaction_amount} ${payment.currency_id || "ARS"}`);
 
           // Todo lo que sigue en este bloque son efectos que deben ocurrir UNA sola
@@ -458,7 +479,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             }
           }
         } catch (error: unknown) {
-          console.error(`❌ Error al actualizar usuario ${userId} a premium:`, error);
+          // Efectos posteriores (notificación al admin, mensaje de bienvenida).
+          // Que fallen NO justifica un reintento: el premium ya está activado y
+          // reintentar solo duplicaría avisos.
+          console.error(`⚠️ Premium activado para ${userId}, pero falló un efecto posterior:`, error);
         }
       } else {
         console.log(`⚠️ Pago ${paymentId} no está aprobado aún. Estado: ${payment.status}, Detail: ${payment.status_detail}`);

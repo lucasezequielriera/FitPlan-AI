@@ -4,6 +4,7 @@ import { getAdminDb } from "@/lib/firebase-admin";
 import { recordStripeMonthlyEarningIfNew } from "@/lib/adminMonthlyEarningsStripe";
 import { FieldValue, Timestamp as AdminTimestamp, type Firestore } from "firebase-admin/firestore";
 import { sendTelegramMessage, formatPaymentMessage } from "@/lib/telegram";
+import { alertarActivacionFallida } from "@/lib/payments/activationAlert";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
   apiVersion: "2025-11-17.clover",
@@ -203,18 +204,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           ? new Date(currentPeriodEnd * 1000)
           : resolveExpiryByPlan(new Date(), planType);
 
-      await userRef.set(
-        {
-          premium: true,
-          premiumStatus: subscription.status === "trialing" ? "trialing" : "active",
-          premiumPlanType: planType,
-          premiumExpiresAt: AdminTimestamp.fromDate(expiresAt),
-          premiumStripeSubscriptionId: subscription.id,
-          updatedAt: FieldValue.serverTimestamp(),
-          ...(wasPremium ? {} : { premiumSince: FieldValue.serverTimestamp() }),
-        },
-        { merge: true }
-      );
+      // La escritura que activa premium se aísla del catch exterior, que
+      // responde 200 pase lo que pase. Si falla y devolvemos 200, Stripe da el
+      // evento por entregado y no reintenta: el usuario paga y no recibe nada,
+      // sin que nadie se entere (issue #13).
+      try {
+        await userRef.set(
+          {
+            premium: true,
+            premiumStatus: subscription.status === "trialing" ? "trialing" : "active",
+            premiumPlanType: planType,
+            premiumExpiresAt: AdminTimestamp.fromDate(expiresAt),
+            premiumStripeSubscriptionId: subscription.id,
+            updatedAt: FieldValue.serverTimestamp(),
+            ...(wasPremium ? {} : { premiumSince: FieldValue.serverTimestamp() }),
+          },
+          { merge: true }
+        );
+      } catch (error: unknown) {
+        console.error(`❌ CRÍTICO: checkout ${session.id} cobrado pero NO se pudo activar premium a ${userId}:`, error);
+        await alertarActivacionFallida({
+          proveedor: "Stripe",
+          paymentId: String(session.id),
+          userId,
+          userEmail: session.customer_details?.email ?? null,
+          error,
+        });
+        return res.status(500).json({ error: "No se pudo activar premium", retry: true });
+      }
 
       const checkoutAmount = typeof session.amount_total === "number" ? session.amount_total / 100 : 0;
       const checkoutCurrency = session.currency?.toUpperCase() || "EUR";
@@ -330,6 +347,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
       }
 
+      // Mismo aislamiento que arriba: una renovación cobrada que no se escribe
+      // deja al usuario sin acceso pese a haber pagado.
+      try {
       await userRef.set(
         {
           premium: true,
@@ -351,6 +371,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         },
         { merge: true }
       );
+      } catch (error: unknown) {
+        console.error(`❌ CRÍTICO: factura ${invoice.id} cobrada pero NO se pudo renovar premium a ${userId}:`, error);
+        await alertarActivacionFallida({
+          proveedor: "Stripe",
+          paymentId: String(invoice.id),
+          userId,
+          userEmail: null,
+          error,
+        });
+        return res.status(500).json({ error: "No se pudo renovar premium", retry: true });
+      }
 
       if (isNewInvoicePayment) {
         try {
