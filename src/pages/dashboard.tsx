@@ -22,6 +22,26 @@ import { MODAL_BACKDROP_CLASS, MODAL_BACKDROP_MOTION, MODAL_PANEL_CLASS, MODAL_P
 const PremiumPlanModal = dynamic(() => import("@/components/PremiumPlanModal"), { ssr: false });
 const PlanContinuityModal = dynamic(() => import("@/components/PlanContinuityModal"), { ssr: false });
 
+/**
+ * `noindex` del panel, en TODAS las ramas de render.
+ *
+ * `authLoading` y `loading` arrancan en `true`, así que el HTML que entrega el
+ * servidor —y el que ve un buscador— es el del estado de carga, no el del
+ * return principal. Cuando el `noindex` vivía solo abajo, nunca llegaba: el
+ * panel de un usuario se servía indexable, y `/dashboard` tampoco está en el
+ * `Disallow` de robots.txt, así que no había ninguna red de seguridad.
+ *
+ * Mismo bug que se arregló en `/payment/success` (issue #28, PR #35). Aquí se
+ * extrae a un componente para que no dependa de acordarse de repetirlo.
+ */
+function NoIndexHead() {
+  return (
+    <Head>
+      <meta name="robots" content="noindex, nofollow" />
+    </Head>
+  );
+}
+
 export default function Dashboard() {
   const router = useRouter();
   const { locale } = useAppLocale();
@@ -444,17 +464,22 @@ export default function Dashboard() {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-[var(--landing-border)] border-t-[var(--landing-accent)]" />
-          <p className="text-sm text-[var(--landing-muted)]">{dash(locale, "loading")}</p>
+      <>
+        <NoIndexHead />
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-[var(--landing-border)] border-t-[var(--landing-accent)]" />
+            <p className="text-sm text-[var(--landing-muted)]">{dash(locale, "loading")}</p>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   if (!authUser) {
-    return null; // Será redirigido
+    // Será redirigido, pero el `noindex` va igual: este return también puede
+    // ser lo que el servidor entregue a un buscador.
+    return <NoIndexHead />;
   }
 
   return (

@@ -18,6 +18,14 @@ const enSitemap = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)]
   .map((m) => m[1].replace(SITE, ""))
   .map((p) => (p === "" ? "/" : p.replace(/\/$/, "") || "/"));
 
+/** Quita comentarios: JSX, de bloque y de línea. */
+function sinComentarios(src: string): string {
+  return src
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, "")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "");
+}
+
 describe("Coherencia de páginas indexables", () => {
   it("todo lo que se envía a los buscadores está en el sitemap", () => {
     const faltan = INDEXABLE_PATHS.filter((p) => !enSitemap.includes(p));
@@ -60,17 +68,46 @@ describe("Coherencia de páginas indexables", () => {
     expect(contradictorias).toEqual([]);
   });
 
-  it("la confirmación de pago declara noindex TAMBIÉN en su estado de carga", () => {
-    // `loading` arranca en true, así que el estado de carga es lo que renderiza
-    // el servidor y lo que ve un buscador. El `<Seo noindex />` del return
-    // principal no llegaba nunca al HTML servido: comprobado con curl, mientras
-    // /payment/failure y /pending sí lo traían, /payment/success no.
-    const src = fs.readFileSync(path.join(process.cwd(), "src/pages/payment/success.tsx"), "utf8");
-    const inicio = src.indexOf("if (loading)");
-    expect(inicio).toBeGreaterThan(-1);
-    const bloqueCarga = src.slice(inicio, src.indexOf("\n  return (", inicio));
-    expect(bloqueCarga).toMatch(/<Seo/);
-    expect(bloqueCarga).toMatch(/noindex/);
+  it("toda página noindex lo declara en TODAS sus ramas de render", () => {
+    // La clase de bug, no el caso concreto. `loading`/`authLoading` arrancan en
+    // `true`, así que el HTML que entrega el servidor —y el que ve un
+    // buscador— es el del return temprano. Si el `noindex` vive solo en el
+    // return principal, nunca llega.
+    //
+    // Pasó dos veces: /payment/success (issue #28) y /dashboard (issue #36),
+    // ambas sirviendo HTML indexable pese a tener el meta en el código.
+    const paginas = [
+      "src/pages/dashboard.tsx",
+      "src/pages/payment/success.tsx",
+      "src/pages/payment/failure.tsx",
+      "src/pages/payment/pending.tsx",
+      "src/pages/create-plan.tsx",
+    ];
+
+    const fallos: string[] = [];
+    for (const rel of paginas) {
+      // Se quitan los comentarios ANTES de analizar: los comentarios que
+      // explican por qué hace falta el noindex contienen la palabra, y el test
+      // se daba por satisfecho con ellos. Tercer falso negativo de este tipo en
+      // el repo — un comentario no llega nunca al HTML.
+      const src = sinComentarios(fs.readFileSync(path.join(process.cwd(), rel), "utf8"));
+      expect({ pagina: rel, declaraNoindex: /noindex/.test(src) }).toEqual({ pagina: rel, declaraNoindex: true });
+
+      // Bloques `if (...) { ... return ... }` en el primer nivel del componente:
+      // son exactamente los returns tempranos que puede servir el servidor.
+      for (const m of src.matchAll(/^ {2}if \s*\([^)]*\)\s*\{\n([\s\S]*?)^ {2}\}/gm)) {
+        const bloque = m[1];
+        // Solo importan los returns que RENDERIZAN: `return (<...`, `return <...`
+        // o `return null`. Un `return ts.toDate()` de una función auxiliar no
+        // es una rama de render y no debe contarse.
+        const renderiza = /return\s*\(\s*\n?\s*</.test(bloque) || /return\s*</.test(bloque) || /return\s+null\s*;/.test(bloque);
+        if (!renderiza) continue;
+        if (!/noindex|NoIndexHead/i.test(bloque)) {
+          fallos.push(`${rel}: ${bloque.trim().split("\n")[0].slice(0, 60)}`);
+        }
+      }
+    }
+    expect(fallos).toEqual([]);
   });
 
   it("la app tras login NO se envía ni se indexa", () => {
