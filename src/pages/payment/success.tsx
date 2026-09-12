@@ -7,6 +7,7 @@ import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import Navbar from "@/components/Navbar";
 import { trackEvent } from "@/lib/analytics";
 import Seo from "@/components/Seo";
+import { authedFetch } from "@/lib/userAuthClient";
 
 export default function PaymentSuccess() {
   const router = useRouter();
@@ -54,7 +55,9 @@ export default function PaymentSuccess() {
         if (paymentProvider === "stripe" && session_id && typeof session_id === "string") {
           // Verificar el pago con Stripe
           try {
-            const paymentCheck = await fetch(`/api/checkStripePayment?session_id=${session_id}`);
+            // authedFetch: el endpoint ahora comprueba en el servidor que la sesión
+            // sea de quien pregunta, no solo aquí en el cliente.
+            const paymentCheck = await authedFetch(`/api/checkStripePayment?session_id=${session_id}`);
             if (paymentCheck.ok) {
               const paymentData = await paymentCheck.json();
               

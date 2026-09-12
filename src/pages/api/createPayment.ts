@@ -3,6 +3,7 @@ import { getAdminDb } from "@/lib/firebase-admin";
 import { getEurArsRateForPricing, roundArsPrice } from "@/lib/exchangeRate";
 import { buildPlanDescription, getStripeSubscriptionPlans, type PlanTypeKey } from "@/lib/stripePlanPrices";
 import { isEligibleForFreeTrial } from "@/lib/premiumTrialEligibility";
+import { requireUser } from "@/lib/userAuthServer";
 
 type MercadoPagoPreapprovalResponse = {
   id?: string;
@@ -15,10 +16,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { userId, userEmail, planType } = req.body;
+  // La identidad sale del ID token verificado, NUNCA del cuerpo. Antes, con el
+  // UID de otra persona se podía generar un checkout de suscripción a su
+  // nombre, y además decidir su elegibilidad para el periodo de prueba
+  // gratuito (issue #27).
+  const auth = await requireUser(req);
+  if (!auth.ok) return res.status(auth.status).json({ error: "Identidad no verificada" });
+  const userId = auth.uid;
 
-  if (!userId || !userEmail) {
-    return res.status(400).json({ error: "userId y userEmail son requeridos" });
+  const { userEmail, planType } = req.body;
+
+  if (!userEmail) {
+    return res.status(400).json({ error: "userEmail es requerido" });
   }
 
   if (!process.env.MERCADOPAGO_ACCESS_TOKEN) {

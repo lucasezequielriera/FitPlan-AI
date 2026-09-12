@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { getDbSafe } from "@/lib/firebase";
 import { collection, doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { sendTelegramMessage, formatNewUserMessage } from "@/lib/telegram";
+import { requireUser } from "@/lib/userAuthServer";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -9,12 +10,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const db = getDbSafe();
   if (!db) return res.status(501).json({ error: "Firestore no configurado" });
   
-  // Obtener userId del body en lugar de auth.currentUser (ya que estamos en el servidor)
-  const { userId, nombre, sexo, alturaCm, edad, peso } = req.body;
-  
-  if (!userId) {
-    return res.status(401).json({ error: "Usuario no autenticado" });
-  }
+  // La identidad sale del ID token verificado, NUNCA del cuerpo. El comentario
+  // anterior decía que se tomaba del body "ya que estamos en el servidor", pero
+  // eso solo comprobaba que el campo no estuviera vacío: con el UID de otra
+  // persona se le podía sobrescribir el perfil —nombre, sexo, altura, edad,
+  // peso— que además alimenta la generación de sus planes (issue #27).
+  const auth = await requireUser(req);
+  if (!auth.ok) return res.status(auth.status).json({ error: "Identidad no verificada" });
+  const userId = auth.uid;
+
+  const { nombre, sexo, alturaCm, edad, peso } = req.body;
   
   if (!nombre || !sexo || !alturaCm || !edad) {
     return res.status(400).json({ error: "Faltan datos requeridos: nombre, sexo, alturaCm, edad" });

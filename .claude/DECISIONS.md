@@ -47,6 +47,15 @@ cubra el cambio.
 
 ---
 
+### 2026-09-12 · Verificar identidad en los endpoints de usuario (#27)
+**Categoría:** pagos
+**Se le preguntó:** tras cerrar #13 y #25, se le señaló que #27 es el que más se les parece: endpoints que aceptan un `userId` del cuerpo sin comprobar que quien llama sea ese usuario. Conociendo un UID ajeno se puede sobrescribir su perfil, crear planes en su cuenta o generar un checkout a su nombre.
+**Decidió:** "sí, arregla el 27"
+**Autoriza:** derivar la identidad del ID token verificado (`requireUser`) en lugar del `userId` del cuerpo, en `saveUserProfile.ts`, `savePlan.ts`, `createPayment.ts`, `createStripePayment.ts` y `checkStripePayment.ts`; adaptar sus llamadores para que usen `authedFetch`; y desplegarlo.
+
+Los dos de pago entran porque generan el checkout, no porque se toque el cobro. NO autoriza cambiar importes, planes, la lógica de cobro, ni el flujo de los webhooks.
+**Estado:** vigente
+
 ### 2026-09-12 · Arreglar los dos fallos silenciosos de pago (#13 y #25)
 **Categoría:** pagos
 **Se le preguntó:** tras revisar los 26 issues abiertos, se le señaló que #13 y #25 eran los dos únicos donde el coste de no arreglarlo es un cliente que paga y no recibe nada, y se le propuso hacerlos juntos por ser el mismo flujo.
