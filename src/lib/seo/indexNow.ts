@@ -89,7 +89,9 @@ export const INDEXABLE_PATHS = [
   "/en/transformacion-fitplan",
   "/formulario-de-inicio",
   "/en/formulario-de-inicio",
-  "/create-plan",
+  // `/create-plan` NO va: la página se declara `noindex, nofollow` de forma
+  // incondicional (create-plan.tsx). Enviarla gastaba cuota de IndexNow para
+  // que el buscador la descartara al llegar. Ver issue #28.
   "/legal/terms",
   "/legal/privacy",
   "/legal/disclaimer",

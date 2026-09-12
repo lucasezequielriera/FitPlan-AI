@@ -174,12 +174,26 @@ export default function PaymentSuccess() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--accent)] mx-auto mb-4"></div>
-          <p className="opacity-70">Verificando pago...</p>
+      <>
+        {/* El `noindex` también va aquí, no solo en el return de abajo.
+            `loading` arranca en true, así que este es el HTML que renderiza el
+            servidor y el que ve un buscador: sin el Seo, la página de
+            confirmación de pago se servía indexable. Comprobado con curl —
+            `/payment/failure` y `/payment/pending` sí traían el noindex y
+            `success` no, pese a tener el mismo `<Seo noindex />` más abajo. */}
+        <Seo
+          title="Pago confirmado"
+          description="Confirmación de tu pago en FitPlan."
+          path="/payment/success"
+          noindex
+        />
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--accent)] mx-auto mb-4"></div>
+            <p className="opacity-70">Verificando pago...</p>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
