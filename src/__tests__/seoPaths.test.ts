@@ -152,14 +152,25 @@ describe("Coherencia de páginas indexables", () => {
     }
   });
 
-  it("no hay archivos duplicados sirviéndose desde public/", () => {
-    // Todo lo que está en `public/` se publica aunque nadie lo enlace. Un
-    // `robots 2.txt` —duplicado que crea macOS al copiar— llegó a commitearse
-    // y quedó sirviéndose con una versión vieja de las reglas.
-    const duplicados = fs
-      .readdirSync(path.join(process.cwd(), "public"), { recursive: true } as { recursive: true })
-      .map(String)
-      .filter((f) => / \d+\.[a-z]+$/i.test(f));
+  it("no hay archivos duplicados en el repo", () => {
+    // macOS crea copias con sufijo " 2" al duplicar un archivo. Han hecho daño
+    // dos veces, de formas distintas:
+    //   - `public/robots 2.txt` llegó a commitearse y quedó sirviéndose en
+    //     público con una versión vieja de las reglas.
+    //   - Tres `*.test 2.ts` en `src/__tests__` los ejecutaba Jest, inflando
+    //     el recuento de tests a 290 cuando los reales eran 271. Verificar con
+    //     un número inflado es peor que no verificar: da confianza falsa.
+    // Por eso el guard cubre todo el repo, no solo `public/`.
+    const duplicados: string[] = [];
+    const recorrer = (dir: string) => {
+      for (const e of fs.readdirSync(path.join(process.cwd(), dir), { withFileTypes: true })) {
+        if (e.name === "node_modules" || e.name === ".next" || e.name === ".git") continue;
+        const rel = `${dir}/${e.name}`;
+        if (e.isDirectory()) recorrer(rel);
+        else if (/ \d+\.[a-z0-9]+$/i.test(e.name)) duplicados.push(rel);
+      }
+    };
+    for (const raiz of ["src", "public"]) recorrer(raiz);
     expect(duplicados).toEqual([]);
   });
 
