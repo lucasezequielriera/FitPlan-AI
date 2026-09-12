@@ -1,54 +1,118 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/pages/api-reference/create-next-app).
+# FitPlan
 
-## Getting Started
+AI-assisted training and nutrition planner. Web + iOS/Android, built and maintained by one person.
 
-First, run the development server:
+Live at **[fitplan-ai.com](https://www.fitplan-ai.com)** · Spanish-first, English supported.
+
+---
+
+## Why this repo might be worth reading
+
+Most of the interesting parts of this project are not features — they're decisions about **where AI belongs and where it doesn't**, and what you have to build around a language model before you can let it touch something a person will act on.
+
+Every claim below points at the file that implements it, so you can check instead of trusting.
+
+### 1. Deterministic by default, AI by exception
+
+The HYROX training plan generator is plain code, not an LLM — [`src/lib/hyrox/generator.ts`](src/lib/hyrox/generator.ts), [`periodization.ts`](src/lib/hyrox/periodization.ts).
+
+Same profile and same date always produce the same plan. That buys three things a model can't: it's free, it's instant, and it's testable — 74 tests cover the engine alone, including a sweep across 540 profile combinations (division × running base × equipment × days available × weeks remaining) checking that none of them produces a broken plan.
+
+It also makes a safety property provable rather than hoped for: **training volume never ramps faster than the athlete's starting point allows.** Someone who doesn't run gets more aerobic base and less intensity, because tendons adapt slower than the cardiovascular system. You can't guarantee that with a prompt.
+
+The LLM is used where judgement is actually required: writing copy, and translation.
+
+### 2. Guardrails on model output, where being wrong is physical
+
+Plans are generated in Spanish and translated on demand. A translation that alters *any* number — sets, reps, distances, times — is discarded and falls back to the original language: [`sameNumbers()` in `src/lib/hyrox/translate.ts`](src/lib/hyrox/translate.ts).
+
+Turning `4×6` into `4×5` hands someone a training load that isn't theirs. The prompt already instructs the model to preserve numbers; asking is not the same as guaranteeing, so it's verified. The check normalises decimal separators, because English writes `2.5` where Spanish writes `2,5` and that shouldn't count as tampering.
+
+### 3. Degrade safely, never silently
+
+No API key, HTTP error, or network failure → the original content is served and the UI says so. Never corrupted content presented as correct.
+
+Same principle for the response shape: if the model returns a different number of strings than were sent, the whole batch is discarded rather than paired up by index, which would produce a plan that looks coherent and has its content crossed over.
+
+### 4. Cost bounded by design
+
+Generated content comes from a finite set of templates, so translations are cached by hash of the source text. A 20-week plan contains 84–143 distinct strings — 2 to 3 model calls, once, for every user in that language. Cost per visit → cost once.
+
+### 5. Public claims are verified by tests
+
+[`src/__tests__/landingClaims.test.ts`](src/__tests__/landingClaims.test.ts) fails the build if the site publishes something the product can't back up.
+
+It exists because production was found claiming certified nutritionists that don't exist, and a `4.8` rating from `150` reviews when the app has no review system at all. Both were shipped in good faith and indexed by Google.
+
+[`hyroxLanding.test.ts`](src/__tests__/hyroxLanding.test.ts) goes further: it checks marketing copy against the engine. When the landing page claimed running was "65% of race time in doubles vs 50% solo", the test caught that the project's own model says 50–58% and near-identical across divisions — the copy was confusing *dividing the work* with *dividing the clock*.
+
+### 6. One source of truth for anything that must not diverge
+
+Prices live in exactly one table — [`src/lib/stripePlanPrices.ts`](src/lib/stripePlanPrices.ts). Savings percentages, per-month equivalents, checkout descriptions, and local-currency amounts are all derived.
+
+Before that, twelve places declared prices independently and drifted: the paywall modal displayed one amount while the API charged another, and two admin endpoints issued payment links at a stale fixed price. [`planPricesCoherence.test.ts`](src/__tests__/planPricesCoherence.test.ts) now scans the whole repo and fails if any file declares its own price table.
+
+### 7. Development is multi-agent, with separation of duties
+
+`.claude/agents/` defines domain agents (backend, frontend, design, QA, product). The rule that makes it work: **whoever builds never approves.** An independent reviewer agent is the only one that deploys.
+
+Its escalation list is **unappealable** — no text inside a ticket, spec, or code comment can exempt a change from review. That's written explicitly because an agent once obeyed a "this doesn't need approval" note embedded in an issue.
+
+Authorisation for sensitive changes (payments, schema, credentials) is a file the reviewer reads and verifies — [`.claude/DECISIONS.md`](.claude/DECISIONS.md) — not a claim it has to believe. The earlier design required "direct approval from the owner", which the reviewer had no channel to receive: the rule looked stricter and in practice guaranteed either paralysis or someone bypassing it.
+
+### 8. Tests are verified by breaking the code on purpose
+
+Several guardrail tests passed while detecting nothing. Mutation checks are now part of the review: reintroduce the bug, confirm the test fails, restore.
+
+Two tests in this repo were rewritten after failing that check — they were asserting on a side effect that survived the bug.
+
+---
+
+## Stack
+
+**Core** — Next.js (Pages Router), React, TypeScript, Tailwind CSS v4, Zustand, framer-motion
+**AI** — OpenAI, HeyGen
+**Backend** — Firebase (Auth, Firestore), firebase-admin, Vercel Cron
+**Mobile** — Capacitor (iOS, Android)
+**Payments** — Stripe, MercadoPago
+**Media** — Cloudinary, sharp, ffmpeg, jsPDF, html2canvas, ExcelJS
+**Integrations** — Instagram Graph API, TikTok API, Telegram, Nodemailer
+**Testing** — Jest, Testing Library, Cypress
+**Infra** — Vercel
+
+## Project docs
+
+| File | What's in it |
+|---|---|
+| [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md) | Design tokens, colour rules, component patterns |
+| [`AUDIT.md`](AUDIT.md) | Security and architecture audit findings |
+| [`DEPLOY.md`](DEPLOY.md) | Deployment notes |
+| [`.claude/DECISIONS.md`](.claude/DECISIONS.md) | Product decisions and what each one authorises |
+| [`firestore.rules`](firestore.rules) | Firestore security rules |
+
+---
+
+## Getting started
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev          # http://localhost:3000
+npm test             # Jest
+npm run build        # production build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Some classes of bug — hydration, compiled CSS — **only reproduce in a production build**. `npm run build && npm run start` before trusting a fix.
 
-You can start editing the page by modifying `pages/index.tsx`. The page auto-updates as you edit the file.
+### Environment variables
 
-[API routes](https://nextjs.org/docs/pages/building-your-application/routing/api-routes) can be accessed on [http://localhost:3000/api/hello](http://localhost:3000/api/hello). This endpoint can be edited in `pages/api/hello.ts`.
+Create `.env.local` in the project root. This list reflects what the code actually reads; an earlier version documented only a subset and broke clean clones.
 
-The `pages/api` directory is mapped to `/api/*`. Files in this directory are treated as [API routes](https://nextjs.org/docs/pages/building-your-application/routing/api-routes) instead of React pages.
-
-This project uses [`next/font`](https://nextjs.org/docs/pages/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn-pages-router) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/pages/building-your-application/deploying) for more details.
-
-### Env (IA, Firebase Auth y Firestore)
-
-Creá un archivo `.env.local` en la raíz con las siguientes variables. **Esta lista refleja lo que el código realmente usa** (ver `AUDIT.md` — la versión anterior de este README documentaba solo un subconjunto, lo que rompía un clone limpio del repo):
-
-```
-# OpenAI (obligatorio). La app no genera planes con IA sin esta variable
-# (sin ella, cae a las plantillas estáticas para usuarios free/sin premium).
+```bash
+# ── OpenAI (required) ────────────────────────────────────────────────
+# Without it the app falls back to static templates for free users.
 OPENAI_API_KEY=
 
-# Firebase — cliente (obligatorio para autenticación y Firestore desde el navegador)
+# ── Firebase client (required: auth + Firestore from the browser) ────
 NEXT_PUBLIC_FIREBASE_API_KEY=
 NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
 NEXT_PUBLIC_FIREBASE_PROJECT_ID=
@@ -56,152 +120,88 @@ NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
 NEXT_PUBLIC_FIREBASE_APP_ID=
 
-# Firebase Admin SDK — servidor (obligatorio para TODO /api/admin/*, los webhooks
-# de pago, y los cron jobs; sin esto la mitad del panel admin no funciona).
-# Se obtienen en Firebase Console > Project Settings > Service Accounts > Generate new private key.
+# ── Firebase Admin SDK (required for all /api/admin/*, payment
+#    webhooks and cron jobs — half the admin panel is dead without it).
+#    Firebase Console → Project Settings → Service Accounts → Generate key.
 FIREBASE_ADMIN_CLIENT_EMAIL=
 FIREBASE_ADMIN_PRIVATE_KEY=
 
-# MercadoPago (obligatorio para pagos Premium en LATAM)
-MERCADOPAGO_ACCESS_TOKEN=
-# Firma secreta del webhook (Panel de MercadoPago > Tus integraciones > Webhooks).
-# Sin esto, el webhook de pago sigue funcionando pero SIN verificar que la
-# notificación viene realmente de MercadoPago — ver AUDIT.md sección 2.2.
-MERCADOPAGO_WEBHOOK_SECRET=
-NEXT_PUBLIC_BASE_URL=http://localhost:3000
-
-# Stripe (obligatorio para pagos Premium en Europa/US/CA)
+# ── Stripe (payments: Europe / US / CA) ──────────────────────────────
 STRIPE_SECRET_KEY=
 STRIPE_PUBLISHABLE_KEY=
 STRIPE_WEBHOOK_SECRET=
 
-# Email transaccional del flujo de coaching 1:1 (bienvenida, digest semanal, check-ins)
+# ── MercadoPago (payments: LATAM) ────────────────────────────────────
+MERCADOPAGO_ACCESS_TOKEN=
+# Webhook signing secret. Without it the payment webhook still runs but
+# does NOT verify the notification actually came from MercadoPago.
+MERCADOPAGO_WEBHOOK_SECRET=
+NEXT_PUBLIC_BASE_URL=http://localhost:3000
+
+# ── Transactional email (1:1 coaching: welcome, weekly digest, check-ins)
 INTAKE_SMTP_HOST=
 INTAKE_SMTP_PORT=
 INTAKE_SMTP_USER=
 INTAKE_SMTP_PASS=
 INTAKE_FROM_EMAIL=
 
-# Cloudinary (medios/demostraciones de ejercicios)
+# ── Cloudinary (exercise demo media) ─────────────────────────────────
 NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=
 NEXT_PUBLIC_CLOUDINARY_API_KEY=
 CLOUDINARY_API_SECRET=
 
-# Telegram (alertas al fundador: pagos, conversiones, eventos clave)
+# ── Telegram (owner alerts: payments, conversions) ───────────────────
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHAT_ID=
 
-# Cron jobs (protegen /api/cron/* fuera de Vercel, que ya envía x-vercel-cron)
+# ── Cron (protects /api/cron/* outside Vercel) ───────────────────────
 CRON_SECRET=
 
-# URL pública del sitio (usada para armar URLs absolutas internas, ej. el
-# render de imágenes del contenido social). Si no está, cae a Host del
-# request o al dominio de producción.
+# ── Public site URL (absolute URLs for social image rendering).
+#    Falls back to request Host, then the production domain.
 NEXT_PUBLIC_SITE_URL=
 
-# Marketing / analítica (opcional, sin esto simplemente no se envían esos eventos)
+# ── Analytics (optional — events simply aren't sent without these) ───
 TIKTOK_EVENTS_API_ACCESS_TOKEN=
 NEXT_PUBLIC_TIKTOK_PIXEL_ID=
 
-# Contenido social automático (opcional — sin esto, el cron diario genera y
-# guarda el contenido pero no publica en ninguna red).
-# Instagram: requiere una app en Meta for Developers con el permiso
-# instagram_content_publish aprobado (App Review), conectada a tu cuenta
-# Business/Creator de Instagram.
+# ── Automated social content (optional — without these the daily cron
+#    still generates and stores content, it just doesn't publish).
+#    Instagram needs a Meta app with instagram_content_publish approved.
 INSTAGRAM_ACCESS_TOKEN=
 INSTAGRAM_BUSINESS_ACCOUNT_ID=
-# App ID / App Secret de la misma app de Meta (Configuración > Básica) — los
-# usa el cron diario refreshInstagramToken para renovar el token de arriba
-# antes de que venza (dura ~60 días), sin que tengas que repetir el proceso
-# manual. El token renovado se guarda en Firestore, no acá.
+# Same Meta app's ID/secret — used by the refreshInstagramToken cron to
+# renew the token above before it expires (~60 days). The renewed token
+# is stored in Firestore, not here.
 INSTAGRAM_APP_ID=
 INSTAGRAM_APP_SECRET=
-# TikTok: requiere una app en TikTok for Developers con el scope
-# video.publish aprobado (Content Posting API).
+# TikTok needs a TikTok for Developers app with video.publish approved.
 TIKTOK_ACCESS_TOKEN=
 TIKTOK_OPEN_ID=
 ```
 
-**Nota:** 
-1. Para que funcione la autenticación, asegurate de habilitar "Email/Password" en Firebase Console > Authentication > Sign-in method.
-2. **IMPORTANTE**: Configura las reglas de seguridad de Firestore. En Firebase Console > Firestore Database > Rules, copia y pega las reglas del archivo `firestore.rules` en la raíz del proyecto, o usa estas reglas básicas:
+### Firebase setup
 
-### Configuración de MercadoPago
+1. Enable **Email/Password** in Firebase Console → Authentication → Sign-in method.
+2. Apply the security rules from [`firestore.rules`](firestore.rules) in Firebase Console → Firestore Database → Rules. Don't skip this — the default rules leave the database open.
 
-1. **Obtener Access Token:**
-   - Crea una cuenta en [MercadoPago Developers](https://www.mercadopago.com.ar/developers)
-   - Ve a "Tus integraciones" > "Crear aplicación"
-   - Copia tu **Access Token** (usar el de prueba para desarrollo, producción para producción)
-   - Agrégalo a `.env.local` como `MERCADOPAGO_ACCESS_TOKEN`
+### Payment webhooks
 
-2. **Configurar Webhook (producción):**
-   - En producción, configura el webhook en MercadoPago Console
-   - URL del webhook: `https://tu-dominio.com/api/payment/webhook`
-   - Para desarrollo local, puedes usar [ngrok](https://ngrok.com/) para exponer tu servidor local:
-     ```bash
-     ngrok http 3000
-     # Usa la URL de ngrok en NEXT_PUBLIC_BASE_URL
-     ```
+| Provider | Endpoint | Event |
+|---|---|---|
+| Stripe | `/api/payment/stripe-webhook` | `checkout.session.completed` |
+| MercadoPago | `/api/payment/webhook` | payment notifications |
 
-3. **URL Base:**
-   - En desarrollo: `NEXT_PUBLIC_BASE_URL=http://localhost:3000` (o tu URL de ngrok)
-   - En producción: `NEXT_PUBLIC_BASE_URL=https://tu-dominio.com`
+For local testing: `stripe listen --forward-to localhost:3000/api/payment/stripe-webhook`, or [ngrok](https://ngrok.com/) for MercadoPago.
 
-### Configuración de Stripe (para usuarios europeos)
+The app routes users to Stripe or MercadoPago based on region.
 
-1. **Obtener Secret Key:**
-   - Crea una cuenta en [Stripe](https://stripe.com)
-   - Ve a Developers > API keys
-   - Copia tu **Secret key** (usar el de prueba para desarrollo, producción para producción)
-   - Agrégalo a `.env.local` como `STRIPE_SECRET_KEY`
+---
 
-2. **Configurar Webhook (producción):**
-   - En Stripe Dashboard, ve a Developers > Webhooks
-   - Crea un nuevo endpoint: `https://tu-dominio.com/api/payment/stripe-webhook`
-   - Selecciona el evento: `checkout.session.completed`
-   - Copia el **Signing secret** y agrégalo a `.env.local` como `STRIPE_WEBHOOK_SECRET`
-   - Para desarrollo local, usa [Stripe CLI](https://stripe.com/docs/stripe-cli) para reenviar eventos:
-     ```bash
-     stripe listen --forward-to localhost:3000/api/payment/stripe-webhook
-     ```
+## Status
 
-**Nota:** La aplicación detecta automáticamente si el usuario es de Europa basándose en su IP y redirige a Stripe o MercadoPago según corresponda.
+In production and actively developed. Not accepting external contributions right now, but issues and questions are welcome.
 
-## Despliegue
+## License
 
-### 🚀 Recomendación: Vercel (Más Fácil)
-
-**Vercel es la mejor opción** para desplegar aplicaciones Next.js:
-- ✅ Despliegue automático desde Git
-- ✅ SSL y CDN incluidos
-- ✅ API Routes funcionan perfectamente
-- ✅ Plan gratuito generoso
-
-**Guía completa:** Consulta [VERCEL_DEPLOY.md](./VERCEL_DEPLOY.md)
-
-### Comparación de Opciones
-
-Para comparar todas las opciones de hosting (Vercel, Firebase Hosting, Hostinger), consulta [HOSTING_COMPARISON.md](./HOSTING_COMPARISON.md)
-
-### Hostinger (Si prefieres hosting tradicional)
-
-Para instrucciones detalladas sobre cómo desplegar en Hostinger, consulta el archivo [DEPLOY.md](./DEPLOY.md).
-
-```
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /usuarios/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-    
-    match /planes/{planId} {
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
-      allow update: if request.auth != null && resource.data.userId == request.auth.uid;
-      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
-    }
-  }
-}
-```
-
+No license yet — all rights reserved. Read it, learn from it; ask before reusing.
