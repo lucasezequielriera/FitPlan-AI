@@ -41,6 +41,38 @@ describe("Coherencia de páginas indexables", () => {
     expect(INDEXABLE_PATHS).toContain("/hyrox");
   });
 
+  it("ninguna página que se declara noindex se envía a los buscadores", () => {
+    // Issue #28: `/create-plan` estaba en INDEXABLE_PATHS y en el sitemap con
+    // prioridad 0.9, mientras la propia página servía `noindex, nofollow`. El
+    // buscador descarta la página al llegar, así que solo se gastaba cuota y se
+    // ensuciaba el sitemap con una URL que nunca iba a indexarse.
+    const contradictorias = INDEXABLE_PATHS.filter((ruta) => {
+      const base = ruta === "/" ? "index" : ruta.replace(/^\//, "");
+      for (const cand of [`src/pages/${base}.tsx`, `src/pages/${base}/index.tsx`]) {
+        const full = path.join(process.cwd(), cand);
+        if (!fs.existsSync(full)) continue;
+        const src = fs.readFileSync(full, "utf8");
+        // `noindex` como prop del componente Seo o como meta directa.
+        if (/noindex/.test(src)) return true;
+      }
+      return false;
+    });
+    expect(contradictorias).toEqual([]);
+  });
+
+  it("la confirmación de pago declara noindex TAMBIÉN en su estado de carga", () => {
+    // `loading` arranca en true, así que el estado de carga es lo que renderiza
+    // el servidor y lo que ve un buscador. El `<Seo noindex />` del return
+    // principal no llegaba nunca al HTML servido: comprobado con curl, mientras
+    // /payment/failure y /pending sí lo traían, /payment/success no.
+    const src = fs.readFileSync(path.join(process.cwd(), "src/pages/payment/success.tsx"), "utf8");
+    const inicio = src.indexOf("if (loading)");
+    expect(inicio).toBeGreaterThan(-1);
+    const bloqueCarga = src.slice(inicio, src.indexOf("\n  return (", inicio));
+    expect(bloqueCarga).toMatch(/<Seo/);
+    expect(bloqueCarga).toMatch(/noindex/);
+  });
+
   it("la app tras login NO se envía ni se indexa", () => {
     expect(INDEXABLE_PATHS).not.toContain("/hyrox/plan");
     expect(enSitemap).not.toContain("/hyrox/plan");
