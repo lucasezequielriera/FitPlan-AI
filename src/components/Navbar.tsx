@@ -683,7 +683,16 @@ export default function Navbar({ minimal = false }: { minimal?: boolean }) {
             <span className="relative h-8 w-8 shrink-0 overflow-hidden rounded-xl bg-surface ring-1 ring-border sm:h-9 sm:w-9">
               <Image src="/brand/icon-social-transparent.svg" alt="" width={36} height={36} className="object-contain p-1" priority />
             </span>
-            <span className="hidden truncate text-sm font-semibold tracking-tight text-foreground sm:inline sm:text-base">FitPlan</span>
+            {/* `sr-only` en vez de `hidden`: en móvil el texto no se ve pero
+                SÍ existe para un lector de pantalla. Con `hidden` desaparecía
+                del árbol de accesibilidad y, como la imagen lleva `alt=""`, el
+                enlace se anunciaba sin nombre — un "enlace" a secas, sin decir
+                a dónde lleva (issue #30). Se prefiere esto a un `aria-label`
+                porque así el nombre accesible coincide con el texto visible en
+                escritorio, que es lo que espera quien usa control por voz. */}
+            <span className="sr-only truncate text-sm font-semibold tracking-tight text-foreground sm:not-sr-only sm:inline sm:text-base">
+              FitPlan
+            </span>
           </Link>
 
           {/* Desktop: navegación de producto real (§11.4-C) — no aplica en minimal */}
