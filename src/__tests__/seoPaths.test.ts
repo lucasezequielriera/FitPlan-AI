@@ -76,6 +76,14 @@ describe("Coherencia de páginas indexables", () => {
     //
     // Pasó dos veces: /payment/success (issue #28) y /dashboard (issue #36),
     // ambas sirviendo HTML indexable pese a tener el meta en el código.
+    //
+    // LÍMITES CONOCIDOS de esta comprobación, verificados con mutaciones: solo
+    // reconoce returns dentro de bloques `if (...) { }` indentados a dos
+    // espacios. NO detecta un `if` de una línea sin llaves, un `return` dentro
+    // de un `switch`, un ternario en el return, ni ramas que vivan en otro
+    // archivo. Cubre la forma en que el bug apareció las dos veces, no la
+    // totalidad del espacio de fallo — la red que no tiene agujeros es el
+    // `Disallow` de robots.txt, que se comprueba más abajo.
     const paginas = [
       "src/pages/dashboard.tsx",
       "src/pages/payment/success.tsx",
@@ -108,6 +116,24 @@ describe("Coherencia de páginas indexables", () => {
       }
     }
     expect(fallos).toEqual([]);
+  });
+
+  it("toda página noindex tiene además su red en robots.txt", () => {
+    // Esta comprobación SÍ es completa: no depende de analizar código. Si el
+    // meta vuelve a quedarse fuera del HTML servido por cualquier vía —
+    // incluidas las que el test de arriba no ve— el Disallow lo cubre.
+    //
+    // /create-plan queda fuera a propósito: es una página pública cuyo contenido
+    // sí se sirve, y bloquear el rastreo impediría que el buscador llegara a
+    // leer su `noindex`. Ahí la barrera correcta es el meta, no el Disallow.
+    const bloqueadas = robots
+      .split("\n")
+      .filter((l) => l.trim().startsWith("Disallow:"))
+      .map((l) => l.split("Disallow:")[1].trim());
+
+    for (const ruta of ["/dashboard", "/hyrox/plan"]) {
+      expect({ ruta, protegida: bloqueadas.some((b) => ruta.startsWith(b)) }).toEqual({ ruta, protegida: true });
+    }
   });
 
   it("la app tras login NO se envía ni se indexa", () => {
