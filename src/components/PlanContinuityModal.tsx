@@ -5,6 +5,7 @@ import type { UserInput, Goal, PlanAIResponse } from "@/types/plan";
 import { useAppLocale, type AppLocale } from "@/contexts/AppLocaleContext";
 import { dash, dashFmt } from "@/lib/i18n/appUi";
 import { MODAL_BACKDROP_CLASS, MODAL_BACKDROP_MOTION, MODAL_PANEL_CLASS, MODAL_PANEL_MOTION } from "@/lib/modalShell";
+import { authedFetch } from "@/lib/userAuthClient";
 
 const ENERGY_OPT: Record<string, { es: string; en: string }> = {
   muy_baja: { es: "Muy baja", en: "Very low" },
@@ -253,12 +254,12 @@ export default function PlanContinuityModal({ isOpen, onClose, planData, registr
       }
 
       // Guardar nuevo plan
-      const saveResponse = await fetch("/api/savePlan", {
+      // authedFetch: el servidor deriva el UID del token, no del cuerpo.
+      const saveResponse = await authedFetch("/api/savePlan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           plan: nuevoPlan,
-          userId,
           planAnteriorId: planData.id,
         }),
       });

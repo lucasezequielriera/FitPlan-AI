@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { requireUser } from "@/lib/userAuthServer";
 
 interface SavePlanBody {
   plan?: unknown;
@@ -13,10 +14,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { plan, userId, planAnteriorId } = (req.body || {}) as SavePlanBody;
+  // La identidad sale del ID token verificado, NUNCA del cuerpo. Antes bastaba
+  // con enviar un `userId` cualquiera para crear un plan en la cuenta de otra
+  // persona (issue #27).
+  const auth = await requireUser(req);
+  if (!auth.ok) return res.status(auth.status).json({ error: "Identidad no verificada" });
+  const userId = auth.uid;
 
-  if (!plan || !userId) {
-    return res.status(400).json({ error: "plan y userId son requeridos" });
+  const { plan, planAnteriorId } = (req.body || {}) as SavePlanBody;
+
+  if (!plan) {
+    return res.status(400).json({ error: "plan es requerido" });
   }
 
   try {

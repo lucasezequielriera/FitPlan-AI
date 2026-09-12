@@ -11,6 +11,7 @@ import {
 } from "@/lib/stripePlanPrices";
 import { trackEvent } from "@/lib/analytics";
 import { trackFunnel } from "@/lib/funnel/client";
+import { authedFetch } from "@/lib/userAuthClient";
 
 export interface PremiumPlanModalProps {
   isOpen: boolean;
@@ -263,11 +264,12 @@ export default function PremiumPlanModal({
 
       const endpoint = paymentProvider === "stripe" ? "/api/createStripePayment" : "/api/createPayment";
 
-      const response = await fetch(endpoint, {
+      // authedFetch: el servidor deriva el UID del token. `userId` ya no viaja
+      // en el cuerpo — enviarlo no serviría de nada y confundiría al leerlo.
+      const response = await authedFetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId,
           returnUrl: returnUrl || `${typeof window !== "undefined" ? window.location.origin : ""}/dashboard`,
           userEmail,
           planType,

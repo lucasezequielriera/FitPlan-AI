@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import Stripe from "stripe";
+import { requireUser } from "@/lib/userAuthServer";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
   apiVersion: "2025-11-17.clover",
@@ -9,6 +10,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }
+
+  const auth = await requireUser(req);
+  if (!auth.ok) return res.status(auth.status).json({ error: "Identidad no verificada" });
 
   const { session_id } = req.query;
 
@@ -40,6 +44,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const isSubscriptionCompleted = session.mode === "subscription" && session.status === "complete";
     const normalizedStatus =
       session.payment_status === "paid" || isSubscriptionCompleted ? "succeeded" : session.payment_status;
+
+    // La sesión solo se le enseña a su dueño. Antes cualquiera con un
+    // `session_id` recibía importe, moneda y el UID asociado; la comprobación
+    // vivía en el cliente (`payment/success.tsx`), que es exactamente donde no
+    // sirve de nada (issue #27).
+    const duenoDeLaSesion = session.metadata?.userId || subscription?.metadata?.userId || null;
+    if (duenoDeLaSesion && duenoDeLaSesion !== auth.uid) {
+      return res.status(403).json({ error: "Esta sesión de pago no es tuya" });
+    }
 
     return res.status(200).json({
       sessionId: session.id,
