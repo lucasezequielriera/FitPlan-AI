@@ -85,6 +85,11 @@ describe("Coherencia de páginas indexables", () => {
     // dentro de un `switch`, un ternario en el return, ni ramas que vivan en
     // otro archivo. Cubre la forma del bug observada, no todo el espacio de
     // fallo — la red sin agujeros es el `Disallow` de robots.txt, más abajo.
+    //
+    // Un límite más, sin caso real hoy: el troceado por `return` mira el texto
+    // hasta el return siguiente, así que si entre un `return null;` y el
+    // próximo hubiera código no relacionado que contenga por casualidad
+    // "noindex", esa rama se daría por buena.
     const paginas = [
       "src/pages/dashboard.tsx",
       "src/pages/plan.tsx",
@@ -145,6 +150,17 @@ describe("Coherencia de páginas indexables", () => {
     for (const ruta of ["/dashboard", "/plan", "/hyrox/plan"]) {
       expect({ ruta, protegida: bloqueadas.some((b) => ruta.startsWith(b)) }).toEqual({ ruta, protegida: true });
     }
+  });
+
+  it("no hay archivos duplicados sirviéndose desde public/", () => {
+    // Todo lo que está en `public/` se publica aunque nadie lo enlace. Un
+    // `robots 2.txt` —duplicado que crea macOS al copiar— llegó a commitearse
+    // y quedó sirviéndose con una versión vieja de las reglas.
+    const duplicados = fs
+      .readdirSync(path.join(process.cwd(), "public"), { recursive: true } as { recursive: true })
+      .map(String)
+      .filter((f) => / \d+\.[a-z]+$/i.test(f));
+    expect(duplicados).toEqual([]);
   });
 
   it("la app tras login NO se envía ni se indexa", () => {
