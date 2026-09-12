@@ -420,10 +420,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const subscription = await stripe.subscriptions.retrieve(subscriptionId);
         const userId = subscription.metadata?.userId;
         if (userId) {
-          await adminDb.collection("usuarios").doc(userId).set(
-            { premiumStatus: "past_due", updatedAt: FieldValue.serverTimestamp() },
-            { merge: true }
-          );
+          // Si esta escritura falla, el usuario conserva premium pese a que el
+          // cobro falló. Es menos grave que #13 —Stripe reintenta la factura—
+          // pero es una fuga de ingresos, así que sigue el mismo patrón.
+          try {
+            await adminDb.collection("usuarios").doc(userId).set(
+              { premiumStatus: "past_due", updatedAt: FieldValue.serverTimestamp() },
+              { merge: true }
+            );
+          } catch (error: unknown) {
+            console.error(`❌ No se pudo marcar como past_due la suscripción ${subscriptionId} de ${userId}:`, error);
+            await alertarActivacionFallida({
+              proveedor: "Stripe",
+              paymentId: String(subscriptionId),
+              userId,
+              error,
+              accion: "actualizar-suscripcion",
+            });
+            return res.status(500).json({ error: "No se pudo aplicar el estado de la suscripción", retry: true });
+          }
         }
       }
     }

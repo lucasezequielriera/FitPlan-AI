@@ -18,11 +18,19 @@ export async function alertarActivacionFallida(datos: {
   userId: string;
   userEmail?: string | null;
   error: unknown;
+  /**
+   * Qué se estaba haciendo. Por defecto, activar premium tras un cobro — pero
+   * la misma escritura también revoca al cancelar una suscripción, y anunciar
+   * "pago cobrado" ahí sería falso.
+   */
+  accion?: "activar" | "actualizar-suscripcion";
 }): Promise<void> {
   const detalle = datos.error instanceof Error ? datos.error.message : String(datos.error ?? "desconocido");
 
   const mensaje = [
-    "🚨 <b>PAGO COBRADO SIN PREMIUM ACTIVADO</b>",
+    datos.accion === "actualizar-suscripcion"
+      ? "🚨 <b>ESTADO DE SUSCRIPCIÓN SIN APLICAR</b>"
+      : "🚨 <b>PAGO COBRADO SIN PREMIUM ACTIVADO</b>",
     "",
     `<b>Proveedor:</b> ${datos.proveedor}`,
     `<b>Pago:</b> ${datos.paymentId}`,

@@ -50,6 +50,35 @@ describe("#13 — un pago cobrado que no activa premium tiene que reintentarse",
     expect(hastaCatch).not.toMatch(/createAdminPaymentNotification|sendTelegramMessage/);
   });
 
+  it("las cuatro escrituras que cambian el acceso están protegidas", () => {
+    // Inventario explícito, no un recuento por regex. Las escrituras tienen
+    // formas distintas —una pasa el objeto por variable (`set(premiumData,…)`)
+    // y las otras lo llevan en línea— así que contarlas automáticamente daba
+    // números que cuadraban por coincidencia, no por corrección.
+    //
+    // Si se añade una quinta, hay que sumarla aquí a mano. Es una lista que
+    // envejece, y se prefiere eso a un recuento que miente.
+    const inventario = [
+      { archivo: "src/pages/api/payment/webhook.ts", ancla: "premium: subscriptionStatus !== ", que: "MP · alta/baja de suscripción" },
+      { archivo: "src/pages/api/payment/webhook.ts", ancla: "userRef.set(premiumData", que: "MP · pago aprobado" },
+      { archivo: "src/pages/api/payment/stripe-webhook.ts", ancla: "premiumStatus: subscription.status ===", que: "Stripe · checkout completado" },
+      { archivo: "src/pages/api/payment/stripe-webhook.ts", ancla: 'premiumStatus: "past_due"', que: "Stripe · cobro fallido" },
+    ];
+
+    for (const { archivo, ancla, que } of inventario) {
+      const src = sinComentarios(read(archivo));
+      const pos = src.indexOf(ancla);
+      expect({ que, encontrada: pos > -1 }).toEqual({ que, encontrada: true });
+
+      // Desde la escritura hasta el siguiente `catch` tiene que haber una
+      // protección: aviso y 500. Si el catch más cercano es el exterior del
+      // handler, no habrá ninguno de los dos en ese tramo.
+      const tramo = src.slice(pos, src.indexOf("catch", pos) + 600);
+      expect({ que, avisa: /alertarActivacionFallida/.test(tramo) }).toEqual({ que, avisa: true });
+      expect({ que, reintenta: /status\(500\)/.test(tramo) }).toEqual({ que, reintenta: true });
+    }
+  });
+
   it("el aviso nunca tumba la respuesta del webhook", () => {
     // Si Telegram falla, el webhook tiene que seguir respondiendo: lo que
     // garantiza el reintento es el código de estado, no el mensaje.

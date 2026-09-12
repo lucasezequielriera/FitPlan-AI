@@ -193,17 +193,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               ? "inactive"
               : "active";
 
-      await userRef.set(
-        {
-          premium: subscriptionStatus !== "cancelled",
-          premiumStatus,
-          premiumPlanType: planType,
-          premiumExpiresAt: AdminTimestamp.fromDate(expiresAt),
-          premiumMercadoPagoPreapprovalId: String(preapprovalId),
-          updatedAt: FieldValue.serverTimestamp(),
-        },
-        { merge: true }
-      );
+      // Tercera escritura que toca `premium` en estos webhooks, y la que se
+      // quedó sin aislar en la primera pasada de #13. Importa en las dos
+      // direcciones: si falla al conceder, alguien autoriza la suscripción y no
+      // recibe acceso; si falla al revocar, alguien cancela y lo conserva.
+      try {
+        await userRef.set(
+          {
+            premium: subscriptionStatus !== "cancelled",
+            premiumStatus,
+            premiumPlanType: planType,
+            premiumExpiresAt: AdminTimestamp.fromDate(expiresAt),
+            premiumMercadoPagoPreapprovalId: String(preapprovalId),
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+      } catch (error: unknown) {
+        console.error(`❌ CRÍTICO: no se pudo aplicar el estado "${subscriptionStatus}" de la suscripción ${preapprovalId} a ${userId}:`, error);
+        await alertarActivacionFallida({
+          proveedor: "MercadoPago",
+          paymentId: String(preapprovalId),
+          userId,
+          error,
+          accion: "actualizar-suscripcion",
+        });
+        return res.status(500).json({ error: "No se pudo aplicar el estado de la suscripción", retry: true });
+      }
 
       return res.status(200).json({ received: true });
     }
