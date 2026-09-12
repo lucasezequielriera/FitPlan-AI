@@ -50,18 +50,24 @@ describe("#13 — un pago cobrado que no activa premium tiene que reintentarse",
     expect(hastaCatch).not.toMatch(/createAdminPaymentNotification|sendTelegramMessage/);
   });
 
-  it("las cuatro escrituras que cambian el acceso están protegidas", () => {
+  it("las cinco escrituras que cambian el acceso están protegidas", () => {
     // Inventario explícito, no un recuento por regex. Las escrituras tienen
     // formas distintas —una pasa el objeto por variable (`set(premiumData,…)`)
     // y las otras lo llevan en línea— así que contarlas automáticamente daba
     // números que cuadraban por coincidencia, no por corrección.
     //
-    // Si se añade una quinta, hay que sumarla aquí a mano. Es una lista que
+    // Si se añade una sexta, hay que sumarla aquí a mano. Es una lista que
     // envejece, y se prefiere eso a un recuento que miente.
+    //
+    // Aviso de lo frágil que es: la primera versión de esta lista decía cuatro
+    // cuando ya había cinco — se olvidó la renovación por factura de Stripe, y
+    // la suite entera pasaba con esa escritura sin proteger. Lo encontró la
+    // revisión quitándole la protección y viendo que nada fallaba.
     const inventario = [
       { archivo: "src/pages/api/payment/webhook.ts", ancla: "premium: subscriptionStatus !== ", que: "MP · alta/baja de suscripción" },
       { archivo: "src/pages/api/payment/webhook.ts", ancla: "userRef.set(premiumData", que: "MP · pago aprobado" },
       { archivo: "src/pages/api/payment/stripe-webhook.ts", ancla: "premiumStatus: subscription.status ===", que: "Stripe · checkout completado" },
+      { archivo: "src/pages/api/payment/stripe-webhook.ts", ancla: "premiumLastPay:", que: "Stripe · renovación por factura" },
       { archivo: "src/pages/api/payment/stripe-webhook.ts", ancla: 'premiumStatus: "past_due"', que: "Stripe · cobro fallido" },
     ];
 
