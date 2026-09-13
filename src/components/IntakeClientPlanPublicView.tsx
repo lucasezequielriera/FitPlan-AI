@@ -541,11 +541,19 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
           disabled={!trainerQaIsPremium && (trainerQaRemaining ?? 0) <= 0}
         />
         <div className="mt-2 flex items-center gap-2">
+          {/* El texto va en `--foreground`, no en `--success`: el original era
+              `emerald-50` (casi blanco) sobre fondo esmeralda, y sustituirlo por
+              el mismo tono del fondo dejaba el contraste en 4,4:1, por debajo del
+              4,5:1 que pide AA para 12px. El color se queda en el fondo y el
+              borde, que es donde comunica sin costar legibilidad.
+              Y el hover vuelve a subir la opacidad: la sustitución automática lo
+              había dejado igual que la base, así que el botón dejaba de responder
+              al puntero sin que nada lo delatara. */}
           <button
             type="button"
             onClick={() => void askTrainer()}
             disabled={trainerQaLoading || !trainerQaQuestion.trim() || (!trainerQaIsPremium && (trainerQaRemaining ?? 0) <= 0)}
-            className="px-3 py-1.5 rounded-lg bg-success/25 border border-success/20 text-success text-xs hover:bg-success/25 disabled:opacity-60"
+            className="px-3 py-1.5 rounded-lg bg-success/25 border border-success/40 text-foreground text-xs hover:bg-success/35 disabled:opacity-60"
           >
             {trainerQaLoading ? "Respondiendo..." : "Enviar pregunta"}
           </button>
