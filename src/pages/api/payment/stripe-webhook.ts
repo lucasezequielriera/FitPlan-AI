@@ -141,29 +141,54 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const intakeClientId = session.metadata.intakeClientId;
         const amountTotal = typeof session.amount_total === "number" ? session.amount_total / 100 : 0;
         const currency = session.currency?.toUpperCase() || "EUR";
-        await adminDb.collection("intakeClients").doc(intakeClientId).set(
-          {
-            paymentStatus: "paid",
-            paymentProvider: "stripe",
-            paymentLastPaidAt: FieldValue.serverTimestamp(),
-            paymentCurrentMonthPaid: true,
-            paymentLastAmount: amountTotal,
-            paymentLastCurrency: currency,
-            updatedAt: FieldValue.serverTimestamp(),
-          },
-          { merge: true }
-        );
-        await adminDb.collection("adminNotifications").add({
-          type: "payment_success",
-          read: false,
-          flow: "intake_client",
-          intakeClientId,
-          provider: "stripe",
-          amount: amountTotal,
-          currency,
-          paymentId: session.id,
-          createdAt: FieldValue.serverTimestamp(),
-        });
+        // La misma protección que la activación de premium (#13), aplicada al
+        // flujo B2B. Esta escritura es la que hace que el cliente conste como
+        // pagado; si falla y devolvemos 200, Stripe da el evento por entregado y
+        // no reintenta: cobrado y sin registrar, sin que nadie se entere (#42).
+        try {
+          await adminDb.collection("intakeClients").doc(intakeClientId).set(
+            {
+              paymentStatus: "paid",
+              paymentProvider: "stripe",
+              paymentLastPaidAt: FieldValue.serverTimestamp(),
+              paymentCurrentMonthPaid: true,
+              paymentLastAmount: amountTotal,
+              paymentLastCurrency: currency,
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+        } catch (error: unknown) {
+          console.error(`❌ CRÍTICO: checkout ${session.id} cobrado pero NO se pudo marcar como pagado al cliente ${intakeClientId}:`, error);
+          await alertarActivacionFallida({
+            proveedor: "Stripe",
+            paymentId: String(session.id),
+            userId: intakeClientId,
+            userEmail: session.customer_details?.email ?? null,
+            error,
+            accion: "registrar-cobro-b2b",
+          });
+          return res.status(500).json({ error: "No se pudo registrar el cobro del cliente", retry: true });
+        }
+
+        // Lo que sigue son efectos secundarios: el cobro ya consta. Si fallan,
+        // se responde 200 igual — un reintento reescribiría lo ya escrito y
+        // duplicaría la notificación, que es peor que perderla.
+        try {
+          await adminDb.collection("adminNotifications").add({
+            type: "payment_success",
+            read: false,
+            flow: "intake_client",
+            intakeClientId,
+            provider: "stripe",
+            amount: amountTotal,
+            currency,
+            paymentId: session.id,
+            createdAt: FieldValue.serverTimestamp(),
+          });
+        } catch (notifErr) {
+          console.warn("⚠️ No se pudo crear la notificación admin (intake Stripe):", notifErr);
+        }
         try {
           const paidAt =
             typeof session.created === "number" ? new Date(session.created * 1000) : new Date();
