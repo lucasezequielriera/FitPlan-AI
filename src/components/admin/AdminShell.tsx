@@ -15,6 +15,7 @@ import {
   FaColumns,
   FaServer,
   FaBolt,
+  FaBroom,
   FaBell,
   FaComment,
   FaSignOutAlt,
@@ -54,7 +55,8 @@ export type AdminSectionId =
   | "ejercicios"
   | "backlog"
   | "servicios"
-  | "hyrox";
+  | "hyrox"
+  | "mantenimiento";
 
 type StatusDot = "success" | "warning" | "danger";
 
@@ -75,6 +77,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "backlog", label: "Backlog del equipo", icon: FaColumns, href: "/admin/backlog" },
   { id: "servicios", label: "Servicios", icon: FaServer, href: "/admin/servicios" },
   { id: "hyrox", label: "HYROX", icon: FaBolt, href: "/admin/hyrox", muted: true },
+  { id: "mantenimiento", label: "Mantenimiento", icon: FaBroom, href: "/admin/mantenimiento", muted: true },
 ];
 
 type ServiceStatusEntry = { configured: boolean; ok: boolean | null };
