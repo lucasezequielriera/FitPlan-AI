@@ -1,5 +1,8 @@
 import { create } from "zustand";
 import { getAuthSafe } from "@/lib/firebase";
+// `@/lib/dates/madrid` no importa firebase-admin, así que se puede usar en el
+// cliente. `funnel/store.ts`, donde vive el resto de esta lógica, sí lo hace.
+import { madridDateId } from "@/lib/dates/madrid";
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
@@ -8,6 +11,49 @@ import {
   User,
   getIdToken
 } from "firebase/auth";
+
+/**
+ * Marca hoy como día activo del usuario.
+ *
+ * Es la base de `funnel.activeDays`, y por tanto de la retención que se ve en
+ * `/admin/embudo`. "Activo" significa que la persona entró en la app — mirar el
+ * plan cuenta, aunque no registre nada.
+ *
+ * El guard va por DÍA y en `localStorage`. Antes era por sesión del navegador
+ * (`sessionStorage`), que dura lo que dura la pestaña: quien deja la app abierta
+ * —lo normal en el móvil, donde el webview de Capacitor sobrevive días— entraba
+ * cinco días seguidos y contaba como UNO. La métrica subcontaba justo a los
+ * usuarios más fieles, que son los únicos que importan al medir retención.
+ *
+ * El servidor ya es idempotente por día (`nextActiveDays` devuelve null si hoy
+ * ya consta), así que repetir la llamada no corrompe nada: este guard solo
+ * ahorra tráfico.
+ *
+ * Nunca lanza. Es telemetría: perder un día es aceptable, romper el arranque de
+ * la sesión no.
+ */
+async function marcarDiaActivo(user: User): Promise<void> {
+  if (typeof window === "undefined") return;
+  const hoy = madridDateId(new Date());
+  const diaKey = `lastLoginSynced:${user.uid}`;
+  if (localStorage.getItem(diaKey) === hoy) return;
+
+  try {
+    const idToken = await user.getIdToken();
+    const response = await fetch("/api/updateLastLogin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+      body: JSON.stringify({}),
+    });
+    if (!response.ok) {
+      console.warn("No se pudo actualizar lastLogin:", await response.json().catch(() => ({})));
+      return;
+    }
+    localStorage.setItem(diaKey, hoy);
+  } catch (error) {
+    console.warn("Error al actualizar lastLogin:", error);
+  }
+}
 
 let authInitialized = false;
 
@@ -116,48 +162,24 @@ export const useAuthStore = create<AuthState>((set) => ({
     authInitialized = true;
     onAuthStateChanged(auth, async (user) => {
       set({ user, loading: false });
-      
-      // Actualizar lastLogin cuando el usuario se conecta
-      if (user) {
-        const sessionKey = `lastLoginSynced:${user.uid}`;
-        const syncedInSession = typeof window !== "undefined" ? sessionStorage.getItem(sessionKey) : null;
-        if (syncedInSession === "1") {
-          return;
-        }
-        try {
-          // El servidor toma el UID del token, no del cuerpo.
-          //
-          // El token se pide directamente a `user`, el objeto que este propio
-          // callback recibe, en vez de a `authedFetch` (que lo busca en
-          // `auth.currentUser`). Aquí estamos DENTRO de `onAuthStateChanged`, y
-          // depender de que `auth.currentUser` ya esté poblado en ese instante
-          // es una suposición sobre el orden interno del SDK que no podemos
-          // comprobar; si fallara, dejaríamos de registrar `lastLogin` y los
-          // días activos de todos los usuarios sin que nada fallara a la vista.
-          const idToken = await user.getIdToken();
-          const response = await fetch("/api/updateLastLogin", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${idToken}`,
-            },
-            body: JSON.stringify({}),
-          });
-          
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            console.warn("No se pudo actualizar lastLogin:", errorData);
-          } else {
-            if (typeof window !== "undefined") {
-              sessionStorage.setItem(sessionKey, "1");
-            }
-          }
-        } catch (error) {
-          // Silenciar errores de lastLogin para no bloquear el flujo
-          console.warn("Error al actualizar lastLogin:", error);
-        }
-      }
+      // `user` llega aquí como argumento del callback, no de `auth.currentUser`:
+      // dentro de `onAuthStateChanged` no se puede dar por poblado sin hacer una
+      // suposición sobre el orden interno del SDK que no podemos comprobar.
+      if (user) void marcarDiaActivo(user);
     });
+
+    // `onAuthStateChanged` dispara una vez por carga de página. Sin esto, quien
+    // deja la app abierta y vuelve al día siguiente no marca ese día: la app ya
+    // estaba montada, nadie vuelve a preguntar. En el móvil es el caso normal.
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState !== "visible") return;
+        const actual = getAuthSafe()?.currentUser;
+        // Aquí sí vale `currentUser`: estamos fuera del callback y la sesión
+        // lleva rato establecida.
+        if (actual) void marcarDiaActivo(actual);
+      });
+    }
   },
 }));
 
