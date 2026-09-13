@@ -108,6 +108,58 @@ describe("#11 — la tabla de deuda visual dice la verdad", () => {
   });
 });
 
+describe("#11 — ningún `hover:` que no haga nada", () => {
+  it("no hay un `hover:bg-X` igual que su `bg-X` base", () => {
+    // Lo introdujo una sustitución automática de esta misma tanda: al mapear
+    // `bg-emerald-500/25` y `hover:bg-emerald-500/35` al mismo token, los dos
+    // acabaron en `bg-success/25` y el botón dejó de responder al puntero.
+    //
+    // No lo veía ni el typecheck ni el guard de colores —la clase es válida y
+    // el token es correcto—, solo se notaba usándolo. Por eso hace falta un
+    // guard propio: es el tipo de fallo que sobrevive a todo lo demás.
+    // Deuda que ya existía antes de este guard. Arreglar cada una exige decidir
+    // qué debería hacer ese hover, y eso es diseño, no sustitución mecánica.
+    // Se declaran para que el guard bloquee las NUEVAS sin fingir que estas no
+    // están: la lista solo puede encoger.
+    const YA_EXISTENTES = [
+      "src/components/ExerciseSetTracker.tsx: hover:text-info",
+      "src/components/PremiumPlanModal.tsx: hover:border-[var(--landing-border)]",
+      "src/components/WeeklyStatsModal.tsx: hover:text-danger",
+      "src/components/admin/AdminApp.tsx: hover:bg-success",
+      "src/pages/plan.tsx: hover:text-info",
+      "src/pages/plan.tsx: hover:text-warning",
+    ];
+
+    const ofensores: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of fs.readdirSync(path.join(process.cwd(), dir), { withFileTypes: true })) {
+        const rel = `${dir}/${e.name}`;
+        if (e.isDirectory()) walk(rel);
+        else if (/\.tsx$/.test(e.name) && !rel.includes("__tests__")) {
+          for (const m of leer(rel).matchAll(/className=(?:"([^"]*)"|\{`([^`]*)`\})/g)) {
+            const clases = (m[1] || m[2] || "").split(/\s+/);
+            for (const c of clases) {
+              const hover = c.match(/^hover:(bg|text|border)-(.+)$/);
+              if (hover && clases.includes(`${hover[1]}-${hover[2]}`)) {
+                ofensores.push(`${rel}: ${c}`);
+              }
+            }
+          }
+        }
+      }
+    };
+    walk("src");
+    const nuevos = [...new Set(ofensores)].filter((o) => !YA_EXISTENTES.includes(o)).sort();
+    expect(nuevos).toEqual([]);
+
+    // La lista solo puede encoger: si alguien arregla una, tiene que sacarla de
+    // aquí. Si no, el trinquete se afloja solo y vuelve a dar por bueno lo que
+    // ya no existe — el mismo error que la tabla de deuda tenía en §5.
+    const obsoletos = YA_EXISTENTES.filter((e) => !ofensores.includes(e));
+    expect(obsoletos).toEqual([]);
+  });
+});
+
 describe("#11 — el contador es uno solo", () => {
   it("cuenta un uso crudo y no cuenta un token", () => {
     expect(contarColoresCrudos(`<div className="bg-emerald-500 text-slate-100" />`)).toBe(2);

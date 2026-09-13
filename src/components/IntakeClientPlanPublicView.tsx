@@ -350,9 +350,9 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="rounded-lg border border-sky-400/20 bg-sky-500/10 px-3 py-2">
-          <p className="text-xs text-sky-100/80">Datos</p>
-          <p className="text-sm text-sky-100">
+        <div className="rounded-lg border border-border bg-surface-2 px-3 py-2">
+          <p className="text-xs text-muted">Datos</p>
+          <p className="text-sm text-foreground">
             Edad: {String(plan.input?.edad ?? "N/A")} · Altura: {String(plan.input?.alturaCm ?? "N/A")} cm · Peso:{" "}
             {String(plan.input?.pesoKg ?? "N/A")} kg
           </p>
@@ -369,9 +369,9 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div className="rounded-lg border border-emerald-400/20 bg-emerald-500/10 px-3 py-2">
-          <p className="text-xs text-emerald-100/80">Calorías objetivo</p>
-          <p className="text-base font-semibold text-emerald-100">
+        <div className="rounded-lg border border-success/20 bg-success/10 px-3 py-2">
+          <p className="text-xs text-success/80">Calorías objetivo</p>
+          <p className="text-base font-semibold text-success">
             {typeof root.calorias_diarias === "number"
               ? `${root.calorias_diarias} kcal${
                   typeof root.calorias_mantenimiento === "number"
@@ -389,23 +389,23 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
               : "N/A"}
           </p>
         </div>
-        <div className="rounded-lg border border-violet-400/20 bg-violet-500/10 px-3 py-2">
-          <p className="text-xs text-violet-100/80">Split entrenamiento</p>
-          <p className="text-sm text-violet-100">{String(trainingPlan?.split || "N/A")}</p>
+        <div className="rounded-lg border border-border bg-surface-2 px-3 py-2">
+          <p className="text-xs text-muted">Split entrenamiento</p>
+          <p className="text-sm text-foreground">{String(trainingPlan?.split || "N/A")}</p>
         </div>
       </div>
 
       {trainingPlan?.week_order_rationale ? (
-        <div className="rounded-lg border border-violet-400/25 bg-violet-500/5 px-3 py-2">
-          <p className="text-xs text-violet-100/80">Por qué este orden de días</p>
-          <p className="text-sm text-violet-50/95 whitespace-pre-wrap">{String(trainingPlan.week_order_rationale)}</p>
+        <div className="rounded-lg border border-border bg-surface-2 px-3 py-2">
+          <p className="text-xs text-muted">Por qué este orden de días</p>
+          <p className="text-sm text-muted whitespace-pre-wrap">{String(trainingPlan.week_order_rationale)}</p>
         </div>
       ) : null}
 
       {Boolean(root.evaluacion_inicial) && typeof root.evaluacion_inicial === "object" && (
-        <div className="rounded-lg border border-fuchsia-400/20 bg-fuchsia-500/10 px-3 py-2">
-          <p className="text-xs text-fuchsia-100/80">Evaluación inicial</p>
-          <p className="text-sm text-fuchsia-100">
+        <div className="rounded-lg border border-border bg-surface-2 px-3 py-2">
+          <p className="text-xs text-muted">Evaluación inicial</p>
+          <p className="text-sm text-foreground">
             IMC: {String((root.evaluacion_inicial as Record<string, unknown>).imc || "N/A")} · Estado:{" "}
             {String((root.evaluacion_inicial as Record<string, unknown>).estado || "N/A")}
           </p>
@@ -420,23 +420,23 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
       )}
 
       {cardioPlan && (
-        <div className="rounded-lg border border-sky-400/20 bg-sky-500/10 px-3 py-2">
-          <p className="text-xs text-sky-100/80">Cardio recomendado</p>
-          <p className="text-sm text-sky-100">
+        <div className="rounded-lg border border-border bg-surface-2 px-3 py-2">
+          <p className="text-xs text-muted">Cardio recomendado</p>
+          <p className="text-sm text-foreground">
             Pasos diarios: {String(cardioPlan.objetivo_pasos_diarios || "N/A")} · Sesiones:{" "}
             {String(cardioPlan.sesiones_por_semana || "N/A")}
           </p>
-          <p className="text-xs text-sky-100/80 mt-1">{String(cardioPlan.detalle || "")}</p>
+          <p className="text-xs text-muted mt-1">{String(cardioPlan.detalle || "")}</p>
         </div>
       )}
 
       {suplementacionPlan.length > 0 && (
-        <div className="rounded-lg border border-amber-400/20 bg-amber-500/10 px-3 py-2">
-          <p className="text-xs text-amber-100/80 mb-2">Suplementación sugerida</p>
+        <div className="rounded-lg border border-warning/20 bg-warning/10 px-3 py-2">
+          <p className="text-xs text-warning/80 mb-2">Suplementación sugerida</p>
           <div className="space-y-2">
             {suplementacionPlan.map((supp, idx) => (
               <div key={`supp-${idx}`} className="rounded-md border border-white/10 bg-black/20 px-3 py-2">
-                <p className="text-sm font-medium text-amber-100">{String(supp.nombre || "Suplemento")}</p>
+                <p className="text-sm font-medium text-warning">{String(supp.nombre || "Suplemento")}</p>
                 <p className="text-xs text-white/80 mt-1">
                   Dosis: {String(supp.dosis || "N/A")} · Momento: {String(supp.momento || "N/A")}
                 </p>
@@ -454,7 +454,7 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
           className="w-full inline-flex items-center justify-between gap-2 text-left"
         >
           <p className="text-xs text-white/60">Guía útil (referencia rápida)</p>
-          <span className="text-[11px] text-emerald-200">{usefulOpen ? "Ocultar guía" : "Ver guía"}</span>
+          <span className="text-[11px] text-success">{usefulOpen ? "Ocultar guía" : "Ver guía"}</span>
         </button>
         {usefulOpen ? (
           <div className="mt-2">
@@ -464,7 +464,7 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
                 onClick={() => setUsefulTab("training")}
                 className={`px-2 py-1 rounded text-xs border ${
                   usefulTab === "training"
-                    ? "bg-violet-500/25 border-violet-300/40 text-violet-100"
+                    ? "bg-surface-2 border-border text-foreground"
                     : "bg-white/5 border-white/10 text-white/70"
                 }`}
               >
@@ -483,7 +483,7 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
               </button>
             </div>
             {usefulTab === "training" ? (
-              <div className="rounded-md border border-violet-400/20 bg-violet-500/10 px-3 py-2 text-xs text-violet-50 space-y-3">
+              <div className="rounded-md border border-border bg-surface-2 px-3 py-2 text-xs text-foreground space-y-3">
                 <div className="space-y-1">
                   <p>• Prioriza técnica correcta antes de subir peso.</p>
                   <p>• Deja 1-3 repeticiones en recámara la mayor parte del tiempo (RIR).</p>
@@ -491,8 +491,8 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
                   <p>• Descansos: básicos 90-180s, accesorios 45-90s.</p>
                   <p>• Progresá poco a poco: +1-2 reps o +1-2.5 kg por semana cuando salga limpio.</p>
                 </div>
-                <div className="rounded border border-violet-300/20 bg-black/20 px-2 py-2 space-y-1">
-                  <p className="text-violet-200 font-semibold">Palabras clave (entrenamiento)</p>
+                <div className="rounded border border-border bg-black/20 px-2 py-2 space-y-1">
+                  <p className="text-muted font-semibold">Palabras clave (entrenamiento)</p>
                   <p><strong>RIR:</strong> repeticiones que te quedan antes del fallo.</p>
                   <p><strong>HIT:</strong> alta intensidad en poco volumen; útil en bloques puntuales.</p>
                   <p><strong>Fallo muscular:</strong> no poder completar otra repetición con técnica correcta.</p>
@@ -525,9 +525,9 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
         ) : null}
       </div>
 
-      <div className="rounded-lg border border-emerald-400/25 bg-emerald-500/10 px-3 py-2">
-        <p className="text-xs text-emerald-100/80">Preguntar a mi Trainer</p>
-        <p className="text-[11px] text-emerald-100/80 mt-1">
+      <div className="rounded-lg border border-success/20 bg-success/10 px-3 py-2">
+        <p className="text-xs text-success/80">Preguntar a mi Trainer</p>
+        <p className="text-[11px] text-success/80 mt-1">
           {trainerQaIsPremium
             ? "Premium activo: consultas habilitadas."
             : `Plan gratis: ${trainerQaRemaining ?? 0}/${trainerQaMaxFree} preguntas restantes.`}
@@ -541,11 +541,19 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
           disabled={!trainerQaIsPremium && (trainerQaRemaining ?? 0) <= 0}
         />
         <div className="mt-2 flex items-center gap-2">
+          {/* El texto va en `--foreground`, no en `--success`: el original era
+              `emerald-50` (casi blanco) sobre fondo esmeralda, y sustituirlo por
+              el mismo tono del fondo dejaba el contraste en 4,4:1, por debajo del
+              4,5:1 que pide AA para 12px. El color se queda en el fondo y el
+              borde, que es donde comunica sin costar legibilidad.
+              Y el hover vuelve a subir la opacidad: la sustitución automática lo
+              había dejado igual que la base, así que el botón dejaba de responder
+              al puntero sin que nada lo delatara. */}
           <button
             type="button"
             onClick={() => void askTrainer()}
             disabled={trainerQaLoading || !trainerQaQuestion.trim() || (!trainerQaIsPremium && (trainerQaRemaining ?? 0) <= 0)}
-            className="px-3 py-1.5 rounded-lg bg-emerald-500/25 border border-emerald-300/40 text-emerald-50 text-xs hover:bg-emerald-500/35 disabled:opacity-60"
+            className="px-3 py-1.5 rounded-lg bg-success/25 border border-success/40 text-foreground text-xs hover:bg-success/35 disabled:opacity-60"
           >
             {trainerQaLoading ? "Respondiendo..." : "Enviar pregunta"}
           </button>
@@ -556,7 +564,7 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
         {trainerQaError ? <p className="text-xs text-danger mt-2">{trainerQaError}</p> : null}
         {trainerQaAnswer ? (
           <div className="mt-2 rounded-md border border-white/10 bg-black/20 px-3 py-2">
-            <p className="text-[11px] text-emerald-200 mb-1">Respuesta del trainer</p>
+            <p className="text-[11px] text-success mb-1">Respuesta del trainer</p>
             <p className="text-sm text-white/90">{trainerQaAnswer}</p>
           </div>
         ) : null}
@@ -621,7 +629,7 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
                                 <p className="text-xs text-white/60">{mealTime}</p>
                               </div>
                               <p className="text-xs text-white/80 mt-1">{mealOption || "Opción personalizada"}</p>
-                              <p className="text-xs text-emerald-200 mt-1">
+                              <p className="text-xs text-success mt-1">
                                 Proteínas {String(mealMacros?.proteinas_g ?? "-")}g · Grasas{" "}
                                 {String(mealMacros?.grasas_g ?? "-")}g · Carbohidratos{" "}
                                 {String(mealMacros?.carbohidratos_g ?? "-")}g
@@ -632,7 +640,7 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
                                 </p>
                               ) : null}
                               {mealOptionSpecific.length > 0 ? (
-                                <p className="text-[11px] text-violet-100/90 mt-1">
+                                <p className="text-[11px] text-muted mt-1">
                                   Según esta opción: {mealOptionSpecific.join(" · ")}
                                 </p>
                               ) : null}
@@ -657,7 +665,7 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
             className="w-full inline-flex items-center justify-between gap-2 text-left"
           >
             <p className="text-xs text-white/60">Plan de entrenamiento</p>
-            <span className="text-[11px] text-violet-200">{trainingOpen ? "Ocultar" : "Ver entrenamiento"}</span>
+            <span className="text-[11px] text-muted">{trainingOpen ? "Ocultar" : "Ver entrenamiento"}</span>
           </button>
           {trainingOpen ? (
             <div className="space-y-6 mt-2">
@@ -665,7 +673,7 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
                 const days = Array.isArray(week.days) ? (week.days as Array<Record<string, unknown>>) : [];
                 return (
                   <div key={`week-${weekIndex}`}>
-                    <p className="text-sm font-semibold text-violet-200 mb-2">Semana {weekIndex + 1}</p>
+                    <p className="text-sm font-semibold text-muted mb-2">Semana {weekIndex + 1}</p>
                     <div className="space-y-3">
                       {days.map((day, dayIndex) => {
                         const dayName = String(day.day || "Día");
@@ -686,12 +694,12 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
                               className="w-full inline-flex items-start justify-between gap-2 text-left"
                             >
                               <div>
-                                <p className="text-sm font-semibold text-violet-200">{dayName}</p>
+                                <p className="text-sm font-semibold text-muted">{dayName}</p>
                                 <p className="text-xs text-white/70 mt-1">
                                   {split} · {exercises.length} ejercicios
                                 </p>
                               </div>
-                              <span className="text-[11px] text-violet-200">{dayOpen ? "Ocultar día" : "Ver día"}</span>
+                              <span className="text-[11px] text-muted">{dayOpen ? "Ocultar día" : "Ver día"}</span>
                             </button>
                             {dayOpen ? (
                               <div className="mt-2 space-y-3">
@@ -807,7 +815,7 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
             className="w-full inline-flex items-center justify-between gap-2 text-left"
           >
             <p className="text-xs text-white/60">Plan de entrenamiento (semana 1)</p>
-            <span className="text-[11px] text-violet-200">{trainingOpen ? "Ocultar" : "Ver entrenamiento"}</span>
+            <span className="text-[11px] text-muted">{trainingOpen ? "Ocultar" : "Ver entrenamiento"}</span>
           </button>
           {trainingOpen ? (
             <div className="space-y-3 mt-2">
@@ -825,12 +833,12 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
                       className="w-full inline-flex items-start justify-between gap-2 text-left"
                     >
                       <div>
-                        <p className="text-sm font-semibold text-violet-200">{dayName}</p>
+                        <p className="text-sm font-semibold text-muted">{dayName}</p>
                         <p className="text-xs text-white/70 mt-1">
                           {split} · {exercises.length} ejercicios
                         </p>
                       </div>
-                      <span className="text-[11px] text-violet-200">{dayOpen ? "Ocultar día" : "Ver día"}</span>
+                      <span className="text-[11px] text-muted">{dayOpen ? "Ocultar día" : "Ver día"}</span>
                     </button>
                     {dayOpen ? (
                       <div className="mt-2 space-y-3">

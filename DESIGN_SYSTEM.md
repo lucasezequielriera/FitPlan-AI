@@ -138,7 +138,7 @@ Las variables `--landing-*` que ya estaban en uso (206 ocurrencias en landing/fo
 
 Esta sesión aplicó los tokens/clases a fondo en: landing (`HomeLanding.tsx`, ya estaba migrado), `dashboard.tsx`, `DashboardPlanCard.tsx`, `create-plan.tsx`, `plan.tsx` y sus modales (`GymCalendarModal`, `ExerciseSetTracker`, `FoodTrackingModal`, `WeeklyStatsModal`, `PlanContinuityModal`, `TrainingCalendar`, `IMCInfoModal`, `PremiumPlanModal`, `MonthChangesModal`, `IntakeWorkoutDayLog`, `mi-plan/[clientId].tsx`), y el panel admin (`AdminApp.tsx`, `Navbar.tsx`, `AdminExerciseCatalogPanel.tsx`, `admin/actividad.tsx`) — reemplazando los patrones de color con significado real (éxito/error/advertencia/info, colores de fase) por los tokens semánticos.
 
-`IntakeClientPlanPublicView.tsx` y `AdminExerciseCatalogModal.tsx` **estaban en esa lista sin estarlo**: entre los dos sumaban 104 clases crudas. Se han sacado. Ver la tabla de deuda.
+`IntakeClientPlanPublicView.tsx` y `AdminExerciseCatalogModal.tsx` **estaban en esa lista sin estarlo**: entre los dos sumaban 104 clases crudas. La primera ya está migrada de verdad (ver abajo); la segunda sigue en la tabla de deuda.
 
 **Rollout "FitPlan Volt" (pasada de `frontend`):** sobre la base de arriba, se migró el resto de identidad de marca hardcodeada (gradientes viejos ámbar/naranja/rosa, azul/cian, púrpura/rosa, y fondos `slate-900`/`gray-900` crudos) a `--brand-start/mid/end` y `--background`/`--surface`, y se aplicó `font-display` (Space Grotesk) a headings y cifras grandes (kcal, kg, %, sets) en: `dashboard.tsx`, `DashboardPlanCard.tsx`, `plan.tsx`, `create-plan.tsx`, `mi-plan/[clientId].tsx`, `formulario-de-inicio.tsx` (+ `en/formulario-de-inicio.tsx`, que solo re-exporta el mismo componente), `payment/{success,pending,failure}.tsx`, `CookieConsentBanner.tsx`, `LoginModal.tsx`, `MonthChangesModal.tsx`, `Navbar.tsx`, `TrainingCalendar.tsx` e `IntakeWorkoutDayLog.tsx`. Verificado visualmente con capturas de Chrome headless (landing, formulario, payment success/failure/pending) — contraste correcto: texto oscuro sobre `--accent` lima en todos los CTA `.btn-primary`/gradiente de marca.
 
@@ -150,7 +150,6 @@ Una fila por archivo. Un archivo con deuda que no esté aquí hace fallar el tes
 
 | Archivo | Clases crudas | Nota |
 |---|---:|---|
-| `src/components/IntakeClientPlanPublicView.tsx` | 56 | **Contenido público de cliente.** El color codifica dominio (cian=datos, esmeralda=calorías, violeta=entrenamiento, fucsia=evaluación, ámbar=suplementos), no estado — ver decisión pendiente abajo |
 | `src/components/AdminExerciseCatalogModal.tsx` | 46 | Catálogo de ejercicios del admin |
 | `src/components/UserMessagesModal.tsx` | 27 | Chat con el fundador (el CTA ya usa el gradiente de marca) |
 | `src/components/ExerciseDemoMedia.tsx` | 17 | Reproductor de demos |
@@ -167,22 +166,34 @@ Una fila por archivo. Un archivo con deuda que no esté aquí hace fallar el tes
 | `src/components/admin/AdminApp.tsx` | 1 | `text-gray-600` en el visor de HTML de emails: texto oscuro sobre `bg-white`, donde los tokens del tema oscuro no aplican |
 | `src/pages/admin/actividad.tsx` | 1 | Resto de la pasada original |
 
-**Total: 189 clases en 16 archivos.**
+**Total: 133 clases en 15 archivos.**
 
 Ya están a **0** y salen de la tabla: `transformacion-fitplan.tsx` (y su gemela `en/`), `AdminExerciseCatalogPanel.tsx`, `admin/configuraciones/index.tsx`, `ejercicios.tsx`, `servicios.tsx`, `backlog.tsx` y `admin/hyrox.tsx` (este último, ver §8.2). La tabla anterior les atribuía unas 227 clases que ya no existían: el documento estaba equivocado en las dos direcciones a la vez — daba por migrado lo que no lo estaba y por pendiente lo que ya se había hecho.
 
-### Decisión pendiente de Lucas: el color por dominio
+### El "color por dominio" de la vista pública de intake resultó no serlo
 
-Hay paletas que no son ni estado ni fase, sino **dominio**: en `IntakeClientPlanPublicView.tsx` cada bloque del plan tiene su color y lo mantiene (datos, calorías, entrenamiento, evaluación, suplementación). Lo mismo en las pestañas del catálogo de ejercicios.
+Se llegó a escribir aquí que los colores de `IntakeClientPlanPublicView.tsx` codificaban dominio (cian=datos, esmeralda=calorías, violeta=entrenamiento, fucsia=evaluación, ámbar=suplementos) y que por tanto no debían migrarse, porque meterlos en los cuatro tokens semánticos habría reducido la distinción visual.
 
-El documento decía que eso era "decorativo, no requiere migración". Es medio cierto y medio no: **no** hay que meterlo en los 4 tokens semánticos —forzar cinco dominios en `success/warning/danger/info` destruiría la distinción y volvería la vista pública menos legible—, pero tampoco puede quedarse como colores sueltos, porque entonces "es intencional" se vuelve la excusa que tapa cualquier deuda.
+**Era falso, y la prueba estaba en este mismo repositorio.** `AdminApp.tsx` renderiza el mismo resumen de plan, con las mismas variables y las mismas etiquetas, y ya se había migrado siguiendo §6. Al mirarlo:
 
-Las dos salidas son:
+| Bloque | Se creía | Resultó ser |
+|---|---|---|
+| Datos, Split entrenamiento, Evaluación inicial, Cardio | dominio (cian / violeta / fucsia) | deuda pura → `border-border` + `bg-surface-2` |
+| Calorías objetivo | dominio (esmeralda) | `--success`, que ya existía |
+| Suplementación | dominio (ámbar) | `--warning`, que ya existía |
 
-1. **Tokens de dominio propios** (`--domain-*`), como ya se hizo con `--phase-hyrox-*`. Fija la paleta, permite cambiarla en un sitio, y el guard deja de contarlos.
-2. **Aceptarlos como excepción declarada**, con su fila en la tabla y el motivo escrito.
+No eran cinco dominios: eran tres bloques sin color y dos tokens que ya estaban definidos. La señal de que algo fallaba estaba dentro del propio archivo, donde "Macros" ya usaba `border-info/20` y "Mensaje importante" ya usaba `border-warning/30`, conviviendo con los bloques sin tokenizar. Eso no es una paleta deliberada: es una migración a medias.
 
-Requiere decisión: ampliar el vocabulario de tokens es una decisión de marca, no de implementación.
+La lección: **"es intencional" es la coartada perfecta para la deuda visual**, porque no se puede refutar sin abrir el archivo. Si vuelve a aparecer ese argumento, hay que buscar el gemelo ya migrado antes de aceptarlo.
+
+### Qué NO cubre el recuento
+
+El guard cuenta `{prefijo}-{color}-{tono}`. Quedan fuera, y son deuda igualmente:
+
+- **`bg-white` / `text-white` / `bg-black` / `border-white`** con opacidad — sin tono numérico, así que el patrón no los ve. Son cientos, repartidos en unos 44 archivos: más volumen que toda la tabla de arriba.
+- **Hex arbitrario entre corchetes**, tipo `text-[#0a1628]`, que suele ser un token escrito a mano.
+
+Se dice aquí porque un guard que promete cobertura total y no la tiene es peor que no tenerlo: da por limpio lo que solo está fuera de su alcance.
 
 ## 6. Panel admin — consolidación de la paleta de `AdminApp.tsx` (decisión de `diseno`)
 
