@@ -265,34 +265,70 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (externalRef.startsWith("intake:")) {
           const [rawIntakeId, intakePlanType] = externalRef.replace("intake:", "").split("|");
           const intakeClientId = rawIntakeId || "";
-          if (intakeClientId) {
-            const adminDb = getAdminDb();
-            if (adminDb) {
-              await adminDb.collection("intakeClients").doc(intakeClientId).set(
-                {
-                  paymentStatus: "paid",
-                  paymentProvider: "mercadopago",
-                  paymentLastPaidAt: FieldValue.serverTimestamp(),
-                  paymentCurrentMonthPaid: true,
-                  paymentPlanType: intakePlanType || "monthly",
-                  paymentLastAmount: typeof payment.transaction_amount === "number" ? payment.transaction_amount : 0,
-                  paymentLastCurrency: payment.currency_id || "ARS",
-                  updatedAt: FieldValue.serverTimestamp(),
-                },
-                { merge: true }
-              );
-              await adminDb.collection("adminNotifications").add({
-                type: "payment_success",
-                flow: "intake_client",
-                read: false,
-                intakeClientId,
-                provider: "mercadopago",
-                amount: typeof payment.transaction_amount === "number" ? payment.transaction_amount : 0,
-                currency: payment.currency_id || "ARS",
-                paymentId: String(paymentId),
-                createdAt: FieldValue.serverTimestamp(),
-              });
-            }
+          if (!intakeClientId) {
+            // Referencia malformada: un reintento no la va a arreglar, así que
+            // se acepta el evento. Pero no en silencio — hay un cobro real sin
+            // ficha a la que asociarlo.
+            console.error(`❌ Pago ${paymentId} de intake con external_reference sin id: "${externalRef}"`);
+            return res.status(200).json({ received: true });
+          }
+
+          const adminDb = getAdminDb();
+          if (!adminDb) {
+            // Antes era `if (adminDb)`: sin base de datos se saltaba la
+            // escritura entera y devolvía 200. MercadoPago daba el cobro por
+            // procesado y no reintentaba nunca. Es un fallo de configuración
+            // transitorio, justo lo que un reintento sí arregla (#42).
+            console.error(`❌ CRÍTICO: pago ${paymentId} del cliente ${intakeClientId} cobrado y Firebase Admin no configurado`);
+            return res.status(500).json({ error: "Firebase Admin SDK no configurado", retry: true });
+          }
+
+          const intakeAmount = typeof payment.transaction_amount === "number" ? payment.transaction_amount : 0;
+          const intakeCurrency = payment.currency_id || "ARS";
+
+          // Escritura crítica aislada: es la que hace constar el cobro (#42).
+          try {
+            await adminDb.collection("intakeClients").doc(intakeClientId).set(
+              {
+                paymentStatus: "paid",
+                paymentProvider: "mercadopago",
+                paymentLastPaidAt: FieldValue.serverTimestamp(),
+                paymentCurrentMonthPaid: true,
+                paymentPlanType: intakePlanType || "monthly",
+                paymentLastAmount: intakeAmount,
+                paymentLastCurrency: intakeCurrency,
+                updatedAt: FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            );
+          } catch (error: unknown) {
+            console.error(`❌ CRÍTICO: pago ${paymentId} cobrado pero NO se pudo marcar como pagado al cliente ${intakeClientId}:`, error);
+            await alertarActivacionFallida({
+              proveedor: "MercadoPago",
+              paymentId: String(paymentId),
+              userId: intakeClientId,
+              error,
+              accion: "registrar-cobro-b2b",
+            });
+            return res.status(500).json({ error: "No se pudo registrar el cobro del cliente", retry: true });
+          }
+
+          // Efecto secundario: el cobro ya consta, así que un fallo aquí no
+          // justifica pedir reintento.
+          try {
+            await adminDb.collection("adminNotifications").add({
+              type: "payment_success",
+              flow: "intake_client",
+              read: false,
+              intakeClientId,
+              provider: "mercadopago",
+              amount: intakeAmount,
+              currency: intakeCurrency,
+              paymentId: String(paymentId),
+              createdAt: FieldValue.serverTimestamp(),
+            });
+          } catch (notifErr) {
+            console.warn("⚠️ No se pudo crear la notificación admin (intake MP):", notifErr);
           }
           return res.status(200).json({ received: true });
         }

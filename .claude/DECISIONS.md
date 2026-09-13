@@ -47,6 +47,15 @@ cubra el cambio.
 
 ---
 
+### 2026-09-13 · Aislar las escrituras de pago del flujo B2B (#42)
+**Categoría:** pagos
+**Se le preguntó:** la decisión del 2026-09-12 (#13) cubre literalmente solo las escrituras que cambian `premium`/`premiumStatus` de la colección `usuarios`. La rama B2B de los dos webhooks escribe `paymentStatus: "paid"` en `intakeClients` sin esa protección: si falla, el catch exterior responde 200 igual y la pasarela no reintenta. Mismo coste que #13 —dinero cobrado, servicio sin activar— en otro flujo.
+**Decidió:** "arregla el 42"
+**Autoriza:** aislar en su propio try/catch la escritura a `intakeClients` en las ramas de intake de `payment/webhook.ts` y `payment/stripe-webhook.ts`, devolver 500 + aviso cuando falle, degradar a no crítico lo que va después (notificación admin, ledger), y desplegarlo. Incluye el `if (adminDb)` de la rama de MercadoPago, que hoy se salta la escritura en silencio y devuelve 200: es el mismo fallo en la misma rama.
+
+NO autoriza tocar las escrituras de `premium` ya protegidas, ni cambiar qué campos se guardan en `intakeClients`, ni el comportamiento de los webhooks fuera de la rama de intake.
+**Estado:** vigente
+
 ### 2026-09-13 · Verificar identidad al LEER mensajes (#27-ter)
 **Categoría:** datos de usuarios existentes
 **Se le preguntó:** al cerrar #27-bis, la revisión encontró una tercera aparición del patrón: `user/messages.ts` es un GET sin ninguna verificación que devuelve el contenido completo de los mensajes de un usuario a partir de un `userId` en la URL. Mismo riesgo de privacidad que `replyMessage`, pero en su forma de lectura.

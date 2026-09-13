@@ -50,7 +50,7 @@ describe("#13 — un pago cobrado que no activa premium tiene que reintentarse",
     expect(hastaCatch).not.toMatch(/createAdminPaymentNotification|sendTelegramMessage/);
   });
 
-  it("las cinco escrituras que cambian el acceso están protegidas", () => {
+  it("las siete escrituras que cambian el acceso están protegidas", () => {
     // Inventario explícito, no un recuento por regex. Las escrituras tienen
     // formas distintas —una pasa el objeto por variable (`set(premiumData,…)`)
     // y las otras lo llevan en línea— así que contarlas automáticamente daba
@@ -69,6 +69,10 @@ describe("#13 — un pago cobrado que no activa premium tiene que reintentarse",
       { archivo: "src/pages/api/payment/stripe-webhook.ts", ancla: "premiumStatus: subscription.status ===", que: "Stripe · checkout completado" },
       { archivo: "src/pages/api/payment/stripe-webhook.ts", ancla: "premiumLastPay:", que: "Stripe · renovación por factura" },
       { archivo: "src/pages/api/payment/stripe-webhook.ts", ancla: 'premiumStatus: "past_due"', que: "Stripe · cobro fallido" },
+      // #42: el flujo B2B no toca `premium`, pero `paymentStatus: "paid"` es lo
+      // que hace constar que ese cliente pagó. Perderlo cuesta lo mismo.
+      { archivo: "src/pages/api/payment/webhook.ts", ancla: 'paymentProvider: "mercadopago"', que: "MP · cobro de cliente B2B" },
+      { archivo: "src/pages/api/payment/stripe-webhook.ts", ancla: 'paymentProvider: "stripe"', que: "Stripe · cobro de cliente B2B" },
     ];
 
     for (const { archivo, ancla, que } of inventario) {
@@ -90,6 +94,77 @@ describe("#13 — un pago cobrado que no activa premium tiene que reintentarse",
     // garantiza el reintento es el código de estado, no el mensaje.
     const src = read("src/lib/payments/activationAlert.ts");
     expect(src).toMatch(/try\s*\{[\s\S]*sendTelegramMessage[\s\S]*\}\s*catch/);
+  });
+});
+
+describe("#42 — el flujo B2B (intakeClients) falla igual de ruidoso que el de premium", () => {
+  /** La rama de intake de MercadoPago, desde su guard hasta que devuelve 200. */
+  const ramaIntakeMP = () => {
+    const src = sinComentarios(read("src/pages/api/payment/webhook.ts"));
+    const ini = src.indexOf('externalRef.startsWith("intake:")');
+    expect(ini).toBeGreaterThan(-1);
+    // La rama termina en el `const [userId, planType]` del flujo normal.
+    const fin = src.indexOf("const [userId, planType]", ini);
+    expect(fin).toBeGreaterThan(ini);
+    return src.slice(ini, fin);
+  };
+
+  it("sin Firebase Admin pide reintento en vez de saltarse la escritura", () => {
+    // El bug que el issue no mencionaba y estaba en la misma rama: era
+    // `if (adminDb) { …escribir… }`, sin else. Sin base de datos no escribía
+    // nada y devolvía 200 igual, así que MercadoPago daba el cobro por
+    // procesado y no reintentaba nunca. Silencioso y garantizado, no
+    // dependiente de que algo lanzara.
+    const rama = ramaIntakeMP();
+    expect({ compruebaAusencia: /if\s*\(\s*!adminDb\s*\)/.test(rama) }).toEqual({ compruebaAusencia: true });
+    expect({ pideReintento: /status\(500\)/.test(rama) }).toEqual({ pideReintento: true });
+    // La forma vieja no puede volver: envolver la escritura en `if (adminDb)`
+    // la vuelve a hacer opcional.
+    expect(rama).not.toMatch(/if\s*\(\s*adminDb\s*\)/);
+  });
+
+  it("una referencia sin id se registra, no se descarta callando", () => {
+    // Aquí el 200 sí es correcto —reintentar no arregla un external_reference
+    // malformado— pero hay un cobro real sin ficha a la que asociarlo, y eso
+    // tiene que quedar escrito en algún sitio.
+    //
+    // La primera versión de este test buscaba `console.error` en toda la rama,
+    // y pasaba igual quitándoselo a este camino: lo satisfacían los dos
+    // `console.error` de los catch críticos. Ahora se mira solo el bloque del
+    // id vacío, que es el que puede quedarse mudo.
+    const rama = ramaIntakeMP();
+    const ini = rama.indexOf("if (!intakeClientId)");
+    expect(ini).toBeGreaterThan(-1);
+    const bloque = rama.slice(ini, rama.indexOf("}", rama.indexOf("return", ini)));
+    expect(bloque).toMatch(/console\.error/);
+  });
+
+  it("la notificación admin NO puede tumbar el webhook en ninguno de los dos", () => {
+    // Es el error simétrico al de #13: si se protege de más, un fallo al avisar
+    // provoca un reintento que reescribe un cobro ya registrado y duplica la
+    // notificación. Lo crítico es la escritura, no el aviso.
+    const casos = [
+      { archivo: "src/pages/api/payment/webhook.ts", que: "MP" },
+      { archivo: "src/pages/api/payment/stripe-webhook.ts", que: "Stripe" },
+    ];
+    for (const { archivo, que } of casos) {
+      const src = sinComentarios(read(archivo));
+      const pos = src.indexOf('flow: "intake_client"');
+      expect({ que, encontrada: pos > -1 }).toEqual({ que, encontrada: true });
+      const tramo = src.slice(pos, src.indexOf("catch", pos) + 300);
+      expect({ que, degradado: /console\.warn/.test(tramo) }).toEqual({ que, degradado: true });
+      expect({ que, noReintenta: !/status\(500\)/.test(tramo) }).toEqual({ que, noReintenta: true });
+    }
+  });
+
+  it("el aviso B2B no habla de premium ni llama Usuario al cliente", () => {
+    // Un aviso que dice "PAGO COBRADO SIN PREMIUM ACTIVADO" con un id de
+    // `intakeClients` manda a Lucas a buscar a un usuario que no existe, a las
+    // 3 de la mañana y con dinero de por medio.
+    const src = read("src/lib/payments/activationAlert.ts");
+    expect(src).toMatch(/registrar-cobro-b2b/);
+    expect(src).toMatch(/COBRO DE CLIENTE B2B SIN REGISTRAR/);
+    expect(src).toMatch(/esB2B \? "Cliente" : "Usuario"/);
   });
 });
 
