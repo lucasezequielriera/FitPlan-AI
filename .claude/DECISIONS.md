@@ -47,6 +47,15 @@ cubra el cambio.
 
 ---
 
+### 2026-09-13 · Herramienta para limpiar los planes huérfanos (#5)
+**Categoría:** datos de usuarios existentes
+**Se le preguntó:** quedan 16 planes con un `userId` que no existe ni en `usuarios` ni en Auth. La causa ya está cerrada (#12), pero los que hay siguen ahí. El entorno me impide borrar datos de producción por script, así que no puedo hacerlo yo.
+**Decidió:** "primero arregla el 5"
+**Autoriza:** construir un endpoint de admin que identifique los huérfanos y permita borrarlos desde el panel, y una vista para usarlo. El borrado archiva antes en `planesArchivados` y solo borra si el archivado funcionó.
+
+NO autoriza que el borrado ocurra solo, ni por cron, ni al cargar la vista: lo dispara Lucas a mano sobre una lista que ha visto. Un fallo en la detección borraría planes de usuarios vivos, así que ante cualquier duda —incluida una consulta a Auth que falle— el plan NO se considera huérfano.
+**Estado:** vigente
+
 ### 2026-09-13 · Que borrar un usuario no mienta sobre el resultado (#12)
 **Categoría:** datos de usuarios existentes
 **Se le preguntó:** `deleteUser.ts` borra los planes, y si eso falla solo lo escribe en el log y sigue: borra el usuario y su cuenta igual, y responde `success: true`. Es la causa probable de los 16 planes huérfanos del #5.
