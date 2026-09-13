@@ -134,28 +134,55 @@ Las variables `--landing-*` que ya estaban en uso (206 ocurrencias en landing/fo
 
 ## 5. Qué falta migrar (deuda visual conocida, ver `AUDIT.md`)
 
-Esta sesión aplicó los tokens/clases a fondo en: landing (`HomeLanding.tsx`, ya estaba migrado), `dashboard.tsx`, `DashboardPlanCard.tsx`, `create-plan.tsx`, `plan.tsx` y sus modales (`GymCalendarModal`, `ExerciseSetTracker`, `FoodTrackingModal`, `WeeklyStatsModal`, `PlanContinuityModal`, `TrainingCalendar`, `IMCInfoModal`, `PremiumPlanModal`, `MonthChangesModal`, `IntakeWorkoutDayLog`, `IntakeClientPlanPublicView`, `mi-plan/[clientId].tsx`), y todo el panel admin (`AdminApp.tsx`, `Navbar.tsx`, `AdminExerciseCatalogPanel.tsx`, `AdminExerciseCatalogModal.tsx`, `admin/actividad.tsx`) — reemplazando los patrones de color con significado real (éxito/error/advertencia/info, colores de fase) por los tokens semánticos.
+> **Esta sección la comprueba un test.** `src/__tests__/designSystemDebt.test.ts` cuenta las clases crudas de cada archivo del repo y falla si la tabla de abajo no coincide, o si aparece deuda en un archivo que no esté listado. La cuenta la hace `src/lib/design/rawColors.ts`, que es el mismo módulo para todos: antes cada recuento usaba un patrón distinto y ninguno cuadraba con otro (issue #11).
+
+Esta sesión aplicó los tokens/clases a fondo en: landing (`HomeLanding.tsx`, ya estaba migrado), `dashboard.tsx`, `DashboardPlanCard.tsx`, `create-plan.tsx`, `plan.tsx` y sus modales (`GymCalendarModal`, `ExerciseSetTracker`, `FoodTrackingModal`, `WeeklyStatsModal`, `PlanContinuityModal`, `TrainingCalendar`, `IMCInfoModal`, `PremiumPlanModal`, `MonthChangesModal`, `IntakeWorkoutDayLog`, `mi-plan/[clientId].tsx`), y el panel admin (`AdminApp.tsx`, `Navbar.tsx`, `AdminExerciseCatalogPanel.tsx`, `admin/actividad.tsx`) — reemplazando los patrones de color con significado real (éxito/error/advertencia/info, colores de fase) por los tokens semánticos.
+
+`IntakeClientPlanPublicView.tsx` y `AdminExerciseCatalogModal.tsx` **estaban en esa lista sin estarlo**: entre los dos sumaban 104 clases crudas. Se han sacado. Ver la tabla de deuda.
 
 **Rollout "FitPlan Volt" (pasada de `frontend`):** sobre la base de arriba, se migró el resto de identidad de marca hardcodeada (gradientes viejos ámbar/naranja/rosa, azul/cian, púrpura/rosa, y fondos `slate-900`/`gray-900` crudos) a `--brand-start/mid/end` y `--background`/`--surface`, y se aplicó `font-display` (Space Grotesk) a headings y cifras grandes (kcal, kg, %, sets) en: `dashboard.tsx`, `DashboardPlanCard.tsx`, `plan.tsx`, `create-plan.tsx`, `mi-plan/[clientId].tsx`, `formulario-de-inicio.tsx` (+ `en/formulario-de-inicio.tsx`, que solo re-exporta el mismo componente), `payment/{success,pending,failure}.tsx`, `CookieConsentBanner.tsx`, `LoginModal.tsx`, `MonthChangesModal.tsx`, `Navbar.tsx`, `TrainingCalendar.tsx` e `IntakeWorkoutDayLog.tsx`. Verificado visualmente con capturas de Chrome headless (landing, formulario, payment success/failure/pending) — contraste correcto: texto oscuro sobre `--accent` lima en todos los CTA `.btn-primary`/gradiente de marca.
 
 **`src/components/admin/AdminApp.tsx` — resuelto.** `frontend` implementó el mapeo exacto de la sección 6 sobre las 156 clases crudas detectadas: 155 migradas a los tokens/clases ya existentes (`--success/--warning/--danger/--info`, `bg-surface`/`bg-surface-2`, `border-border`/`border-border-strong`, `text-foreground`/`text-muted`, `bg-accent`/`text-accent-ink` para el filtro activo, `--brand-start/mid/end` para el gradiente de héroe y el de la barra del gráfico de peso). Queda **1 clase sin tocar, fuera de alcance real**: `text-gray-600` en el visor de HTML de emails (dentro de una caja `bg-white` — texto oscuro sobre superficie clara, no sobre el chrome oscuro de la app; los tokens del sistema son todos para el tema oscuro permanente, no aplican ahí). Verificado visualmente con Chrome headless sobre una réplica estática de los patrones migrados (fila de acciones por cliente, badges de rol/estado, filtro Hombre/Mujer, tarjetas de resumen de plan generado, gradiente de héroe) — sin login real de administrador (credenciales de producción, fuera de alcance de esta verificación). `npx tsc --noEmit` sin errores; `eslint` sobre el archivo solo reporta 2 errores `prefer-const` y varios `no-unused-vars` preexistentes, no relacionados con este cambio.
 
-Quedan **sin migrar, fuera del alcance de esta pasada**, con recuento aproximado de clases Tailwind de color crudas:
+### Deuda real (recuento exacto, verificado por test)
 
-| Archivo | Aprox. | Nota |
+Una fila por archivo. Un archivo con deuda que no esté aquí hace fallar el test, así que la tabla es exhaustiva por construcción: no se puede acumular deuda en silencio.
+
+| Archivo | Clases crudas | Nota |
 |---|---:|---|
-| `src/components/IntakeClientPlanPublicView.tsx` | 58 | Ya evaluado: paleta categórica intencional (ver nota debajo), no requiere migración |
-| `src/pages/transformacion-fitplan.tsx` / `src/pages/en/transformacion-fitplan.tsx` | 55 / 49 | Landing pages alternativas (variante de campaña), no tocadas |
-| `src/components/AdminExerciseCatalogPanel.tsx` / `AdminExerciseCatalogModal.tsx` | 49 / 46 | Catálogo de ejercicios del admin |
-| `src/pages/admin/configuraciones/index.tsx` | 38 | Configuración de ejercicios del admin |
-| `src/pages/admin/hyrox.tsx` | 0 | Panel Hyrox del admin — migrado por completo, ver §8.2 (decorativo y `PHASE_COLORS`, este último con tokens `--phase-hyrox-*` propios aprobados por Lucas) |
-| `src/components/UserMessagesModal.tsx` | 27 | Chat de mensajería con el fundador (el CTA principal ya usa el gradiente de marca; quedan detalles del hilo de mensajes) |
-| `src/pages/admin/metricas-rs.tsx` | 20 | Métricas de redes sociales |
-| `src/components/ExerciseDemoMedia.tsx` | 17 | Reproductor de demos de ejercicios |
-| `src/pages/admin/configuraciones/contenido-social.tsx`, `carrusel-ig.tsx`, `ejercicios.tsx`, `servicios.tsx`, `backlog.tsx`, `actividad.tsx` | 11 / 9 / 7 / 10 / 10 / 2 | Paneles admin construidos después de la pasada original, nunca tokenizados |
-| `src/pages/legal/*.tsx` | ~25 en total | Páginas legales (mayormente texto, bajo impacto visual) |
+| `src/components/IntakeClientPlanPublicView.tsx` | 56 | **Contenido público de cliente.** El color codifica dominio (cian=datos, esmeralda=calorías, violeta=entrenamiento, fucsia=evaluación, ámbar=suplementos), no estado — ver decisión pendiente abajo |
+| `src/components/AdminExerciseCatalogModal.tsx` | 46 | Catálogo de ejercicios del admin |
+| `src/components/UserMessagesModal.tsx` | 27 | Chat con el fundador (el CTA ya usa el gradiente de marca) |
+| `src/components/ExerciseDemoMedia.tsx` | 17 | Reproductor de demos |
+| `src/pages/admin/metricas-rs.tsx` | 10 | Métricas de redes sociales |
+| `src/pages/legal/disclaimer.tsx` | 8 | Página legal, mayormente texto |
+| `src/pages/admin/configuraciones/contenido-social.tsx` | 4 | Panel admin posterior a la pasada original |
+| `src/pages/legal/privacy.tsx` | 4 | Página legal |
+| `src/pages/legal/terms.tsx` | 4 | Página legal |
+| `src/pages/legal/liability.tsx` | 3 | Página legal |
+| `src/pages/admin/configuraciones/carrusel-ig.tsx` | 2 | Panel admin posterior a la pasada original |
+| `src/pages/legal/contact.tsx` | 2 | Página legal |
+| `src/pages/legal/cookies.tsx` | 2 | Página legal |
+| `src/pages/legal/refund.tsx` | 2 | Página legal |
+| `src/components/admin/AdminApp.tsx` | 1 | `text-gray-600` en el visor de HTML de emails: texto oscuro sobre `bg-white`, donde los tokens del tema oscuro no aplican |
+| `src/pages/admin/actividad.tsx` | 1 | Resto de la pasada original |
 
-Además, dentro de los archivos ya migrados quedaron **intencionalmente sin tokenizar** paletas categóricas decorativas que no representan estado (ej. tarjetas de resumen con distintos colores solo para diferenciarlas visualmente en `IntakeClientPlanPublicView.tsx`, pestañas de selección en el catálogo de ejercicios, gradientes de héroe/marketing) — forzarlas a los 4 tokens semánticos habría reducido la distinción visual entre secciones sin ganar nada. Si en una futura pasada aparecen más colores crudos representando estado real (éxito/error/advertencia/info), migrarlos con las clases de la sección 2; el resto de archivos de la tabla de arriba son los candidatos naturales para la próxima ronda.
+**Total: 189 clases en 16 archivos.**
+
+Ya están a **0** y salen de la tabla: `transformacion-fitplan.tsx` (y su gemela `en/`), `AdminExerciseCatalogPanel.tsx`, `admin/configuraciones/index.tsx`, `ejercicios.tsx`, `servicios.tsx`, `backlog.tsx` y `admin/hyrox.tsx` (este último, ver §8.2). La tabla anterior les atribuía unas 227 clases que ya no existían: el documento estaba equivocado en las dos direcciones a la vez — daba por migrado lo que no lo estaba y por pendiente lo que ya se había hecho.
+
+### Decisión pendiente de Lucas: el color por dominio
+
+Hay paletas que no son ni estado ni fase, sino **dominio**: en `IntakeClientPlanPublicView.tsx` cada bloque del plan tiene su color y lo mantiene (datos, calorías, entrenamiento, evaluación, suplementación). Lo mismo en las pestañas del catálogo de ejercicios.
+
+El documento decía que eso era "decorativo, no requiere migración". Es medio cierto y medio no: **no** hay que meterlo en los 4 tokens semánticos —forzar cinco dominios en `success/warning/danger/info` destruiría la distinción y volvería la vista pública menos legible—, pero tampoco puede quedarse como colores sueltos, porque entonces "es intencional" se vuelve la excusa que tapa cualquier deuda.
+
+Las dos salidas son:
+
+1. **Tokens de dominio propios** (`--domain-*`), como ya se hizo con `--phase-hyrox-*`. Fija la paleta, permite cambiarla en un sitio, y el guard deja de contarlos.
+2. **Aceptarlos como excepción declarada**, con su fila en la tabla y el motivo escrito.
+
+Requiere decisión: ampliar el vocabulario de tokens es una decisión de marca, no de implementación.
 
 ## 6. Panel admin — consolidación de la paleta de `AdminApp.tsx` (decisión de `diseno`)
 
