@@ -4,6 +4,7 @@ import { randomBytes } from "crypto";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { requireAdmin } from "@/lib/adminAuthServer";
+import { EMAIL, META_ESQUEMA_COLOR, botonEmail } from "@/lib/email/palette";
 
 function firstName(fullName: string | null): string {
   if (!fullName) return "campeón";
@@ -72,30 +73,32 @@ function buildWelcomeHtml(params: {
     n: "sostenerlo",
   });
   return `
-  <div style="background:#0b1220;color:#e2e8f0;padding:24px;font-family:Arial,sans-serif">
-    <h2 style="margin:0 0 8px;color:#22d3ee">${header}</h2>
-    <p style="margin:0 0 14px;color:#cbd5e1">Hola ${params.name},</p>
-    <p style="margin:0 0 12px;color:#cbd5e1">
+  ${META_ESQUEMA_COLOR}
+  <div style="background:${EMAIL.fondo};color:${EMAIL.texto};padding:24px;font-family:Arial,sans-serif">
+    <h2 style="margin:0 0 8px;color:${EMAIL.acento}">${header}</h2>
+    <p style="margin:0 0 14px;color:${EMAIL.textoSuave}">Hola ${params.name},</p>
+    <p style="margin:0 0 12px;color:${EMAIL.textoSuave}">
       Te doy la bienvenida oficialmente. A partir de hoy empezamos un proceso serio, pero sostenible: progreso real, paso a paso, con foco en tu objetivo <strong>${params.objective}</strong>.
     </p>
-    <p style="margin:0 0 12px;color:#cbd5e1">
+    <p style="margin:0 0 12px;color:${EMAIL.textoSuave}">
       Ya revisé tu perfil y vamos a trabajar con el enfoque <strong>${params.service}</strong>. Mi idea es que te sientas ${addressed}, con claridad total en cada etapa, y que puedas ${sustained} en tu vida real.
     </p>
-    <div style="background:#111827;border:1px solid #334155;border-radius:12px;padding:14px;margin:14px 0">
+    <div style="background:${EMAIL.caja};border:1px solid ${EMAIL.borde};border-radius:12px;padding:14px;margin:14px 0">
       <p style="margin:0 0 6px"><strong>Qué espero de vos:</strong></p>
-      <ul style="margin:0;padding-left:18px;color:#cbd5e1">
+      <ul style="margin:0;padding-left:18px;color:${EMAIL.textoSuave}">
         <li>Constancia antes que perfección</li>
         <li>Registrar tus entrenos y sensaciones</li>
         <li>Hablar claro cuando algo no te cierre</li>
       </ul>
     </div>
-    <p style="margin:0 0 12px;color:#cbd5e1">
+    <p style="margin:0 0 12px;color:${EMAIL.textoSuave}">
       Tu avance va a venir de hacer bien lo básico, una y otra vez. Yo me encargo de ajustar la estrategia, vos de ejecutar.
     </p>
-    <p style="margin:0 0 12px;color:#cbd5e1">
-      Cuando quieras revisar tu plan, usa este acceso: <a href="${params.route}" style="color:#67e8f9">${params.route}</a>
+    <p style="margin:0 0 12px;color:${EMAIL.textoSuave}">
+      Cuando quieras revisar tu plan, entra desde aquí:
     </p>
-    <p style="margin:14px 0 0;color:#e2e8f0">
+    <p style="margin:0 0 18px">${botonEmail(params.route, "Ver mi plan")}</p>
+    <p style="margin:14px 0 0;color:${EMAIL.texto}">
       Vamos con todo.<br/>
       — ${params.coachName}
     </p>

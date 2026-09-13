@@ -3,6 +3,7 @@ import nodemailer from "nodemailer";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
 import type { IntakeWorkoutSession } from "@/types/intakeWorkoutLog";
+import { EMAIL, META_ESQUEMA_COLOR } from "@/lib/email/palette";
 
 function isAuthorized(req: NextApiRequest): boolean {
   const cronHeader = req.headers["x-vercel-cron"];
@@ -178,22 +179,23 @@ function buildMailHtml(params: {
     .map((s) => `<li><strong>${s.completedOn}</strong> · ${s.dayLabel} · ${s.exercises.length} ejercicios</li>`)
     .join("");
   return `
-  <div style="background:#0b1220;color:#e2e8f0;padding:24px;font-family:Arial,sans-serif">
-    <h2 style="margin:0 0 8px;color:#5eead4">Resumen semanal FitPlan</h2>
-    <p style="margin:0 0 16px;color:#94a3b8">Semana ${params.weekKey} · Hola ${params.clientName}</p>
-    <div style="background:#111827;border:1px solid #334155;border-radius:12px;padding:16px;margin-bottom:14px">
+  ${META_ESQUEMA_COLOR}
+  <div style="background:${EMAIL.fondo};color:${EMAIL.texto};padding:24px;font-family:Arial,sans-serif">
+    <h2 style="margin:0 0 8px;color:${EMAIL.acento}">Resumen semanal FitPlan</h2>
+    <p style="margin:0 0 16px;color:${EMAIL.textoSuave}">Semana ${params.weekKey} · Hola ${params.clientName}</p>
+    <div style="background:${EMAIL.caja};border:1px solid ${EMAIL.borde};border-radius:12px;padding:16px;margin-bottom:14px">
       <p style="margin:0 0 6px"><strong>Sesiones esta semana:</strong> ${params.sessions7d.length}</p>
       <p style="margin:0"><strong>Sesiones acumuladas:</strong> ${params.totalSessions}</p>
     </div>
-    <div style="background:#111827;border:1px solid #334155;border-radius:12px;padding:16px;margin-bottom:14px">
+    <div style="background:${EMAIL.caja};border:1px solid ${EMAIL.borde};border-radius:12px;padding:16px;margin-bottom:14px">
       <p style="margin:0 0 8px"><strong>Tu progreso reciente</strong></p>
       <ul style="margin:0;padding-left:18px">${list || "<li>Sin sesiones registradas esta semana.</li>"}</ul>
     </div>
-    <div style="background:#0f172a;border:1px solid #14b8a6;border-radius:12px;padding:16px;margin-bottom:14px">
+    <div style="background:${EMAIL.caja};border:1px solid ${EMAIL.info};border-radius:12px;padding:16px;margin-bottom:14px">
       <p style="margin:0 0 6px"><strong>Recomendación de la semana</strong></p>
       <p style="margin:0">${params.suggestion}</p>
     </div>
-    <p style="margin:16px 0 0;color:#cbd5e1">${params.motivational}</p>
+    <p style="margin:16px 0 0;color:${EMAIL.textoSuave}">${params.motivational}</p>
   </div>`;
 }
 
