@@ -1090,6 +1090,27 @@ export default function PlanPage() {
           )}
         </div>
 
+        {/* Lo que levantaste la última vez, ANTES de escribir nada.
+            El dato ya existía, pero solo se veía como `placeholder` gris dentro
+            del input — y ni eso, porque el peso sugerido tiene prioridad sobre
+            él, así que en la mayoría de ejercicios no se veía nunca. El badge
+            de "Mejoraste" tampoco aparece hasta que escribes.
+            Es decir: la única razón para registrar un peso llegaba siempre
+            después de haberlo registrado. Esto la pone delante (issue #3). */}
+        {previousWeights && previousWeights.some((w) => w > 0) && (
+          <div className="mb-3 rounded-lg border border-info/20 bg-info/5 px-2.5 py-2">
+            <p className="text-[11px] text-info/80">La última vez levantaste</p>
+            <p className="text-sm font-semibold text-info">
+              {previousWeights.map((w) => (w > 0 ? `${w}` : "–")).join(" · ")} kg
+              {previousAvg > 0 && (
+                <span className="ml-1.5 font-normal text-info/70">
+                  (media {previousAvg.toFixed(1)} kg)
+                </span>
+              )}
+            </p>
+          </div>
+        )}
+
         {/* Input de RM */}
         <div className="mb-3 sm:mb-4 p-2 sm:p-3 rounded-lg bg-phase-maintenance/10 border border-phase-maintenance/20">
           <label className="text-xs sm:text-sm font-medium text-phase-maintenance mb-1.5 sm:mb-2 block">
@@ -1194,7 +1215,11 @@ export default function PlanPage() {
                         step="0.5"
                         value={weights[i] || ""}
                         onChange={(e) => handleWeightChange(i, parseFloat(e.target.value) || 0)}
-                        placeholder={suggestedWeight ? suggestedWeight.toString() : previousWeight ? previousWeight.toString() : "0"}
+                        // El anterior manda sobre el sugerido: es un dato real de
+                        // esta persona, no una estimación. Antes el sugerido lo
+                        // tapaba y el peso anterior no se veía en ningún sitio.
+                        placeholder={previousWeight ? previousWeight.toString() : suggestedWeight ? suggestedWeight.toString() : "0"}
+                        aria-label={`Peso de la serie ${i + 1}${previousWeight ? `, la última vez ${previousWeight} kg` : ""}`}
                         className="w-[100px] px-2 py-1.5 sm:py-2 text-sm sm:text-base font-semibold bg-white/10 border border-white/20 rounded-md text-white placeholder-white/30 focus:outline-none focus:border-info/50 focus:bg-white/15 text-center"
                       />
                       <span className="text-xs sm:text-sm text-white/60 w-6 sm:w-8">kg</span>
