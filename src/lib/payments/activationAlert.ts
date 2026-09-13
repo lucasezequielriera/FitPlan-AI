@@ -12,6 +12,37 @@ import { sendTelegramMessage } from "@/lib/telegram";
  * traga el error. Lo que garantiza el reintento es el código de estado que
  * devuelve el endpoint, no este mensaje.
  */
+/**
+ * Aviso cuando llega un webhook de pago y no hay base de datos con la que
+ * atenderlo.
+ *
+ * Es el mismo coste que `alertarActivacionFallida` —dinero cobrado, acceso no
+ * concedido— pero una capa más abajo: no falla la escritura, falla que no haya
+ * dónde escribir. Y ocurre antes de saber a quién afecta, así que este aviso no
+ * puede nombrar al usuario sin inventárselo.
+ */
+export async function alertarWebhookSinBaseDeDatos(datos: {
+  proveedor: "MercadoPago" | "Stripe";
+  evento: string;
+}): Promise<void> {
+  const mensaje = [
+    "🚨 <b>WEBHOOK DE PAGO SIN BASE DE DATOS</b>",
+    "",
+    `<b>Proveedor:</b> ${datos.proveedor}`,
+    `<b>Evento:</b> ${datos.evento}`,
+    "",
+    "Firebase Admin no está configurado, así que no se pudo activar nada.",
+    "El webhook devolvió 500 para que la pasarela reintente: si la configuración",
+    "se arregla pronto, los pagos de estas horas se aplicarán solos.",
+  ].join("\n");
+
+  try {
+    await sendTelegramMessage(mensaje);
+  } catch (err) {
+    console.error("❌ No se pudo avisar de la falta de base de datos por Telegram:", err);
+  }
+}
+
 export async function alertarActivacionFallida(datos: {
   proveedor: "MercadoPago" | "Stripe";
   paymentId: string;

@@ -168,6 +168,78 @@ describe("#42 — el flujo B2B (intakeClients) falla igual de ruidoso que el de 
   });
 });
 
+describe("#13 en la capa de configuración — sin Firebase Admin se pide reintento", () => {
+  // Los tres `if (!adminDb) return 200` de la rama de premium. Con Firebase
+  // caído, todos los pagos se aceptaban en silencio y ninguna pasarela
+  // reintentaba: mismo coste que #13, un escalón más abajo. Ahí fallaba la
+  // escritura; aquí no hay dónde escribir.
+
+  it("ningún `!adminDb` de los webhooks se conforma con 200", () => {
+    for (const w of ["src/pages/api/payment/webhook.ts", "src/pages/api/payment/stripe-webhook.ts"]) {
+      const src = sinComentarios(read(w));
+      const bloques = [...src.matchAll(/if\s*\(\s*!adminDb\s*\)\s*\{/g)];
+      expect({ webhook: w, encontrados: bloques.length > 0 }).toEqual({ webhook: w, encontrados: true });
+      for (const b of bloques) {
+        const tramo = src.slice(b.index, b.index + 700);
+        expect({ webhook: w, en: b.index, pideReintento: /status\(500\)/.test(tramo) }).toEqual({
+          webhook: w,
+          en: b.index,
+          pideReintento: true,
+        });
+      }
+    }
+  });
+
+  it("Stripe solo pide reintento para los eventos que escriben", () => {
+    // Un 500 para cualquier evento haría fallar también los que no usamos, y
+    // Stripe deshabilita los endpoints que fallan de forma sostenida. Quedarnos
+    // sin webhook sería peor que el problema.
+    const src = sinComentarios(read("src/pages/api/payment/stripe-webhook.ts"));
+    const pos = src.indexOf("if (!adminDb)");
+    const tramo = src.slice(pos, pos + 700);
+    expect(tramo).toMatch(/EVENTOS_QUE_ESCRIBEN/);
+    expect(tramo).toMatch(/status\(200\)/); // la salida para los demás sigue existiendo
+  });
+
+  it("la lista de eventos no se desincroniza de los que se manejan", () => {
+    // El fallo que este guard previene: alguien añade un `event.type ===` nuevo
+    // más abajo y olvida la lista. Ese evento volvería a tragarse en silencio
+    // cuando falte la base de datos, sin que nada avise.
+    const src = sinComentarios(read("src/pages/api/payment/stripe-webhook.ts"));
+    const declarados = [...src.matchAll(/event\.type === "([^"]+)"/g)].map((m) => m[1]).sort();
+    // Ojo con el `]` de la anotación `: string[]`: buscar el primer corchete
+    // cortaba la declaración antes de los valores y devolvía undefined, que
+    // habría pasado por "lista vacía" en un expect menos estricto.
+    const decl = src.match(/const EVENTOS_QUE_ESCRIBEN[^=]*=\s*\[([^\]]*)\]/);
+    expect(decl).not.toBeNull();
+    const lista = (decl![1].match(/"[^"]+"/g) || []).map((s) => s.replaceAll('"', "")).sort();
+    expect(lista).toEqual(declarados);
+  });
+
+  it("los dos de MercadoPago avisan, y con el usuario que toca", () => {
+    // Ahí sí se sabe a quién afecta, así que el aviso puede nombrarlo. El de
+    // Stripe ocurre antes de parsear el evento y no puede sin inventárselo.
+    const src = sinComentarios(read("src/pages/api/payment/webhook.ts"));
+    for (const b of [...src.matchAll(/if\s*\(\s*!adminDb\s*\)\s*\{/g)]) {
+      const tramo = src.slice(b.index, b.index + 700);
+      expect({ en: b.index, avisa: /alertarActivacionFallida/.test(tramo) }).toEqual({
+        en: b.index,
+        avisa: true,
+      });
+    }
+  });
+
+  it("el aviso de Stripe no nombra a un usuario que no conoce", () => {
+    // El error que acaba de costar una corrección en #42: un aviso que dice
+    // algo falso manda a Lucas a buscar al sitio equivocado.
+    const src = read("src/lib/payments/activationAlert.ts");
+    const fn = src.slice(src.indexOf("alertarWebhookSinBaseDeDatos"));
+    const cuerpo = fn.slice(0, fn.indexOf("export async function alertarActivacionFallida"));
+    expect(cuerpo).toMatch(/WEBHOOK DE PAGO SIN BASE DE DATOS/);
+    expect(cuerpo).not.toMatch(/Usuario:|userId/);
+  });
+});
+
 describe("#25 — fixPremiumUser no concede premium sin verificar el pago", () => {
   const src = sinComentarios(read("src/pages/api/fixPremiumUser.ts"));
 

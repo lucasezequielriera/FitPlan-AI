@@ -47,6 +47,16 @@ cubra el cambio.
 
 ---
 
+### 2026-09-13 · Pedir reintento cuando falta Firebase Admin en los webhooks de pago
+**Categoría:** pagos
+**Se le preguntó:** al cerrar #42, la revisión confirmó que el mismo fallo de #13 existe una capa más abajo: los tres `if (!adminDb) return 200` de la rama de premium (`stripe-webhook.ts:121`, `webhook.ts:169` y `webhook.ts:365`). Con Firebase Admin caído o mal configurado, todos los pagos se aceptan en silencio y ninguna pasarela reintenta.
+**Opciones que vio:** abrir un issue para cada hallazgo, o arreglar este directamente.
+**Decidió:** "arregla el 1 directamente"
+**Autoriza:** devolver 500 + aviso en esos tres puntos en lugar de 200, y desplegarlo.
+
+NO autoriza tocar ninguna otra respuesta 200 de los webhooks (referencia ausente, usuario inexistente, token de MP sin configurar): esos son casos que un reintento no arregla.
+**Estado:** vigente
+
 ### 2026-09-13 · Aislar las escrituras de pago del flujo B2B (#42)
 **Categoría:** pagos
 **Se le preguntó:** la decisión del 2026-09-12 (#13) cubre literalmente solo las escrituras que cambian `premium`/`premiumStatus` de la colección `usuarios`. La rama B2B de los dos webhooks escribe `paymentStatus: "paid"` en `intakeClients` sin esa protección: si falla, el catch exterior responde 200 igual y la pasarela no reintenta. Mismo coste que #13 —dinero cobrado, servicio sin activar— en otro flujo.
