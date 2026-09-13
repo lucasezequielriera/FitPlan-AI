@@ -1,4 +1,6 @@
 import { describe, expect, it } from "@jest/globals";
+import fs from "fs";
+import path from "path";
 import { nextActiveDays, } from "@/lib/funnel/store";
 import { madridDateId } from "@/lib/dates/madrid";
 
@@ -69,8 +71,8 @@ describe("#4 — el cliente no puede volver a marcar por sesión", () => {
     // Guard estructural: `sessionStorage` es precisamente lo que causaba el
     // subconteo, y volver a él no rompería ningún test de comportamiento
     // —el flujo sigue funcionando— pero devolvería la métrica al estado malo.
-    const src = require("fs").readFileSync(
-      require("path").join(process.cwd(), "src/store/authStore.ts"),
+    const src = fs.readFileSync(
+      path.join(process.cwd(), "src/store/authStore.ts"),
       "utf8"
     ) as string;
     const codigo = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
@@ -83,8 +85,8 @@ describe("#4 — el cliente no puede volver a marcar por sesión", () => {
   it("vuelve a comprobarlo cuando la app vuelve al primer plano", () => {
     // `onAuthStateChanged` dispara una vez por carga. Sin esto, la app abierta
     // que cruza la medianoche nunca marca el día nuevo.
-    const src = require("fs").readFileSync(
-      require("path").join(process.cwd(), "src/store/authStore.ts"),
+    const src = fs.readFileSync(
+      path.join(process.cwd(), "src/store/authStore.ts"),
       "utf8"
     ) as string;
     expect(src).toMatch(/visibilitychange/);
