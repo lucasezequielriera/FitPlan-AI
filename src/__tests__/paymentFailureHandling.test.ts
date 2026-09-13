@@ -168,6 +168,66 @@ describe("#42 — el flujo B2B (intakeClients) falla igual de ruidoso que el de 
   });
 });
 
+describe("El flujo B2B ignora las reentregas en vez de contarlas como cobros nuevos", () => {
+  // El flujo de premium tiene `isNewPayment`; el de intake no tenía nada. Se
+  // presentó como coste bajo —una notificación duplicada— y resultó ser mayor:
+  // el panel decide "Pagado este mes" comparando `paymentLastPaidAt` con el mes
+  // actual, y ese campo lleva la hora del servidor. Una reentrega en otro mes
+  // marca como pagado a quien no pagó.
+  const casos = [
+    { archivo: "src/pages/api/payment/webhook.ts", id: "String(paymentId)", que: "MP" },
+    { archivo: "src/pages/api/payment/stripe-webhook.ts", id: "String(session.id)", que: "Stripe" },
+  ];
+
+  it("los dos comparan el id del cobro con el último procesado", () => {
+    for (const { archivo, id, que } of casos) {
+      const src = sinComentarios(read(archivo));
+      expect({ que, compara: src.includes(`paymentLastProcessedId === ${id}`) }).toEqual({ que, compara: true });
+      expect({ que, loGuarda: new RegExp(`paymentLastProcessedId: ${id.replace(/[.()]/g, "\\$&")}`).test(src) }).toEqual({
+        que,
+        loGuarda: true,
+      });
+    }
+  });
+
+  it("comprobar y escribir ocurren en la misma transacción", () => {
+    // Leer y luego escribir por separado deja una ventana: dos entregas
+    // simultáneas leerían ambas "no procesado" y las dos seguirían adelante.
+    for (const { archivo, que } of casos) {
+      const src = sinComentarios(read(archivo));
+      const pos = src.indexOf("runTransaction");
+      expect({ que, enTransaccion: pos > -1 }).toEqual({ que, enTransaccion: true });
+      const tramo = src.slice(pos, pos + 1200);
+      expect({ que, leeDentro: /tx\.get\(/.test(tramo) }).toEqual({ que, leeDentro: true });
+      expect({ que, escribeDentro: /tx\.set\(/.test(tramo) }).toEqual({ que, escribeDentro: true });
+    }
+  });
+
+  it("el corte va ANTES de la notificación, no después", () => {
+    // Es lo único que hace útil el guard. Si el `return` por reentrega quedara
+    // detrás de la notificación, seguiría duplicándola y el guard solo evitaría
+    // reescribir la fecha — la mitad del problema.
+    for (const { archivo, que } of casos) {
+      const src = sinComentarios(read(archivo));
+      const corte = src.indexOf("if (yaProcesado)");
+      const notificacion = src.indexOf('flow: "intake_client"');
+      expect({ que, hayCorte: corte > -1 }).toEqual({ que, hayCorte: true });
+      expect({ que, antes: corte < notificacion }).toEqual({ que, antes: true });
+    }
+  });
+
+  it("la reentrega responde 200, no 500", () => {
+    // Pedir reintento de algo ya aplicado es un bucle: la pasarela lo reenvía,
+    // se vuelve a detectar como duplicado, se vuelve a pedir reintento.
+    for (const { archivo, que } of casos) {
+      const src = sinComentarios(read(archivo));
+      const corte = src.indexOf("if (yaProcesado)");
+      const tramo = src.slice(corte, src.indexOf("}", src.indexOf("return", corte)));
+      expect({ que, cierra: /status\(200\)/.test(tramo) }).toEqual({ que, cierra: true });
+    }
+  });
+});
+
 describe("#13 en la capa de configuración — sin Firebase Admin se pide reintento", () => {
   // Los tres `if (!adminDb) return 200` de la rama de premium. Con Firebase
   // caído, todos los pagos se aceptaban en silencio y ninguna pasarela

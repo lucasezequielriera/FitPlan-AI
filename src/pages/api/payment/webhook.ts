@@ -306,20 +306,43 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           const intakeCurrency = payment.currency_id || "ARS";
 
           // Escritura crítica aislada: es la que hace constar el cobro (#42).
+          //
+          // Va en transacción con un guard de idempotencia, el equivalente de
+          // `isNewPayment` del flujo de premium, que aquí no existía. Las dos
+          // pasarelas garantizan "al menos una entrega", y desde #42 además
+          // pedimos reintento nosotros, así que un mismo cobro puede llegar
+          // varias veces.
+          //
+          // Repetirlo no es inofensivo: el panel decide "Pagado este mes"
+          // comparando `paymentLastPaidAt` con el mes actual, y ese campo lleva
+          // la hora del servidor. Una reentrega en septiembre de un cobro de
+          // agosto marcaría como pagado a quien no pagó. La transacción evita
+          // además que dos entregas simultáneas se pisen.
+          let yaProcesado = false;
           try {
-            await adminDb.collection("intakeClients").doc(intakeClientId).set(
-              {
-                paymentStatus: "paid",
-                paymentProvider: "mercadopago",
-                paymentLastPaidAt: FieldValue.serverTimestamp(),
-                paymentCurrentMonthPaid: true,
-                paymentPlanType: intakePlanType || "monthly",
-                paymentLastAmount: intakeAmount,
-                paymentLastCurrency: intakeCurrency,
-                updatedAt: FieldValue.serverTimestamp(),
-              },
-              { merge: true }
-            );
+            const clientRef = adminDb.collection("intakeClients").doc(intakeClientId);
+            yaProcesado = await adminDb.runTransaction(async (tx) => {
+              const snap = await tx.get(clientRef);
+              if (snap.exists && snap.data()?.paymentLastProcessedId === String(paymentId)) {
+                return true;
+              }
+              tx.set(
+                clientRef,
+                {
+                  paymentStatus: "paid",
+                  paymentProvider: "mercadopago",
+                  paymentLastPaidAt: FieldValue.serverTimestamp(),
+                  paymentCurrentMonthPaid: true,
+                  paymentPlanType: intakePlanType || "monthly",
+                  paymentLastAmount: intakeAmount,
+                  paymentLastCurrency: intakeCurrency,
+                  paymentLastProcessedId: String(paymentId),
+                  updatedAt: FieldValue.serverTimestamp(),
+                },
+                { merge: true }
+              );
+              return false;
+            });
           } catch (error: unknown) {
             console.error(`❌ CRÍTICO: pago ${paymentId} cobrado pero NO se pudo marcar como pagado al cliente ${intakeClientId}:`, error);
             await alertarActivacionFallida({
@@ -330,6 +353,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               accion: "registrar-cobro-b2b",
             });
             return res.status(500).json({ error: "No se pudo registrar el cobro del cliente", retry: true });
+          }
+
+          if (yaProcesado) {
+            // Reentrega de un cobro ya aplicado. 200 para que la pasarela deje
+            // de mandarlo, y sin notificación: el corte va ANTES de los efectos
+            // que no son idempotentes, que es el único sitio donde sirve.
+            console.log(`ℹ️ Cobro ${paymentId} del cliente ${intakeClientId} ya procesado; reentrega ignorada.`);
+            return res.status(200).json({ received: true });
           }
 
           // Efecto secundario: el cobro ya consta, así que un fallo aquí no

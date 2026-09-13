@@ -47,6 +47,15 @@ cubra el cambio.
 
 ---
 
+### 2026-09-13 · Guard de idempotencia en el flujo B2B
+**Categoría:** pagos
+**Se le preguntó:** el flujo de intake no tiene nada equivalente a `isNewPayment`, que es lo que protege al de premium de la entrega "al menos una vez" de las pasarelas. Se le presentó como coste bajo (una notificación duplicada), pero al implementarlo resultó ser mayor: el panel decide "Pagado este mes" comparando `paymentLastPaidAt` con el mes actual, y ese campo se escribe con la hora del servidor, así que una reentrega en otro mes marca como pagado a quien no pagó.
+**Decidió:** "haz el punto 2"
+**Autoriza:** añadir un guard de idempotencia por id de cobro en las ramas de intake de los dos webhooks, usando una transacción y un campo nuevo `paymentLastProcessedId` en `intakeClients`, y desplegarlo.
+
+NO autoriza cambiar de qué fecha sale `paymentLastPaidAt` (hoy, la hora del servidor; lo correcto sería la fecha real del cobro). Es un fallo distinto, de atribución de mes, y necesita su propia decisión.
+**Estado:** vigente
+
 ### 2026-09-13 · Pedir reintento cuando falta Firebase Admin en los webhooks de pago
 **Categoría:** pagos
 **Se le preguntó:** al cerrar #42, la revisión confirmó que el mismo fallo de #13 existe una capa más abajo: los tres `if (!adminDb) return 200` de la rama de premium (`stripe-webhook.ts:121`, `webhook.ts:169` y `webhook.ts:365`). Con Firebase Admin caído o mal configurado, todos los pagos se aceptan en silencio y ninguna pasarela reintenta.
