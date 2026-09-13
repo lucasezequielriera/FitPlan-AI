@@ -737,7 +737,7 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
                                             i
                                           </button>
                                           <div
-                                            className={`absolute left-8 top-0 z-20 w-[min(22rem,80vw)] rounded-lg border border-info/30 bg-slate-950/95 backdrop-blur px-2.5 py-2 space-y-1 text-[11px] text-info shadow-xl transition-all duration-200 ${
+                                            className={`absolute left-8 top-0 z-20 w-[min(22rem,80vw)] rounded-lg border border-info/30 bg-background/95 backdrop-blur px-2.5 py-2 space-y-1 text-[11px] text-info shadow-xl transition-all duration-200 ${
                                               openTechniqueByExercise[exTechKey]
                                                 ? "opacity-100 translate-y-0 pointer-events-auto"
                                                 : "opacity-0 -translate-y-1 pointer-events-none"
@@ -875,7 +875,7 @@ export default function IntakeClientPlanPublicView({ clientName, plan, clientId,
                                     i
                                   </button>
                                   <div
-                                    className={`absolute left-8 top-0 z-20 w-[min(22rem,80vw)] rounded-lg border border-info/30 bg-slate-950/95 backdrop-blur px-2.5 py-2 space-y-1 text-[11px] text-info shadow-xl transition-all duration-200 ${
+                                    className={`absolute left-8 top-0 z-20 w-[min(22rem,80vw)] rounded-lg border border-info/30 bg-background/95 backdrop-blur px-2.5 py-2 space-y-1 text-[11px] text-info shadow-xl transition-all duration-200 ${
                                       openTechniqueByExercise[exTechKey]
                                         ? "opacity-100 translate-y-0 pointer-events-auto"
                                         : "opacity-0 -translate-y-1 pointer-events-none"
