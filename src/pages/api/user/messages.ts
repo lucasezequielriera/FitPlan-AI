@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { requireUser } from "@/lib/userAuthServer";
 
 function isQuotaError(error: unknown): boolean {
   const msg = error instanceof Error ? error.message : String(error || "");
@@ -21,17 +22,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(500).json({ error: "Firebase Admin SDK no configurado" });
     }
 
-    const { userId } = req.query;
-
-    if (!userId) {
-      return res.status(400).json({ error: "Falta userId" });
-    }
+    // La identidad sale del ID token verificado, NUNCA de la URL. Antes bastaba
+    // con poner el UID de otra persona en `?userId=` para leer sus mensajes
+    // completos con el admin, incluidas las respuestas: privacidad, no solo
+    // integridad (issue #27-ter). Es la tercera forma del mismo patrón, después
+    // de #27 y #27-bis — esta, en lectura.
+    const auth = await requireUser(req);
+    if (!auth.ok) return res.status(auth.status).json({ error: "Identidad no verificada" });
+    const userId = auth.uid;
 
     // Obtener todos los mensajes del usuario
     // Nota: No usamos orderBy aquí porque requiere un índice compuesto con where
     // En su lugar, ordenamos en memoria después
     const messagesSnapshot = await db.collection("mensajes")
-      .where("userId", "==", userId as string)
+      .where("userId", "==", userId)
       .get();
 
     const convertTimestamp = (timestamp: unknown): string | null => {

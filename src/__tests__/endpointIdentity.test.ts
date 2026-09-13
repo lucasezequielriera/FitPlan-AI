@@ -41,6 +41,8 @@ const ENDPOINTS_DE_USUARIO = [
   "src/pages/api/user/replyMessage.ts",
   "src/pages/api/user/markMessageRead.ts",
   "src/pages/api/sendMessage.ts",
+  // Tercera forma del patrón (#27-ter): en LECTURA, con el userId en la URL.
+  "src/pages/api/user/messages.ts",
 ];
 
 /**
@@ -87,8 +89,10 @@ describe("#27 — la identidad sale del token, no del cuerpo", () => {
       // la identidad de quien llama del cuerpo, que es el bug.
       if (EXCEPCIONES.get(f) === "requireSelfOrAdmin") continue;
       const src = sinComentarios(read(f));
-      // `userId` desestructurado de req.body, en cualquier orden de campos.
-      if (/const\s*\{[^}]*\buserId\b[^}]*\}\s*=\s*(req\.body|\(req\.body)/.test(src)) {
+      // `userId` desestructurado de req.body O de req.query. La query se añadió
+      // tras #27-ter: el endpoint de lectura de mensajes lo tomaba de la URL, y
+      // el guard, que solo miraba el cuerpo, no lo veía.
+      if (/const\s*\{[^}]*\buserId\b[^}]*\}\s*=\s*\(?req\.(body|query)/.test(src)) {
         ofensores.push(f);
       }
     }
@@ -117,6 +121,7 @@ describe("#27 — los llamadores adjuntan el token", () => {
       "saveUserProfile", "savePlan", "createPayment", "createStripePayment", "checkStripePayment",
       "saveExerciseWeights", "saveUserLocation", "saveMonthlySnapshot", "analyzeFood",
       "generatePlan", "user/replyMessage", "user/markMessageRead", "sendMessage",
+      "user/messages",
     ];
     // `adminFetch` también adjunta token (el del admin), así que vale.
     const patron = new RegExp(`(?<!authed)(?<!admin)fetch\\(\\s*[\`"']/api/(${rutas.join("|")})`, "g");

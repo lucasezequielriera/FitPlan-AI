@@ -47,6 +47,15 @@ cubra el cambio.
 
 ---
 
+### 2026-09-13 · Verificar identidad al LEER mensajes (#27-ter)
+**Categoría:** datos de usuarios existentes
+**Se le preguntó:** al cerrar #27-bis, la revisión encontró una tercera aparición del patrón: `user/messages.ts` es un GET sin ninguna verificación que devuelve el contenido completo de los mensajes de un usuario a partir de un `userId` en la URL. Mismo riesgo de privacidad que `replyMessage`, pero en su forma de lectura.
+**Decidió:** "sí, arréglalo"
+**Autoriza:** derivar la identidad del ID token verificado en `src/pages/api/user/messages.ts`, adaptar sus llamadores a `authedFetch`, y desplegarlo.
+
+NO autoriza cambiar qué devuelve el endpoint ni la forma de los mensajes.
+**Estado:** vigente
+
 ### 2026-09-12 · Verificar identidad en los ocho endpoints restantes (#27-bis)
 **Categoría:** datos de usuarios existentes
 **Se le preguntó:** al cerrar #27, la revisión encontró ocho endpoints más con el mismo patrón. Se le señaló que `user/replyMessage` y `markMessageRead` son los que más preocupan, porque leer conversaciones ajenas es privacidad, no solo integridad.
