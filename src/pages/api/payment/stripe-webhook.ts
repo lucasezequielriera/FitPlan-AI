@@ -174,19 +174,40 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // flujo B2B. Esta escritura es la que hace que el cliente conste como
         // pagado; si falla y devolvemos 200, Stripe da el evento por entregado y
         // no reintenta: cobrado y sin registrar, sin que nadie se entere (#42).
+        //
+        // Va en transacción con un guard de idempotencia, el equivalente de
+        // `isNewPayment` del flujo de premium, que aquí no existía. Stripe
+        // garantiza "al menos una entrega", y desde #42 además pedimos
+        // reintento nosotros, así que un mismo cobro puede llegar varias veces.
+        //
+        // Repetirlo no es inofensivo: el panel decide "Pagado este mes"
+        // comparando `paymentLastPaidAt` con el mes actual, y ese campo lleva
+        // la hora del servidor. Una reentrega en otro mes marcaría como pagado
+        // a quien no pagó.
+        let yaProcesado = false;
         try {
-          await adminDb.collection("intakeClients").doc(intakeClientId).set(
-            {
-              paymentStatus: "paid",
-              paymentProvider: "stripe",
-              paymentLastPaidAt: FieldValue.serverTimestamp(),
-              paymentCurrentMonthPaid: true,
-              paymentLastAmount: amountTotal,
-              paymentLastCurrency: currency,
-              updatedAt: FieldValue.serverTimestamp(),
-            },
-            { merge: true }
-          );
+          const clientRef = adminDb.collection("intakeClients").doc(intakeClientId);
+          yaProcesado = await adminDb.runTransaction(async (tx) => {
+            const snap = await tx.get(clientRef);
+            if (snap.exists && snap.data()?.paymentLastProcessedId === String(session.id)) {
+              return true;
+            }
+            tx.set(
+              clientRef,
+              {
+                paymentStatus: "paid",
+                paymentProvider: "stripe",
+                paymentLastPaidAt: FieldValue.serverTimestamp(),
+                paymentCurrentMonthPaid: true,
+                paymentLastAmount: amountTotal,
+                paymentLastCurrency: currency,
+                paymentLastProcessedId: String(session.id),
+                updatedAt: FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            );
+            return false;
+          });
         } catch (error: unknown) {
           console.error(`❌ CRÍTICO: checkout ${session.id} cobrado pero NO se pudo marcar como pagado al cliente ${intakeClientId}:`, error);
           await alertarActivacionFallida({
@@ -198,6 +219,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             accion: "registrar-cobro-b2b",
           });
           return res.status(500).json({ error: "No se pudo registrar el cobro del cliente", retry: true });
+        }
+
+        if (yaProcesado) {
+          // Reentrega de un cobro ya aplicado. 200 para que Stripe deje de
+          // mandarlo, y sin notificación ni ledger: el corte va ANTES de los
+          // efectos que no son idempotentes, que es el único sitio donde sirve.
+          console.log(`ℹ️ Checkout ${session.id} del cliente ${intakeClientId} ya procesado; reentrega ignorada.`);
+          return res.status(200).json({ received: true });
         }
 
         // Lo que sigue son efectos secundarios: el cobro ya consta. Si fallan,
