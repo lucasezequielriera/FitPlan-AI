@@ -147,7 +147,7 @@ export default function UserMessagesModal({
       if (!silent) {
         setLoading(true);
       }
-      const response = await fetch(`/api/user/messages?userId=${userId}`);
+      const response = await authedFetch(`/api/user/messages`);
       if (!response.ok) throw new Error(dash(locale, "msgLoadError"));
       const data = await response.json();
       const sortedMessages = sortMessagesByDate(data.messages || []);

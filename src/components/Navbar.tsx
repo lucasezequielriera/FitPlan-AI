@@ -15,6 +15,7 @@ import { collection, query, where, getDocs, limit, doc, getDoc, updateDoc } from
 import { useAppLocale } from "@/contexts/AppLocaleContext";
 import { ui } from "@/lib/i18n/appUi";
 import { getPendingWeightOpsTotalCount, WEIGHT_QUEUE_CHANGED_EVENT } from "@/lib/weightSyncQueue";
+import { authedFetch } from "@/lib/userAuthClient";
 import {
   FaHome,
   FaDumbbell,
@@ -265,7 +266,7 @@ export default function Navbar({ minimal = false }: { minimal?: boolean }) {
 
     const checkUserMessages = async () => {
       try {
-        const response = await fetch(`/api/user/messages?userId=${authUser.uid}`);
+        const response = await authedFetch(`/api/user/messages`);
 
         if (!response.ok) {
           return;
@@ -1033,7 +1034,7 @@ export default function Navbar({ minimal = false }: { minimal?: boolean }) {
           userEmail={authUser?.email || null}
           onMessageSent={() => {
             if (authUser && !isAdmin) {
-              fetch(`/api/user/messages?userId=${authUser.uid}`)
+              authedFetch(`/api/user/messages`)
                 .then(res => res.json())
                 .then(data => setUserMessagesCount(data.unreadRepliesCount || 0))
                 .catch(err => console.error("Error al actualizar mensajes:", err));
@@ -1050,7 +1051,7 @@ export default function Navbar({ minimal = false }: { minimal?: boolean }) {
           onMessagesUpdate={async () => {
             if (authUser && !isAdmin) {
               try {
-                const response = await fetch(`/api/user/messages?userId=${authUser.uid}`);
+                const response = await authedFetch(`/api/user/messages`);
                 if (response.ok) {
                   const data = await response.json();
                   setUserMessagesCount(data.unreadRepliesCount || 0);
