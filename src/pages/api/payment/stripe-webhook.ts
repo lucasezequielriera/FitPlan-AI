@@ -4,11 +4,27 @@ import { getAdminDb } from "@/lib/firebase-admin";
 import { recordStripeMonthlyEarningIfNew } from "@/lib/adminMonthlyEarningsStripe";
 import { FieldValue, Timestamp as AdminTimestamp, type Firestore } from "firebase-admin/firestore";
 import { sendTelegramMessage, formatPaymentMessage } from "@/lib/telegram";
-import { alertarActivacionFallida } from "@/lib/payments/activationAlert";
+import { alertarActivacionFallida, alertarWebhookSinBaseDeDatos } from "@/lib/payments/activationAlert";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
   apiVersion: "2025-11-17.clover",
 });
+
+/**
+ * Los eventos que este webhook llega a escribir en Firestore. Solo para ellos
+ * tiene sentido pedir reintento si falta la base de datos: el resto no iba a
+ * hacer nada de todas formas.
+ *
+ * Si se añade un `event.type` nuevo más abajo y no se añade aquí, un fallo de
+ * configuración volvería a tragarse ese evento en silencio. Hay un test que
+ * compara esta lista con los `event.type ===` del archivo para que no se
+ * desincronicen.
+ */
+const EVENTOS_QUE_ESCRIBEN: string[] = [
+  "checkout.session.completed",
+  "invoice.paid",
+  "invoice.payment_failed",
+];
 
 // Stripe requiere el body raw para verificar la firma
 export const config = {
@@ -119,7 +135,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const adminDb = getAdminDb();
     if (!adminDb) {
-      console.error("❌ Firebase Admin SDK no configurado");
+      // Es #13 una capa más abajo: ahí fallaba la escritura, aquí no hay dónde
+      // escribir. El 200 lo hacía igual de silencioso.
+      //
+      // Pero este chequeo corre ANTES de saber el tipo de evento, y Stripe manda
+      // muchos que no usamos. Un 500 indiscriminado los haría fallar todos, y
+      // Stripe acaba deshabilitando un endpoint que falla de forma sostenida:
+      // quedarnos sin webhook sería peor que el problema que se intenta cerrar.
+      // Así que solo se pide reintento para los eventos que de verdad escriben.
+      if (EVENTOS_QUE_ESCRIBEN.includes(event.type)) {
+        console.error(`❌ CRÍTICO: evento ${event.type} (${event.id}) sin base de datos con la que atenderlo`);
+        await alertarWebhookSinBaseDeDatos({ proveedor: "Stripe", evento: event.type });
+        return res.status(500).json({ error: "Firebase Admin SDK no configurado", retry: true });
+      }
+      console.warn(`⚠️ Firebase Admin no configurado; evento ${event.type} descartado (no escribe nada)`);
       return res.status(200).json({ received: true });
     }
 

@@ -167,8 +167,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       const adminDb = getAdminDb();
       if (!adminDb) {
-        console.error("❌ Firebase Admin SDK no configurado");
-        return res.status(200).json({ received: true });
+        // Es #13 una capa más abajo: ahí fallaba la escritura, aquí no hay
+        // dónde escribir. El 200 lo hacía igual de silencioso — MercadoPago
+        // daba el evento por procesado y no volvía a intentarlo nunca.
+        const error = new Error("Firebase Admin SDK no configurado");
+        console.error(`❌ CRÍTICO: suscripción ${preapprovalId} de ${userId} sin base de datos con la que aplicarla`);
+        await alertarActivacionFallida({
+          proveedor: "MercadoPago",
+          paymentId: String(preapprovalId),
+          userId,
+          error,
+          accion: "actualizar-suscripcion",
+        });
+        return res.status(500).json({ error: "Firebase Admin SDK no configurado", retry: true });
       }
 
       const userRef = adminDb.collection("usuarios").doc(userId);
@@ -279,7 +290,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             // escritura entera y devolvía 200. MercadoPago daba el cobro por
             // procesado y no reintentaba nunca. Es un fallo de configuración
             // transitorio, justo lo que un reintento sí arregla (#42).
-            console.error(`❌ CRÍTICO: pago ${paymentId} del cliente ${intakeClientId} cobrado y Firebase Admin no configurado`);
+            const error = new Error("Firebase Admin SDK no configurado");
+            console.error(`❌ CRÍTICO: pago ${paymentId} del cliente ${intakeClientId} cobrado y sin base de datos con la que registrarlo`);
+            await alertarActivacionFallida({
+              proveedor: "MercadoPago",
+              paymentId: String(paymentId),
+              userId: intakeClientId,
+              error,
+              accion: "registrar-cobro-b2b",
+            });
             return res.status(500).json({ error: "Firebase Admin SDK no configurado", retry: true });
           }
 
@@ -363,8 +382,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         const adminDb = getAdminDb();
         if (!adminDb) {
-          console.error("❌ Firebase Admin SDK no configurado");
-          return res.status(200).json({ received: true });
+          // Pago ya cobrado y aprobado. Devolver 200 aquí era tragárselo: sin
+          // base de datos no se activa premium y MercadoPago no reintenta.
+          const error = new Error("Firebase Admin SDK no configurado");
+          console.error(`❌ CRÍTICO: pago ${paymentId} de ${userId} cobrado y sin base de datos con la que activarlo`);
+          await alertarActivacionFallida({
+            proveedor: "MercadoPago",
+            paymentId: String(paymentId),
+            userId,
+            error,
+          });
+          return res.status(500).json({ error: "Firebase Admin SDK no configurado", retry: true });
         }
 
         // Actualizar el estado premium del usuario
