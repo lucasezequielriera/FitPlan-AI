@@ -5,6 +5,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { requireAdmin } from "@/lib/adminAuthServer";
 import { EMAIL, META_ESQUEMA_COLOR, botonEmail } from "@/lib/email/palette";
+import { escapeHtml } from "@/lib/email/html";
 
 function firstName(fullName: string | null): string {
   if (!fullName) return "campeón";
@@ -61,7 +62,7 @@ function buildWelcomeHtml(params: {
   route: string;
   gender: "masculino" | "femenino" | "neutral";
 }) {
-  const header = `${welcomeWord(params.gender)} a FitPlan con tu trainer: Lucas Riera`;
+  const header = escapeHtml(`${welcomeWord(params.gender)} a FitPlan con tu trainer: Lucas Riera`);
   const addressed = byGender(params.gender, {
     m: "acompañado",
     f: "acompañada",
@@ -76,12 +77,12 @@ function buildWelcomeHtml(params: {
   ${META_ESQUEMA_COLOR}
   <div style="background:${EMAIL.fondo};color:${EMAIL.texto};padding:24px;font-family:Arial,sans-serif">
     <h2 style="margin:0 0 8px;color:${EMAIL.acento}">${header}</h2>
-    <p style="margin:0 0 14px;color:${EMAIL.textoSuave}">Hola ${params.name},</p>
+    <p style="margin:0 0 14px;color:${EMAIL.textoSuave}">Hola ${escapeHtml(params.name)},</p>
     <p style="margin:0 0 12px;color:${EMAIL.textoSuave}">
-      Te doy la bienvenida oficialmente. A partir de hoy empezamos un proceso serio, pero sostenible: progreso real, paso a paso, con foco en tu objetivo <strong>${params.objective}</strong>.
+      Te doy la bienvenida oficialmente. A partir de hoy empezamos un proceso serio, pero sostenible: progreso real, paso a paso, con foco en tu objetivo <strong>${escapeHtml(params.objective)}</strong>.
     </p>
     <p style="margin:0 0 12px;color:${EMAIL.textoSuave}">
-      Ya revisé tu perfil y vamos a trabajar con el enfoque <strong>${params.service}</strong>. Mi idea es que te sientas ${addressed}, con claridad total en cada etapa, y que puedas ${sustained} en tu vida real.
+      Ya revisé tu perfil y vamos a trabajar con el enfoque <strong>${escapeHtml(params.service)}</strong>. Mi idea es que te sientas ${addressed}, con claridad total en cada etapa, y que puedas ${sustained} en tu vida real.
     </p>
     <div style="background:${EMAIL.caja};border:1px solid ${EMAIL.borde};border-radius:12px;padding:14px;margin:14px 0">
       <p style="margin:0 0 6px"><strong>Qué espero de vos:</strong></p>
@@ -100,7 +101,7 @@ function buildWelcomeHtml(params: {
     <p style="margin:0 0 18px">${botonEmail(params.route, "Ver mi plan")}</p>
     <p style="margin:14px 0 0;color:${EMAIL.texto}">
       Vamos con todo.<br/>
-      — ${params.coachName}
+      — ${escapeHtml(params.coachName)}
     </p>
   </div>`;
 }

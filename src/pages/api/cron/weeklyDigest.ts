@@ -4,6 +4,7 @@ import { sendTelegramMessage } from "@/lib/telegram";
 import { getTopicPerformance } from "@/lib/socialContent/performanceInsights";
 import { topicLabel } from "@/lib/socialContent/topics";
 import { fetchAllGithubIssues } from "@/lib/githubIssues";
+import { escapeHtml } from "@/lib/email/html";
 
 /**
  * Corre los lunes. Un único mensaje semanal consolidado por Telegram, con
@@ -41,10 +42,6 @@ function toMillis(value: unknown): number | null {
     }
   }
   return null;
-}
-
-function escapeHtml(text: string): string {
-  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 /** Anota "(muestra chica)" cuando el conteo no alcanza para sacar conclusiones. */
