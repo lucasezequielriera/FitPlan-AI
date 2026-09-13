@@ -1,4 +1,5 @@
 import { INTAKE_FOOD_GROUPS, type FoodPreference, type IntakeFormState } from "@/lib/intakeFormSchema";
+import { escapeHtml } from "@/lib/email/html";
 
 type IntakePayload = Partial<IntakeFormState> & Record<string, unknown>;
 
@@ -28,15 +29,6 @@ function getFoodPreferencesBuckets(value: unknown): {
 
 function formatList(values: string[]): string {
   return values.length > 0 ? values.join(", ") : "-";
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 }
 
 function section(title: string, rows: Array<[string, string]>): string {

@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { sendTelegramMessage } from "@/lib/telegram";
+import { escapeHtml } from "@/lib/email/html";
 
 /**
  * Corre una vez al día. Objetivo: que Lucas no tenga que abrir el panel de
@@ -171,10 +172,6 @@ function toMillis(value: unknown): number | null {
     }
   }
   return null;
-}
-
-function escapeHtml(text: string): string {
-  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 function excerpt(text: string, maxLen = 140): string {

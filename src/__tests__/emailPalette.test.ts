@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { EMAIL, META_ESQUEMA_COLOR, botonEmail, enlaceEmail } from "@/lib/email/palette";
+import { escapeHtml } from "@/lib/email/html";
 
 /**
  * #18 — los emails eran la última superficie con la paleta anterior.
@@ -119,6 +120,54 @@ describe("#18 — la paleta de email respeta las reglas del sistema", () => {
   it("declara el esquema oscuro, no el claro", () => {
     expect(META_ESQUEMA_COLOR).toContain('content="dark"');
     expect(META_ESQUEMA_COLOR).toContain("supported-color-schemes");
+  });
+});
+
+describe("Ningún dato de fuera entra crudo en el HTML de un email", () => {
+  // `escapeHtml` existía desde el principio, pero como función privada dentro
+  // de `intakeEmail.ts`. Las dos plantillas escritas después no la tenían a
+  // mano e interpolaban en crudo el nombre que la persona escribe en el
+  // formulario, su objetivo y el texto del resumen semanal.
+  //
+  // El riesgo es acotado —el correo va a quien escribió el dato— pero un
+  // nombre con `<` rompe el mensaje, y un correo roto no se corrige después de
+  // enviarlo.
+
+  it.each(PLANTILLAS)("%s escapa todo lo que interpola", (f) => {
+    const src = sinComentarios(leer(f));
+    const html = src.slice(src.indexOf("${META_ESQUEMA_COLOR}"));
+    // Interpolaciones de datos, no de tokens de color ni de helpers.
+    const crudas = [...html.matchAll(/\$\{((?:params|s)\.[\w.]+)\}/g)]
+      .map((m) => m[1])
+      // `.length` es un número, no texto de nadie.
+      .filter((v) => !v.endsWith(".length"));
+    expect(crudas).toEqual([]);
+  });
+
+  it("escapa lo que importa y no toca lo que no", () => {
+    expect(escapeHtml('<img src=x onerror="alert(1)">')).not.toContain("<");
+    expect(escapeHtml("Martín & Cía")).toBe("Martín &amp; Cía");
+    expect(escapeHtml("")).toBe("");
+    // Un nombre ausente no puede escribir "undefined" en el saludo.
+    expect(escapeHtml(undefined)).toBe("");
+    expect(escapeHtml(null)).toBe("");
+  });
+
+  it("hay una sola implementación", () => {
+    // Que fuera privada de un archivo es lo que hizo que las plantillas nuevas
+    // no la usaran. Si vuelve a copiarse, vuelve a pasar.
+    const copias: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of fs.readdirSync(path.join(process.cwd(), dir), { withFileTypes: true })) {
+        const rel = `${dir}/${e.name}`;
+        if (e.isDirectory()) walk(rel);
+        else if (/\.tsx?$/.test(e.name) && !rel.includes("__tests__") && rel !== "src/lib/email/html.ts") {
+          if (/function\s+escapeHtml\s*\(/.test(sinComentarios(leer(rel)))) copias.push(rel);
+        }
+      }
+    };
+    walk("src");
+    expect(copias).toEqual([]);
   });
 });
 

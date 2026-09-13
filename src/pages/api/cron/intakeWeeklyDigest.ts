@@ -4,6 +4,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
 import type { IntakeWorkoutSession } from "@/types/intakeWorkoutLog";
 import { EMAIL, META_ESQUEMA_COLOR } from "@/lib/email/palette";
+import { escapeHtml } from "@/lib/email/html";
 
 function isAuthorized(req: NextApiRequest): boolean {
   const cronHeader = req.headers["x-vercel-cron"];
@@ -176,16 +177,16 @@ function buildMailHtml(params: {
   motivational: string;
 }) {
   const list = params.sessions7d
-    .map((s) => `<li><strong>${s.completedOn}</strong> · ${s.dayLabel} · ${s.exercises.length} ejercicios</li>`)
+    .map((s) => `<li><strong>${escapeHtml(s.completedOn)}</strong> · ${escapeHtml(s.dayLabel)} · ${s.exercises.length} ejercicios</li>`)
     .join("");
   return `
   ${META_ESQUEMA_COLOR}
   <div style="background:${EMAIL.fondo};color:${EMAIL.texto};padding:24px;font-family:Arial,sans-serif">
     <h2 style="margin:0 0 8px;color:${EMAIL.acento}">Resumen semanal FitPlan</h2>
-    <p style="margin:0 0 16px;color:${EMAIL.textoSuave}">Semana ${params.weekKey} · Hola ${params.clientName}</p>
+    <p style="margin:0 0 16px;color:${EMAIL.textoSuave}">Semana ${escapeHtml(params.weekKey)} · Hola ${escapeHtml(params.clientName)}</p>
     <div style="background:${EMAIL.caja};border:1px solid ${EMAIL.borde};border-radius:12px;padding:16px;margin-bottom:14px">
-      <p style="margin:0 0 6px"><strong>Sesiones esta semana:</strong> ${params.sessions7d.length}</p>
-      <p style="margin:0"><strong>Sesiones acumuladas:</strong> ${params.totalSessions}</p>
+      <p style="margin:0 0 6px"><strong>Sesiones esta semana:</strong> ${escapeHtml(params.sessions7d.length)}</p>
+      <p style="margin:0"><strong>Sesiones acumuladas:</strong> ${escapeHtml(params.totalSessions)}</p>
     </div>
     <div style="background:${EMAIL.caja};border:1px solid ${EMAIL.borde};border-radius:12px;padding:16px;margin-bottom:14px">
       <p style="margin:0 0 8px"><strong>Tu progreso reciente</strong></p>
@@ -193,9 +194,9 @@ function buildMailHtml(params: {
     </div>
     <div style="background:${EMAIL.caja};border:1px solid ${EMAIL.info};border-radius:12px;padding:16px;margin-bottom:14px">
       <p style="margin:0 0 6px"><strong>Recomendación de la semana</strong></p>
-      <p style="margin:0">${params.suggestion}</p>
+      <p style="margin:0">${escapeHtml(params.suggestion)}</p>
     </div>
-    <p style="margin:16px 0 0;color:${EMAIL.textoSuave}">${params.motivational}</p>
+    <p style="margin:16px 0 0;color:${EMAIL.textoSuave}">${escapeHtml(params.motivational)}</p>
   </div>`;
 }
 
