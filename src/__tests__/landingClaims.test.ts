@@ -41,6 +41,25 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 /**
+ * Copy público que NO vive en `src`.
+ *
+ * El guard solo recorría `src/**\/*.tsx?`, así que el manifest se le escapó: la
+ * decisión del 2026-09-05 de retirar "diseñado por nutricionistas y entrenadores
+ * profesionales" se aplicó a la landing y a los datos estructurados, pero la
+ * frase siguió viva en `site.webmanifest` durante semanas — y ese texto es el
+ * que ve quien instala la app en su móvil.
+ *
+ * Lo encontró una revisión mirando a mano, no este test. Ahora entra aquí.
+ */
+const COPY_FUERA_DE_SRC = ["public/site.webmanifest"];
+
+/** Todo lo que el guard revisa. Una sola fuente, para que un test pueda
+ *  comprobar la cobertura además del contenido. */
+function revisados(): string[] {
+  return [...walk("src"), ...COPY_FUERA_DE_SRC];
+}
+
+/**
  * Quita comentarios antes de buscar.
  *
  * Los archivos que documentan POR QUÉ una frase está prohibida la citan, y el
@@ -55,7 +74,7 @@ function sinComentarios(src: string): string {
 describe("Textos públicos: credenciales que no tenemos", () => {
   it("ningún texto afirma que hay nutricionistas o entrenadores certificados detrás", () => {
     const ofensores: string[] = [];
-    for (const file of walk("src")) {
+    for (const file of revisados()) {
       if (EXENTOS.includes(file)) continue;
       const src = sinComentarios(fs.readFileSync(path.join(process.cwd(), file), "utf8"));
       for (const re of PROHIBIDOS) {
@@ -64,6 +83,21 @@ describe("Textos públicos: credenciales que no tenemos", () => {
       }
     }
     expect(ofensores).toEqual([]);
+  });
+
+  it("el manifest entra en el barrido, no solo existe", () => {
+    // Comprobar que el manifest está limpio no basta: si alguien reduce el
+    // barrido a `src`, el test sigue verde porque ya no hay nada que encontrar,
+    // y la cobertura se pierde en silencio hasta que alguien vuelve a meter la
+    // frase. Lo que hay que fijar es que el archivo se MIRA.
+    expect(revisados()).toContain("public/site.webmanifest");
+
+    for (const f of COPY_FUERA_DE_SRC) {
+      expect({ archivo: f, existe: fs.existsSync(path.join(process.cwd(), f)) }).toEqual({
+        archivo: f,
+        existe: true,
+      });
+    }
   });
 
   it("no se publican valoraciones inventadas en datos estructurados", () => {

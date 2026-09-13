@@ -1,7 +1,7 @@
 {
   "name": "FitPlan - Plan de Alimentación y Entrenamiento Inteligente",
   "short_name": "FitPlan",
-  "description": "Creá tu plan de alimentación y entrenamiento personalizado con inteligencia artificial. Diseñado por nutricionistas y entrenadores profesionales.",
+  "description": "Creá tu plan de alimentación y entrenamiento personalizado con inteligencia artificial, adaptado a tus objetivos, tu nivel y los días que puedas entrenar.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#08090c",

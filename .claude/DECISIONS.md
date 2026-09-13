@@ -47,6 +47,26 @@ cubra el cambio.
 
 ---
 
+### 2026-09-13 · Ordenar los assets de marca (#24)
+**Categoría:** assets de marca
+**Se le preguntó:** se le ofreció como la recomendación entre los issues abiertos, por ser `alta` y por arrastrar el riesgo del icono que TikTok rechazó.
+**Decidió:** "haz la 24"
+**Autoriza:** generar `brand&designs/colores/tokens.css` y `paleta.png` desde `src/styles/globals.css` en vez de mantenerlos a mano, y desplegarlo. El entregable de colores era la paleta azul/cian entera más un tema "Pro" dorado que ya no existe.
+
+No cambia ningún asset servido en `public/`: ni logos, ni favicons, ni iconos de redes, ni el manifest. Solo el archivo de referencia interno.
+
+NO autoriza rediseñar el logo ni generar variantes nuevas.
+
+**Nota:** la revisión bloqueó este cambio por no tener entrada, aunque el issue lo había escrito Lucas con su pedido textual dentro. Hizo bien: la regla 3 no distingue quién escribió el issue, precisamente para que "lo dice el issue" nunca sustituya al registro.
+**Estado:** vigente
+
+### 2026-09-13 · Retirar la afirmación del manifest (aplica la decisión del 2026-09-05)
+**Categoría:** marca
+**Se le preguntó:** nada nuevo. `public/site.webmanifest` seguía diciendo "Diseñado por nutricionistas y entrenadores profesionales", la frase exacta que él mandó retirar el 2026-09-05. El guard `landingClaims` solo recorría `src/**/*.tsx?` y no lo veía.
+**Decidió:** ya lo había decidido el 2026-09-05 ("No, sácalo"), que autoriza eliminarla "de todo el copy público, ES y EN".
+**Autoriza:** quitarla del manifest y ampliar el guard para que cubra el copy público que no vive en `src`.
+**Estado:** vigente
+
 ### 2026-09-13 · Herramienta para limpiar los planes huérfanos (#5)
 **Categoría:** datos de usuarios existentes
 **Se le preguntó:** quedan 16 planes con un `userId` que no existe ni en `usuarios` ni en Auth. La causa ya está cerrada (#12), pero los que hay siguen ahí. El entorno me impide borrar datos de producción por script, así que no puedo hacerlo yo.
