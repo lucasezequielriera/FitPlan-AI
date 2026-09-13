@@ -26,8 +26,10 @@ export const EMAIL = {
   caja: "#14161c",
   /** Aproximación de `--border-strong`. */
   borde: "#2c2f36",
-  /** `--foreground`. Nunca `#ffffff` puro: Outlook lo fuerza a oscuro en su
-   *  modo oscuro y deja texto ilegible sobre fondo oscuro. */
+  /** `--foreground`. Nunca `#ffffff` puro, ni `#000000` en ningún sitio: son
+   *  los dos valores que los motores de modo oscuro sí tienen documentado que
+   *  fuerzan (blanco de fondo → oscuro, negro de texto → blanco). Evitarlos
+   *  esquiva los disparadores conocidos. */
   texto: "#f5f7f2",
   /** Aproximación de `--text-muted`. 9,25:1 sobre el fondo, 8,40:1 sobre caja. */
   textoSuave: "#aeb2ab",
@@ -44,11 +46,22 @@ export const EMAIL = {
 } as const;
 
 /**
- * Cabecera obligatoria de todo email.
+ * Cabecera de esquema de color.
  *
- * Sin esto, los motores de modo oscuro (Outlook.com es el más agresivo)
- * reinvierten un diseño ya oscuro y lo dejan peor de lo que estaba. Declararlo
- * es lo que hace que lo lean como intencional y no lo toquen.
+ * Ojo con lo que se puede esperar de esto: **Outlook no la soporta** —ni el web
+ * ni el de escritorio, que usan el motor de Word e ignoran casi todo el CSS
+ * moderno— así que no protege del cliente más agresivo. La revisión comprobó
+ * esto contra `caniemail.com` y Litmus después de que aquí se afirmara lo
+ * contrario.
+ *
+ * Sirve igualmente en Apple Mail y en los clientes que sí la leen, y declarar
+ * la intención cuesta dos etiquetas. Lo que de verdad reduce el riesgo en
+ * Outlook es no usar blanco ni negro puros, que son sus dos disparadores
+ * documentados.
+ *
+ * Un email 100% oscuro sigue siendo un problema sin resolver en Outlook de
+ * escritorio, que puede invertir incluso fondos ya oscuros. No es algo que este
+ * diseño empeore: la paleta navy anterior también era oscura.
  */
 export const META_ESQUEMA_COLOR =
   '<meta name="color-scheme" content="dark"><meta name="supported-color-schemes" content="dark">';
