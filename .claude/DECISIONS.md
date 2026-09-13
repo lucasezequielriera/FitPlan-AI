@@ -47,6 +47,16 @@ cubra el cambio.
 
 ---
 
+### 2026-09-13 · Que borrar un usuario no mienta sobre el resultado (#12)
+**Categoría:** datos de usuarios existentes
+**Se le preguntó:** `deleteUser.ts` borra los planes, y si eso falla solo lo escribe en el log y sigue: borra el usuario y su cuenta igual, y responde `success: true`. Es la causa probable de los 16 planes huérfanos del #5.
+**Opciones que vio:** la recomendación entre los issues abiertos, por ser el mismo patrón de #13 fuera de los webhooks y cerrar #5 de paso.
+**Decidió:** "arregla el 12"
+**Autoriza:** que el borrado de planes falle ruidoso (500) y aborte antes de tocar al usuario o su cuenta de Auth, contar cuántos se borraron de verdad, y desplegarlo. Incluye arreglar la comprobación `errorMessage.includes("not found")` del paso de Auth, que no coincide nunca con el error real de firebase-admin y convierte un borrado correcto en un 500: es el error simétrico, en el mismo handler.
+
+NO autoriza borrar en cascada las otras 7 colecciones con `userId` (mensajes, pagos, pesos, sesiones, historial, eventos, meses), ni cambiar el orden de los tres pasos.
+**Estado:** vigente
+
 ### 2026-09-13 · Guard de idempotencia en el flujo B2B
 **Categoría:** pagos
 **Se le preguntó:** el flujo de intake no tiene nada equivalente a `isNewPayment`, que es lo que protege al de premium de la entrega "al menos una vez" de las pasarelas. Se le presentó como coste bajo (una notificación duplicada), pero al implementarlo resultó ser mayor: el panel decide "Pagado este mes" comparando `paymentLastPaidAt` con el mes actual, y ese campo se escribe con la hora del servidor, así que una reentrega en otro mes marca como pagado a quien no pagó.
