@@ -197,6 +197,69 @@ async function buildIco(srcSvg, destRel, sizes = [16, 32, 48]) {
 
 await buildIco(CUADRADO_NEGRO, "app-icons/favicon.ico");
 
+
+// ---------------------------------------------------------------------------
+// colores/ — se derivan de src/styles/globals.css, que es donde vive la paleta
+// de verdad. Antes eran archivos escritos a mano y se quedaron atrás: el
+// `tokens.css` que se entregaba seguía describiendo la paleta azul/cian y un
+// tema "Pro" dorado que ya no existe (issue #24). Cualquiera que abriera la
+// carpeta de marca para saber los colores de FitPlan se llevaba los viejos.
+//
+// Generarlos evita el problema de raíz: no pueden desviarse de lo que la app
+// pinta de verdad, porque salen de ahí.
+// ---------------------------------------------------------------------------
+
+/** Tokens con valor hexadecimal literal del `:root` de globals.css. */
+function leerTokensDeLaApp() {
+  const css = fs.readFileSync("src/styles/globals.css", "utf8");
+  const root = css.slice(css.indexOf(":root"), css.indexOf("}", css.indexOf(":root")));
+  const tokens = new Map();
+  for (const m of root.matchAll(/--([a-z0-9-]+):\s*(#[0-9a-fA-F]{3,8})\s*;/g)) {
+    tokens.set(m[1], m[2].toLowerCase());
+  }
+  return tokens;
+}
+
+const TOKENS_APP = leerTokensDeLaApp();
+
+const tokensCss = [
+  "/**",
+  " * Colores de FitPlan AI — paleta \"Volt\".",
+  " *",
+  " * GENERADO. No editar a mano: sale de src/styles/globals.css al correr",
+  " * `node \"brand&designs/_generar.mjs\"`. Editar aquí se pierde, y peor: haría",
+  " * que este archivo volviera a mentir sobre los colores reales de la app,",
+  " * que es justo lo que motivó el issue #24.",
+  " */",
+  "",
+  ":root {",
+  ...[...TOKENS_APP].map(([nombre, hex]) => `  --${nombre}: ${hex};`),
+  "}",
+  "",
+].join("\n");
+
+fs.mkdirSync(path.join(ROOT, "colores"), { recursive: true });
+fs.writeFileSync(path.join(ROOT, "colores/tokens.css"), tokensCss);
+rows.push(`→ ${ROOT}/colores/tokens.css (${TOKENS_APP.size} tokens)`);
+
+// paleta.png — una muestra por token, para mirarla de un vistazo.
+{
+  const entradas = [...TOKENS_APP];
+  const COL = 220, FILA = 120, PORFILA = 4;
+  const filas = Math.ceil(entradas.length / PORFILA);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${COL * PORFILA}" height="${FILA * filas}">
+    <rect width="100%" height="100%" fill="${NEGRO}"/>
+    ${entradas.map(([nombre, hex], i) => {
+      const x = (i % PORFILA) * COL, y = Math.floor(i / PORFILA) * FILA;
+      return `<rect x="${x + 12}" y="${y + 12}" width="${COL - 24}" height="${FILA - 46}" rx="10" fill="${hex}"/>
+        <text x="${x + 14}" y="${y + FILA - 16}" font-family="monospace" font-size="13" fill="#f5f7f2">--${nombre}</text>
+        <text x="${x + 14}" y="${y + FILA - 2}" font-family="monospace" font-size="11" fill="#f5f7f2" opacity="0.6">${hex}</text>`;
+    }).join("")}
+  </svg>`;
+  await sharp(Buffer.from(svg)).png().toFile(path.join(ROOT, "colores/paleta.png"));
+  rows.push(`→ ${ROOT}/colores/paleta.png`);
+}
+
 // ---------------------------------------------------------------------------
 // Copia a public/ — la app sirve estos archivos. Se copian desde acá para que
 // no puedan quedar desincronizados con los entregables de marca.
