@@ -230,7 +230,7 @@ const en: HomeLandingCopy = {
   chipTraining: "Training",
   expertTitle: "The plan changes when you do",
   expertSub:
-    "Told us your shoulder is bad? The plan drops overhead press, behind-the-neck press and parallel-bar dips. And every month it gets rebuilt around the weight you actually moved.",
+    "Told us your shoulder is bad? The plan drops overhead press and upright rows. And every month it gets rebuilt around the weight you actually moved.",
   expertBullets: [
     "Drops the exercises that clash with the injuries you declare",
     "Grams per meal, not \"a serving\"",

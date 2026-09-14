@@ -230,6 +230,62 @@ describe("El copy en español no mezcla voseo con tuteo", () => {
   });
 });
 
+describe("Los ejercicios que promete la landing están de verdad prohibidos", () => {
+  // Cuatro veces en la misma revisión metí una afirmación que el código no
+  // cumple, y la última fue por verificar el español y dar por hecho el
+  // inglés: "parallel-bar dips" no existe en ninguna lista, y para locale `en`
+  // el generador EXIGE nombres en inglés. Alguien con el hombro declarado
+  // habría recibido justo lo que la landing promete que no recibirá.
+  //
+  // Hay DOS listas: la de `trainingPlanGuards.ts` y una copia inline en
+  // `generatePlan.ts`. Un ejercicio tiene que estar en las dos, porque cada
+  // una filtra en un punto distinto.
+
+  const nombrados = () => {
+    const copy = leer("src/lib/homeLandingCopy.ts");
+    const es = copy.match(/el plan descarta ([^."]+)/)?.[1] ?? "";
+    const en = copy.match(/The plan drops ([^."]+)/)?.[1] ?? "";
+    return { es, en };
+  };
+
+  it("la landing sigue nombrando ejercicios concretos", () => {
+    // Si alguien vuelve a una promesa genérica ("nada por encima de la
+    // cabeza"), estas anclas dejan de encontrar nada y el test cae.
+    const { es, en } = nombrados();
+    expect(es.length).toBeGreaterThan(10);
+    expect(en.length).toBeGreaterThan(10);
+  });
+
+  it("cada ejercicio nombrado está en las dos listas de prohibición", () => {
+    const guards = leer("src/lib/trainingPlanGuards.ts").toLowerCase();
+    const generador = leer("src/pages/api/generatePlan.ts").toLowerCase();
+    const { es, en } = nombrados();
+
+    // Términos que el filtro busca por substring, tal cual los escribe.
+    const terminos = ["press militar", "press tras nuca", "fondos en paralelas", "overhead press", "upright row"];
+    const prometidos = terminos.filter((t) => `${es} ${en}`.toLowerCase().includes(t));
+    expect(prometidos.length).toBeGreaterThan(0);
+
+    const sinRespaldo = prometidos.filter((t) => !guards.includes(t) || !generador.includes(t));
+    expect(sinRespaldo).toEqual([]);
+  });
+
+  it("la landing no nombra ningún ejercicio que el filtro no cubra", () => {
+    // El fallo exacto de la cuarta pasada. Cualquier palabra suelta que suene
+    // a ejercicio y no esté respaldada es una promesa vacía.
+    const guards = leer("src/lib/trainingPlanGuards.ts").toLowerCase();
+    const generador = leer("src/pages/api/generatePlan.ts").toLowerCase();
+    const { es, en } = nombrados();
+    const respaldado = (frag: string) => guards.includes(frag) && generador.includes(frag);
+
+    const sospechosos = ["dips", "parallel", "shoulder press", "press de hombros", "arnold", "push press", "thruster"];
+    const prometidosSinRespaldo = sospechosos.filter(
+      (t) => `${es} ${en}`.toLowerCase().includes(t) && !respaldado(t)
+    );
+    expect(prometidosSinRespaldo).toEqual([]);
+  });
+});
+
 describe("El guard mira algo de verdad", () => {
   it("los archivos de copy existen y tienen texto", () => {
     // Renombrar un archivo dejaría la lista apuntando a nada y el test verde
