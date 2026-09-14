@@ -12,7 +12,7 @@ export interface HomeLandingCopy {
   skipToContent: string;
   navLangAria: string;
   signIn: string;
-  /** CTA para usuario ya logueado (header, hero y cierre) — reemplaza signIn/ctaStart/closingCta cuando hay sesión. */
+  /** CTA para usuario ya logueado (header, hero y cierre) · reemplaza signIn/ctaStart/closingCta cuando hay sesión. */
   goToPanel: string;
   logoHref: string;
   mainId: string;
@@ -108,9 +108,9 @@ const es: HomeLandingCopy = {
   chipTraining: "Entrenamiento",
   expertTitle: "El plan cambia cuando cambias tú",
   expertSub:
-    "Si tienes el hombro tocado, no te manda press militar. Si solo tienes mancuernas en casa, no te manda barra. Y cada mes se rehace con el peso que has movido de verdad.",
+    "Si has declarado que tienes el hombro tocado, el plan no te manda press militar ni nada por encima de la cabeza. Y cada mes se rehace con el peso que has movido de verdad.",
   expertBullets: [
-    "Cuenta con tus lesiones y con lo que tienes para entrenar",
+    "Descarta los ejercicios que chocan con tus lesiones",
     "Los gramos de cada comida, no «una porción»",
     "Se rehace cada mes con lo que has levantado",
   ],
@@ -123,7 +123,7 @@ const es: HomeLandingCopy = {
   features: [
     {
       title: "Si te atascas, escribes",
-      body: "Hay un chat dentro de la app. Las dudas rápidas las contesta la IA; del resto me encargo yo.",
+      body: "Hay un chat dentro de la app. Lo leo yo y contesto yo, así que no esperes respuesta en diez segundos, pero la vas a tener.",
     },
     {
       title: "Tu cuerpo y tus horarios",
@@ -230,9 +230,9 @@ const en: HomeLandingCopy = {
   chipTraining: "Training",
   expertTitle: "The plan changes when you do",
   expertSub:
-    "Bad shoulder? It will not give you overhead press. Only dumbbells at home? No barbell work. And every month it gets rebuilt around the weight you actually moved.",
+    "Told us your shoulder is bad? The plan drops overhead press and anything above your head. And every month it gets rebuilt around the weight you actually moved.",
   expertBullets: [
-    "Works around your injuries and whatever kit you have",
+    "Drops the exercises that clash with your injuries",
     "Grams per meal, not \"a serving\"",
     "Rebuilt every month around what you lifted",
   ],
@@ -245,7 +245,7 @@ const en: HomeLandingCopy = {
   features: [
     {
       title: "Stuck? Just write",
-      body: "There is a chat inside the app. Quick questions get an AI answer; the rest come to me.",
+      body: "There is a chat inside the app. I read it and I answer it, so do not expect a reply in ten seconds, but you will get one.",
     },
     {
       title: "Your body, your schedule",

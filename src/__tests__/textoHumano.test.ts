@@ -27,6 +27,13 @@ const leer = (p: string) => fs.readFileSync(path.join(process.cwd(), p), "utf8")
 const COPY = [
   "src/lib/homeLandingCopy.ts",
   "src/lib/hyrox/landingCopy.ts",
+  // Añadidos tras la revisión: tenía "Crea tu plan" y "Diseñá tu plan" en el
+  // mismo objeto, o sea voseo y tuteo mezclados en los meta tags que sirve
+  // Google. Estaba vivo en producción.
+  "src/lib/i18n/createPlanUi.ts",
+  "src/lib/i18n/appUi.ts",
+  "src/lib/i18n/planUi.ts",
+  "src/lib/intakeFormI18n.ts",
 ];
 
 /**
@@ -46,9 +53,15 @@ const COPY = [
  */
 function cadenas(src: string): string[] {
   const sinComentarios = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-  return [...sinComentarios.matchAll(/"((?:[^"\\\n]|\\.)*)"/g)]
-    .map((m) => m[1])
-    .filter((t) => t.length >= 12);
+  const dobles = [...sinComentarios.matchAll(/"((?:[^"\\\n]|\\.)*)"/g)].map((m) => m[1]);
+  // Backticks. Tercer agujero de este mismo guard, encontrado por la revisión
+  // inyectando texto de IA dentro de un template literal y viendo que pasaba:
+  // `hyrox/landingCopy.ts` tiene texto visible ahí (heroNote, respuestas de
+  // FAQ) y no se miraba ninguno. Se quitan las interpolaciones antes, porque
+  // `${SITE}` no es prosa.
+  const plantillas = [...sinComentarios.matchAll(/`((?:[^`\\]|\\.)*)`/g)]
+    .map((m) => m[1].replace(/\$\{[^}]*\}/g, " "));
+  return [...dobles, ...plantillas].filter((t) => t.length >= 12);
 }
 
 /**
@@ -180,9 +193,14 @@ describe("El copy en español no mezcla voseo con tuteo", () => {
     // Se eligió tuteo porque era mayoría y porque Lucas vive en Madrid. Es
     // reversible: si se prefiere voseo, hay que cambiarlo ENTERO, y este test
     // es lo que obliga a ello.
-    const src = leer("src/lib/homeLandingCopy.ts");
-    const bloqueEs = src.slice(src.indexOf("const es: HomeLandingCopy"), src.indexOf("const en: HomeLandingCopy"));
-    const voseo = [...bloqueEs.matchAll(FORMAS_VOSEO)].map((m) => m[0]);
+    // Mira TODO el copy, no solo la home: el registro mezclado estaba también
+    // en `createPlanUi.ts`, servido en los meta tags de /create-plan.
+    const voseo: string[] = [];
+    for (const f of COPY) {
+      for (const t of cadenas(leer(f))) {
+        for (const m of t.matchAll(FORMAS_VOSEO)) voseo.push(`${f}: ${m[0]}`);
+      }
+    }
     expect(voseo).toEqual([]);
   });
 

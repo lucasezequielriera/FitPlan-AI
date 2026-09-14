@@ -8,7 +8,7 @@ export const navUi = {
   language: { es: "Idioma", en: "Language" },
   signOut: { es: "Cerrar sesión", en: "Sign out" },
   menuAccount: { es: "Menú de cuenta", en: "Account menu" },
-  menuAccountAdmin: { es: "Menú de cuenta — Administrador", en: "Account menu — Admin" },
+  menuAccountAdmin: { es: "Menú de cuenta · Administrador", en: "Account menu · Admin" },
   openMenuAdmin: { es: "Abrir menú de cuenta, administrador", en: "Open account menu, admin" },
   openMenuNamed: { es: "Abrir menú de cuenta", en: "Open account menu" },
   tagline: { es: "Crea tu plan personalizado", en: "Build your custom plan" },
@@ -45,7 +45,7 @@ export function ui(locale: AppLocale, key: keyof typeof navUi): string {
   return navUi[key][locale];
 }
 
-/** Dashboard — subset principal; amplía según necesites */
+/** Dashboard · subset principal; amplía según necesites */
 export const dashboardUi = {
   loading: { es: "Cargando...", en: "Loading…" },
   pageTitle: { es: "Mi Dashboard | FitPlan", en: "My Dashboard | FitPlan" },
@@ -120,8 +120,8 @@ export const dashboardUi = {
   mfProgressThisMonth: { es: "Progreso del mes {n}", en: "Month {n} progress" },
   mfProgressFullProgram: { es: "Progreso del plan completo", en: "Full program progress" },
   mfMonthDoneNext: {
-    es: "Mes {m} completado — abre el plan para generar el mes {next}.",
-    en: "Month {m} complete — open your plan to generate month {next}.",
+    es: "Mes {m} completado · abre el plan para generar el mes {next}.",
+    en: "Month {m} complete · open your plan to generate month {next}.",
   },
   mfDaysLeftInMonth: {
     es: "{d} día(s) restante(s) del mes {m}",
@@ -280,7 +280,7 @@ export const dashboardUi = {
   /** Modal enviar mensaje (Navbar) */
   composeTitle: { es: "Enviar mensaje", en: "Send message" },
   composeSuccess: { es: "¡Mensaje enviado!", en: "Message sent!" },
-  composeSuccessSub: { es: "Te responderemos pronto.", en: "We’ll get back to you soon." },
+  composeSuccessSub: { es: "Te responderemos pronto.", en: "We'll get back to you soon." },
   composeAnother: { es: "Enviar otro mensaje", en: "Send another" },
   composeSubjectOptional: { es: "Asunto (opcional)", en: "Subject (optional)" },
   composeSubjectPlaceholder: {
@@ -289,7 +289,7 @@ export const dashboardUi = {
   },
   composeMessageLabel: { es: "Mensaje", en: "Message" },
   composeMessagePlaceholder: {
-    es: "Escribí tu consulta, error o lo que necesites…",
+    es: "Escribe tu consulta, el error o lo que necesites…",
     en: "Write your question, issue, or request…",
   },
   composeSending: { es: "Enviando…", en: "Sending…" },
@@ -298,17 +298,17 @@ export const dashboardUi = {
   composeError: { es: "No se pudo enviar el mensaje.", en: "Could not send the message." },
   composeDefaultSubject: { es: "Consulta", en: "Question" },
 
-  /** Tarjeta dashboard — layout */
+  /** Tarjeta dashboard · layout */
   cardAtAGlance: { es: "Resumen", en: "At a glance" },
   cardFooterHint: { es: "Pulsa para abrir el plan completo", en: "Tap to open your full plan" },
   cardOpenProgress: { es: "Progreso", en: "Progress" },
 
-  /** Dashboard — reestructuración DESIGN_SYSTEM.md §13 */
+  /** Dashboard · reestructuración DESIGN_SYSTEM.md §13 */
   activePlanLabel: { es: "Plan activo", en: "Active plan" },
   viewMyPlan: { es: "Ver mi plan", en: "View my plan" },
   quickActionWeight: { es: "Registrar peso", en: "Log weight" },
   otherPlansTitle: { es: "Otros planes", en: "Other plans" },
-  otherPlansEmpty: { es: "Todavía no tenés otros planes.", en: "You don't have other plans yet." },
+  otherPlansEmpty: { es: "Todavía no tienes otros planes.", en: "You don't have other plans yet." },
   newPlanShort: { es: "+ Nuevo plan", en: "+ New plan" },
   noPhaseLabel: { es: "Sin fase", en: "No phase" },
   upsellPremiumTitle: { es: "Hazte premium", en: "Go Premium" },
@@ -347,8 +347,8 @@ export const dashboardUi = {
   msgBadgeNew: { es: "Mensaje nuevo", en: "New reply" },
   msgEmptyTitle: { es: "Aún no hay mensajes", en: "No messages yet" },
   msgEmptyBody: {
-    es: "Escribí al equipo cuando quieras; te respondemos aquí.",
-    en: "Message the team anytime—we reply here.",
+    es: "Escribe cuando quieras; te contesto por aquí.",
+    en: "Message the team anytime, we reply here.",
   },
   msgSendFirst: { es: "Enviar primer mensaje", en: "Send first message" },
   msgStarted: { es: "Iniciado ·", en: "Started ·" },
@@ -358,16 +358,16 @@ export const dashboardUi = {
   msgNoReplies: { es: "Todavía no hay respuestas", en: "No replies yet" },
   msgNoRepliesSub: {
     es: "Cuando el equipo conteste, lo verás aquí.",
-    en: "When the team replies, you’ll see it here.",
+    en: "When the team replies, you'll see it here.",
   },
   msgChatClosedOn: { es: "Chat cerrado el", en: "Chat closed on" },
   msgThreadClosed: { es: "Este chat está cerrado", en: "This chat is closed" },
   msgThreadClosedSub: {
     es: "No se pueden enviar más mensajes en este hilo.",
-    en: "You can’t send more messages in this thread.",
+    en: "You can't send more messages in this thread.",
   },
   msgYourReply: { es: "Tu respuesta", en: "Your reply" },
-  msgReplyPlaceholder: { es: "Escribí tu mensaje…", en: "Write your message…" },
+  msgReplyPlaceholder: { es: "Escribe tu mensaje…", en: "Write your message…" },
   msgSending: { es: "Enviando…", en: "Sending…" },
   msgSendReply: { es: "Enviar respuesta", en: "Send reply" },
   msgPickThread: {
@@ -386,7 +386,7 @@ export const dashboardUi = {
   gymLoading: { es: "Cargando calendario…", en: "Loading calendar…" },
   gymHint: {
     es: "Toca un día pasado o hoy para marcar si entrenaste. Los días futuros no se pueden editar.",
-    en: "Tap a past or today’s date to log a workout. Future days can’t be edited.",
+    en: "Tap a past or today's date to log a workout. Future days can't be edited.",
   },
   gymStatThisMonth: { es: "Este mes", en: "This month" },
   gymStatDaysMarked: { es: "días marcados", en: "days logged" },

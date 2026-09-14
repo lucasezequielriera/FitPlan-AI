@@ -28,7 +28,7 @@ const INTENSITY_LABELS: Record<Intensidad, { es: string; en: string }> = {
   ultra: { es: "Ultra", en: "Ultra" },
 };
 
-/** Plan page (client) — high-visibility strings */
+/** Plan page (client) · high-visibility strings */
 export const planUi = {
   headTitle: {
     es: "Mi Plan de Alimentación y Entrenamiento | FitPlan",
@@ -133,7 +133,7 @@ export const planUi = {
   },
   weightDeltaBlurb: {
     es: "Cambio estimado vs. hoy: {delta}. Vas por muy buen camino: con constancia, ese avance se vuelve real.",
-    en: "Estimated change vs. today: {delta}. You’re on a great path—with consistency, that progress becomes real.",
+    en: "Estimated change vs. today: {delta}. You're on a great path, with consistency, that progress becomes real.",
   },
   deficitKcalDay: { es: "Déficit: {n} kcal/día", en: "Deficit: {n} kcal/day" },
   surplusKcalDay: { es: "Superávit: +{n} kcal/día", en: "Surplus: +{n} kcal/day" },
@@ -199,7 +199,7 @@ export const planUi = {
   weeklyOverageStats: { es: "Ver estadística semanal de excesos", en: "View weekly overage stats" },
   ateTooMuch: { es: "¿Comiste algo de más?", en: "Ate a bit too much?" },
   shoppingListSub: {
-    es: "Marcá mentalmente cada item para simplificar tu compra semanal.",
+    es: "Ve marcando cada cosa para no dar vueltas en el súper.",
     en: "Mentally check off each item to simplify your weekly shopping.",
   },
   shoppingListCount: { es: "{n} items", en: "{n} items" },
@@ -285,7 +285,7 @@ export const planUi = {
   helpSleepCurrent: { es: "Tu objetivo actual:", en: "Your current target:" },
   helpSleepNap: {
     es: "Las siestas suman al total diario, pero ideal que sean cortas (20–30 min) y no muy tarde para no afectar el sueño nocturno.",
-    en: "Naps count toward the daily total, but keep them short (20–30 min) and not too late so they don’t hurt night sleep.",
+    en: "Naps count toward the daily total, but keep them short (20–30 min) and not too late so they don't hurt night sleep.",
   },
   helpSleepHoursNight: { es: "h por noche.", en: "h per night." },
   premiumCta: { es: "Ser premium", en: "Go Premium" },
@@ -318,11 +318,11 @@ export const planUi = {
     es: "Error al analizar la comida. Intenta nuevamente.",
     en: "Could not analyze the meal. Please try again.",
   },
-  foodLoadingHistory: { es: "Cargando historial del día...", en: "Loading today’s log…" },
+  foodLoadingHistory: { es: "Cargando historial del día...", en: "Loading today's log…" },
   foodHistoryTodayTitle: { es: "Comidas registradas hoy", en: "Meals logged today" },
   foodTotalToday: {
     es: "Total hoy: {total} kcal · Plan: {plan} kcal",
-    en: "Today’s total: {total} kcal · Plan: {plan} kcal",
+    en: "Today's total: {total} kcal · Plan: {plan} kcal",
   },
   foodWhatLabel: { es: "¿Qué comiste?", en: "What did you eat?" },
   foodPlaceholder: {
