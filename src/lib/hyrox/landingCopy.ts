@@ -46,7 +46,7 @@ export const HYROX_LANDING = {
    */
   thesisTitle: "La carrera es, como mínimo, la mitad de la prueba",
   thesisBody:
-    "Se corren 8 km repartidos en ocho tramos de uno. Para un corredor rápido eso es la mitad del tiempo total; cuanto más lento corres, más se lleva — puede pasar del 58%. En dobles pesa todavía más de lo que parece: corréis los 8 km enteros los dos, pero repartís el trabajo de estaciones, así que haces el 100% de la carrera con la mitad de la fuerza. Si vienes del gimnasio, ahí está casi todo tu margen — y también el riesgo, porque el volumen de carrera es lo que más fácil se sube demasiado rápido cuando se viene de la fuerza.",
+    "Se corren 8 km repartidos en ocho tramos de uno. Para un corredor rápido eso es la mitad del tiempo total; cuanto más lento corres, más se lleva: puede pasar del 58%. En dobles pesa todavía más de lo que parece: corréis los 8 km enteros los dos, pero repartís el trabajo de estaciones, así que haces el 100% de la carrera con la mitad de la fuerza. Si vienes del gimnasio, ahí está casi todo tu margen, y también el riesgo: porque el volumen de carrera es lo que más fácil se sube demasiado rápido cuando se viene de la fuerza.",
 
   featuresTitle: "Qué hace tu plan que un PDF no hace",
   features: [
@@ -59,7 +59,7 @@ export const HYROX_LANDING = {
       body: "Quien no corre recibe más semanas de rodaje y menos intensidad. No es por ir suave: los tendones y los huesos tardan más en adaptarse que el sistema cardiovascular, así que el cuerpo aguanta el esfuerzo antes de que las estructuras estén listas. Respetar ese margen es la diferencia entre llegar entrenado y llegar tocado.",
     },
     {
-      title: "Tus ritmos, no unos genéricos",
+      title: "Los ritmos salen de tu marca de 5 km",
       body: "Con tu marca de 5 km se calcula el ritmo al que tendrás que correr dentro de la prueba, que es bastante más lento que en fresco, y se estima tu tiempo final por tramos: carrera, estaciones y transiciones.",
     },
     {
