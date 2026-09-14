@@ -108,9 +108,9 @@ const es: HomeLandingCopy = {
   chipTraining: "Entrenamiento",
   expertTitle: "El plan cambia cuando cambias tú",
   expertSub:
-    "Si has declarado que tienes el hombro tocado, el plan no te manda press militar ni nada por encima de la cabeza. Y cada mes se rehace con el peso que has movido de verdad.",
+    "Si has declarado que tienes el hombro tocado, el plan descarta el press militar, el press tras nuca y los fondos en paralelas. Y cada mes se rehace con el peso que has movido de verdad.",
   expertBullets: [
-    "Descarta los ejercicios que chocan con tus lesiones",
+    "Quita los ejercicios que chocan con las lesiones que declares",
     "Los gramos de cada comida, no «una porción»",
     "Se rehace cada mes con lo que has levantado",
   ],
@@ -230,9 +230,9 @@ const en: HomeLandingCopy = {
   chipTraining: "Training",
   expertTitle: "The plan changes when you do",
   expertSub:
-    "Told us your shoulder is bad? The plan drops overhead press and anything above your head. And every month it gets rebuilt around the weight you actually moved.",
+    "Told us your shoulder is bad? The plan drops overhead press, behind-the-neck press and parallel-bar dips. And every month it gets rebuilt around the weight you actually moved.",
   expertBullets: [
-    "Drops the exercises that clash with your injuries",
+    "Drops the exercises that clash with the injuries you declare",
     "Grams per meal, not \"a serving\"",
     "Rebuilt every month around what you lifted",
   ],
