@@ -21,6 +21,28 @@ const WINDOW_DAYS = 7;
 const RECENT_MESSAGES_LIMIT = 500;
 const INTAKE_CLIENTS_LIMIT = 1000;
 
+// Este cron corre TODOS los días (vercel.json: "0 7 * * *"). Si algún día se
+// toca uno de los dos límites de arriba, avisar sin modular mandaría el mismo
+// mensaje cada mañana mientras el volumen se mantenga alto — el ruido exacto
+// que hace que los avisos de Telegram dejen de leerse (issue #6).
+//
+// La forma "correcta" de evitarlo sería guardar en algún lado "ya avisé de
+// esto" y no repetir hasta que el límite deje de tocarse — pero eso exige un
+// sitio donde persistir ese estado, y no hay ninguno hoy: crear una colección
+// nueva en Firestore solo para el estado de un aviso es un cambio de esquema,
+// y este issue pide solo la alarma. En vez de eso, se usa un throttle sin
+// estado: avisar solo los lunes, el mismo día que ya usa weeklyDigest.ts para
+// todo lo que no necesita enterarse el mismo día. Peor caso: hasta 6 días de
+// demora en la primera alerta — aceptable para una alarma técnica de "podemos
+// estar perdiendo datos si esto sigue creciendo", que es distinta del aviso de
+// mensajes pendientes de este mismo cron, que sí es diario porque ahí sí hay
+// un usuario esperando respuesta.
+const ALERT_WEEKDAY_UTC = 1; // Lunes en UTC
+
+function esDiaDeAvisarLimite(fecha: Date): boolean {
+  return fecha.getUTCDay() === ALERT_WEEKDAY_UTC;
+}
+
 function isAuthorized(req: NextApiRequest): boolean {
   if (req.headers["x-vercel-cron"] === "1") return true;
   const secret = process.env.CRON_SECRET;
@@ -209,6 +231,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .orderBy("createdAt", "desc")
       .limit(RECENT_MESSAGES_LIMIT)
       .get();
+
+    // La alarma del issue #6: si una query devuelve exactamente su límite, no
+    // hay forma de distinguir "eso es todo lo que había" de "había más y se
+    // cortó en silencio". Se avisa aparte del resultado del triage en sí — este
+    // bloque no toca `escalated`/`routine` ni el código de estado de la
+    // respuesta, para que un fallo de Telegram acá no pueda tumbar el cron
+    // (mismo principio que `alertarActivacionFallida`).
+    const intakeLimitAlcanzado = intakeSnap.docs.length === INTAKE_CLIENTS_LIMIT;
+    const messagesLimitAlcanzado = messagesSnap.docs.length === RECENT_MESSAGES_LIMIT;
+    if ((intakeLimitAlcanzado || messagesLimitAlcanzado) && esDiaDeAvisarLimite(new Date())) {
+      const limitesTocados = [
+        intakeLimitAlcanzado
+          ? `• <b>intakeClients</b>: se llegó al tope de ${INTAKE_CLIENTS_LIMIT} documentos leídos.`
+          : null,
+        messagesLimitAlcanzado
+          ? `• <b>mensajes</b>: se llegó al tope de ${RECENT_MESSAGES_LIMIT} documentos leídos.`
+          : null,
+      ].filter((line): line is string => line !== null);
+
+      const avisoLimite = [
+        "⚠️ <b>Triage de soporte: consulta al límite</b>",
+        "",
+        ...limitesTocados,
+        "",
+        "El cron siguió corriendo, pero puede estar dejando mensajes o clientes",
+        "fuera de este análisis sin que se note: la query no pagina, corta en el",
+        "límite en vez de traer el resto.",
+      ].join("\n");
+
+      await sendTelegramMessage(avisoLimite).catch((err) => {
+        console.warn("⚠️ No se pudo avisar del límite de supportTriage por Telegram:", err);
+      });
+    }
 
     const since = Date.now() - WINDOW_DAYS * 86400000;
 
