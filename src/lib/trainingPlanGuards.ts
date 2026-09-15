@@ -151,7 +151,7 @@ const HERNIA_HINT_RE = /hernia.{0,10}disco|hernia discal/i;
 const LUMBAR_HINT_RE = /lumbar|espalda baja/i;
 const SHOULDER_HINT_RE = /hombro|manguito/i;
 
-const PROHIBITED_HERNIA = [
+export const PROHIBITED_HERNIA = [
   "remo con barra", "bent-over row", "barbell row", "t-bar row", "row con barra",
   "peso muerto", "deadlift", "rdl", "peso muerto rumano",
   "sentadilla", "squat", "sentadillas profundas",
@@ -163,21 +163,51 @@ const PROHIBITED_HERNIA = [
   "leg press profundo", "hack squat profundo",
   "burpee", "jumping jack", "saltos",
 ];
-const PROHIBITED_LUMBAR = [
+export const PROHIBITED_LUMBAR = [
   "peso muerto", "deadlift", "rdl",
   "sentadilla profunda", "squat profundo",
   "good morning",
 ];
-const PROHIBITED_KNEE = [
+export const PROHIBITED_KNEE = [
   "sentadilla", "squat", "sentadilla frontal", "front squat",
   "sissy squat", "hack squat", "smith squat",
   "zancada", "lunge", "estocada", "split squat", "bulgar", "pistol squat",
   "salto al cajón", "salto al cajon", "box jump", "jump squat", "saltos", "burpee",
 ];
-const PROHIBITED_SHOULDER = [
-  "press militar", "overhead press", "press overhead", "press tras nuca", "behind the neck",
+/**
+ * Ejercicios que se descartan cuando la persona declara un problema de hombro.
+ *
+ * La lista tenía un hueco serio: no incluía **"press de hombros"**, que es como
+ * se llama ese ejercicio la mayoría de las veces en español, ni "shoulder
+ * press" en inglés. Alguien con el hombro tocado podía recibir "Press de
+ * hombros con mancuernas" sin que nada lo parara. Tampoco cubría Arnold press,
+ * push press ni thruster, que cargan el hombro por encima de la cabeza igual.
+ *
+ * Y la versión inglesa era la más pobre: para locale `en` el generador EXIGE
+ * que los nombres vengan en inglés, así que un usuario inglés estaba peor
+ * cubierto que uno español. "military press" ni siquiera estaba (solo la forma
+ * española "press militar"), y "dips" a secas tampoco.
+ *
+ * El filtro compara por subcadena, así que basta con la forma más corta:
+ * "press de hombro" ya cubre "Press de hombros con mancuernas".
+ *
+ * Nota sobre lo que NO se añade: "fondo" en singular. En español "carrera de
+ * fondo" es correr largo, y filtrarla a alguien con el hombro tocado le
+ * quitaría trabajo aeróbico sin ninguna razón. El plural "fondos" sí entra:
+ * ningún ejercicio de carrera lo usa.
+ */
+export const PROHIBITED_SHOULDER = [
+  // Empuje por encima de la cabeza
+  "press militar", "military press", "press de hombro", "press hombro", "shoulder press",
+  "overhead press", "press overhead", "press tras nuca", "behind the neck",
+  "push press", "thruster", "arnold press", "press arnold",
+  "overhead squat", "sentadilla overhead",
+  // Peso corporal invertido o en extensión
+  "handstand", "parada de manos", "pike push", "flexiones pike",
+  "fondos", "fondos en paralelas", "dips en paralelas", "fondos en banco", "dips",
+  // Rotación interna forzada
   "upright row", "remo al mentón", "remo al menton",
-  "elevaciones laterales pesadas", "fondos en paralelas", "dips en paralelas",
+  "elevaciones laterales pesadas",
 ];
 
 /**
