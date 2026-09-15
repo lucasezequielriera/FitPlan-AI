@@ -33,7 +33,7 @@ export const navUi = {
   navAccount: { es: "Cuenta", en: "Account" },
   navMainAria: { es: "Navegación principal", en: "Main navigation" },
   navViewSite: { es: "Ver sitio", en: "View site" },
-  navContact: { es: "¿Tienes alguna duda? Contáctanos", en: "Questions? Contact us" },
+  navContact: { es: "¿Alguna duda? Escríbeme", en: "Questions? Contact us" },
   navGymDays: { es: "Días de gym", en: "Gym days" },
   navNotifications: { es: "Notificaciones", en: "Notifications" },
   navAdminChat: { es: "Chat admin", en: "Admin chat" },
@@ -61,11 +61,11 @@ export const dashboardUi = {
   premium: { es: "Ser Premium", en: "Go Premium" },
   newPlan: { es: "+ Nuevo Plan", en: "+ New plan" },
   newPlanLocked: {
-    es: "Ya tienes 1 plan. Actualiza a Premium para crear planes ilimitados",
+    es: "Ya hay 1 plan creado. Con Premium, los planes son ilimitados",
     en: "You already have 1 plan. Upgrade to Premium for unlimited plans",
   },
-  registerPremium: { es: "Debes estar registrado para acceder al plan Premium", en: "You must be signed in to access Premium" },
-  noPlansTitle: { es: "No tienes planes guardados", en: "No saved plans yet" },
+  registerPremium: { es: "Hace falta una cuenta para acceder al plan Premium", en: "You must be signed in to access Premium" },
+  noPlansTitle: { es: "No hay planes guardados", en: "No saved plans yet" },
   noPlansBody: { es: "Crea tu primer plan nutricional personalizado", en: "Create your first personalized nutrition plan" },
   createFirst: { es: "Crear mi primer plan", en: "Create my first plan" },
   planBase: { es: "Plan Base", en: "Base plan" },
@@ -98,7 +98,7 @@ export const dashboardUi = {
     en: "The base plan cannot be deleted. It is your main plan and must stay on your account. Upgrade to Premium for full control over all plans.",
   },
   trainerAssignedAlready: {
-    es: "Ya tenías entrenador asignado. Puedes contactar con tu entrenador por WhatsApp.",
+    es: "Ya había entrenador asignado. El contacto es por WhatsApp.",
     en: "You already had a trainer assigned. You can reach them on WhatsApp.",
   },
   trainerAssignedOk: {
@@ -148,14 +148,14 @@ export const dashboardUi = {
   /** Modal entrenador personal */
   ptModalTitle: { es: "Entrenador personal humano", en: "Human personal trainer" },
   ptModalBody: {
-    es: "Puedes tener seguimiento humano 1:1: revisión de tu plan, ajustes según cómo avances y respuestas a tus dudas por chat.",
+    es: "Hay seguimiento humano 1:1: revisión del plan, ajustes según el avance real y respuestas por chat.",
     en: "Get 1:1 human follow-up: a review of your plan, adjustments based on your progress, and answers to your questions by chat.",
   },
   ptModalFootnote: {
-    es: "Si ahora no quieres, puedes pedirlo más adelante con este botón o por el chat.",
+    es: "Si ahora no toca, queda este botón y el chat para pedirlo más adelante.",
     en: "If you prefer not now, you can request it later with this button or via chat.",
   },
-  ptChooseTrainer: { es: "Elige tu tipo de entrenador", en: "Choose your trainer type" },
+  ptChooseTrainer: { es: "Tipo de entrenador", en: "Choose your trainer type" },
   ptMaleTitle: { es: "Entrenador hombre", en: "Male trainer" },
   ptMaleBadge: { es: "Muy solicitado", en: "Popular" },
   ptMaleDesc: {
@@ -168,7 +168,7 @@ export const dashboardUi = {
     es: "Especialista en entrenamiento funcional, alto rendimiento y recomposición corporal.",
     en: "Specialist in functional training, high performance, and body recomposition.",
   },
-  ptOptionalGoal: { es: "Cuéntanos tu objetivo principal (opcional)", en: "Tell us your main goal (optional)" },
+  ptOptionalGoal: { es: "Objetivo principal (opcional)", en: "Tell us your main goal (optional)" },
   ptGoalPlaceholder: {
     es: "Ej.: bajar grasa, ganar masa, mejorar rendimiento…",
     en: "E.g. fat loss, muscle gain, better performance…",
@@ -308,7 +308,7 @@ export const dashboardUi = {
   viewMyPlan: { es: "Ver mi plan", en: "View my plan" },
   quickActionWeight: { es: "Registrar peso", en: "Log weight" },
   otherPlansTitle: { es: "Otros planes", en: "Other plans" },
-  otherPlansEmpty: { es: "Todavía no tienes otros planes.", en: "You don't have other plans yet." },
+  otherPlansEmpty: { es: "Todavía no hay otros planes.", en: "You don't have other plans yet." },
   newPlanShort: { es: "+ Nuevo plan", en: "+ New plan" },
   noPhaseLabel: { es: "Sin fase", en: "No phase" },
   upsellPremiumTitle: { es: "Hazte premium", en: "Go Premium" },
@@ -371,7 +371,7 @@ export const dashboardUi = {
   msgSending: { es: "Enviando…", en: "Sending…" },
   msgSendReply: { es: "Enviar respuesta", en: "Send reply" },
   msgPickThread: {
-    es: "Elige una conversación de la lista para ver el hilo completo.",
+    es: "Al seleccionar una conversación de la lista se abre el hilo completo.",
     en: "Pick a conversation from the list to see the full thread.",
   },
   msgLoadError: { es: "Error al cargar mensajes", en: "Could not load messages" },

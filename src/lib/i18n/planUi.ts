@@ -193,7 +193,7 @@ export const planUi = {
   viewFood: { es: "Ver alimentación", en: "View nutrition" },
   viewFoodSub: { es: "Resumen semanal con variantes", en: "Weekly summary with options" },
   viewFoodSubEmpty: { es: "No hay plan semanal disponible", en: "No weekly meal plan available" },
-  noRoutineHint: { es: "Mientras tanto puedes revisar tu plan de alimentación.", en: "Meanwhile you can review your meal plan." },
+  noRoutineHint: { es: "Mientras tanto, el plan de alimentación ya está listo para consultar.", en: "Meanwhile you can review your meal plan." },
   goToFood: { es: "Ir a alimentación", en: "Go to nutrition" },
   genMealPlanHint: { es: "Genera o actualiza el plan para ver este bloque.", en: "Generate or update your plan to see this section." },
   weeklyOverageStats: { es: "Ver estadística semanal de excesos", en: "View weekly overage stats" },
@@ -264,7 +264,7 @@ export const planUi = {
     en: "Keep routine meals (little day-to-day variation)",
   },
   routineMealsCheckboxSub: {
-    es: "Repetir comidas facilita el seguimiento (p. ej., papa en déficit o pasta en volumen). Puedes cambiarlo cuando quieras.",
+    es: "Repetir comidas facilita el seguimiento (p. ej., patata en déficit o pasta en volumen). Se puede cambiar en cualquier momento.",
     en: "Repeating meals makes tracking easier (e.g., potatoes in a deficit or pasta in a surplus). You can change this anytime.",
   },
   saveChanges: { es: "Guardar cambios", en: "Save changes" },
@@ -290,7 +290,7 @@ export const planUi = {
   helpSleepHoursNight: { es: "h por noche.", en: "h per night." },
   premiumCta: { es: "Ser premium", en: "Go Premium" },
   registerForPremium: {
-    es: "Debes estar registrado para acceder al plan Premium",
+    es: "Hace falta una cuenta para acceder al plan Premium",
     en: "You must be signed in to access Premium",
   },
   regenerating: { es: "Regenerando...", en: "Regenerating…" },
@@ -369,7 +369,7 @@ export const planUi = {
   weeklyDeleteMealTitle: { es: "Eliminar comida", en: "Delete meal" },
   weeklyConfirmDeleteTitle: { es: "Confirmar eliminación", en: "Confirm deletion" },
   weeklyConfirmDeleteBody: {
-    es: "¿Estás seguro de que quieres eliminar esta comida?",
+    es: "¿Seguro que se elimina esta comida?",
     en: "Are you sure you want to delete this meal?",
   },
   weeklyFoodToDelete: { es: "Comida a eliminar:", en: "Meal to delete:" },

@@ -102,7 +102,49 @@ Palabras que aparecen juntas en textos generados con una frecuencia que no tiene
 
 ---
 
-## 5. Lo que sí suena a persona
+## 5. El registro: ni tú ni vos
+
+**Decisión de Lucas (2026-09-15): el copy no tutea ni vosea.** Ninguna de las dos.
+
+El motivo es el público: Madrid, España y Argentina. El tuteo suena bien en España y raro en Argentina; el voseo, al revés. Elegir uno deja fuera a una parte. Y mezclarlos —que es lo que había— es peor que cualquiera de los dos, porque delata que el texto está pegado de sitios distintos.
+
+### Lo que de verdad separa a los dos registros
+
+Esto importa, porque la solución ingenua —quitar toda la segunda persona— deja un texto de manual de instrucciones. Y no hace falta:
+
+| | Tuteo | Voseo | ¿Sirve? |
+|---|---|---|---|
+| Verbo conjugado | tienes, puedes | tenés, podés | ❌ **Divergen** |
+| Imperativo | haz, dinos, apunta | hacé, decinos, anotá | ❌ **Divergen** |
+| Pronombre tónico | a ti, contigo | a vos, con vos | ❌ **Divergen** |
+| Posesivo | **tu, tus** | **tu, tus** | ✅ **Idénticos** |
+| Pronombre átono | **te** | **te** | ✅ **Idénticos** |
+
+O sea: **"tu plan" y "te escribo" funcionan igual en Madrid y en Buenos Aires.** Lo que divide son los verbos conjugados, los imperativos y "ti/contigo".
+
+Así que la regla no es "nada de segunda persona", es:
+
+- **Fuera** verbos en segunda persona e imperativos → infinitivo, "se" impersonal o frase nominal.
+- **Fuera** "a ti" y "contigo" → "a tu caso", "con tu plan".
+- **Se quedan** `tu`, `tus`, `te`. Son terreno común y son lo que impide que el texto suene a folleto de seguros.
+
+| En vez de | Escribir |
+|---|---|
+| "Contestas unas preguntas y tienes el menú" | "Unas preguntas y el menú de la semana ya está" |
+| "Necesitas una cuenta" | "Hace falta una cuenta" |
+| "Dinos qué quieres" | "Tu objetivo, en una frase" |
+| "Abres la app y ves la comida de hoy" | "La app abre por la comida de hoy" |
+| "adaptados a ti" | "adaptados a tu caso" |
+| "Empezar gratis" | ya vale: el infinitivo no tiene registro |
+
+**Dos trampas:**
+
+1. El impersonal mal hecho suena a manual. "Se deberá completar el formulario" no vale. El bueno es corto: "Unas preguntas y ya está".
+2. La **primera** persona sí se usa cuando quien habla es Lucas: "lo leo yo y contesto yo". Eso no es tutear, es firmar, y es de lo poco que de verdad suena a persona.
+
+`textoHumano.test.ts` comprueba las dos direcciones: ni formas de voseo ni formas de tuteo.
+
+## 6. Lo que sí suena a persona
 
 - **Números concretos** en vez de adjetivos. "56 personas" dice más que "una comunidad creciente".
 - **Frases de longitud desigual.** La IA escribe frases del mismo tamaño. Las personas no. A veces cortas. Muy cortas.
@@ -112,7 +154,7 @@ Palabras que aparecen juntas en textos generados con una frecuencia que no tiene
 
 ---
 
-## 6. Lo que NO es una señal
+## 7. Lo que NO es una señal
 
 Que un texto esté bien escrito no lo delata. Ni que use comas correctamente, ni que esté ordenado. La señal es la **combinación** de varias de las de arriba en poco espacio — y sobre todo, decir mucho sin afirmar nada comprobable.
 

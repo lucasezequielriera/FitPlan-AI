@@ -185,6 +185,117 @@ const FORMAS_VOSEO = new RegExp(
   "gi"
 );
 
+/**
+ * Formas de TUTEO que tampoco valen.
+ *
+ * Decisión de Lucas (2026-09-15): ni tú ni vos. El público es Madrid, España y
+ * Argentina; elegir un registro deja fuera a una parte, y mezclarlos —que era
+ * lo que había— es peor que cualquiera de los dos.
+ *
+ * Solo entran aquí las formas que DIVERGEN entre los dos registros: verbos
+ * conjugados en segunda persona, imperativos, y "a ti"/"contigo". NO entran
+ * `tu`, `tus` ni `te`, que son idénticos en tuteo y voseo ("vos tenés TU plan")
+ * y son lo único que impide que el texto suene a folleto de seguros.
+ *
+ * Los infinitivos tampoco: "Empezar gratis" no tiene registro.
+ */
+const FORMAS_TUTEO = new RegExp(
+  `(?<![${LETRA}])(` +
+    // Presente de indicativo que SOLO existe en tuteo. Fuera quedan "estás",
+    // "vas" y "das": el voseo los conjuga igual ("vos estás"), así que no
+    // distinguen registro y marcarlos sería ruido.
+    "tienes|puedes|quieres|necesitas|sabes|haces|vives|prefieres|buscas|entrenas|" +
+    "contestas|abres|completas|recibes|eres|debes|sientes|eliges|empiezas|" +
+    // Imperativos con pronombre pegado: no hay sustantivo que se les parezca.
+    "dinos|cuéntanos|cuentanos|apúntalo|apuntalo|míralo|miralo|pruébalo|pruebalo|" +
+    // Imperativos sin homógrafo posible.
+    "haz|pon|ponte|elige|hazlo|" +
+    // Pronombres tónicos que sí divergen ("a vos", "con vos" en voseo).
+    "a ti|contigo|para ti" +
+    `)(?![${LETRA}])`,
+  "gi"
+);
+
+/**
+ * Busca formas de registro en todo el copy. Una sola función para que un test
+ * pueda comprobar que DE VERDAD se aplica: si alguien vacía el bucle del
+ * escaneo, el copy limpio hace que el test siga verde y la cobertura se pierde
+ * en silencio. Ya pasó con el guard del manifest.
+ */
+function buscarRegistro(re: RegExp, textos: { archivo: string; texto: string }[]): string[] {
+  const out: string[] = [];
+  for (const { archivo, texto } of textos) {
+    for (const m of texto.matchAll(re)) out.push(`${archivo}: ${m[0]} — "${texto.slice(0, 40)}…"`);
+  }
+  return out;
+}
+
+/** Todo el copy, aplanado. */
+function todoElCopy(): { archivo: string; texto: string }[] {
+  return COPY.flatMap((archivo) => cadenas(leer(archivo)).map((texto) => ({ archivo, texto })));
+}
+
+describe("El copy en español no tutea ni vosea", () => {
+  it("no usa formas de tuteo", () => {
+    // El error simétrico del voseo. Un imperativo o un verbo conjugado eligen
+    // registro aunque no se quiera: "Dinos qué quieres" es tuteo, "Decinos qué
+    // querés" es voseo, y "El objetivo, en una frase" no es ninguno.
+    expect(buscarRegistro(FORMAS_TUTEO, todoElCopy())).toEqual([]);
+  });
+
+  it("no marca `tu`, `tus` ni `te`, que valen en los dos registros", () => {
+    // Si el guard los marcara, el copy quedaría sin ninguna forma de dirigirse
+    // a nadie y sonaría a manual. "vos tenés tu plan" y "tú tienes tu plan"
+    // usan el mismo posesivo.
+    const legitimas = ["ajustado a tu nivel", "tus lesiones", "te contesto yo", "tu objetivo"];
+    const falsos = legitimas.filter((f) => new RegExp(FORMAS_TUTEO.source, "i").test(f));
+    expect(falsos).toEqual([]);
+  });
+
+  it("no marca infinitivos ni sustantivos que se parecen", () => {
+    // El motivo de que el guard NO cubra los imperativos ambiguos: en español
+    // casi todos son homógrafos de un sustantivo o de la tercera persona.
+    // "Descarga en PDF" es un sustantivo, "se crea en el momento" es tercera
+    // persona, "tu marca de 5 km" es un sustantivo. Marcarlos convertiría el
+    // guard en ruido, y un guard ruidoso se desactiva.
+    //
+    // Esos casos quedan como comprobación humana, escrita en TEXTO_HUMANO.md.
+    const legitimas = [
+      "Ver planes Premium", "Crear mi cuenta", "Entrar",
+      "tu marca de 5 km", "Descarga en PDF", "Se crea en el momento",
+      "el plan se lleva la mitad", "la prueba dura 90 minutos",
+    ];
+    const falsos = legitimas.filter((f) => new RegExp(FORMAS_TUTEO.source, "i").test(f));
+    expect(falsos).toEqual([]);
+  });
+
+  it("el buscador se aplica de verdad sobre el copy", () => {
+    // Que el copy esté limpio no prueba que se esté mirando. Se mete texto
+    // sucio por el MISMO camino que usa el escaneo: si alguien lo vacía, esto
+    // cae aunque el copy real siga impecable.
+    const sucio = [
+      { archivo: "inventado.ts", texto: "Necesitas una cuenta para empezar" },
+      { archivo: "inventado.ts", texto: "Tenés que crear una cuenta" },
+    ];
+    expect(buscarRegistro(FORMAS_TUTEO, sucio).length).toBe(1);
+    expect(buscarRegistro(FORMAS_VOSEO, sucio).length).toBe(1);
+    // Y que recorre todos los archivos declarados, no solo el primero.
+    expect(new Set(todoElCopy().map((x) => x.archivo)).size).toBe(COPY.length);
+  });
+
+  it("reconoce el tuteo de verdad", () => {
+    // Mismo meta-test que para el voseo: una lista que solo contiene lo que ya
+    // arreglaste no protege de nada.
+    const deberianSaltar = [
+      "Contestas unas preguntas", "Dinos qué quieres", "Necesitas una cuenta",
+      "Abres la app", "adaptados a ti", "Haz clic", "Elige tu objetivo",
+      "Empiezas cuando quieras", "Cuéntanos tu caso",
+    ];
+    const noDetectadas = deberianSaltar.filter((f) => !new RegExp(FORMAS_TUTEO.source, "i").test(f));
+    expect(noDetectadas).toEqual([]);
+  });
+});
+
 describe("El copy en español no mezcla voseo con tuteo", () => {
   it("elige un registro y lo mantiene", () => {
     // La landing tenía las dos: "Respondés… obtienes", "Marcá… puedes",
@@ -196,13 +307,7 @@ describe("El copy en español no mezcla voseo con tuteo", () => {
     // es lo que obliga a ello.
     // Mira TODO el copy, no solo la home: el registro mezclado estaba también
     // en `createPlanUi.ts`, servido en los meta tags de /create-plan.
-    const voseo: string[] = [];
-    for (const f of COPY) {
-      for (const t of cadenas(leer(f))) {
-        for (const m of t.matchAll(FORMAS_VOSEO)) voseo.push(`${f}: ${m[0]}`);
-      }
-    }
-    expect(voseo).toEqual([]);
+    expect(buscarRegistro(FORMAS_VOSEO, todoElCopy())).toEqual([]);
   });
 
   it("la lista de formas reconoce el voseo de verdad", () => {
