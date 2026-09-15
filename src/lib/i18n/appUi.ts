@@ -352,7 +352,7 @@ export const dashboardUi = {
   },
   msgSendFirst: { es: "Enviar primer mensaje", en: "Send first message" },
   msgStarted: { es: "Iniciado ·", en: "Started ·" },
-  msgYou: { es: "Vos", en: "You" },
+  msgYou: { es: "Yo", en: "You" },
   msgConversation: { es: "Conversación", en: "Conversation" },
   msgTeamFitPlan: { es: "Equipo FitPlan", en: "FitPlan team" },
   msgNoReplies: { es: "Todavía no hay respuestas", en: "No replies yet" },

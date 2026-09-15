@@ -66,6 +66,26 @@ function cadenas(src: string): string[] {
 }
 
 /**
+ * Como `cadenas`, pero sin descartar las cortas.
+ *
+ * El corte de 12 caracteres existe para que las comprobaciones de prosa no
+ * tropiecen con claves de objeto y rutas. Para el registro es justo al revés:
+ * `"Vos"` mide 3 y era la etiqueta de los mensajes propios en el chat de la
+ * app — voseo puro, vivo en producción, e invisible para el guard por dos
+ * motivos a la vez (el bigrama y este filtro).
+ *
+ * Aquí el riesgo de ruido es bajo porque los patrones son palabras completas y
+ * concretas: ninguna clave de objeto se llama "tienes" ni "vos".
+ */
+function cadenasIncluyendoCortas(src: string): string[] {
+  const sinComentarios = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  const dobles = [...sinComentarios.matchAll(/"((?:[^"\\\n]|\\.)*)"/g)].map((m) => m[1]);
+  const plantillas = [...sinComentarios.matchAll(/`((?:[^`\\]|\\.)*)`/g)]
+    .map((m) => m[1].replace(/\$\{[^}]*\}/g, " "));
+  return [...dobles, ...plantillas].filter((t) => t.trim().length > 0);
+}
+
+/**
  * Paralelismos negativos: "No es X, es Y" / "No solo X, sino también Y".
  *
  * La señal más reconocible de todas, porque suena a conclusión sin serlo. La
@@ -180,7 +200,7 @@ const FORMAS_VOSEO = new RegExp(
     "mirá|entrá|probá|empezá|creá|hacé|poné|elegí|seguí|dejá|anotá|descargá|pedí|escribí|" +
     "contá|mandá|llevá|tomá|buscá|iniciá|marcá|completá|registrate|sumate|" +
     "tenés|podés|querés|sabés|hacés|vivís|preferís|necesitás|buscás|entrenás|respondés|" +
-    "a vos|para vos|con vos" +
+    "vos" +
     `)(?![${LETRA}])`,
   "gi"
 );
@@ -245,7 +265,9 @@ function buscarRegistro(re: RegExp, textos: { archivo: string; texto: string }[]
 
 /** Todo el copy, aplanado. */
 function todoElCopy(): { archivo: string; texto: string }[] {
-  return COPY.flatMap((archivo) => cadenas(leer(archivo)).map((texto) => ({ archivo, texto })));
+  return COPY.flatMap((archivo) =>
+    cadenasIncluyendoCortas(leer(archivo)).map((texto) => ({ archivo, texto }))
+  );
 }
 
 describe("El copy en español no tutea ni vosea", () => {
@@ -294,6 +316,12 @@ describe("El copy en español no tutea ni vosea", () => {
     expect(buscarRegistro(FORMAS_VOSEO, sucio).length).toBe(1);
     // Y que recorre todos los archivos declarados, no solo el primero.
     expect(new Set(todoElCopy().map((x) => x.archivo)).size).toBe(COPY.length);
+
+    // Y que las etiquetas cortas entran. `"Vos"` mide 3 caracteres: el filtro
+    // de prosa (12 mínimo) lo descartaba antes de que ningún patrón lo viera,
+    // así que el guard era ciego a cualquier etiqueta corta de la interfaz.
+    expect(cadenasIncluyendoCortas('msgYou: { es: "Vos", en: "You" },')).toContain("Vos");
+    expect(todoElCopy().some((x) => x.texto.length < 12)).toBe(true);
   });
 
   it("reconoce el tuteo de verdad", () => {
@@ -335,7 +363,9 @@ describe("El copy en español no mezcla voseo con tuteo", () => {
       "Mirá los planes", "Entrá y probá", "Empezá gratis", "Creá tu cuenta",
       "Hacé clic", "Poné tus datos", "Seguí el plan", "Sumate",
       "tenés", "podés", "querés", "necesitás", "preferís", "escribí",
-      "hecho para vos",
+      // `vos` suelto y en preposiciones distintas de las tres que la lista
+      // enumeraba. "Vos" a secas era la etiqueta del chat, vivo en producción.
+      "Vos", "hecho para vos", "pensado sobre vos", "de vos depende",
     ];
     const noDetectadas = deberianSaltar.filter((f) => !new RegExp(FORMAS_VOSEO.source, "i").test(f));
     expect(noDetectadas).toEqual([]);
