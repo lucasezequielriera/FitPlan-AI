@@ -33,7 +33,7 @@ export const navUi = {
   navAccount: { es: "Cuenta", en: "Account" },
   navMainAria: { es: "Navegación principal", en: "Main navigation" },
   navViewSite: { es: "Ver sitio", en: "View site" },
-  navContact: { es: "¿Alguna duda? Escríbeme", en: "Questions? Contact us" },
+  navContact: { es: "¿Alguna duda? Hay un chat", en: "Questions? Contact us" },
   navGymDays: { es: "Días de gym", en: "Gym days" },
   navNotifications: { es: "Notificaciones", en: "Notifications" },
   navAdminChat: { es: "Chat admin", en: "Admin chat" },

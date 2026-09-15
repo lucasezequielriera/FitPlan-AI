@@ -228,7 +228,7 @@ const COPY_ES: IntakeFormCopy = {
     "Si aplicas lo que te vaya proponiendo con constancia, vas a notar cambios rápido y, sobre todo, te vas a sentir mucho mejor física y mentalmente.",
   modalLine3: "Vamos a por ello. Aquí estoy para lo que haga falta.",
   sections: {
-    s1: "Cuéntame sobre ti",
+    s1: "Para empezar, lo básico",
     s2: "Objetivo y tiempos",
     s3: "Entrenamiento actual y disponibilidad",
     s4: "Salud y antecedentes",
@@ -348,7 +348,7 @@ export function getFieldLabels(locale: IntakeFormLocale) {
     hipotiroidismo: "¿Hipotiroidismo?",
     colesterol: "¿Colesterol alto y/o triglicéridos?",
     digestivo: "¿Estreñimiento, colon irritable o dolores digestivos?",
-    descansa: "¿Se descansa bien?",
+    descansa: "Calidad del descanso",
     estres: "Nivel de estrés",
     suenoCalidad: "Calidad del sueño",
     horasSueno: "Horas de sueño por noche",

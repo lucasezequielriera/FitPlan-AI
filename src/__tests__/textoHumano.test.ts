@@ -217,7 +217,14 @@ const FORMAS_TUTEO = new RegExp(
     // Imperativos sin homógrafo posible.
     "haz|pon|ponte|elige|hazlo|" +
     // Pronombres tónicos que sí divergen ("a vos", "con vos" en voseo).
-    "a ti|contigo|para ti" +
+    //
+    // `ti` va suelto, no como bigrama. La primera versión listaba "a ti",
+    // "para ti" y "contigo", y se le escapó "Cuéntame sobre ti" —el título de
+    // la primera sección del formulario— porque la preposición era otra.
+    // Enumerar preposiciones es perder por definición; la palabra es la señal.
+    "ti|contigo|" +
+    // Imperativo con `me` pegado, hermano de `cuéntanos`.
+    "cuéntame|cuentame|dime|escríbeme|escribeme" +
     `)(?![${LETRA}])`,
   "gi"
 );
@@ -296,6 +303,9 @@ describe("El copy en español no tutea ni vosea", () => {
       "Contestas unas preguntas", "Dinos qué quieres", "Necesitas una cuenta",
       "Abres la app", "adaptados a ti", "Haz clic", "Elige tu objetivo",
       "Empiezas cuando quieras", "Cuéntanos tu caso",
+      // Preposiciones distintas de "a"/"para": la lista las enumeraba y se le
+      // escapó el título de la primera sección del formulario de inicio.
+      "Cuéntame sobre ti", "hecho por ti", "pensado según ti",
     ];
     const noDetectadas = deberianSaltar.filter((f) => !new RegExp(FORMAS_TUTEO.source, "i").test(f));
     expect(noDetectadas).toEqual([]);
