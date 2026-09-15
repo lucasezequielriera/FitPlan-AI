@@ -5,6 +5,7 @@ import { ensureMealMacrosAprox } from "@/lib/mealMacros";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { calculateBMR, clampCaloriesToSafeFloor } from "@/utils/calculations";
 import { requireUser } from "@/lib/userAuthServer";
+import { PROHIBITED_HERNIA, PROHIBITED_LUMBAR, PROHIBITED_KNEE, PROHIBITED_SHOULDER } from "@/lib/trainingPlanGuards";
 
 // Interface para contexto multi-fase
 interface ContextoMultiFase {
@@ -2218,48 +2219,20 @@ Ejemplo de estructura:
       ): Array<{ name: string; [key: string]: unknown }> => {
         if (!tieneHerniaDisco && !tieneDolorLumbar && !tieneDolorRodilla && !tieneDolorHombro) return ejercicios;
 
-        const ejerciciosProhibidosHernia = [
-          'remo con barra', 'bent-over row', 'barbell row', 't-bar row', 'row con barra',
-          'peso muerto', 'deadlift', 'rdl', 'peso muerto rumano',
-          'sentadilla', 'squat', 'sentadillas profundas',
-          'good morning', 'good mornings',
-          'hiperextensión', 'back extension', 'hiperextensiones',
-          'crunch', 'crunch abdominal', 'crunch tradicional',
-          'russian twist', 'russian twists',
-          'overhead press', 'press militar', 'press overhead',
-          'sentadilla frontal', 'front squat',
-          'leg press profundo', 'hack squat profundo',
-          'burpee', 'burpees', 'jumping jack', 'saltos'
-        ];
-
-        const ejerciciosProhibidosLumbar = [
-          'peso muerto', 'deadlift', 'rdl',
-          'sentadilla profunda', 'squat profundo',
-          'good morning', 'good mornings'
-        ];
-
-        // Ver también src/lib/trainingPlanGuards.ts (mismo criterio, usado en el
-        // flujo de coaching 1:1) — mantenido acá aparte porque esta función
-        // filtra por nombre contra una lista, no reescribe el ejercicio.
-        const ejerciciosProhibidosRodilla = [
-          'sentadilla', 'squat', 'sentadillas profundas', 'sentadilla frontal', 'front squat',
-          'sissy squat', 'hack squat', 'smith squat',
-          'zancada', 'zancadas', 'lunge', 'lunges', 'estocada', 'estocadas',
-          'split squat', 'bulgar', 'pistol squat',
-          'salto al cajón', 'box jump', 'jump squat', 'saltos', 'burpee', 'burpees'
-        ];
-
-        const ejerciciosProhibidosHombro = [
-          'press militar', 'overhead press', 'press overhead', 'press tras nuca', 'behind the neck',
-          'press de hombro tras nuca', 'upright row', 'remo al mentón', 'remo al menton',
-          'elevaciones laterales pesadas', 'fondos en paralelas', 'dips en paralelas'
-        ];
+        // Las listas viven en `trainingPlanGuards.ts`, no aquí.
+        //
+        // Había dos copias mantenidas a mano "con el mismo criterio", y se
+        // desviaron: la de hombro no incluía "press de hombros" —el nombre más
+        // común en español— ni "shoulder press". Alguien que declarara el
+        // hombro tocado recibía justo eso. Dos listas que hay que acordarse de
+        // sincronizar acaban desincronizadas siempre; el arreglo no es
+        // copiarlas mejor, es que haya una.
 
         const prohibidos = new Set<string>();
-        if (tieneHerniaDisco) ejerciciosProhibidosHernia.forEach((p) => prohibidos.add(p));
-        if (tieneDolorLumbar) ejerciciosProhibidosLumbar.forEach((p) => prohibidos.add(p));
-        if (tieneDolorRodilla) ejerciciosProhibidosRodilla.forEach((p) => prohibidos.add(p));
-        if (tieneDolorHombro) ejerciciosProhibidosHombro.forEach((p) => prohibidos.add(p));
+        if (tieneHerniaDisco) PROHIBITED_HERNIA.forEach((p) => prohibidos.add(p));
+        if (tieneDolorLumbar) PROHIBITED_LUMBAR.forEach((p) => prohibidos.add(p));
+        if (tieneDolorRodilla) PROHIBITED_KNEE.forEach((p) => prohibidos.add(p));
+        if (tieneDolorHombro) PROHIBITED_SHOULDER.forEach((p) => prohibidos.add(p));
 
         return ejercicios.filter(ej => {
           const nombreLower = String(ej.name || '').toLowerCase();
