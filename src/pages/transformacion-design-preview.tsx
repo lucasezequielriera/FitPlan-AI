@@ -46,12 +46,12 @@ export default function TransformacionDesignPreview() {
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
       <Head>
-        <title>Propuesta — transformacion-fitplan (techo de 3 colores)</title>
+        <title>Propuesta · transformacion-fitplan (techo de 3 colores)</title>
         <meta name="robots" content="noindex, nofollow" />
       </Head>
 
       <header className="border-b border-[var(--landing-border)] px-4 py-3 text-center text-xs text-[var(--landing-muted)]">
-        Demo de diseño — no es la página real. Ver DESIGN_SYSTEM.md §14.
+        Demo de diseño · no es la página real. Ver DESIGN_SYSTEM.md §14.
       </header>
 
       <main className="px-4 md:px-6">
@@ -108,7 +108,7 @@ export default function TransformacionDesignPreview() {
                 </p>
                 <div className="mt-4 space-y-3 text-sm text-[var(--landing-muted)]">
                   {[
-                    "Sabes qué comer y qué entrenar cada día sin perder tiempo.",
+                    "Qué comer y qué entrenar cada día, sin perder tiempo decidiéndolo.",
                     "Eliminas la sensación de estancamiento por falta de estructura.",
                     "Tu plan se ajusta cuando cambian tus horarios o contexto.",
                   ].map((t) => (
@@ -119,7 +119,7 @@ export default function TransformacionDesignPreview() {
                   ))}
                 </div>
                 <div className="mt-5 rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] p-3 text-xs text-[var(--landing-muted)]">
-                  En menos de 10 minutos puedes tener tu hoja de ruta lista para ejecutar.
+                  En menos de 10 minutos, la hoja de ruta está lista para ejecutar.
                 </div>
               </div>
             </div>
@@ -163,7 +163,7 @@ export default function TransformacionDesignPreview() {
           </div>
         </section>
 
-        {/* Asesoría 1:1 — camino secundario, sin hue propio */}
+        {/* Asesoría 1:1 · camino secundario, sin hue propio */}
         <section className="max-w-6xl mx-auto py-4">
           <div className="card-surface rounded-2xl p-6 md:p-8">
             <h2 className="text-2xl md:text-3xl font-bold text-[var(--foreground)]">
@@ -195,7 +195,7 @@ export default function TransformacionDesignPreview() {
           </div>
         </section>
 
-        {/* Comparación — se distingue por copy/estructura, no por 2 hues */}
+        {/* Comparación · se distingue por copy/estructura, no por 2 hues */}
         <section className="max-w-6xl mx-auto py-8">
           <div className="card-surface-2 rounded-2xl p-6 md:p-8 mb-6">
             <h2 className="text-2xl md:text-3xl font-bold text-center text-[var(--foreground)]">
@@ -224,11 +224,11 @@ export default function TransformacionDesignPreview() {
             </div>
           </div>
 
-          {/* Oferta / pricing — un solo acento hace de "recomendado", no un tercer hue */}
+          {/* Oferta / pricing · un solo acento hace de "recomendado", no un tercer hue */}
           <div className="card-surface rounded-2xl p-6 md:p-8">
             <h2 className="text-2xl md:text-3xl font-bold text-[var(--foreground)]">Oferta Premium FitPlan</h2>
             <p className="text-[var(--landing-muted)] mt-2">
-              Elige plan y empieza hoy con un sistema que puedes mantener en el tiempo.
+              Un plan hoy, con un sistema sostenible en el tiempo.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-5">
               <div className="card-surface-2 rounded-xl p-4">
@@ -271,7 +271,7 @@ export default function TransformacionDesignPreview() {
           <div className="mt-6 space-y-3">
             {[
               { q: "¿Funciona si soy principiante total?", a: "Sí. El sistema está pensado para empezar con claridad y progresar sin sobrecarga ni confusión." },
-              { q: "¿Y si entreno en casa o tengo poco material?", a: "Se adapta al contexto disponible. No necesitas un gimnasio perfecto para tener un plan útil." },
+              { q: "¿Y si entreno en casa o tengo poco material?", a: "Se adapta al contexto disponible. Un plan útil no exige un gimnasio perfecto." },
               { q: "¿Premium reemplaza la asesoría 1:1?", a: "Premium te da estrategia completa para ejecutar. La asesoría 1:1 suma revisión humana y ajustes más finos." },
             ].map((item) => (
               <details key={item.q} className="card-surface-2 rounded-xl p-4">
@@ -282,7 +282,7 @@ export default function TransformacionDesignPreview() {
           </div>
         </section>
 
-        {/* Cierre — un solo CTA, mismo acento de toda la página */}
+        {/* Cierre · un solo CTA, mismo acento de toda la página */}
         <section className="max-w-6xl mx-auto pb-14 text-center">
           <div className="card-surface-2 rounded-2xl p-6">
             <h2 className="text-2xl md:text-3xl font-extrabold text-[var(--foreground)]">Empieza hoy con FitPlan</h2>

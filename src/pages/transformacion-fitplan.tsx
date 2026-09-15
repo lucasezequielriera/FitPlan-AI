@@ -9,7 +9,7 @@ import { useAuthStore } from "@/store/authStore";
 import { trackEvent } from "@/lib/analytics";
 import { getPlanSavingsLabel, getStripeSubscriptionPlans, PLANS_EUR_UI } from "@/lib/stripePlanPrices";
 
-/** Precio publicado en esta landing — siempre el de stripePlanPrices.ts, nunca escrito a mano. */
+/** Precio publicado en esta landing · siempre el de stripePlanPrices.ts, nunca escrito a mano. */
 const EUR_PLANS = getStripeSubscriptionPlans("eur");
 
 export default function TransformacionFitPlanLanding() {
@@ -83,7 +83,7 @@ export default function TransformacionFitPlanLanding() {
         name: "¿Cuánto cuesta Premium?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: `Puedes elegir plan mensual (${EUR_PLANS.monthly.price} EUR), trimestral (${EUR_PLANS.quarterly.price} EUR) o anual (${EUR_PLANS.annual.price} EUR). También puedes completar el formulario de asesoría 1:1 para una estrategia totalmente personalizada.`,
+          text: `Hay plan mensual (${EUR_PLANS.monthly.price} EUR), trimestral (${EUR_PLANS.quarterly.price} EUR) o anual (${EUR_PLANS.annual.price} EUR). También hay completar el formulario de asesoría 1:1 para una estrategia totalmente personalizada.`,
         },
       },
     ],
@@ -209,7 +209,7 @@ export default function TransformacionFitPlanLanding() {
                 <p className="text-sm font-semibold text-[var(--foreground)]">Lo que notarás en tus primeras semanas con FitPlan:</p>
                 <div className="mt-4 space-y-3 text-sm text-[var(--landing-muted)]">
                   {[
-                    "Sabes qué comer y qué entrenar cada día sin perder tiempo.",
+                    "Qué comer y qué entrenar cada día, sin perder tiempo decidiéndolo.",
                     "Eliminas la sensación de estancamiento por falta de estructura.",
                     "Tu plan se ajusta cuando cambian tus horarios o contexto.",
                   ].map((t) => (
@@ -220,7 +220,7 @@ export default function TransformacionFitPlanLanding() {
                   ))}
                 </div>
                 <div className="mt-5 rounded-xl border border-[var(--landing-border)] bg-[var(--landing-surface)] p-3 text-xs text-[var(--landing-muted)]">
-                  En menos de 10 minutos puedes tener tu hoja de ruta lista para ejecutar.
+                  En menos de 10 minutos, la hoja de ruta está lista para ejecutar.
                 </div>
               </div>
             </div>
@@ -317,7 +317,7 @@ export default function TransformacionFitPlanLanding() {
           </div>
           <div className="card-surface rounded-2xl p-6 md:p-8">
             <h2 className="text-2xl md:text-3xl font-bold text-[var(--foreground)]">Oferta Premium FitPlan</h2>
-            <p className="text-[var(--landing-muted)] mt-2">Elige plan y empieza hoy con un sistema que puedes mantener en el tiempo.</p>
+            <p className="text-[var(--landing-muted)] mt-2">Un plan hoy, con un sistema sostenible en el tiempo.</p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-5">
               <div className="card-surface-2 rounded-xl p-4">
                 <p className="text-sm text-[var(--landing-muted)]">Mensual</p>
@@ -371,7 +371,7 @@ export default function TransformacionFitPlanLanding() {
               },
               {
                 q: "¿Y si entreno en casa o tengo poco material?",
-                a: "Se adapta al contexto disponible. No necesitas un gimnasio perfecto para tener un plan útil.",
+                a: "Se adapta al contexto disponible. Un plan útil no exige un gimnasio perfecto.",
               },
               {
                 q: "¿Premium reemplaza la asesoría 1:1?",

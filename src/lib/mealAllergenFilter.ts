@@ -76,6 +76,6 @@ export function filterMealOptionsByRestrictions(
   return [
     locale === "en"
       ? "Custom option needed (all default options conflict with your reported restrictions) — swap for a protein + carb + veg combo you know is safe."
-      : "Opción a definir (todas las opciones por defecto contienen algo de tus restricciones declaradas) — reemplazar por una combinación de proteína + carbohidrato + vegetales que sepas que es segura para vos.",
+      : "Opción a definir (todas las opciones por defecto contienen algo de tus restricciones declaradas) — reemplazar por una combinación de proteína + carbohidrato + vegetales de confianza y sin tus alérgenos.",
   ];
 }

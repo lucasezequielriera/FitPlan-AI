@@ -38,7 +38,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const messageData = messageDoc.data();
     if (messageData?.userId !== userId) {
-      return res.status(403).json({ error: "No tienes permiso para este mensaje" });
+      return res.status(403).json({ error: "Sin permiso para este mensaje" });
     }
 
     // Marcar como leído por el usuario

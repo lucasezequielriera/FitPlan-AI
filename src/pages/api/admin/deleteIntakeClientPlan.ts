@@ -24,7 +24,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: "Faltan datos requeridos: clientId y planId" });
   }
   if (!deleteNutrition && !deleteTraining) {
-    return res.status(400).json({ error: "Debes seleccionar al menos un tipo de plan para eliminar." });
+    return res.status(400).json({ error: "Hace falta seleccionar al menos un tipo de plan para eliminar." });
   }
 
   try {

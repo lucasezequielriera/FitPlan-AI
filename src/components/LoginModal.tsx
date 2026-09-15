@@ -51,9 +51,9 @@ export default function LoginModal({
         titleLogin: "Sign in",
         titleSignup: "Create account",
         titleForgot: "Reset password",
-        subtitleLogin: "Welcome back — your plans and progress are here.",
+        subtitleLogin: "Welcome back · your plans and progress are here.",
         subtitleSignup: "One account to save workouts, meals, and your AI plans.",
-        subtitleForgot: "We’ll email you a link to set a new password.",
+        subtitleForgot: "We'll email you a link to set a new password.",
         emailLabel: "Email",
         passwordLabel: "Password",
         minChars: "At least 6 characters",
@@ -64,7 +64,7 @@ export default function LoginModal({
         sentCta: "Email sent",
         resetSuccess:
           "Check your inbox for instructions to reset your password.",
-        resetError: "Couldn’t send the email. Try again.",
+        resetError: "Couldn't send the email. Try again.",
         genericError: "Something went wrong",
         primaryLogin: "Sign in",
         primarySignup: "Create account",
@@ -96,8 +96,8 @@ export default function LoginModal({
       primaryLogin: "Iniciar sesión",
       primarySignup: "Crear cuenta",
       loading: "Cargando…",
-      toggleSignup: "¿No tienes cuenta? Regístrate",
-      toggleLogin: "¿Ya tienes cuenta? Iniciá sesión",
+      toggleSignup: "¿Sin cuenta? Crear una",
+      toggleLogin: "¿Ya hay cuenta? Entrar",
       close: "Cerrar",
     };
   }, [locale]);

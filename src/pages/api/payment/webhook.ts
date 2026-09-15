@@ -72,7 +72,7 @@ async function sendPremiumWelcomeChatMessage(params: {
     userRead: false,
     replies: [
       {
-        message: `Hola ${nombreCliente}, ¡bienvenido a FitPlan Premium! Ya activamos tu acceso premium. Si necesitas ayuda para empezar, escríbenos por este chat y te acompañamos.`,
+        message: `Hola ${nombreCliente}, ¡bienvenido a FitPlan Premium! Ya activamos tu acceso premium. Para cualquier duda, el chat está abierto y contesto yo.`,
         senderName: "admin",
         senderType: "admin",
         createdAt: new Date(),

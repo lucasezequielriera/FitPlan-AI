@@ -14,7 +14,7 @@ export type HyroxLocale = "es" | "en";
 export const HYROX_COPY = {
   es: {
     kicker: "Entrenamiento HYROX",
-    titleNoProfile: "Prepara tu HYROX con un plan hecho para ti",
+    titleNoProfile: "Prepara tu HYROX con un plan hecho a tu medida",
     introNoProfile:
       "Responde seis preguntas y genero tu plan completo hasta el día de la carrera: fases, sesiones semanales, ritmos objetivo y estrategia de cada estación.",
     startCta: "Crear mi plan HYROX",
@@ -22,7 +22,7 @@ export const HYROX_COPY = {
     raceDate: "Fecha de tu carrera",
     division: "División",
     category: "Categoría de pesos",
-    daysPerWeek: "Días que puedes entrenar por semana",
+    daysPerWeek: "Días disponibles para entrenar por semana",
     runningBase: "¿Cómo estás de carrera ahora mismo?",
     strengthBase: "¿Y de fuerza?",
     equipment: "¿Con qué material cuentas?",
@@ -45,7 +45,7 @@ export const HYROX_COPY = {
     estimateRoxzone: "Transiciones",
     leverTitle: "Dónde está tu margen",
     leverLabels: {
-      carrera: "La carrera. Es donde más minutos puedes recortar, y donde el plan pone el foco.",
+      carrera: "La carrera. Es donde hay más minutos que recortar, y donde el plan pone el foco.",
       estaciones: "Las estaciones. Ganar eficiencia técnica te va a dar más que correr más rápido.",
       transiciones: "Las transiciones. Suenan a poco y son minutos enteros: practícalas.",
     },
@@ -65,8 +65,8 @@ export const HYROX_COPY = {
       "Tu plan completo hasta el día de la carrera: fases repartidas según las semanas que te queden de verdad, sesiones semanales adaptadas a tus días y tu material, ritmo objetivo calculado sobre tu marca de 5 km, y la estrategia de cada una de las 8 estaciones.",
     premiumBullets: [
       "Se adapta si te quedan 5 semanas o 20, sin recortar un plan genérico",
-      "Más base de carrera si no corres, para no llegar lesionado",
-      "Te dice dónde está tu margen real en minutos, no en tópicos",
+      "Más base de carrera sin fondo previo, para no llegar lesionado",
+      "Dice dónde está tu margen real, medido en minutos",
     ],
     premiumCta: "Ver planes Premium",
     sessionTypes: {
@@ -133,9 +133,9 @@ export const HYROX_COPY = {
     premiumIntro:
       "Your full plan up to race day: phases split by the weeks you actually have left, weekly sessions matched to your days and equipment, target pace calculated from your 5k time, and a strategy for each of the 8 stations.",
     premiumBullets: [
-      "Adapts whether you have 5 weeks left or 20 — not a generic plan cut short",
+      "Adapts whether you have 5 weeks left or 20 · not a generic plan cut short",
       "More aerobic base if you don't run, so you don't arrive injured",
-      "Tells you where your real margin is, in minutes, not platitudes",
+      "Tells you where your real margin is, measured in minutes",
     ],
     premiumCta: "See Premium plans",
     // Solo se muestra si la traducción falló de verdad. El plan se genera en

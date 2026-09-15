@@ -24,18 +24,68 @@ import { PROHIBITED_SHOULDER } from "@/lib/trainingPlanGuards";
 
 const leer = (p: string) => fs.readFileSync(path.join(process.cwd(), p), "utf8");
 
-/** Archivos de copy visible. Explícito: el código no cuenta. */
+/**
+ * Archivos de copy que ve un usuario.
+ *
+ * La lista se mantiene a mano, pero NO es lo que garantiza la cobertura: el
+ * último test de este archivo recorre `src` entero y exige que cualquier
+ * fichero con formas de registro esté aquí o en `SIN_REGISTRO_RELEVANTE`.
+ *
+ * Hizo falta porque la lista se quedó corta cuatro veces seguidas, y la cuarta
+ * fue la peor: `LoginModal.tsx` tenía "¿Ya tienes cuenta? Iniciá sesión" —
+ * tuteo y voseo EN LA MISMA CADENA— en el botón de login de la landing
+ * pública, mientras este mismo guard daba el copy por limpio.
+ */
 const COPY = [
   "src/lib/homeLandingCopy.ts",
   "src/lib/hyrox/landingCopy.ts",
-  // Añadidos tras la revisión: tenía "Crea tu plan" y "Diseñá tu plan" en el
-  // mismo objeto, o sea voseo y tuteo mezclados en los meta tags que sirve
-  // Google. Estaba vivo en producción.
   "src/lib/i18n/createPlanUi.ts",
   "src/lib/i18n/appUi.ts",
   "src/lib/i18n/planUi.ts",
   "src/lib/intakeFormI18n.ts",
+  // Cuarta tanda: componentes y libs que también hablan al usuario.
+  "src/components/LoginModal.tsx",
+  "src/components/ContactButton.tsx",
+  "src/lib/intakeFormSchema.ts",
+  "src/lib/hyrox/copy.ts",
+  "src/lib/hyrox/sessions.ts",
+  "src/lib/hyrox/profile.ts",
+  "src/pages/transformacion-fitplan.tsx",
+  "src/pages/transformacion-design-preview.tsx",
 ];
+
+/**
+ * Ficheros donde aparecen formas de registro que NO son copy de usuario.
+ *
+ * Declarados con motivo, no ignorados en silencio: si alguno deja de ser una
+ * excepción legítima, la lista es lo primero que hay que mirar.
+ */
+const SIN_REGISTRO_RELEVANTE = new Map<string, string>([
+  ["src/lib/socialContent/generateCopy.ts", "instrucciones al modelo, no texto de la app"],
+  ["src/lib/socialContent/buildCommercialPrompt.ts", "prompt de vídeo; dice literalmente «nunca vos»"],
+  ["src/lib/socialContent/carouselCopy.ts", "guion de piezas de Instagram, no interfaz"],
+  ["src/pages/api/generatePlan.ts", "prompt del sistema; lo lee el modelo"],
+  ["src/pages/api/mealDetails.ts", "prompt del sistema"],
+  ["src/pages/api/analyzeFood.ts", "prompt del sistema"],
+  ["src/pages/api/analyzePlanCompletion.ts", "prompt del sistema"],
+  ["src/lib/intakeOpenAiPlan.ts", "prompt del sistema"],
+  ["src/lib/intakePlanExcel.ts", "hoja de cálculo para el entrenador, no para el cliente"],
+  ["src/components/admin/AdminApp.tsx", "panel de admin: lo ve una sola persona"],
+  ["src/components/AdminExerciseCatalogPanel.tsx", "panel de admin"],
+  ["src/pages/admin/configuraciones/carrusel-ig.tsx", "panel de admin"],
+  ["src/pages/admin/configuraciones/contenido-social.tsx", "panel de admin"],
+  ["src/pages/api/admin/intakeClientPlanAction.ts", "endpoint de admin"],
+  ["src/pages/api/admin/sendIntakeWelcomeEmail.ts", "email 1:1 firmado por Lucas; el tú es deliberado"],
+  ["src/utils/calculations.ts", "constantes y comentarios de cálculo"],
+  ["src/lib/firebase-admin.ts", "instrucciones de configuración para quien despliega, no para el usuario"],
+  ["src/lib/templatePlans.ts", "nombres de ejercicio"],
+  ["src/components/PremiumPlanModal.tsx", "pendiente: se revisa con el rediseño del modal"],
+  ["src/components/IntakeClientPlanPublicView.tsx", "pendiente: entra con el rediseño de #22"],
+  ["src/pages/api/deleteTrackedFood.ts", "mensaje interno de API"],
+  ["src/pages/api/getWeeklyStats.ts", "mensaje interno de API"],
+  ["src/pages/api/public/intake-trainer-qa.ts", "respuesta del trainer, escrita por Lucas"],
+  ["src/pages/api/request-personal-trainer.ts", "aviso interno a Lucas"],
+]);
 
 /**
  * Solo el texto entre comillas: los nombres de variables no los lee nadie.
@@ -225,13 +275,17 @@ const FORMAS_TUTEO = new RegExp(
     // "vas" y "das": el voseo los conjuga igual ("vos estás"), así que no
     // distinguen registro y marcarlos sería ruido.
     "tienes|puedes|quieres|necesitas|sabes|haces|vives|prefieres|buscas|entrenas|" +
-    "contestas|abres|completas|recibes|eres|debes|sientes|eliges|empiezas|" +
+    "contestas|abres|recibes|eres|debes|sientes|eliges|empiezas|" +
     // Añadidas tras un barrido ancho: la revisión encontró once formas que la
     // lista no tenía, repartidas por el formulario de salud y la landing de
     // HYROX. Una enumeración siempre se queda corta; lo que la mantiene útil
     // es ampliarla cada vez que aparece una, no fingir que está completa.
-    "comes|descansas|levantas|tomas|trabajas|corres|sigues|cambias|ajustas|apuntas|" +
-    "dices|vienes|sales|duermes|ganas|pierdes|subes|bajas|mides|notas|llegas|" +
+    // Podadas las que tienen homógrafo: `completas` es adjetivo ("las 8
+    // estaciones completas"), `ganas` y `bajas` y `notas` y `sales` y `tomas`
+    // son sustantivos, y `comes` es una palabra inglesa corriente. Marcarlas
+    // daba falsos positivos en el plan de HYROX y en el filtro de alérgenos.
+    "descansas|levantas|trabajas|corres|sigues|cambias|ajustas|apuntas|" +
+    "dices|vienes|duermes|pierdes|subes|mides|llegas|" +
     // Imperativos con pronombre pegado: no hay sustantivo que se les parezca.
     "dinos|cuéntanos|cuentanos|apúntalo|apuntalo|míralo|miralo|pruébalo|pruebalo|" +
     // Imperativos sin homógrafo posible.
@@ -475,5 +529,48 @@ describe("El guard mira algo de verdad", () => {
     ];
     const falsos = legitimas.filter((f) => PARALELISMOS_NEGATIVOS.some((re) => re.test(f)));
     expect(falsos).toEqual([]);
+  });
+});
+
+describe("El inventario de copy no puede quedarse corto", () => {
+  it("todo fichero de `src` con formas de registro está declarado", () => {
+    // LA causa de fondo, y la cuarta vez que este guard falló por lo mismo.
+    //
+    // `COPY` era una lista que escribí a mano, así que cubría lo que yo había
+    // mirado. Mientras daba el copy por limpio, `LoginModal.tsx` tenía "¿Ya
+    // tienes cuenta? Iniciá sesión" —tuteo y voseo EN LA MISMA CADENA— en el
+    // botón de login de la landing pública.
+    //
+    // Este test invierte la carga: recorre `src` entero, y cualquier fichero
+    // con formas de registro tiene que estar en `COPY` (y por tanto limpio) o
+    // en `SIN_REGISTRO_RELEVANTE` con su motivo escrito. Añadir un archivo
+    // nuevo con tuteo obliga a decidir cuál de las dos cosas es.
+    const sinDeclarar: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of fs.readdirSync(path.join(process.cwd(), dir), { withFileTypes: true })) {
+        const rel = `${dir}/${e.name}`;
+        if (e.isDirectory()) {
+          if (!rel.includes("__tests__")) walk(rel);
+          continue;
+        }
+        if (!/\.tsx?$/.test(e.name)) continue;
+        if (COPY.includes(rel) || SIN_REGISTRO_RELEVANTE.has(rel)) continue;
+        const textos = cadenasIncluyendoCortas(leer(rel));
+        const tiene =
+          textos.some((t) => FORMAS_TUTEO.test(t)) || textos.some((t) => FORMAS_VOSEO.test(t));
+        if (tiene) sinDeclarar.push(rel);
+      }
+    };
+    walk("src");
+    expect(sinDeclarar).toEqual([]);
+  });
+
+  it("las exclusiones siguen existiendo y siguen teniendo motivo", () => {
+    // Una exclusión que apunta a un archivo borrado se queda dando permiso a
+    // nada. Y una sin motivo es un `ignore` disfrazado.
+    for (const [f, motivo] of SIN_REGISTRO_RELEVANTE) {
+      expect({ f, existe: fs.existsSync(path.join(process.cwd(), f)) }).toEqual({ f, existe: true });
+      expect({ f, motivo: motivo.length > 12 }).toEqual({ f, motivo: true });
+    }
   });
 });

@@ -288,15 +288,15 @@ export function validateIntakeForm(payload: LoosePayload, locale: IntakeFormLoca
       : {};
   const consentimiento = payload.consentimiento === true;
 
-  if (!nombreCompleto) errors.push(msg(locale, "Por favor, introduce tu nombre completo.", "Please enter your full name."));
+  if (!nombreCompleto) errors.push(msg(locale, "Falta el nombre completo.", "Please enter your full name."));
   if (!email) {
-    errors.push(msg(locale, "Por favor, introduce tu email.", "Please enter your email."));
+    errors.push(msg(locale, "Falta el email.", "Please enter your email."));
   } else if (!EMAIL_REGEX.test(email)) {
     errors.push(msg(locale, "Introduce un email válido.", "Enter a valid email address."));
   }
 
   if (!whatsapp) {
-    errors.push(msg(locale, "Por favor, introduce tu WhatsApp.", "Please enter your WhatsApp number."));
+    errors.push(msg(locale, "Falta el WhatsApp.", "Please enter your WhatsApp number."));
   } else if (!PHONE_REGEX.test(whatsapp)) {
     errors.push(
       msg(
@@ -308,14 +308,14 @@ export function validateIntakeForm(payload: LoosePayload, locale: IntakeFormLoca
   }
 
   if (instagram && !INSTAGRAM_REGEX.test(instagram)) {
-    errors.push(msg(locale, "El usuario de Instagram no es válido.", "That Instagram handle doesn’t look valid."));
+    errors.push(msg(locale, "El usuario de Instagram no es válido.", "That Instagram handle doesn't look valid."));
   }
 
   if (!ciudadPais) {
     errors.push(
       msg(
         locale,
-        "Indica tu ciudad y país (por ejemplo: Madrid, España o Córdoba, Argentina).",
+        "Falta la ciudad y el país (por ejemplo: Madrid, España o Córdoba, Argentina).",
         "Enter your city and country (e.g. London, UK).",
       ),
     );
@@ -341,19 +341,19 @@ export function validateIntakeForm(payload: LoosePayload, locale: IntakeFormLoca
 
   if (!comidasPorDiaHorarios) {
     errors.push(
-      msg(locale, "Indica cuántas comidas haces al día y en qué horarios.", "Please state how many meals you eat and at what times."),
+      msg(locale, "Falta indicar cuántas comidas al día y a qué horas.", "Please state how many meals you eat and at what times."),
     );
   }
 
   if (diasEntrenaActualmente === null) {
     errors.push(
-      msg(locale, "Indica cuántos días entrenas actualmente por semana.", "Please enter how many days per week you currently train."),
+      msg(locale, "Falta indicar cuántos días de entrenamiento por semana.", "Please enter how many days per week you currently train."),
     );
   } else if (diasEntrenaActualmente < 0 || diasEntrenaActualmente > 7) {
     errors.push(
       msg(
         locale,
-        "Los días que entrenas actualmente deben estar entre 0 y 7.",
+        "Los días de entrenamiento tienen que estar entre 0 y 7.",
         "Days you currently train must be between 0 and 7.",
       ),
     );
@@ -361,7 +361,7 @@ export function validateIntakeForm(payload: LoosePayload, locale: IntakeFormLoca
 
   if (diasCompromisoEntrenamiento === null) {
     errors.push(
-      msg(locale, "Indica cuántos días te comprometes a entrenar.", "Please enter how many days per week you commit to training."),
+      msg(locale, "Falta indicar cuántos días de compromiso para entrenar.", "Please enter how many days per week you commit to training."),
     );
   } else if (diasCompromisoEntrenamiento < 1 || diasCompromisoEntrenamiento > 7) {
     errors.push(
@@ -417,7 +417,7 @@ export function validateIntakeForm(payload: LoosePayload, locale: IntakeFormLoca
 
   if (!consentimiento) {
     errors.push(
-      msg(locale, "Debes aceptar el consentimiento para enviar el formulario.", "You must accept the consent to submit the form."),
+      msg(locale, "Hace falta aceptar el consentimiento para enviar el formulario.", "You must accept the consent to submit the form."),
     );
   }
 

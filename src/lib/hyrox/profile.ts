@@ -100,7 +100,7 @@ export function validateProfile(profile: Partial<HyroxProfile>): ProfileIssue[] 
   }
 
   if (profile.daysPerWeek === undefined || profile.daysPerWeek === null) {
-    issues.push({ field: "daysPerWeek", message: "Indica cuántos días puedes entrenar." });
+    issues.push({ field: "daysPerWeek", message: "Falta indicar cuántos días hay para entrenar." });
   } else if (profile.daysPerWeek < DAYS_MIN || profile.daysPerWeek > DAYS_MAX) {
     issues.push({
       field: "daysPerWeek",
