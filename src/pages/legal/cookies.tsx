@@ -6,7 +6,7 @@ export default function CookiesPage() {
     <>
       <Head>
         <title>Política de Cookies | FitPlan</title>
-        <meta name="description" content="Política de cookies de FitPlan: qué cookies utilizamos, para qué sirve cada una, cuánto duran y cómo puedes configurarlas o rechazarlas en cualquier momento." />
+        <meta name="description" content="Política de cookies de FitPlan: qué cookies utilizamos, para qué sirve cada una, cuánto duran y cómo se puede configurarlas o rechazarlas en cualquier momento." />
         <link rel="canonical" href="https://www.fitplan-ai.com/legal/cookies" />
       </Head>
       <Navbar minimal />

@@ -10,7 +10,7 @@ export default function PaymentFailure() {
     <>
       <Seo
         title="Pago no completado"
-        description="No se pudo completar el pago en FitPlan. Puedes reintentarlo o usar otro método para acceder a tu plan personalizado de alimentación y entrenamiento."
+        description="No se pudo completar el pago en FitPlan. Se puede reintentar o usar otro método para acceder a tu plan personalizado de alimentación y entrenamiento."
         path="/payment/failure"
         noindex
       />

@@ -12,7 +12,7 @@ export default function ContactButton() {
   const router = useRouter();
   const isEn = router.pathname.startsWith("/en");
 
-  const labelFull = isEn ? "Questions? Contact us" : "¿Tienes alguna duda? Contáctanos";
+  const labelFull = isEn ? "Questions? Contact us" : "¿Alguna duda? Hay un chat";
   const aria = isEn ? "Open contact form in a new tab" : "Abrir formulario de contacto en una nueva pestaña";
 
   return (

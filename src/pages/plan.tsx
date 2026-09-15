@@ -1262,7 +1262,7 @@ export default function PlanPage() {
                   ) : hasPrevious ? (
                     // Naranja: Tiene valores anteriores pero no los ha cargado
                     <div className="flex-shrink-0">
-                      <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-warning flex items-center justify-center" title="Tienes valores anteriores, completa los datos">
+                      <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-warning flex items-center justify-center" title="Hay valores de la última vez; faltan datos por rellenar">
                         <svg className="w-3 h-3 sm:w-4 sm:h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>

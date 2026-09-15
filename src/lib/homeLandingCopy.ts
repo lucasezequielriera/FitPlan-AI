@@ -80,39 +80,39 @@ const es: HomeLandingCopy = {
   heroTitleMiddle: "y entrenar",
   heroTitleHighlight2: "bien",
   heroSub:
-    "Contestas unas preguntas y tienes el menú de la semana con las cantidades, la rutina para los días que puedas entrenar, y dónde apuntar lo que levantas.",
+    "Unas preguntas y ya está: el menú de la semana con las cantidades, la rutina para los días libres, y un sitio donde anotar los kilos de cada serie.",
   ctaStart: "Empezar gratis",
   ctaPremium: "Ver planes Premium",
-  ctaHint: "Necesitas una cuenta para guardar el plan. Se crea en el momento.",
+  ctaHint: "Hace falta una cuenta para guardar el plan. Se crea en el momento.",
   howItWorksKicker: "Cómo funciona",
   howItWorksTitle: "Tres pasos, sin vueltas",
   steps: [
     {
       step: "1",
-      title: "Dinos qué quieres",
-      body: "Qué objetivo tienes, qué no comes y cuántos días puedes entrenar.",
+      title: "El objetivo, en una frase",
+      body: "Qué se busca, qué no se come y cuántos días hay para entrenar.",
     },
     {
       step: "2",
-      title: "Recibe el plan",
-      body: "Las comidas de la semana con sus cantidades, la lista de la compra hecha y la rutina de esos días.",
+      title: "El plan, hecho",
+      body: "Las comidas de la semana con sus cantidades, la lista de la compra escrita y la rutina de esos días.",
     },
     {
       step: "3",
-      title: "Apunta lo que haces",
-      body: "Cuando cambie tu peso o tus horarios, el plan se rehace con lo nuevo.",
+      title: "Lo que se hace, anotado",
+      body: "Cuando cambia el peso o cambian los horarios, el plan se rehace con lo nuevo.",
     },
   ],
   chipNutrition: "Nutrición",
   chipAi: "IA",
   chipTraining: "Entrenamiento",
-  expertTitle: "El plan cambia cuando cambias tú",
+  expertTitle: "El plan cambia con la persona",
   expertSub:
-    "Si has declarado que tienes el hombro tocado, el plan descarta el press militar, el press tras nuca y los fondos en paralelas. Y cada mes se rehace con el peso que has movido de verdad.",
+    "Con un hombro tocado declarado, el plan descarta el press militar, el press tras nuca y los fondos en paralelas. Y cada mes se rehace con el peso movido de verdad, no con el que tocaría mover.",
   expertBullets: [
-    "Quita los ejercicios que chocan con las lesiones que declares",
+    "Quita los ejercicios que chocan con las lesiones declaradas",
     "Los gramos de cada comida, no «una porción»",
-    "Se rehace cada mes con lo que has levantado",
+    "Se rehace cada mes con los kilos reales",
   ],
   hyroxKicker: "¿Compites en HYROX?",
   hyroxTitle: "Plan HYROX adaptado a las semanas que te quedan",
@@ -122,19 +122,19 @@ const es: HomeLandingCopy = {
   featuresTitle: "Lo que hay dentro",
   features: [
     {
-      title: "Si te atascas, escribes",
-      body: "Hay un chat dentro de la app. Lo leo yo y contesto yo, así que no esperes respuesta en diez segundos, pero la vas a tener.",
+      title: "Un chat, y al otro lado estoy yo",
+      body: "Lo leo yo y contesto yo. No hay respuesta en diez segundos, pero la hay.",
     },
     {
       title: "Tu cuerpo y tus horarios",
-      body: "Lo que pesas, lo que te gusta comer y los días que de verdad puedes ir. Con eso se arma.",
+      body: "El peso de hoy, la comida que sí apetece y los días en que de verdad se puede ir. Con eso se arma.",
     },
     {
-      title: "Sabes qué toca hoy",
-      body: "Abres la app y ves la comida de hoy con sus cantidades y los ejercicios de la sesión.",
+      title: "Qué toca hoy, sin buscarlo",
+      body: "La app abre por la comida de hoy con sus cantidades y por los ejercicios de la sesión.",
     },
   ],
-  intakeQuestion: "¿Prefieres dejar tus datos y que te escriba yo?",
+  intakeQuestion: "¿Mejor dejar los datos y que escriba yo?",
   intakeLink: "Completa el formulario de inicio",
   closingText:
     "Comer y entrenar en el mismo sitio, sin llevar dos apps y un cuaderno.",
@@ -142,21 +142,21 @@ const es: HomeLandingCopy = {
   head: {
     title: "FitPlan | Plan de Alimentación y Entrenamiento Personalizado con IA",
     description:
-      "Crea tu plan de alimentación y entrenamiento con IA: menús semanales con ingredientes exactos, rutinas de gym según tu nivel, macros y seguimiento en PDF.",
+      "Plan de alimentación y entrenamiento con IA: menús semanales con ingredientes exactos, rutinas de gym según tu nivel, macros y seguimiento en PDF.",
     keywords:
       "plan nutricional personalizado, plan de entrenamiento con IA, dieta personalizada, rutina de gym, macros, calorías, entrenamiento personalizado, bajar de peso, ganar masa muscular, perder grasa, recomposición corporal, alimentación saludable, nutricionista online, entrenador personal, plan alimenticio, dieta saludable, fitness, nutrición deportiva, plan de comidas semanal",
     canonical: `${SITE}/`,
     ogTitle: "FitPlan | Alimentación y Entrenamiento Personalizado con IA",
     ogDescription:
-      "Planes de alimentación y entrenamiento que se arman sobre tus datos y se recalculan con tu progreso. Menús con cantidades exactas y rutina acorde a tu nivel. Empieza gratis.",
+      "Planes de alimentación y entrenamiento que se arman sobre tus datos y se recalculan con tu progreso. Menús con cantidades exactas y rutina acorde a tu nivel. Gratis para empezar.",
     twitterTitle: "FitPlan | Alimentación y Entrenamiento Personalizado con IA",
-    twitterDescription: "Alimentación + entrenamiento en un solo plan, ajustado a tu nivel, tus lesiones y tu material. Empieza gratis.",
+    twitterDescription: "Alimentación + entrenamiento en un solo plan, ajustado a tu nivel, tus lesiones y tu material. Gratis para empezar.",
   },
   jsonLdOrganizationDescription:
     "Planes de alimentación y entrenamiento hechos con IA a partir de los datos de cada persona.",
   jsonLdWebSiteAlt: "FitPlan - Plan Nutricional y Entrenamiento Inteligente",
   jsonLdSoftwareDescription:
-    "Crea tu plan de alimentación y entrenamiento personalizado con inteligencia artificial, ajustado a tu objetivo, nivel, lesiones y material disponible.",
+    "Plan de alimentación y entrenamiento personalizado con inteligencia artificial, ajustado a tu objetivo, nivel, lesiones y material disponible.",
   jsonLdSoftwareOfferDescription: "Plan gratuito por 30 días",
   jsonLdSoftwareCurrency: "ARS",
   jsonLdFeatureList: [
@@ -170,19 +170,19 @@ const es: HomeLandingCopy = {
   faq: [
     {
       q: "¿Qué es FitPlan?",
-      a: "Una app que te hace el plan de comidas y el de gimnasio con IA. Parte de tu objetivo, tu nivel, tus lesiones y lo que tengas para entrenar, y cada mes lo rehace con lo que hayas hecho.",
+      a: "Una app que arma el plan de comidas y el de gimnasio con IA. Parte de tu objetivo, tu nivel, tus lesiones y el material disponible, y cada mes lo rehace con lo hecho.",
     },
     {
       q: "¿Es gratis usar FitPlan?",
-      a: "Sí, puedes crear tu primer plan de forma gratuita y acceder a él durante 30 días. Después de ese período, necesitas una suscripción premium para seguir accediendo a tu plan.",
+      a: "Sí. El primer plan es gratis y queda accesible 30 días. Después hace falta una suscripción premium para conservarlo.",
     },
     {
       q: "¿Cómo funciona el plan de alimentación?",
-      a: "Completas un formulario con tus datos personales, objetivos y preferencias alimentarias. La IA genera un plan semanal detallado con recetas, ingredientes exactos, calorías y macronutrientes adaptados a ti.",
+      a: "Se rellena un formulario con los datos, el objetivo y las preferencias de comida. La IA genera el plan de la semana con recetas, ingredientes exactos, calorías y macros adaptados a tu caso.",
     },
     {
       q: "¿El plan incluye rutina de entrenamiento?",
-      a: "Sí, FitPlan genera una rutina de entrenamiento personalizada según tu nivel de experiencia, objetivos y días disponibles para entrenar.",
+      a: "Sí. FitPlan genera la rutina según el nivel de experiencia, el objetivo y los días disponibles.",
     },
   ],
 };

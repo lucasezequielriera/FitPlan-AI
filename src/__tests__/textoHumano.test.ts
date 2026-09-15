@@ -24,18 +24,68 @@ import { PROHIBITED_SHOULDER } from "@/lib/trainingPlanGuards";
 
 const leer = (p: string) => fs.readFileSync(path.join(process.cwd(), p), "utf8");
 
-/** Archivos de copy visible. Explícito: el código no cuenta. */
+/**
+ * Archivos de copy que ve un usuario.
+ *
+ * La lista se mantiene a mano, pero NO es lo que garantiza la cobertura: el
+ * último test de este archivo recorre `src` entero y exige que cualquier
+ * fichero con formas de registro esté aquí o en `SIN_REGISTRO_RELEVANTE`.
+ *
+ * Hizo falta porque la lista se quedó corta cuatro veces seguidas, y la cuarta
+ * fue la peor: `LoginModal.tsx` tenía "¿Ya tienes cuenta? Iniciá sesión" —
+ * tuteo y voseo EN LA MISMA CADENA— en el botón de login de la landing
+ * pública, mientras este mismo guard daba el copy por limpio.
+ */
 const COPY = [
   "src/lib/homeLandingCopy.ts",
   "src/lib/hyrox/landingCopy.ts",
-  // Añadidos tras la revisión: tenía "Crea tu plan" y "Diseñá tu plan" en el
-  // mismo objeto, o sea voseo y tuteo mezclados en los meta tags que sirve
-  // Google. Estaba vivo en producción.
   "src/lib/i18n/createPlanUi.ts",
   "src/lib/i18n/appUi.ts",
   "src/lib/i18n/planUi.ts",
   "src/lib/intakeFormI18n.ts",
+  // Cuarta tanda: componentes y libs que también hablan al usuario.
+  "src/components/LoginModal.tsx",
+  "src/components/ContactButton.tsx",
+  "src/lib/intakeFormSchema.ts",
+  "src/lib/hyrox/copy.ts",
+  "src/lib/hyrox/sessions.ts",
+  "src/lib/hyrox/profile.ts",
+  "src/pages/transformacion-fitplan.tsx",
+  "src/pages/transformacion-design-preview.tsx",
 ];
+
+/**
+ * Ficheros donde aparecen formas de registro que NO son copy de usuario.
+ *
+ * Declarados con motivo, no ignorados en silencio: si alguno deja de ser una
+ * excepción legítima, la lista es lo primero que hay que mirar.
+ */
+const SIN_REGISTRO_RELEVANTE = new Map<string, string>([
+  ["src/lib/socialContent/generateCopy.ts", "instrucciones al modelo, no texto de la app"],
+  ["src/lib/socialContent/buildCommercialPrompt.ts", "prompt de vídeo; dice literalmente «nunca vos»"],
+  ["src/lib/socialContent/carouselCopy.ts", "guion de piezas de Instagram, no interfaz"],
+  ["src/pages/api/generatePlan.ts", "prompt del sistema; lo lee el modelo"],
+  ["src/pages/api/mealDetails.ts", "prompt del sistema"],
+  ["src/pages/api/analyzeFood.ts", "prompt del sistema"],
+  ["src/pages/api/analyzePlanCompletion.ts", "prompt del sistema"],
+  ["src/lib/intakeOpenAiPlan.ts", "prompt del sistema"],
+  ["src/lib/intakePlanExcel.ts", "hoja de cálculo para el entrenador, no para el cliente"],
+  ["src/components/admin/AdminApp.tsx", "panel de admin: lo ve una sola persona"],
+  ["src/components/AdminExerciseCatalogPanel.tsx", "panel de admin"],
+  ["src/pages/admin/configuraciones/carrusel-ig.tsx", "panel de admin"],
+  ["src/pages/admin/configuraciones/contenido-social.tsx", "panel de admin"],
+  ["src/pages/api/admin/intakeClientPlanAction.ts", "endpoint de admin"],
+  ["src/pages/api/admin/sendIntakeWelcomeEmail.ts", "email 1:1 firmado por Lucas; el tú es deliberado"],
+  ["src/utils/calculations.ts", "constantes y comentarios de cálculo"],
+  ["src/lib/firebase-admin.ts", "instrucciones de configuración para quien despliega, no para el usuario"],
+  ["src/lib/templatePlans.ts", "nombres de ejercicio"],
+  ["src/components/PremiumPlanModal.tsx", "pendiente: se revisa con el rediseño del modal"],
+  ["src/components/IntakeClientPlanPublicView.tsx", "pendiente: entra con el rediseño de #22"],
+  ["src/pages/api/deleteTrackedFood.ts", "mensaje interno de API"],
+  ["src/pages/api/getWeeklyStats.ts", "mensaje interno de API"],
+  ["src/pages/api/public/intake-trainer-qa.ts", "respuesta del trainer, escrita por Lucas"],
+  ["src/pages/api/request-personal-trainer.ts", "aviso interno a Lucas"],
+]);
 
 /**
  * Solo el texto entre comillas: los nombres de variables no los lee nadie.
@@ -63,6 +113,26 @@ function cadenas(src: string): string[] {
   const plantillas = [...sinComentarios.matchAll(/`((?:[^`\\]|\\.)*)`/g)]
     .map((m) => m[1].replace(/\$\{[^}]*\}/g, " "));
   return [...dobles, ...plantillas].filter((t) => t.length >= 12);
+}
+
+/**
+ * Como `cadenas`, pero sin descartar las cortas.
+ *
+ * El corte de 12 caracteres existe para que las comprobaciones de prosa no
+ * tropiecen con claves de objeto y rutas. Para el registro es justo al revés:
+ * `"Vos"` mide 3 y era la etiqueta de los mensajes propios en el chat de la
+ * app — voseo puro, vivo en producción, e invisible para el guard por dos
+ * motivos a la vez (el bigrama y este filtro).
+ *
+ * Aquí el riesgo de ruido es bajo porque los patrones son palabras completas y
+ * concretas: ninguna clave de objeto se llama "tienes" ni "vos".
+ */
+function cadenasIncluyendoCortas(src: string): string[] {
+  const sinComentarios = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  const dobles = [...sinComentarios.matchAll(/"((?:[^"\\\n]|\\.)*)"/g)].map((m) => m[1]);
+  const plantillas = [...sinComentarios.matchAll(/`((?:[^`\\]|\\.)*)`/g)]
+    .map((m) => m[1].replace(/\$\{[^}]*\}/g, " "));
+  return [...dobles, ...plantillas].filter((t) => t.trim().length > 0);
 }
 
 /**
@@ -180,10 +250,149 @@ const FORMAS_VOSEO = new RegExp(
     "mirá|entrá|probá|empezá|creá|hacé|poné|elegí|seguí|dejá|anotá|descargá|pedí|escribí|" +
     "contá|mandá|llevá|tomá|buscá|iniciá|marcá|completá|registrate|sumate|" +
     "tenés|podés|querés|sabés|hacés|vivís|preferís|necesitás|buscás|entrenás|respondés|" +
-    "a vos|para vos|con vos" +
+    "vos" +
     `)(?![${LETRA}])`,
   "gi"
 );
+
+/**
+ * Formas de TUTEO que tampoco valen.
+ *
+ * Decisión de Lucas (2026-09-15): ni tú ni vos. El público es Madrid, España y
+ * Argentina; elegir un registro deja fuera a una parte, y mezclarlos —que era
+ * lo que había— es peor que cualquiera de los dos.
+ *
+ * Solo entran aquí las formas que DIVERGEN entre los dos registros: verbos
+ * conjugados en segunda persona, imperativos, y "a ti"/"contigo". NO entran
+ * `tu`, `tus` ni `te`, que son idénticos en tuteo y voseo ("vos tenés TU plan")
+ * y son lo único que impide que el texto suene a folleto de seguros.
+ *
+ * Los infinitivos tampoco: "Empezar gratis" no tiene registro.
+ */
+const FORMAS_TUTEO = new RegExp(
+  `(?<![${LETRA}])(` +
+    // Presente de indicativo que SOLO existe en tuteo. Fuera quedan "estás",
+    // "vas" y "das": el voseo los conjuga igual ("vos estás"), así que no
+    // distinguen registro y marcarlos sería ruido.
+    "tienes|puedes|quieres|necesitas|sabes|haces|vives|prefieres|buscas|entrenas|" +
+    "contestas|abres|recibes|eres|debes|sientes|eliges|empiezas|" +
+    // Añadidas tras un barrido ancho: la revisión encontró once formas que la
+    // lista no tenía, repartidas por el formulario de salud y la landing de
+    // HYROX. Una enumeración siempre se queda corta; lo que la mantiene útil
+    // es ampliarla cada vez que aparece una, no fingir que está completa.
+    // Podadas las que tienen homógrafo: `completas` es adjetivo ("las 8
+    // estaciones completas"), `ganas` y `bajas` y `notas` y `sales` y `tomas`
+    // son sustantivos, y `comes` es una palabra inglesa corriente. Marcarlas
+    // daba falsos positivos en el plan de HYROX y en el filtro de alérgenos.
+    "descansas|levantas|trabajas|corres|sigues|cambias|ajustas|apuntas|" +
+    "dices|vienes|duermes|pierdes|subes|mides|llegas|" +
+    // Imperativos con pronombre pegado: no hay sustantivo que se les parezca.
+    "dinos|cuéntanos|cuentanos|apúntalo|apuntalo|míralo|miralo|pruébalo|pruebalo|" +
+    // Imperativos sin homógrafo posible.
+    "haz|pon|ponte|elige|hazlo|" +
+    // Pronombres tónicos que sí divergen ("a vos", "con vos" en voseo).
+    //
+    // `ti` va suelto, no como bigrama. La primera versión listaba "a ti",
+    // "para ti" y "contigo", y se le escapó "Cuéntame sobre ti" —el título de
+    // la primera sección del formulario— porque la preposición era otra.
+    // Enumerar preposiciones es perder por definición; la palabra es la señal.
+    "ti|contigo|" +
+    // Imperativo con `me` pegado, hermano de `cuéntanos`.
+    "cuéntame|cuentame|dime|escríbeme|escribeme" +
+    `)(?![${LETRA}])`,
+  "gi"
+);
+
+/**
+ * Busca formas de registro en todo el copy. Una sola función para que un test
+ * pueda comprobar que DE VERDAD se aplica: si alguien vacía el bucle del
+ * escaneo, el copy limpio hace que el test siga verde y la cobertura se pierde
+ * en silencio. Ya pasó con el guard del manifest.
+ */
+function buscarRegistro(re: RegExp, textos: { archivo: string; texto: string }[]): string[] {
+  const out: string[] = [];
+  for (const { archivo, texto } of textos) {
+    for (const m of texto.matchAll(re)) out.push(`${archivo}: ${m[0]} — "${texto.slice(0, 40)}…"`);
+  }
+  return out;
+}
+
+/** Todo el copy, aplanado. */
+function todoElCopy(): { archivo: string; texto: string }[] {
+  return COPY.flatMap((archivo) =>
+    cadenasIncluyendoCortas(leer(archivo)).map((texto) => ({ archivo, texto }))
+  );
+}
+
+describe("El copy en español no tutea ni vosea", () => {
+  it("no usa formas de tuteo", () => {
+    // El error simétrico del voseo. Un imperativo o un verbo conjugado eligen
+    // registro aunque no se quiera: "Dinos qué quieres" es tuteo, "Decinos qué
+    // querés" es voseo, y "El objetivo, en una frase" no es ninguno.
+    expect(buscarRegistro(FORMAS_TUTEO, todoElCopy())).toEqual([]);
+  });
+
+  it("no marca `tu`, `tus` ni `te`, que valen en los dos registros", () => {
+    // Si el guard los marcara, el copy quedaría sin ninguna forma de dirigirse
+    // a nadie y sonaría a manual. "vos tenés tu plan" y "tú tienes tu plan"
+    // usan el mismo posesivo.
+    const legitimas = ["ajustado a tu nivel", "tus lesiones", "te contesto yo", "tu objetivo"];
+    const falsos = legitimas.filter((f) => new RegExp(FORMAS_TUTEO.source, "i").test(f));
+    expect(falsos).toEqual([]);
+  });
+
+  it("no marca infinitivos ni sustantivos que se parecen", () => {
+    // El motivo de que el guard NO cubra los imperativos ambiguos: en español
+    // casi todos son homógrafos de un sustantivo o de la tercera persona.
+    // "Descarga en PDF" es un sustantivo, "se crea en el momento" es tercera
+    // persona, "tu marca de 5 km" es un sustantivo. Marcarlos convertiría el
+    // guard en ruido, y un guard ruidoso se desactiva.
+    //
+    // Esos casos quedan como comprobación humana, escrita en TEXTO_HUMANO.md.
+    const legitimas = [
+      "Ver planes Premium", "Crear mi cuenta", "Entrar",
+      "tu marca de 5 km", "Descarga en PDF", "Se crea en el momento",
+      "el plan se lleva la mitad", "la prueba dura 90 minutos",
+    ];
+    const falsos = legitimas.filter((f) => new RegExp(FORMAS_TUTEO.source, "i").test(f));
+    expect(falsos).toEqual([]);
+  });
+
+  it("el buscador se aplica de verdad sobre el copy", () => {
+    // Que el copy esté limpio no prueba que se esté mirando. Se mete texto
+    // sucio por el MISMO camino que usa el escaneo: si alguien lo vacía, esto
+    // cae aunque el copy real siga impecable.
+    const sucio = [
+      { archivo: "inventado.ts", texto: "Necesitas una cuenta para empezar" },
+      { archivo: "inventado.ts", texto: "Tenés que crear una cuenta" },
+    ];
+    expect(buscarRegistro(FORMAS_TUTEO, sucio).length).toBe(1);
+    expect(buscarRegistro(FORMAS_VOSEO, sucio).length).toBe(1);
+    // Y que recorre todos los archivos declarados, no solo el primero.
+    expect(new Set(todoElCopy().map((x) => x.archivo)).size).toBe(COPY.length);
+
+    // Y que las etiquetas cortas entran. `"Vos"` mide 3 caracteres: el filtro
+    // de prosa (12 mínimo) lo descartaba antes de que ningún patrón lo viera,
+    // así que el guard era ciego a cualquier etiqueta corta de la interfaz.
+    expect(cadenasIncluyendoCortas('msgYou: { es: "Vos", en: "You" },')).toContain("Vos");
+    expect(todoElCopy().some((x) => x.texto.length < 12)).toBe(true);
+  });
+
+  it("reconoce el tuteo de verdad", () => {
+    // Mismo meta-test que para el voseo: una lista que solo contiene lo que ya
+    // arreglaste no protege de nada.
+    const deberianSaltar = [
+      "Contestas unas preguntas", "Dinos qué quieres", "Necesitas una cuenta",
+      "Abres la app", "adaptados a ti", "Haz clic", "Elige tu objetivo",
+      "Empiezas cuando quieras", "Cuéntanos tu caso",
+      // Preposiciones distintas de "a"/"para": la lista las enumeraba y se le
+      // escapó el título de la primera sección del formulario de inicio.
+      "Cuéntame sobre ti", "hecho por ti", "pensado según ti",
+    ];
+    const noDetectadas = deberianSaltar.filter((f) => !new RegExp(FORMAS_TUTEO.source, "i").test(f));
+    expect(noDetectadas).toEqual([]);
+  });
+});
 
 describe("El copy en español no mezcla voseo con tuteo", () => {
   it("elige un registro y lo mantiene", () => {
@@ -196,13 +405,7 @@ describe("El copy en español no mezcla voseo con tuteo", () => {
     // es lo que obliga a ello.
     // Mira TODO el copy, no solo la home: el registro mezclado estaba también
     // en `createPlanUi.ts`, servido en los meta tags de /create-plan.
-    const voseo: string[] = [];
-    for (const f of COPY) {
-      for (const t of cadenas(leer(f))) {
-        for (const m of t.matchAll(FORMAS_VOSEO)) voseo.push(`${f}: ${m[0]}`);
-      }
-    }
-    expect(voseo).toEqual([]);
+    expect(buscarRegistro(FORMAS_VOSEO, todoElCopy())).toEqual([]);
   });
 
   it("la lista de formas reconoce el voseo de verdad", () => {
@@ -214,7 +417,9 @@ describe("El copy en español no mezcla voseo con tuteo", () => {
       "Mirá los planes", "Entrá y probá", "Empezá gratis", "Creá tu cuenta",
       "Hacé clic", "Poné tus datos", "Seguí el plan", "Sumate",
       "tenés", "podés", "querés", "necesitás", "preferís", "escribí",
-      "hecho para vos",
+      // `vos` suelto y en preposiciones distintas de las tres que la lista
+      // enumeraba. "Vos" a secas era la etiqueta del chat, vivo en producción.
+      "Vos", "hecho para vos", "pensado sobre vos", "de vos depende",
     ];
     const noDetectadas = deberianSaltar.filter((f) => !new RegExp(FORMAS_VOSEO.source, "i").test(f));
     expect(noDetectadas).toEqual([]);
@@ -324,5 +529,48 @@ describe("El guard mira algo de verdad", () => {
     ];
     const falsos = legitimas.filter((f) => PARALELISMOS_NEGATIVOS.some((re) => re.test(f)));
     expect(falsos).toEqual([]);
+  });
+});
+
+describe("El inventario de copy no puede quedarse corto", () => {
+  it("todo fichero de `src` con formas de registro está declarado", () => {
+    // LA causa de fondo, y la cuarta vez que este guard falló por lo mismo.
+    //
+    // `COPY` era una lista que escribí a mano, así que cubría lo que yo había
+    // mirado. Mientras daba el copy por limpio, `LoginModal.tsx` tenía "¿Ya
+    // tienes cuenta? Iniciá sesión" —tuteo y voseo EN LA MISMA CADENA— en el
+    // botón de login de la landing pública.
+    //
+    // Este test invierte la carga: recorre `src` entero, y cualquier fichero
+    // con formas de registro tiene que estar en `COPY` (y por tanto limpio) o
+    // en `SIN_REGISTRO_RELEVANTE` con su motivo escrito. Añadir un archivo
+    // nuevo con tuteo obliga a decidir cuál de las dos cosas es.
+    const sinDeclarar: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of fs.readdirSync(path.join(process.cwd(), dir), { withFileTypes: true })) {
+        const rel = `${dir}/${e.name}`;
+        if (e.isDirectory()) {
+          if (!rel.includes("__tests__")) walk(rel);
+          continue;
+        }
+        if (!/\.tsx?$/.test(e.name)) continue;
+        if (COPY.includes(rel) || SIN_REGISTRO_RELEVANTE.has(rel)) continue;
+        const textos = cadenasIncluyendoCortas(leer(rel));
+        const tiene =
+          textos.some((t) => FORMAS_TUTEO.test(t)) || textos.some((t) => FORMAS_VOSEO.test(t));
+        if (tiene) sinDeclarar.push(rel);
+      }
+    };
+    walk("src");
+    expect(sinDeclarar).toEqual([]);
+  });
+
+  it("las exclusiones siguen existiendo y siguen teniendo motivo", () => {
+    // Una exclusión que apunta a un archivo borrado se queda dando permiso a
+    // nada. Y una sin motivo es un `ignore` disfrazado.
+    for (const [f, motivo] of SIN_REGISTRO_RELEVANTE) {
+      expect({ f, existe: fs.existsSync(path.join(process.cwd(), f)) }).toEqual({ f, existe: true });
+      expect({ f, motivo: motivo.length > 12 }).toEqual({ f, motivo: true });
+    }
   });
 });

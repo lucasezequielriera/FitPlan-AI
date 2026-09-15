@@ -13,6 +13,11 @@ export default {
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/src/$1",
   },
-  testPathIgnorePatterns: ["/node_modules/", "/.next/"],
+  // `.claude/worktrees/` son copias del repo que crean los agentes cuando
+  // trabajan en paralelo. Viven DENTRO del proyecto, así que Jest recogía sus
+  // tests: la suite corría tres veces, con versiones distintas del código, y
+  // los recuentos salían inflados. Pasó dos veces antes de que se entendiera
+  // de dónde venían los fallos.
+  testPathIgnorePatterns: ["/node_modules/", "/.next/", "/.claude/worktrees/"],
 };
 

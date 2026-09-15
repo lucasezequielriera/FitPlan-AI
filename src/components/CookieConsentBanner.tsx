@@ -62,7 +62,7 @@ export default function CookieConsentBanner() {
       : {
           title: "Privacidad y cookies",
           body:
-            "Usamos cookies de analítica y anuncios para medir campañas y mejorar conversiones. Puedes aceptar todo o dejar solo las esenciales.",
+            "Usamos cookies de analítica y anuncios para medir campañas y mejorar conversiones. Se puede aceptar todo o dejar solo las esenciales.",
           accept: "Aceptar todo",
           reject: "Solo esenciales",
         };

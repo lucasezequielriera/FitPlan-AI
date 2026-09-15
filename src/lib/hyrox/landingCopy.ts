@@ -29,7 +29,7 @@ export const HYROX_LANDING = {
   heroTitleA: "Faltan semanas para tu HYROX.",
   heroTitleB: "No un plan de 16.",
   heroSub:
-    "Los planes de HYROX suelen venir en bloques cerrados de 12 o 16 semanas. Pero a una carrera te apuntas cuando te apuntas, y un plan de 16 semanas recortado por la mitad no es un plan de 8: es un plan de 16 mal hecho.",
+    "Los planes de HYROX suelen venir en bloques cerrados de 12 o 16 semanas. Pero a una carrera uno se apunta cuando se apunta, y un plan de 16 semanas recortado por la mitad no es un plan de 8: es un plan de 16 mal hecho.",
   heroCta: "Crear mi plan HYROX",
   heroCtaSecondary: "Ver qué incluye",
   heroNote: `Incluido en Premium, desde ${EUR.monthly.price} €/mes. Cancelas cuando quieras.`,
@@ -46,7 +46,7 @@ export const HYROX_LANDING = {
    */
   thesisTitle: "La carrera es, como mínimo, la mitad de la prueba",
   thesisBody:
-    "Se corren 8 km repartidos en ocho tramos de uno. Para un corredor rápido eso es la mitad del tiempo total; cuanto más lento corres, más se lleva: puede pasar del 58%. En dobles pesa todavía más de lo que parece: corréis los 8 km enteros los dos, pero repartís el trabajo de estaciones, así que haces el 100% de la carrera con la mitad de la fuerza. Si vienes del gimnasio, ahí está casi todo tu margen, y también el riesgo: porque el volumen de carrera es lo que más fácil se sube demasiado rápido cuando se viene de la fuerza.",
+    "Se corren 8 km repartidos en ocho tramos de uno. Para un corredor rápido eso es la mitad del tiempo total; cuanto más lento el ritmo, más se lleva: puede pasar del 58%. En dobles pesa todavía más de lo que parece: los dos corréis los 8 km enteros, pero el trabajo de estaciones va repartido: el 100% de la carrera con la mitad de la fuerza. Viniendo del gimnasio, ahí está casi todo el margen, y también el riesgo: porque el volumen de carrera es lo que más fácil se sube demasiado rápido cuando se viene de la fuerza.",
 
   featuresTitle: "Qué hace tu plan que un PDF no hace",
   features: [
@@ -55,7 +55,7 @@ export const HYROX_LANDING = {
       body: "Si faltan 18 semanas, hay base aeróbica de sobra. Si faltan 6, se recorta la base y se prioriza lo específico, porque la base es lo que más tarda en dar fruto: sin tiempo para construirla, forzarla solo genera fatiga.",
     },
     {
-      title: "Más base si no corres, menos si ya corres",
+      title: "Más base sin fondo de carrera, menos con él",
       body: "Quien no corre recibe más semanas de rodaje y menos intensidad. No es por ir suave: los tendones y los huesos tardan más en adaptarse que el sistema cardiovascular, así que el cuerpo aguanta el esfuerzo antes de que las estructuras estén listas. Respetar ese margen es la diferencia entre llegar entrenado y llegar tocado.",
     },
     {
@@ -64,7 +64,7 @@ export const HYROX_LANDING = {
     },
     {
       title: "Te dice dónde está tu margen",
-      body: "No dónde pasas más tiempo, sino dónde puedes recortar más minutos. Para alguien que ya corre bien puede estar en las estaciones; para quien viene del gimnasio, casi siempre en la carrera.",
+      body: "No dónde se va más tiempo, sino dónde hay más minutos que recortar. Para alguien que ya corre bien puede estar en las estaciones; para quien viene del gimnasio, casi siempre en la carrera.",
     },
     {
       title: "Se adapta a tus días y a tu material",
@@ -82,9 +82,9 @@ export const HYROX_LANDING = {
 
   howTitle: "Cómo funciona",
   steps: [
-    { n: "1", title: "Tu carrera y tu punto de partida", body: "Fecha, división, días que puedes entrenar, cómo estás de carrera y de fuerza, y con qué material cuentas." },
+    { n: "1", title: "Tu carrera y tu punto de partida", body: "Fecha, división, días disponibles para entrenar, nivel de carrera y de fuerza, y qué material hay." },
     { n: "2", title: "Tu plan, semana a semana", body: "Fases repartidas hasta el día de la carrera, con las sesiones de cada semana y qué busca cada una." },
-    { n: "3", title: "Ajustas y sigues", body: "Cambias tus datos cuando cambie algo y el plan se recalcula entero desde ese momento." },
+    { n: "3", title: "Ajustar y seguir", body: "Los datos se cambian cuando haga falta y el plan se recalcula entero desde ese momento." },
   ],
 
   faqTitle: "Preguntas frecuentes",
@@ -107,11 +107,11 @@ export const HYROX_LANDING = {
     },
     {
       q: "¿Cuánto cuesta?",
-      a: `El plan HYROX está incluido en FitPlan Premium, desde ${EUR.monthly.price} €/mes, con opción trimestral (${EUR.quarterly.price} €) y anual (${EUR.annual.price} €). Puedes cancelar cuando quieras.`,
+      a: `El plan HYROX está incluido en FitPlan Premium, desde ${EUR.monthly.price} €/mes, con opción trimestral (${EUR.quarterly.price} €) y anual (${EUR.annual.price} €). Se cancela cuando se quiera, sin permanencia.`,
     },
     {
       q: "¿Puedo cambiar la fecha de mi carrera después?",
-      a: "Sí. El plan se genera a partir de tus datos, así que si cambias la fecha, tus días disponibles o tu marca de 5 km, se recalcula entero.",
+      a: "Sí. El plan se genera a partir de tus datos, así que al cambiar la fecha, los días disponibles o tu marca de 5 km, se recalcula entero.",
     },
   ],
 

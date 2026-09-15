@@ -31,10 +31,10 @@ describe("validateIntakeForm", () => {
     const payload = { ...INTAKE_INITIAL_STATE };
     const errors = validateIntakeForm(payload);
 
-    expect(errors).toContain("Por favor, introduce tu nombre completo.");
-    expect(errors).toContain("Por favor, introduce tu email.");
-    expect(errors).toContain("Por favor, introduce tu WhatsApp.");
-    expect(errors).toContain("Debes aceptar el consentimiento para enviar el formulario.");
+    expect(errors).toContain("Falta el nombre completo.");
+    expect(errors).toContain("Falta el email.");
+    expect(errors).toContain("Falta el WhatsApp.");
+    expect(errors).toContain("Hace falta aceptar el consentimiento para enviar el formulario.");
   });
 
   it("fails with invalid email and phone format", () => {

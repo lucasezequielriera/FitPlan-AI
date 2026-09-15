@@ -195,7 +195,7 @@ function qualityRun(day: DayName, ctx: SessionContext): Session {
     },
     construccion: {
       title: "Series a umbral",
-      focus: "Subir el ritmo que puedes sostener. Es la sesión que más mueve el tiempo final.",
+      focus: "Subir el ritmo sostenible. Es la sesión que más mueve el tiempo final.",
       blocks: [
         "15' de calentamiento progresivo",
         `${4 + Math.round(ctx.progress * 2)} × ${400 + Math.round(ctx.progress * 400)} m a ritmo de 5 km`,
@@ -210,7 +210,7 @@ function qualityRun(day: DayName, ctx: SessionContext): Session {
         "15' de calentamiento",
         `${4 + Math.round(ctx.progress * 2)} × 1000 m a ritmo objetivo`,
         "Recuperación: 2' trotando",
-        "El objetivo es que el ritmo se sienta automático, no máximo",
+        "El objetivo es un ritmo que se sienta automático",
       ],
     },
     taper: {
@@ -227,7 +227,7 @@ function qualityRun(day: DayName, ctx: SessionContext): Session {
     title: spec.title,
     focus: spec.focus,
     blocks: spec.blocks,
-    notes: ctx.isDeload ? "Descarga: haz la mitad de las series indicadas." : undefined,
+    notes: ctx.isDeload ? "Descarga: la mitad de las series indicadas." : undefined,
   };
 }
 
@@ -300,7 +300,7 @@ function hyroxSession(day: DayName, ctx: SessionContext): Session {
       focus: "Repasar la coreografía sin generar fatiga. Cero series duras.",
       blocks: [
         "2 rondas muy suaves: 1 km + 1 estación al 60%",
-        "Ensayar la logística: dónde dejas el agua, cómo entras y sales de cada estación",
+        "Ensayar la logística: dónde queda el agua, cómo se entra y se sale de cada estación",
         isDoubles ? "Cerrar el reparto definitivo y los puntos de cambio" : "Cerrar tu estrategia de ritmo",
       ],
     },
@@ -361,9 +361,9 @@ function strengthSession(day: DayName, ctx: SessionContext, kind: "general" | "i
   return {
     day,
     type: "fuerza",
-    title: maintain ? "Fuerza — mantenimiento" : `Fuerza — ${kind === "superior" ? "empuje y tracción" : "tren inferior"}`,
+    title: maintain ? "Fuerza · mantenimiento" : `Fuerza · ${kind === "superior" ? "empuje y tracción" : "tren inferior"}`,
     focus: maintain
-      ? "Conservar la fuerza que ya tienes gastando lo mínimo. Cerca de la carrera, recuperar vale más que sumar."
+      ? "Conservar la fuerza ya ganada gastando lo mínimo. Cerca de la carrera, recuperar vale más que sumar."
       : "Construir la base de fuerza que sostiene el trineo, los farmers y las zancadas.",
     blocks: ctx.isDeload ? blocks.slice(0, 3).map((b) => `${b} (carga reducida)`) : blocks,
     notes: intensity,

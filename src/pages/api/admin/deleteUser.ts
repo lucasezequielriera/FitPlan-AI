@@ -31,7 +31,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Verificar que no se está intentando eliminar al admin
     if (userId === authResult.uid) {
-      return res.status(400).json({ error: "No puedes eliminar tu propio usuario" });
+      return res.status(400).json({ error: "No se puede eliminar la propia cuenta" });
     }
 
     // Obtener datos del usuario antes de eliminarlo (para verificar email)
