@@ -122,7 +122,6 @@ describe("#11 — ningún `hover:` que no haga nada", () => {
     // Se declaran para que el guard bloquee las NUEVAS sin fingir que estas no
     // están: la lista solo puede encoger.
     const YA_EXISTENTES = [
-      "src/components/ExerciseSetTracker.tsx: hover:text-info",
       "src/components/PremiumPlanModal.tsx: hover:border-[var(--landing-border)]",
       "src/components/WeeklyStatsModal.tsx: hover:text-danger",
       "src/components/admin/AdminApp.tsx: hover:bg-success",

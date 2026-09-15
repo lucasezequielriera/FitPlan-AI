@@ -105,7 +105,7 @@ De los 79 errores y 62 warnings totales, se priorizaron y corrigieron los que re
 - `react-hooks/set-state-in-effect` en `CookieConsentBanner.tsx`, `transformacion-fitplan.tsx` (ES/EN) — `setState` síncrono dentro de `useEffect` sin guardas, puede producir renders en cascada.
 - `react-hooks/static-components` en `MonthChangesModal.tsx` — el subcomponente `CambioIndicator` se recreaba en cada render (definido dentro del componente padre), lo que resetea su estado local y degrada el reconciliado de React en cada apertura del modal.
 
-**Quedan documentados pero no corregidos** (deuda de estilo/tipos, sin riesgo de crash inmediato): `@typescript-eslint/no-explicit-any` disperso (`saveMonthlySnapshot.ts`, `authStore.ts`, `FoodTrackingModal.tsx`, `calculations.ts`), `react/no-unescaped-entities` en páginas legales, `@next/next/no-html-link-for-pages` en `LandingLangToggle.tsx`, y varios `no-unused-vars`/`exhaustive-deps` en `plan.tsx`, `GymCalendarModal.tsx`, `ExerciseSetTracker.tsx`. Ninguno de estos rompe la app; son limpieza recomendada para una sesión futura dedicada a calidad de código.
+**Quedan documentados pero no corregidos** (deuda de estilo/tipos, sin riesgo de crash inmediato): `@typescript-eslint/no-explicit-any` disperso (`saveMonthlySnapshot.ts`, `authStore.ts`, `FoodTrackingModal.tsx`, `calculations.ts`), `react/no-unescaped-entities` en páginas legales, `@next/next/no-html-link-for-pages` en `LandingLangToggle.tsx`, y varios `no-unused-vars`/`exhaustive-deps` en `plan.tsx`, `GymCalendarModal.tsx`. Ninguno de estos rompe la app; son limpieza recomendada para una sesión futura dedicada a calidad de código.
 
 ### 3.3bis Verificación final de esta sesión
 
