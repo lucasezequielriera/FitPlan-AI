@@ -29,7 +29,7 @@ export const HYROX_LANDING = {
   heroTitleA: "Faltan semanas para tu HYROX.",
   heroTitleB: "No un plan de 16.",
   heroSub:
-    "Los planes de HYROX suelen venir en bloques cerrados de 12 o 16 semanas. Pero a una carrera te apuntas cuando te apuntas, y un plan de 16 semanas recortado por la mitad no es un plan de 8: es un plan de 16 mal hecho.",
+    "Los planes de HYROX suelen venir en bloques cerrados de 12 o 16 semanas. Pero a una carrera uno se apunta cuando se apunta, y un plan de 16 semanas recortado por la mitad no es un plan de 8: es un plan de 16 mal hecho.",
   heroCta: "Crear mi plan HYROX",
   heroCtaSecondary: "Ver qué incluye",
   heroNote: `Incluido en Premium, desde ${EUR.monthly.price} €/mes. Cancelas cuando quieras.`,
@@ -55,7 +55,7 @@ export const HYROX_LANDING = {
       body: "Si faltan 18 semanas, hay base aeróbica de sobra. Si faltan 6, se recorta la base y se prioriza lo específico, porque la base es lo que más tarda en dar fruto: sin tiempo para construirla, forzarla solo genera fatiga.",
     },
     {
-      title: "Más base si no corres, menos si ya corres",
+      title: "Más base sin fondo de carrera, menos con él",
       body: "Quien no corre recibe más semanas de rodaje y menos intensidad. No es por ir suave: los tendones y los huesos tardan más en adaptarse que el sistema cardiovascular, así que el cuerpo aguanta el esfuerzo antes de que las estructuras estén listas. Respetar ese margen es la diferencia entre llegar entrenado y llegar tocado.",
     },
     {
@@ -84,7 +84,7 @@ export const HYROX_LANDING = {
   steps: [
     { n: "1", title: "Tu carrera y tu punto de partida", body: "Fecha, división, días disponibles para entrenar, nivel de carrera y de fuerza, y qué material hay." },
     { n: "2", title: "Tu plan, semana a semana", body: "Fases repartidas hasta el día de la carrera, con las sesiones de cada semana y qué busca cada una." },
-    { n: "3", title: "Ajustas y sigues", body: "Cambias tus datos cuando cambie algo y el plan se recalcula entero desde ese momento." },
+    { n: "3", title: "Ajustar y seguir", body: "Los datos se cambian cuando haga falta y el plan se recalcula entero desde ese momento." },
   ],
 
   faqTitle: "Preguntas frecuentes",
@@ -111,7 +111,7 @@ export const HYROX_LANDING = {
     },
     {
       q: "¿Puedo cambiar la fecha de mi carrera después?",
-      a: "Sí. El plan se genera a partir de tus datos, así que si cambias la fecha, tus días disponibles o tu marca de 5 km, se recalcula entero.",
+      a: "Sí. El plan se genera a partir de tus datos, así que al cambiar la fecha, los días disponibles o tu marca de 5 km, se recalcula entero.",
     },
   ],
 

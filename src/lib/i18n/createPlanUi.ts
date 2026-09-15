@@ -210,7 +210,7 @@ export const createPlanGoalLong: Record<Goal, B> = {
     en: "Build muscle with a strategic surplus and strength training. Best when you want weight gain to come mostly from muscle, with enough calories and protein to grow efficiently.",
   },
   recomposicion: {
-    es: "Transforma tu cuerpo perdiendo grasa mientras ganas músculo al mismo tiempo. Este es el objetivo más desafiante pero también el más efectivo a largo plazo. Ideal para personas con experiencia en entrenamiento que buscan cambiar su composición corporal sin cambios drásticos en el peso.",
+    es: "Perder grasa y ganar músculo a la vez. Este es el objetivo más desafiante pero también el más efectivo a largo plazo. Ideal para personas con experiencia en entrenamiento que buscan cambiar su composición corporal sin cambios drásticos en el peso.",
     en: "Lose fat and build muscle at the same time, the hardest but often most rewarding path long term. Best for experienced trainees who want recomposition without extreme scale changes.",
   },
   definicion: {

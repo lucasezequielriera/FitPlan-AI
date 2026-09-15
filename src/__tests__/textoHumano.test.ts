@@ -206,6 +206,12 @@ const FORMAS_TUTEO = new RegExp(
     // distinguen registro y marcarlos sería ruido.
     "tienes|puedes|quieres|necesitas|sabes|haces|vives|prefieres|buscas|entrenas|" +
     "contestas|abres|completas|recibes|eres|debes|sientes|eliges|empiezas|" +
+    // Añadidas tras un barrido ancho: la revisión encontró once formas que la
+    // lista no tenía, repartidas por el formulario de salud y la landing de
+    // HYROX. Una enumeración siempre se queda corta; lo que la mantiene útil
+    // es ampliarla cada vez que aparece una, no fingir que está completa.
+    "comes|descansas|levantas|tomas|trabajas|corres|sigues|cambias|ajustas|apuntas|" +
+    "dices|vienes|sales|duermes|ganas|pierdes|subes|bajas|mides|notas|llegas|" +
     // Imperativos con pronombre pegado: no hay sustantivo que se les parezca.
     "dinos|cuéntanos|cuentanos|apúntalo|apuntalo|míralo|miralo|pruébalo|pruebalo|" +
     // Imperativos sin homógrafo posible.
