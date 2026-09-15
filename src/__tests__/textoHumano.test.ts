@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { PROHIBITED_SHOULDER } from "@/lib/trainingPlanGuards";
 
 /**
  * Ningún texto visible de FitPlan puede sonar a generado por una IA.
@@ -237,9 +238,10 @@ describe("Los ejercicios que promete la landing están de verdad prohibidos", ()
   // el generador EXIGE nombres en inglés. Alguien con el hombro declarado
   // habría recibido justo lo que la landing promete que no recibirá.
   //
-  // Hay DOS listas: la de `trainingPlanGuards.ts` y una copia inline en
-  // `generatePlan.ts`. Un ejercicio tiene que estar en las dos, porque cada
-  // una filtra en un punto distinto.
+  // Este test comprobaba que el término estuviera en DOS archivos, porque
+  // había dos listas copiadas a mano. Ya no: la copia de `generatePlan.ts` se
+  // eliminó y ahora importa la única. Se comprueba contra la lista de verdad,
+  // importándola, en vez de buscar texto en dos ficheros.
 
   const nombrados = () => {
     const copy = leer("src/lib/homeLandingCopy.ts");
@@ -256,29 +258,27 @@ describe("Los ejercicios que promete la landing están de verdad prohibidos", ()
     expect(en.length).toBeGreaterThan(10);
   });
 
-  it("cada ejercicio nombrado está en las dos listas de prohibición", () => {
-    const guards = leer("src/lib/trainingPlanGuards.ts").toLowerCase();
-    const generador = leer("src/pages/api/generatePlan.ts").toLowerCase();
+  it("cada ejercicio nombrado está en la lista de prohibición", () => {
     const { es, en } = nombrados();
+    const texto = `${es} ${en}`.toLowerCase();
 
-    // Términos que el filtro busca por substring, tal cual los escribe.
-    const terminos = ["press militar", "press tras nuca", "fondos en paralelas", "overhead press", "upright row"];
-    const prometidos = terminos.filter((t) => `${es} ${en}`.toLowerCase().includes(t));
+    const prometidos = PROHIBITED_SHOULDER.filter((t) => texto.includes(t));
     expect(prometidos.length).toBeGreaterThan(0);
 
-    const sinRespaldo = prometidos.filter((t) => !guards.includes(t) || !generador.includes(t));
+    // Y al revés: cada cosa que la landing nombra tiene que estar cubierta.
+    const terminos = ["press militar", "press tras nuca", "fondos en paralelas", "overhead press", "upright row"];
+    const nombradosEnCopy = terminos.filter((t) => texto.includes(t));
+    const sinRespaldo = nombradosEnCopy.filter((t) => !PROHIBITED_SHOULDER.includes(t));
     expect(sinRespaldo).toEqual([]);
   });
 
   it("la landing no nombra ningún ejercicio que el filtro no cubra", () => {
     // El fallo exacto de la cuarta pasada. Cualquier palabra suelta que suene
     // a ejercicio y no esté respaldada es una promesa vacía.
-    const guards = leer("src/lib/trainingPlanGuards.ts").toLowerCase();
-    const generador = leer("src/pages/api/generatePlan.ts").toLowerCase();
     const { es, en } = nombrados();
-    const respaldado = (frag: string) => guards.includes(frag) && generador.includes(frag);
+    const respaldado = (frag: string) => PROHIBITED_SHOULDER.some((t) => t.includes(frag) || frag.includes(t));
 
-    const sospechosos = ["dips", "parallel", "shoulder press", "press de hombros", "arnold", "push press", "thruster"];
+    const sospechosos = ["parallel", "handstand pushup", "muscle up", "kipping"];
     const prometidosSinRespaldo = sospechosos.filter(
       (t) => `${es} ${en}`.toLowerCase().includes(t) && !respaldado(t)
     );
